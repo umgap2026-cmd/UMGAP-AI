@@ -1,0 +1,312 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .head {
+    padding: 12px 2px;
+  }
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+  }
+  .sub {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+  }
+
+  .table-wrap {
+    margin-top: 12px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+  table {
+    min-width: 980px;
+  }
+  th {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  td {
+    vertical-align: top;
+  }
+
+  .badge {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-weight: 900;
+    font-size: 12px;
+    background: #f8faff;
+  }
+  .ok {
+    background: rgba(22, 163, 74, 0.1);
+    border-color: rgba(22, 163, 74, 0.25);
+    color: #166534;
+  }
+  .bad {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: rgba(220, 38, 38, 0.25);
+    color: #991b1b;
+  }
+
+  .time {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: normal;
+    min-width: 170px;
+  }
+  .note {
+    white-space: normal;
+    min-width: 240px;
+    max-width: 360px;
+    word-break: break-word;
+  }
+
+  /* Action compact */
+  .act {
+    min-width: 260px;
+  }
+  .actbox {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+  }
+  .actbox input {
+    grid-column: 1 / -1;
+  }
+  .btn-small {
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-weight: 900;
+  }
+
+  /* Mobile cards */
+  .list {
+    display: none;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .cardx {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .name {
+    margin: 0;
+    font-weight: 1000;
+  }
+  .mini {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .tag {
+    display: inline-flex;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #f8faff;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .actm {
+    margin-top: 12px;
+    display: grid;
+    gap: 10px;
+  }
+  .actm .row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .btn-full {
+    width: 100%;
+    justify-content: center;
+  }
+
+  @media (max-width: 820px) {
+    .table-wrap {
+      display: none;
+    }
+    .list {
+      display: grid;
+    }
+    input {
+      padding: 14px;
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="card">
+  <div class="head">
+    <h2 class="title">Approval Penjualan</h2>
+    <p class="sub">
+      Pilih submit yang <b>PENDING</b>, lalu Approve atau Reject.
+    </p>
+  </div>
+</div>
+
+<!-- DESKTOP TABLE -->
+<div class="card" style="margin-top: 16px">
+  <h2 style="margin: 0 0 10px">Daftar Submit</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Karyawan</th>
+          <th>Produk</th>
+          <th>Qty</th>
+          <th>Status</th>
+          <th>Waktu</th>
+          <th>Catatan</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><b>{{ r.employee_name }}</b></td>
+          <td>{{ r.product_name or "-" }}</td>
+          <td><b>{{ r.qty }}</b></td>
+          <td>
+            {% if r.status == 'APPROVED' %}
+            <span class="badge ok">APPROVED</span>
+            {% elif r.status == 'REJECTED' %}
+            <span class="badge bad">REJECTED</span>
+            {% else %}
+            <span class="badge">PENDING</span>
+            {% endif %}
+          </td>
+          <td class="time">{{ r.created_at }}</td>
+          <td class="note">{{ r.note or "-" }}</td>
+
+          <td class="act">
+            {% if r.status == 'PENDING' %}
+            <form method="POST" style="margin: 0">
+              <div class="actbox">
+                <input
+                  name="admin_note"
+                  placeholder="Catatan admin (opsional)"
+                />
+                <button
+                  class="btn btn-primary btn-small"
+                  type="submit"
+                  formaction="/admin/sales/approve/{{ r.id }}"
+                >
+                  Approve
+                </button>
+                <button
+                  class="btn btn-danger btn-small"
+                  type="submit"
+                  formaction="/admin/sales/reject/{{ r.id }}"
+                >
+                  Reject
+                </button>
+              </div>
+            </form>
+            {% else %}
+            <div class="muted" style="font-size: 12px">
+              Catatan admin: <b>{{ r.admin_note or "-" }}</b>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %} {% if rows|length == 0 %}
+        <tr>
+          <td colspan="7" class="muted">Belum ada submit.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MOBILE CARDS -->
+  <div class="list">
+    {% for r in rows %}
+    <div class="cardx">
+      <div class="top">
+        <div>
+          <p class="name">{{ r.employee_name }}</p>
+          <p class="mini">
+            {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
+          </p>
+          <p class="mini">⏱ {{ r.created_at }}</p>
+        </div>
+        <div>
+          {% if r.status == 'APPROVED' %}
+          <span class="badge ok">APPROVED</span>
+          {% elif r.status == 'REJECTED' %}
+          <span class="badge bad">REJECTED</span>
+          {% else %}
+          <span class="badge">PENDING</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="tags">
+        <span class="tag">📦 {{ r.product_name or "-" }}</span>
+        <span class="tag">🔢 {{ r.qty }}</span>
+      </div>
+
+      <div class="mini" style="margin-top: 10px">
+        Catatan: <b style="color: var(--text)">{{ r.note or "-" }}</b>
+      </div>
+
+      {% if r.status == 'PENDING' %}
+      <form method="POST" class="actm">
+        <div>
+          <label>Catatan admin (opsional)</label>
+          <input name="admin_note" placeholder="ok / data kurang jelas" />
+        </div>
+        <div class="row2">
+          <button
+            class="btn btn-primary btn-full"
+            type="submit"
+            formaction="/admin/sales/approve/{{ r.id }}"
+          >
+            Approve
+          </button>
+          <button
+            class="btn btn-danger btn-full"
+            type="submit"
+            formaction="/admin/sales/reject/{{ r.id }}"
+          >
+            Reject
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div class="mini" style="margin-top: 10px">
+        Catatan admin:
+        <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %} {% if rows|length == 0 %}
+    <div class="muted">Belum ada submit.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

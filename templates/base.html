@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title or "UMGAP" }}</title>
+    <style>
+      :root {
+        --bg: #f6f8fc;
+        --card: #ffffff;
+        --border: #e6eaf2;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #2563eb;
+        --primary2: #1d4ed8;
+        --good: #16a34a;
+        --bad: #dc2626;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --radius: 16px;
+
+        /* aksesibilitas (lebih mudah dibaca) */
+        --font:
+          ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
+          "Noto Sans", "Helvetica Neue", sans-serif;
+        --fs: 16px;
+        --fs-sm: 14px;
+        --fs-lg: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        font-size: var(--fs);
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 22px auto;
+        padding: 0 16px;
+      }
+
+      /* Topbar */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+      .logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(37, 99, 235, 0.1);
+        border: 1px solid rgba(37, 99, 235, 0.18);
+        font-weight: 800;
+        color: var(--primary);
+      }
+      .brand-title {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+        min-width: 0;
+      }
+      .brand-title .name {
+        font-weight: 800;
+        font-size: 16px;
+      }
+      .brand-title .sub {
+        font-size: var(--fs-sm);
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #f8faff;
+        font-size: var(--fs-sm);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .pill .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 99px;
+        background: var(--good);
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 10px 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+      .btn-primary {
+        background: var(--primary);
+        border-color: rgba(37, 99, 235, 0.35);
+        color: white;
+      }
+      .btn-primary:hover {
+        background: var(--primary2);
+      }
+      .btn-danger {
+        background: #fee2e2;
+        border-color: #fca5a5;
+        color: #991b1b;
+      }
+
+      /* Layout */
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+      .card h2 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: var(--fs-sm);
+      }
+
+      /* Form */
+      label {
+        display: block;
+        font-size: var(--fs-sm);
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #ffffff;
+        font-size: var(--fs);
+        outline: none;
+      }
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .row-1 {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      /* Table (simple) */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-size: var(--fs-sm);
+      }
+      .badge {
+        display: inline-flex;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        font-weight: 800;
+        font-size: var(--fs-sm);
+        background: #f8faff;
+      }
+
+      /* Mobile */
+      @media (max-width: 900px) {
+        .topbar {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 12px;
+        }
+
+        .brand {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .brand-title {
+          display: none;
+        } /* biar simple di mobile */
+        .pill {
+          width: auto;
+        }
+
+        .actions {
+          width: 100%;
+          display: grid;
+          grid-template-columns: 1fr 1fr; /* 2 tombol per baris */
+          gap: 10px;
+        }
+
+        .btn {
+          width: 100%;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+      .avatar-logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+      }
+
+      .avatar-logo img {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        display: block;
+      }
+      /* ===== Page header (judul halaman) ===== */
+      .page-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+      }
+      .page-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        letter-spacing: 0.2px;
+      }
+      .page-sub {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: var(--fs-sm);
+        line-height: 1.35;
+      }
+
+      /* ===== Section spacing ===== */
+      .section {
+        margin-top: 14px;
+      }
+      .section-title {
+        margin: 0 0 8px;
+        font-size: 15px;
+        font-weight: 1000;
+      }
+
+      /* ===== Buttons polish ===== */
+      .btn {
+        transition:
+          transform 0.12s ease,
+          background 0.12s ease,
+          border-color 0.12s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .btn:active {
+        transform: translateY(0px);
+      }
+      .btn[disabled] {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* ===== Card polish ===== */
+      .card {
+        padding: 16px;
+      }
+      .card p {
+        margin: 0;
+      }
+
+      /* ===== Mobile tap target ===== */
+      @media (max-width: 900px) {
+        .btn {
+          padding: 14px 14px;
+          border-radius: 14px;
+          font-size: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <div class="brand">
+          <div class="avatar-logo">
+            <img src="/static/UMGAP (1).png" alt="UMGAP" />
+          </div>
+
+          <div class="brand-title">
+            <div class="name">UMGAP</div>
+            <div class="sub">Asisten UMKM</div>
+          </div>
+          <div class="pill" title="Status akun">
+            <span class="dot"></span>
+            <span>{{ session.get("user_name","") }}</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="button" onclick="history.back()">
+            Back
+          </button>
+          <a class="btn btn-danger" href="/logout">Logout</a>
+        </div>
+      </div>
+
+      {% block content %}{% endblock %}
+      <div
+        style="
+          text-align: center;
+          margin: 18px 0;
+          color: var(--muted);
+          font-size: var(--fs-sm);
+        "
+      >
+        UMGAP • Reserve 2026
+      </div>
+    </div>
+  </body>
+</html>

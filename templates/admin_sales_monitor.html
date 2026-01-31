@@ -1,0 +1,161 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 900px) {
+    .grid2 {
+      grid-template-columns: 360px 1fr;
+    }
+  }
+  .table-wrap {
+    width: 100%;
+    overflow: auto;
+  }
+  .list-mobile {
+    display: none;
+  }
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #fff;
+    margin-top: 10px;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .big {
+    font-size: 18px;
+    font-weight: 900;
+  }
+  @media (max-width: 640px) {
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
+  }
+</style>
+
+<div class="card">
+  <h2>Monitoring Penjualan Karyawan</h2>
+  <div class="muted">
+    Admin hanya memantau: total penjualan per karyawan dan detail submit
+    terbaru.
+  </div>
+</div>
+
+<div class="grid2" style="margin-top: 14px">
+  <!-- Rekap per karyawan -->
+  <div class="card">
+    <h2>Rekap Total per Karyawan</h2>
+    <div class="muted">Urut dari paling banyak.</div>
+
+    <div class="table-wrap" style="margin-top: 10px">
+      <table>
+        <thead>
+          <tr>
+            <th>Karyawan</th>
+            <th style="min-width: 120px">Total Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in summary %}
+          <tr>
+            <td><b>{{ s.employee_name }}</b></td>
+            <td class="big">{{ s.total_qty }}</td>
+          </tr>
+          {% endfor %} {% if summary|length == 0 %}
+          <tr>
+            <td colspan="2" class="muted">Belum ada data.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="list-mobile" style="margin-top: 10px">
+      {% for s in summary %}
+      <div class="item">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+          "
+        >
+          <div>
+            <div style="font-weight: 900">{{ s.employee_name }}</div>
+            <div class="mini">Total penjualan</div>
+          </div>
+          <div class="big">{{ s.total_qty }}</div>
+        </div>
+      </div>
+      {% endfor %} {% if summary|length == 0 %}
+      <div class="muted">Belum ada data.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Detail submit -->
+  <div class="card">
+    <h2>Detail Submit Terbaru</h2>
+    <div class="muted">Menampilkan sampai 200 data terakhir.</div>
+
+    <div class="table-wrap" style="margin-top: 10px">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width: 170px">Waktu</th>
+            <th style="min-width: 160px">Karyawan</th>
+            <th style="min-width: 160px">Produk</th>
+            <th style="min-width: 90px">Qty</th>
+            <th>Catatan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="mini">{{ r.created_at }}</td>
+            <td><b>{{ r.employee_name }}</b></td>
+            <td>{{ r.product_name or "-" }}</td>
+            <td><span class="badge">{{ r.qty }}</span></td>
+            <td class="mini">{{ r.note }}</td>
+          </tr>
+          {% endfor %} {% if rows|length == 0 %}
+          <tr>
+            <td colspan="5" class="muted">Belum ada submit penjualan.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="list-mobile" style="margin-top: 10px">
+      {% for r in rows %}
+      <div class="item">
+        <div style="display: flex; justify-content: space-between; gap: 10px">
+          <div>
+            <div style="font-weight: 900">{{ r.employee_name }}</div>
+            <div class="mini">{{ r.product_name or "-" }}</div>
+            <div class="mini">{{ r.created_at }}</div>
+          </div>
+          <div class="big">{{ r.qty }}</div>
+        </div>
+        <div class="mini" style="margin-top: 8px">
+          Catatan: {{ r.note if r.note else "-" }}
+        </div>
+      </div>
+      {% endfor %} {% if rows|length == 0 %}
+      <div class="muted">Belum ada submit penjualan.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .table-wrap {
+    width: 100%;
+    overflow: auto;
+  }
+  .list-mobile {
+    display: none;
+  }
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #fff;
+    margin-top: 10px;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  @media (max-width: 640px) {
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
+    input,
+    select,
+    textarea {
+      padding: 14px;
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="grid">
+  <div class="card">
+    <h2>Submit Penjualan</h2>
+    <div class="muted">
+      Pilih produk dan jumlah terjual. Admin akan memproses (PENDING).
+    </div>
+
+    <form method="POST" action="/sales" style="margin-top: 12px">
+      <div class="row-1">
+        <div>
+          <label>Pilih produk</label>
+          <select name="product_id" required>
+            {% for p in products %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label>Jumlah terjual</label>
+          <input
+            type="number"
+            min="1"
+            name="qty"
+            placeholder="contoh: 100"
+            required
+          />
+        </div>
+
+        <div>
+          <label>Catatan (opsional)</label>
+          <textarea
+            name="note"
+            placeholder="Contoh: terjual di toko / marketplace..."
+          ></textarea>
+        </div>
+
+        <button
+          class="btn btn-primary"
+          type="submit"
+          style="
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 14px;
+            font-size: 16px;
+          "
+        >
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Riwayat Submit</h2>
+
+    <div class="table-wrap" style="margin-top: 10px">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width: 160px">Produk</th>
+            <th style="min-width: 90px">Qty</th>
+            <th style="min-width: 120px">Status</th>
+            <th style="min-width: 170px">Waktu</th>
+            <th>Catatan</th>
+            <th>Catatan Admin</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td><b>{{ r.product_name or "-" }}</b></td>
+            <td>{{ r.qty }}</td>
+            <td><span class="badge">{{ r.status }}</span></td>
+            <td class="mini">{{ r.created_at }}</td>
+            <td class="mini">{{ r.note }}</td>
+            <td class="mini">{{ r.admin_note }}</td>
+          </tr>
+          {% endfor %} {% if rows|length == 0 %}
+          <tr>
+            <td colspan="6" class="muted">Belum ada submit penjualan.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="list-mobile" style="margin-top: 10px">
+      {% for r in rows %}
+      <div class="item">
+        <div style="display: flex; justify-content: space-between; gap: 10px">
+          <div>
+            <div style="font-weight: 900">{{ r.product_name or "-" }}</div>
+            <div class="mini">Qty: <b>{{ r.qty }}</b></div>
+            <div class="mini">Waktu: {{ r.created_at }}</div>
+          </div>
+          <span class="badge">{{ r.status }}</span>
+        </div>
+        <div class="mini" style="margin-top: 8px">
+          Catatan: {{ r.note if r.note else "-" }}
+        </div>
+        <div class="mini" style="margin-top: 6px">
+          Admin: {{ r.admin_note if r.admin_note else "-" }}
+        </div>
+      </div>
+      {% endfor %} {% if rows|length == 0 %}
+      <div class="muted">Belum ada submit penjualan.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
