@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Edit Produk</title>
+    <style>
+      :root {
+        --bg: #f6f8fc;
+        --card: rgba(255, 255, 255, 0.82);
+        --text: #0f172a;
+        --muted: #64748b;
+        --line: #e5e7eb;
+        --brand: #2563eb;
+        --brand2: #1d4ed8;
+        --bad: #dc2626;
+        --shadow: 0 12px 30px rgba(2, 6, 23, 0.08);
+        --r: 18px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial;
+        color: var(--text);
+        background:
+          radial-gradient(
+            900px 420px at 12% -10%,
+            rgba(37, 99, 235, 0.16) 0%,
+            transparent 60%
+          ),
+          radial-gradient(
+            700px 360px at 105% 0%,
+            rgba(245, 158, 11, 0.16) 0%,
+            transparent 55%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 18px 14px 60px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(
+          180deg,
+          rgba(37, 99, 235, 0.98),
+          rgba(29, 78, 216, 0.98)
+        );
+        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        flex: 0 0 auto;
+      }
+      .brandtext {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .brandtext .title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 1000;
+        letter-spacing: 0.2px;
+        line-height: 1.1;
+      }
+      .brandtext .sub {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.25;
+      }
+      .right {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 900;
+        cursor: pointer;
+        transition:
+          transform 0.12s ease,
+          border-color 0.12s ease,
+          background 0.12s ease;
+        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.05);
+        white-space: nowrap;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: #cbd5e1;
+        background: #fff;
+      }
+      .btn.primary {
+        background: linear-gradient(
+          180deg,
+          rgba(37, 99, 235, 0.98),
+          rgba(29, 78, 216, 0.98)
+        );
+        border-color: rgba(37, 99, 235, 0.35);
+        color: #fff;
+        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.22);
+      }
+      .btn.primary:hover {
+        background: linear-gradient(
+          180deg,
+          rgba(29, 78, 216, 0.98),
+          rgba(29, 78, 216, 0.98)
+        );
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: 14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        letter-spacing: 0.2px;
+        font-weight: 1000;
+      }
+      .muted {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .divider {
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--line),
+          transparent
+        );
+        margin: 12px 0;
+      }
+
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        margin: 0 0 6px;
+      }
+      input {
+        width: 100%;
+        padding: 11px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        font-size: 14px;
+        transition:
+          border-color 0.12s ease,
+          box-shadow 0.12s ease;
+      }
+      input:focus {
+        border-color: rgba(37, 99, 235, 0.55);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      @media (min-width: 720px) {
+        .row {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .error {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(220, 38, 38, 0.25);
+        background: rgba(220, 38, 38, 0.06);
+        color: #b91c1c;
+        font-weight: 900;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 20h16"
+                stroke="white"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <path
+                d="M7 16l9.5-9.5a2 2 0 0 1 2.8 2.8L9.8 19H7v-3z"
+                stroke="white"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <div class="brandtext">
+            <p class="title">Edit Produk</p>
+            <p class="sub">ID #{{ product.id }}</p>
+          </div>
+        </div>
+
+        <div class="right">
+          <a class="btn" href="/products">⬅ Kembali</a>
+          <a class="btn" href="/logout">Logout</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Ubah Data</h2>
+        <p class="muted">Simpan untuk memperbarui produk.</p>
+        <div class="divider"></div>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        <div class="divider"></div>
+        {% endif %}
+
+        <form method="post" action="/products/edit/{{ product.id }}">
+          <div class="row">
+            <div>
+              <label>Nama</label>
+              <input
+                type="text"
+                name="name"
+                value="{{ product.name }}"
+                required
+              />
+            </div>
+            <div>
+              <label>Harga</label>
+              <input
+                type="number"
+                name="price"
+                min="0"
+                value="{{ product.price }}"
+                required
+              />
+            </div>
+          </div>
+
+          <div
+            style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap"
+          >
+            <button class="btn primary" type="submit">💾 Simpan</button>
+            <a class="btn" href="/products">Batal</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,301 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  /* ===== Attendance Page Styles ===== */
+  .page-title {
+    margin: 16px 0 0;
+  }
+  .helper {
+    margin-top: 6px;
+  }
+
+  /* Live clock */
+  .clock {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: #f8faff;
+    margin-top: 12px;
+  }
+  .clock .left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .clock .label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .clock .time {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+  }
+  .clock .date {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* Riwayat: desktop table vs mobile cards */
+  .table-wrap {
+    width: 100%;
+    overflow: auto;
+  }
+  .list-mobile {
+    display: none;
+  }
+
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #fff;
+    margin-top: 10px;
+  }
+  .item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .item-top .date {
+    font-weight: 900;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+  .item-top .right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  .item-mid {
+    margin-top: 8px;
+  }
+  .item-note {
+    margin-top: 10px;
+    line-height: 1.4;
+  }
+
+  .btn-big {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Badge variations (optional) */
+  .badge-ok {
+    background: #ecfdf5;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+  .badge-warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+  .badge-bad {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+  .badge-info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e3a8a;
+  }
+
+  @media (max-width: 640px) {
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
+
+    input,
+    select,
+    textarea {
+      padding: 14px;
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="grid">
+  <!-- ===== FORM ABSENSI ===== -->
+  <div class="card">
+    <h2 class="page-title">Absensi Hari Ini</h2>
+    <div class="muted helper">
+      Tanggal &amp; jam otomatis. Kamu cukup pilih tipe kedatangan dan isi
+      alasan.
+    </div>
+
+    <!-- LIVE CLOCK -->
+    <div class="clock" aria-live="polite">
+      <div class="left">
+        <div class="label">Waktu sekarang</div>
+        <div class="time" id="liveTime">--:--:--</div>
+        <div class="date" id="liveDate">---</div>
+      </div>
+      <div class="muted">Asia/Jakarta</div>
+    </div>
+
+    <form method="POST" action="/attendance/add" style="margin-top: 14px">
+      <div class="row-1">
+        <div>
+          <label>Tipe kedatangan</label>
+          <select name="arrival_type" required>
+            <option value="ONTIME" selected>Hadir (Tepat waktu)</option>
+            <option value="LATE">Terlambat</option>
+            <option value="SICK">Sakit</option>
+            <option value="LEAVE">Cuti</option>
+            <option value="ABSENT">Tidak hadir</option>
+          </select>
+          <div class="mini" style="margin-top: 6px">
+            Jika submit lagi hari yang sama, data akan otomatis diperbarui.
+          </div>
+        </div>
+
+        <div>
+          <label>Alasan / catatan</label>
+          <textarea
+            name="note"
+            placeholder="Contoh: macet, sakit, izin keluarga..."
+          ></textarea>
+        </div>
+
+        <button class="btn btn-primary btn-big" type="submit">
+          Submit Absensi
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ===== RIWAYAT ABSENSI ===== -->
+  <div class="card">
+    <h2 class="page-title">Riwayat Absensi</h2>
+    <div class="muted helper">Desktop: tabel • Mobile: kartu</div>
+
+    <!-- DESKTOP -->
+    <div class="table-wrap" style="margin-top: 10px">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width: 120px">Tanggal</th>
+            <th style="min-width: 110px">Jam</th>
+            <th style="min-width: 130px">Tipe</th>
+            <th style="min-width: 110px">Status</th>
+            <th>Catatan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.work_date }}</td>
+            <td>
+              {% if r.checkin_at %} {{ r.checkin_at.strftime("%H:%M:%S") }} {%
+              else %} - {% endif %}
+            </td>
+            <td>
+              {# Badge style berdasarkan tipe #} {% set t = (r.arrival_type or
+              '') %} {% if t == 'ONTIME' %}
+              <span class="badge badge-ok">ONTIME</span>
+              {% elif t == 'LATE' %}
+              <span class="badge badge-warn">LATE</span>
+              {% elif t == 'SICK' %}
+              <span class="badge badge-info">SICK</span>
+              {% elif t == 'LEAVE' %}
+              <span class="badge badge-info">LEAVE</span>
+              {% elif t == 'ABSENT' %}
+              <span class="badge badge-bad">ABSENT</span>
+              {% else %}
+              <span class="badge">{{ r.arrival_type }}</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ r.status }}</td>
+            <td class="muted">{{ r.note }}</td>
+          </tr>
+          {% endfor %} {% if rows|length == 0 %}
+          <tr>
+            <td colspan="5" class="muted">Belum ada absensi.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- MOBILE -->
+    <div class="list-mobile" style="margin-top: 10px">
+      {% for r in rows %} {% set t = (r.arrival_type or '') %}
+      <div class="item">
+        <div class="item-top">
+          <div class="date">
+            {{ r.work_date }}
+            <div class="mini" style="margin-top: 4px">
+              {% if r.checkin_at %} Jam:
+              <b>{{ r.checkin_at.strftime("%H:%M:%S") }}</b>
+              {% else %} Jam: - {% endif %}
+            </div>
+          </div>
+          <div class="right">
+            {% if t == 'ONTIME' %}
+            <span class="badge badge-ok">ONTIME</span>
+            {% elif t == 'LATE' %}
+            <span class="badge badge-warn">LATE</span>
+            {% elif t == 'SICK' %}
+            <span class="badge badge-info">SICK</span>
+            {% elif t == 'LEAVE' %}
+            <span class="badge badge-info">LEAVE</span>
+            {% elif t == 'ABSENT' %}
+            <span class="badge badge-bad">ABSENT</span>
+            {% else %}
+            <span class="badge">{{ r.arrival_type }}</span>
+            {% endif %}
+            <div class="mini">Status: <b>{{ r.status }}</b></div>
+          </div>
+        </div>
+
+        <div class="item-note muted">
+          {% if r.note and r.note|length > 0 %} {{ r.note }} {% else %} Catatan:
+          - {% endif %}
+        </div>
+      </div>
+      {% endfor %} {% if rows|length == 0 %}
+      <div class="muted">Belum ada absensi.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== LIVE CLOCK (tampilan) =====
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function tick() {
+    const now = new Date();
+    const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const date = now.toLocaleDateString("id-ID", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    document.getElementById("liveTime").textContent = time;
+    document.getElementById("liveDate").textContent = date;
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+{% endblock %}

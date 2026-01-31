@@ -1,0 +1,196 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .toprow {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  @media (min-width: 900px) {
+    .cards {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+  .kpi {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #fff;
+  }
+  .kpi .label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .kpi .value {
+    font-size: 20px;
+    font-weight: 900;
+    margin-top: 6px;
+  }
+
+  .table-wrap {
+    width: 100%;
+    overflow: auto;
+    margin-top: 12px;
+  }
+  .list-mobile {
+    display: none;
+    margin-top: 12px;
+  }
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #fff;
+    margin-top: 10px;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .big {
+    font-size: 18px;
+    font-weight: 900;
+  }
+  .pill {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 12px;
+  }
+  @media (max-width: 640px) {
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
+    input {
+      padding: 14px;
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="card">
+  <div class="toprow">
+    <div>
+      <h2>Statistik Kinerja Karyawan</h2>
+      <div class="muted">Rekap absensi + total penjualan (Qty) per bulan.</div>
+    </div>
+
+    <form method="GET" action="/admin/stats" style="min-width: 220px">
+      <label>Bulan</label>
+      <div style="display: flex; gap: 10px">
+        <input type="month" name="month" value="{{ month }}" required />
+        <button class="btn btn-primary" type="submit">Tampilkan</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="cards">
+    <div class="kpi">
+      <div class="label">Total Hadir</div>
+      <div class="value">{{ totals.present }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Terlambat</div>
+      <div class="value">{{ totals.late }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Sakit</div>
+      <div class="value">{{ totals.sick }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Cuti</div>
+      <div class="value">{{ totals.leave }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Absen</div>
+      <div class="value">{{ totals.absent }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Sales (Qty)</div>
+      <div class="value">{{ totals.sales }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px">
+  <h2>Rekap per Karyawan</h2>
+  <div class="muted">Tabel untuk desktop, kartu untuk mobile.</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width: 180px">Karyawan</th>
+          <th style="min-width: 90px">Hadir</th>
+          <th style="min-width: 110px">Terlambat</th>
+          <th style="min-width: 90px">Sakit</th>
+          <th style="min-width: 90px">Cuti</th>
+          <th style="min-width: 90px">Absen</th>
+          <th style="min-width: 110px">Sales Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><b>{{ r.employee_name }}</b></td>
+          <td>{{ r.present_days }}</td>
+          <td>{{ r.late_days }}</td>
+          <td>{{ r.sick_days }}</td>
+          <td>{{ r.leave_days }}</td>
+          <td>{{ r.absent_days }}</td>
+          <td><span class="badge">{{ r.sales_qty }}</span></td>
+        </tr>
+        {% endfor %} {% if rows|length == 0 %}
+        <tr>
+          <td colspan="7" class="muted">Belum ada data.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="list-mobile">
+    {% for r in rows %}
+    <div class="item">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: flex-start;
+        "
+      >
+        <div>
+          <div style="font-weight: 900">{{ r.employee_name }}</div>
+          <div class="mini">Sales Qty: <b>{{ r.sales_qty }}</b></div>
+        </div>
+        <span class="pill">Hadir <b>{{ r.present_days }}</b></span>
+      </div>
+
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px">
+        <span class="pill">Terlambat <b>{{ r.late_days }}</b></span>
+        <span class="pill">Sakit <b>{{ r.sick_days }}</b></span>
+        <span class="pill">Cuti <b>{{ r.leave_days }}</b></span>
+        <span class="pill">Absen <b>{{ r.absent_days }}</b></span>
+      </div>
+    </div>
+    {% endfor %} {% if rows|length == 0 %}
+    <div class="muted">Belum ada data.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

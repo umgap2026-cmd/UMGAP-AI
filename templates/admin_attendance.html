@@ -1,0 +1,191 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  @media (min-width: 980px) {
+    .grid2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+  }
+  .stack {
+    display: grid;
+    gap: 12px;
+  }
+  .btn-full {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 14px;
+    border-radius: 14px;
+    font-weight: 1000;
+  }
+  .table-wrap {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+  .time {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: normal;
+  }
+  .badge {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-weight: 900;
+    font-size: 12px;
+    background: #f8faff;
+  }
+</style>
+
+<div class="card">
+  <h2 style="margin: 0">Absensi</h2>
+  <p class="hint">
+    Admin bisa absen sendiri dan bisa absenkan karyawan yang tidak punya HP.
+  </p>
+</div>
+
+<div class="grid2">
+  <!-- Absen Saya -->
+  <div class="card">
+    <h2 style="margin: 0 0 6px">Absen Saya</h2>
+    <p class="hint">Tanggal & jam otomatis (live).</p>
+
+    <form
+      method="POST"
+      action="/admin/attendance/add"
+      class="stack"
+      style="margin-top: 12px"
+    >
+      <input
+        type="hidden"
+        name="user_id"
+        value="{{ session.get('user_id') }}"
+      />
+
+      <div>
+        <label>Tipe kedatangan</label>
+        <select name="arrival_type" required>
+          <option value="ONTIME">Hadir (Tepat waktu)</option>
+          <option value="LATE">Terlambat</option>
+          <option value="SICK">Sakit</option>
+          <option value="LEAVE">Izin</option>
+          <option value="ABSENT">Tidak masuk</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Catatan (opsional)</label>
+        <textarea
+          name="note"
+          placeholder="Contoh: macet, sakit, izin keluarga..."
+        ></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit">
+        Submit Absen Saya
+      </button>
+    </form>
+  </div>
+
+  <!-- Absenkan Karyawan -->
+  <div class="card">
+    <h2 style="margin: 0 0 6px">Absenkan Karyawan</h2>
+    <p class="hint">Untuk karyawan yang tidak punya HP.</p>
+
+    <form
+      method="POST"
+      action="/admin/attendance/add"
+      class="stack"
+      style="margin-top: 12px"
+    >
+      <div>
+        <label>Pilih karyawan</label>
+        <select name="user_id" required>
+          {% for e in employees %}
+          <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label>Tipe kedatangan</label>
+        <select name="arrival_type" required>
+          <option value="ONTIME">Hadir (Tepat waktu)</option>
+          <option value="LATE">Terlambat</option>
+          <option value="SICK">Sakit</option>
+          <option value="LEAVE">Izin</option>
+          <option value="ABSENT">Tidak masuk</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Catatan (opsional)</label>
+        <textarea
+          name="note"
+          placeholder="Contoh: absen oleh admin, alasan..."
+        ></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit">
+        Submit Absen Karyawan
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Riwayat -->
+<div class="card" style="margin-top: 16px">
+  <h2 style="margin: 0 0 10px">Riwayat Terbaru</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tanggal</th>
+          <th>Jam</th>
+          <th>Karyawan</th>
+          <th>Tipe</th>
+          <th>Status</th>
+          <th>Catatan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.work_date }}</td>
+          <td class="time">{{ r.checkin_at }}</td>
+          <td><b>{{ r.employee_name }}</b></td>
+          <td>{{ r.arrival_type }}</td>
+          <td><span class="badge">{{ r.status }}</span></td>
+          <td
+            style="
+              white-space: normal;
+              max-width: 420px;
+              word-break: break-word;
+            "
+          >
+            {{ r.note or "-" }}
+          </td>
+        </tr>
+        {% endfor %} {% if rows|length == 0 %}
+        <tr>
+          <td colspan="6" class="muted">Belum ada data absensi.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

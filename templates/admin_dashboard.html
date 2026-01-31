@@ -1,0 +1,200 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 980px) {
+    .grid2 {
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+  }
+
+  .kpi {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 720px) {
+    .kpi {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .k {
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .k .t {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .k .v {
+    margin: 6px 0 0;
+    font-size: 18px;
+    font-weight: 1000;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .btn-big {
+    padding: 14px 14px;
+    border-radius: 14px;
+    font-weight: 900;
+  }
+
+  .chartbox {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px;
+    background: #fff;
+  }
+  .chartbox h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 1000;
+  }
+  canvas {
+    width: 100% !important;
+    height: 260px !important;
+  }
+
+  @media (max-width: 640px) {
+    .btn-big {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
+
+<div class="card">
+  <h2>Dashboard Admin</h2>
+  <p class="muted">Pantau absensi, penjualan, produk, dan statistik.</p>
+
+  <div class="actions">
+    <a class="btn btn-primary btn-big" href="/admin/users"
+      >👥 Kelola Karyawan</a
+    >
+    <a class="btn btn-primary btn-big" href="/admin/attendance">🧾 Absensi</a>
+    <a class="btn btn-primary btn-big" href="/admin/sales"
+      >✅ Approval Penjualan</a
+    >
+    <a class="btn btn-primary btn-big" href="/admin/sales/monitor"
+      >📈 Sales Monitor</a
+    >
+
+    <!-- ✅ TAMBAH INI -->
+    <a class="btn btn-primary btn-big" href="/admin/payroll">💸 Payroll</a>
+
+    <a class="btn btn-primary btn-big" href="/products">📦 Produk</a>
+    <a class="btn btn-primary btn-big" href="#statistik">📊 Statistik</a>
+  </div>
+</div>
+
+<div class="grid2" style="margin-top: 14px">
+  <div class="card">
+    <h2>Ringkasan</h2>
+
+    <div class="kpi">
+      <div class="k">
+        <p class="t">Total Karyawan</p>
+        <p class="v">{{ total_employees }}</p>
+      </div>
+      <div class="k">
+        <p class="t">Absensi Hari Ini</p>
+        <p class="v">{{ attendance_today }}</p>
+      </div>
+      <div class="k">
+        <p class="t">Sales Pending</p>
+        <p class="v">{{ sales_pending }}</p>
+      </div>
+      <div class="k">
+        <p class="t">Total Produk</p>
+        <p class="v">{{ total_products }}</p>
+      </div>
+    </div>
+
+    <div id="statistik" style="margin-top: 14px" class="chartbox">
+      <h3>Absensi 7 Hari Terakhir</h3>
+      <canvas id="chartAtt"></canvas>
+    </div>
+
+    <div style="margin-top: 14px" class="chartbox">
+      <h3>Penjualan (Qty) 7 Hari Terakhir</h3>
+      <canvas id="chartSales"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Top Penjualan Bulan Ini</h2>
+    <p class="muted">5 karyawan dengan qty tertinggi.</p>
+
+    <div class="chartbox" style="margin-top: 10px">
+      <canvas id="chartTop"></canvas>
+    </div>
+
+    <p class="muted" style="margin-top: 10px">
+      Tip: approval di menu “Approval Penjualan”, detail jam/tanggal di “Sales
+      Monitor”.
+    </p>
+  </div>
+</div>
+
+<script id="chart-data" type="application/json">
+  {{ {
+    "labels": labels,
+    "attSeries": att_series,
+    "salesSeries": sales_series,
+    "topLabels": top_labels,
+    "topValues": top_values
+  } | tojson }}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const raw = document.getElementById("chart-data").textContent;
+  const data = JSON.parse(raw);
+
+  const labels = data.labels || [];
+  const attSeries = data.attSeries || [];
+  const salesSeries = data.salesSeries || [];
+  const topLabels = data.topLabels || [];
+  const topValues = data.topValues || [];
+
+  function safeChart(elId, cfg) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    new Chart(el, cfg);
+  }
+
+  safeChart("chartAtt", {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{ label: "Absensi", data: attSeries, tension: 0.35 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false },
+  });
+
+  safeChart("chartSales", {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Qty", data: salesSeries }] },
+    options: { responsive: true, maintainAspectRatio: false },
+  });
+
+  safeChart("chartTop", {
+    type: "bar",
+    data: { labels: topLabels, datasets: [{ label: "Qty", data: topValues }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: "y" },
+  });
+</script>
+{% endblock %}
