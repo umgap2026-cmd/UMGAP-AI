@@ -180,6 +180,19 @@ def init_products_v2():
     return "OK: products v2 (is_global) siap."
 
 
+@app.route("/dashboard")
+def dashboard_redirect():
+    if not is_logged_in():
+        return redirect("/login")
+
+    role = session.get("role", "employee")
+    if role == "admin":
+        return redirect("/admin/dashboard")
+
+    # user/karyawan arahkan ke halaman kerja utama
+    return redirect("/sales")
+
+
 @app.route("/")
 def dashboard():
     if not is_logged_in():
@@ -1815,4 +1828,5 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
