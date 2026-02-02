@@ -194,6 +194,7 @@ def dashboard_redirect():
 
 
 @app.route("/")
+@app.route("/dashboard")  # <-- tambah ini
 def dashboard():
     if not is_logged_in():
         return redirect("/login")
@@ -1828,5 +1829,6 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
