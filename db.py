@@ -3,17 +3,17 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 def get_conn():
+    # Prioritas: DATABASE_URL (paling aman di Render)
     db_url = os.getenv("DATABASE_URL")
-
     if db_url:
-        # Render Postgres biasanya butuh SSL
+        # Render Postgres umumnya butuh SSL
         if "sslmode=" not in db_url:
             joiner = "&" if "?" in db_url else "?"
             db_url = db_url + f"{joiner}sslmode=require"
 
         return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
 
-    # fallback kalau DATABASE_URL belum diset
+    # Fallback: pakai env lama
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
         port=os.getenv("DB_PORT", "5432"),
