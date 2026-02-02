@@ -1,24 +1,25 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from dotenv import load_dotenv
-from pathlib import Path
-
-# paksa baca .env dari folder project (root)
-env_path = Path(__file__).resolve().parent / ".env"
-load_dotenv(dotenv_path=env_path)
 
 def get_conn():
-    password = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS")
-    user = os.getenv("DB_USER") or os.getenv("DB_USERNAME")
+    db_url = os.getenv("DATABASE_URL")
 
+    if db_url:
+        # Render Postgres biasanya butuh SSL
+        if "sslmode=" not in db_url:
+            joiner = "&" if "?" in db_url else "?"
+            db_url = db_url + f"{joiner}sslmode=require"
+
+        return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+
+    # fallback kalau DATABASE_URL belum diset
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
+        port=os.getenv("DB_PORT", "5432"),
         dbname=os.getenv("DB_NAME"),
-        user=user,
-        password=password,
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASS"),
+        sslmode=os.getenv("DB_SSLMODE", "require"),
         cursor_factory=RealDictCursor,
     )
-
-
