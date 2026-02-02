@@ -44,7 +44,7 @@ Maksimal 2 kalimat + hashtag.
 
 
 app = Flask(__name__)
-app.secret_key = "ganti_ini_jadi_string_acak_untuk_ta"
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
 
 def is_logged_in():
@@ -1829,6 +1829,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
