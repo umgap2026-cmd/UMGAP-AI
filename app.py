@@ -1327,7 +1327,6 @@ def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
 
 @app.route("/admin/payroll")
 def admin_payroll():
-
     month = request.args.get("month")  # format: YYYY-MM
     if not month:
         today = date.today()
@@ -1347,49 +1346,76 @@ def admin_payroll():
     WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    # Ambil setting gaji (bulanan & harian kalau ada) + rekap absensi
     cur.execute("""
       SELECT
-        u.id, u.name,
+        u.id,
+        u.name,
         COALESCE(p.monthly_salary, 0) AS monthly_salary,
+        COALESCE(p.daily_salary, 0)   AS daily_salary,
         COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
-        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
-        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
+        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0)    AS days_sick,
+        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0)   AS days_leave,
+        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0)  AS days_absent
       FROM users u
-      LEFT JOIN payroll_settings p ON p.user_id=u.id
-      LEFT JOIN attendance a ON a.user_id=u.id
+      LEFT JOIN payroll_settings p ON p.user_id = u.id
+      LEFT JOIN attendance a ON a.user_id = u.id
         AND a.work_date >= %s AND a.work_date < %s
-      WHERE u.role='employee'
-      GROUP BY u.id, u.name, p.monthly_salary
+      WHERE u.role = 'employee'
+      GROUP BY u.id, u.name, p.monthly_salary, p.daily_salary
       ORDER BY u.name ASC;
     """, (start_date, end_date))
 
     rows = cur.fetchall()
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
 
-    # hitung gaji dibayar
     result = []
     for r in rows:
-        monthly_salary = int(r["monthly_salary"] or 0)
-        days_present = int(r["days_present"] or 0)
+        monthly_salary = int(r.get("monthly_salary") or 0)
+        daily_salary_db = int(r.get("daily_salary") or 0)
+        days_present = int(r.get("days_present") or 0)
 
-        salary_paid = int(round(monthly_salary * (days_present / WORKDAYS))) if WORKDAYS > 0 else monthly_salary
+        # ✅ Tentukan gaji harian:
+        # 1) Jika payroll_settings.daily_salary sudah diisi → pakai itu
+        # 2) Kalau belum ada → fallback dari monthly_salary / WORKDAYS
+        if daily_salary_db > 0:
+            daily_salary = daily_salary_db
+        else:
+            daily_salary = int(round(monthly_salary / WORKDAYS)) if WORKDAYS > 0 else monthly_salary
+
+        # ✅ Payroll harian = gaji_harian * jumlah_hadir
+        salary_paid = int(daily_salary * days_present)
+
+        # ✅ POIN: 1 poin setiap hadir (PRESENT)
+        points_earned = int(days_present)
 
         result.append({
             "id": r["id"],
             "name": r["name"],
-            "monthly_salary": monthly_salary,
             "workdays": WORKDAYS,
-            "days_present": days_present,
-            "days_sick": int(r["days_sick"] or 0),
-            "days_leave": int(r["days_leave"] or 0),
-            "days_absent": int(r["days_absent"] or 0),
+
+            # yang ditampilkan
+            "daily_salary": daily_salary,
+            "monthly_salary": monthly_salary,  # tetap kirim kalau mau ditampilkan di UI
             "salary_paid": salary_paid,
+
+            "days_present": days_present,
+            "days_sick": int(r.get("days_sick") or 0),
+            "days_leave": int(r.get("days_leave") or 0),
+            "days_absent": int(r.get("days_absent") or 0),
+
+            "points_earned": points_earned,
         })
 
-    return render_template("admin_payroll.html", month=month, rows=result, workdays=WORKDAYS)
+    return render_template(
+        "admin_payroll.html",
+        month=month,
+        rows=result,
+        workdays=WORKDAYS
+    )
 
 
 
@@ -1829,6 +1855,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
