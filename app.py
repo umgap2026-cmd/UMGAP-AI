@@ -290,12 +290,13 @@ def admin_users():
     cur = conn.cursor()
 
     cur.execute("""
-      SELECT u.id, u.name, u.email, u.role,
-             COALESCE(p.monthly_salary, 0) AS monthly_salary
-      FROM users u
-      LEFT JOIN payroll_settings p ON p.user_id=u.id
-      ORDER BY u.id DESC;
+    SELECT u.id, u.name, u.email, u.role,
+            COALESCE(p.daily_salary, 0) AS daily_salary
+    FROM users u
+    LEFT JOIN payroll_settings p ON p.user_id=u.id
+    ORDER BY u.id DESC;
     """)
+
     rows = cur.fetchall()
 
     cur.close()
@@ -310,7 +311,7 @@ def admin_users_create():
     email = (request.form.get("email") or "").strip().lower()
     password = request.form.get("password") or ""
     role = (request.form.get("role") or "employee").strip()
-    monthly_salary = int(request.form.get("monthly_salary") or "0")
+    daily_salary = int(request.form.get("daily_salary") or "0")
 
     if not name or not email or not password:
         return redirect("/admin/users")
@@ -320,11 +321,14 @@ def admin_users_create():
     conn = get_conn()
     cur = conn.cursor()
 
+
     cur.execute("""
-      INSERT INTO users (name, email, password_hash, role)
-      VALUES (%s, %s, %s, %s)
-      RETURNING id;
-    """, (name, email, pw_hash, role))
+    INSERT INTO payroll_settings (user_id, daily_salary)
+    VALUES (%s, %s)
+    ON CONFLICT (user_id) DO UPDATE
+        SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
+    """, (uid, daily_salary))
+
     uid = cur.fetchone()["id"]
 
     cur.execute("""
@@ -332,7 +336,7 @@ def admin_users_create():
       VALUES (%s, %s)
       ON CONFLICT (user_id) DO UPDATE
         SET monthly_salary=EXCLUDED.monthly_salary, updated_at=CURRENT_TIMESTAMP;
-    """, (uid, monthly_salary))
+    """, (uid, daily_salary))
 
     conn.commit()
     cur.close()
@@ -1966,7 +1970,6 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
 
 
 
