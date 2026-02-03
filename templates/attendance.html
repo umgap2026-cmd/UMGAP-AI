@@ -151,6 +151,7 @@
     </div>
 
     <form method="POST" action="/attendance/add" style="margin-top: 14px">
+      <input type="hidden" name="client_ts" id="clientTs" value="" />
       <div class="row-1">
         <div>
           <label>Tipe kedatangan</label>
@@ -294,6 +295,38 @@
     });
     document.getElementById("liveTime").textContent = time;
     document.getElementById("liveDate").textContent = date;
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  // WIB (supaya tampilan konsisten)
+  const tz = "Asia/Jakarta";
+  const fmtTime = new Intl.DateTimeFormat("id-ID", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const fmtDate = new Intl.DateTimeFormat("id-ID", {
+    timeZone: tz,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  function tick() {
+    const now = new Date();
+    document.getElementById("liveTime").textContent = fmtTime.format(now);
+    document.getElementById("liveDate").textContent = fmtDate.format(now);
+
+    // kirim epoch ms (UTC) — server nanti konversi ke WIB
+    const el = document.getElementById("clientTs");
+    if (el) el.value = String(now.getTime());
   }
   tick();
   setInterval(tick, 1000);
