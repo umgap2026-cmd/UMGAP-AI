@@ -20,6 +20,48 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from openai import RateLimitError, APIError, AuthenticationError
 from dotenv import load_dotenv
 load_dotenv()
+from decimal import Decimal
+
+
+
+def login_required():
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if not session.get("user_id"):
+                return redirect(url_for("login"))
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def admin_required():
+    # panggil ini DI DALAM route (bukan decorator) biar gampang dipakai di kode lama kamu
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    if session.get("role") != "admin":
+        flash("Akses ditolak. Hanya admin.", "danger")
+        return redirect(url_for("dashboard"))
+    return None
+
+
+def adjust_points_for_attendance_change(cur, user_id: int, old_status: str | None, new_status: str | None):
+    old_present = (old_status == "PRESENT")
+    new_present = (new_status == "PRESENT")
+
+    if old_present == new_present:
+        return  # tidak ada perubahan poin
+
+    delta = 1 if new_present else -1
+
+    # points_total = akumulasi seumur hidup
+    # points = bisa kamu pakai sebagai saldo saat ini (opsional)
+    cur.execute("""
+        UPDATE users
+        SET
+          points_total = COALESCE(points_total, 0) + %s,
+          points       = COALESCE(points, 0) + %s
+        WHERE id = %s
+    """, (delta, delta, user_id))
 
 
 
@@ -1288,55 +1330,59 @@ def admin_attendance():
 
 @app.route("/admin/attendance/add", methods=["POST"])
 def admin_attendance_add():
-    admin_required()
+    deny = admin_required()
+    if deny:
+        return deny
 
-    user_id = int(request.form.get("user_id"))
-    arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
-    note = (request.form.get("note") or "").strip()
+    user_id = int(request.form["user_id"])
+    arrival_type = request.form.get("arrival_type", "ONTIME")
+    note = request.form.get("note", "")
 
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
-    work_date = now.date()
-    checkin_at = now
-
-    if arrival_type in ("ONTIME", "LATE"):
-        status = "PRESENT"
-    elif arrival_type == "SICK":
-        status = "SICK"
-    elif arrival_type == "LEAVE":
-        status = "LEAVE"
-    elif arrival_type == "ABSENT":
-        status = "ABSENT"
+    # mapping arrival_type -> status (kamu bisa sesuaikan)
+    if arrival_type in ("SICK", "LEAVE", "ABSENT"):
+        status = arrival_type
     else:
         status = "PRESENT"
-        arrival_type = "ONTIME"
+
+    today = date.today()
+    now = datetime.utcnow()  # atau pakai timezone lokal kalau kamu sudah set
 
     conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur = conn.cursor()
 
-    # cek sudah ada absen hari ini atau belum (biar poin tidak dobel)
+    # cek existing
     cur.execute("""
-        SELECT 1 FROM attendance
-        WHERE user_id=%s AND work_date=%s
-        LIMIT 1;
-    """, (user_id, work_date))
-    already = cur.fetchone() is not None
+      SELECT id, status
+      FROM attendance
+      WHERE user_id=%s AND work_date=%s
+      LIMIT 1
+    """, (user_id, today))
+    existing = cur.fetchone()
 
-    cur.execute("""
-      INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-      VALUES (%s, %s, %s, %s, %s, %s)
-      ON CONFLICT (user_id, work_date)
-      DO UPDATE SET status=EXCLUDED.status,
-                    arrival_type=EXCLUDED.arrival_type,
-                    note=EXCLUDED.note,
-                    checkin_at=EXCLUDED.checkin_at;
-    """, (user_id, work_date, status, arrival_type, note, checkin_at))
+    if existing:
+        att_id = existing["id"]
+        old_status = existing["status"]
 
-    if not already:
-        cur.execute("UPDATE users SET points = points + 1 WHERE id=%s;", (user_id,))
+        cur.execute("""
+          UPDATE attendance
+          SET status=%s, arrival_type=%s, note=%s, checkin_at=COALESCE(checkin_at, %s)
+          WHERE id=%s
+        """, (status, arrival_type, note, now, att_id))
+
+        adjust_points_for_attendance_change(cur, user_id, old_status, status)
+    else:
+        cur.execute("""
+          INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
+          VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (user_id, today, status, arrival_type, note, now, now))
+
+        # sebelumnya belum ada → old_status None
+        adjust_points_for_attendance_change(cur, user_id, None, status)
 
     conn.commit()
     cur.close()
     conn.close()
+
     return redirect("/admin/attendance")
 
 
@@ -1363,13 +1409,7 @@ def sync_user_points_total(user_id: int):
 
 
 
-def admin_required():
-    # dipanggil manual di dalam route
-    if not session.get("user_id"):
-        return redirect("/login")
-    if session.get("role") != "admin":
-        return redirect("/dashboard")
-    return None
+
 
 
 def count_workdays_only_sunday_off(start_date, end_date):
@@ -1386,7 +1426,6 @@ def count_workdays_only_sunday_off(start_date, end_date):
 
 @app.route("/admin/payroll")
 def admin_payroll():
-    # ✅ wajib admin
     deny = admin_required()
     if deny:
         return deny
@@ -1400,28 +1439,41 @@ def admin_payroll():
     mon = int(month.split("-")[1])
 
     start_date = date(year, mon, 1)
-    end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+    if mon == 12:
+        end_date = date(year + 1, 1, 1)
+    else:
+        end_date = date(year, mon + 1, 1)
 
-    workdays = count_workdays_only_sunday_off(start_date, end_date)
+    WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
 
     conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur = conn.cursor()  # kalau get_conn kamu sudah RealDictCursor di db.py, ini aman
 
+    # Ambil daily_salary + monthly_salary + rekap attendance
     cur.execute("""
       SELECT
         u.id,
         u.name,
-        COALESCE(p.daily_salary, 0) AS daily_salary,
+
+        -- sumber gaji harian: payroll_settings.daily_salary -> users.daily_salary -> fallback dari monthly_salary/workdays
+        COALESCE(p.daily_salary, NULL) AS daily_salary_setting,
+        COALESCE(u.daily_salary, NULL) AS daily_salary_user,
+        COALESCE(p.monthly_salary, 0)  AS monthly_salary,
+
         COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
-        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
-        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
+        COALESCE(SUM(CASE WHEN a.status='SICK'    THEN 1 ELSE 0 END), 0) AS days_sick,
+        COALESCE(SUM(CASE WHEN a.status='LEAVE'   THEN 1 ELSE 0 END), 0) AS days_leave,
+        COALESCE(SUM(CASE WHEN a.status='ABSENT'  THEN 1 ELSE 0 END), 0) AS days_absent,
+
+        -- poin per bulan = jumlah hadir
+        COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS points_earned
+
       FROM users u
       LEFT JOIN payroll_settings p ON p.user_id = u.id
       LEFT JOIN attendance a ON a.user_id = u.id
         AND a.work_date >= %s AND a.work_date < %s
-      WHERE u.role='employee'
-      GROUP BY u.id, u.name, p.daily_salary
+      WHERE u.role = 'employee'
+      GROUP BY u.id, u.name, p.daily_salary, u.daily_salary, p.monthly_salary
       ORDER BY u.name ASC;
     """, (start_date, end_date))
 
@@ -1431,33 +1483,48 @@ def admin_payroll():
 
     result = []
     for r in rows:
-        daily_salary = int(r["daily_salary"] or 0)
-        days_present = int(r["days_present"] or 0)
+        # catatan: kalau cursor kamu RealDictCursor, r["..."] bisa dipakai.
+        # kalau bukan, berarti r tuple. Tapi sebelumnya kamu memang pakai RealDictCursor.
+        monthly_salary = int(r.get("monthly_salary") or 0)
 
-        # ✅ Payroll harian
-        salary_paid = daily_salary * days_present
+        ds_setting = r.get("daily_salary_setting")
+        ds_user = r.get("daily_salary_user")
 
-        # ✅ Poin: sekali absen masuk (PRESENT) = 1 poin
-        points = days_present
+        # users.daily_salary bertipe numeric → bisa Decimal
+        if isinstance(ds_user, Decimal):
+            ds_user = int(ds_user)
+
+        daily_rate = None
+        if ds_setting is not None:
+            daily_rate = int(ds_setting)
+        elif ds_user is not None:
+            daily_rate = int(ds_user)
+        else:
+            # fallback dari monthly_salary / WORKDAYS
+            daily_rate = int(round((monthly_salary / WORKDAYS))) if WORKDAYS > 0 else monthly_salary
+
+        days_present = int(r.get("days_present") or 0)
+        salary_paid = int(daily_rate * days_present)
 
         result.append({
             "id": r["id"],
             "name": r["name"],
-            "daily_salary": daily_salary,
-            "workdays": workdays,
+            "daily_salary": int(daily_rate),
+            "monthly_salary": monthly_salary,  # opsional buat info
+            "workdays": int(WORKDAYS),
             "days_present": days_present,
-            "days_sick": int(r["days_sick"] or 0),
-            "days_leave": int(r["days_leave"] or 0),
-            "days_absent": int(r["days_absent"] or 0),
+            "days_sick": int(r.get("days_sick") or 0),
+            "days_leave": int(r.get("days_leave") or 0),
+            "days_absent": int(r.get("days_absent") or 0),
             "salary_paid": salary_paid,
-            "points": points,
+            "points_earned": int(r.get("points_earned") or 0),
         })
 
     return render_template(
         "admin_payroll.html",
         month=month,
         rows=result,
-        workdays=workdays
+        workdays=WORKDAYS
     )
 
 
@@ -1899,6 +1966,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
