@@ -1,34 +1,29 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
 <style>
   .header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .titlebox h2{margin:0;font-size:18px}
   .titlebox .muted{margin-top:6px}
-
   .chipbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
   .chip{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;border:1px solid var(--border);background:#f8faff;font-size:13px;color:var(--muted);font-weight:800}
   .chip b{color:var(--text)}
-
   .grid-payroll{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
-  @media (min-width:980px){.grid-payroll{grid-template-columns:.9fr 1.1fr;align-items:start}}
-
+  @media(min-width:980px){.grid-payroll{grid-template-columns:.9fr 1.1fr;align-items:start}}
   .table-wrap{width:100%;overflow:auto}
   table{width:100%;border-collapse:collapse}
   th,td{padding:12px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;white-space:nowrap}
   th{position:sticky;top:0;background:#fff;z-index:1;color:var(--muted);font-size:12px;font-weight:900}
-
   .money{font-weight:1000}
   .mini{font-size:12px;color:var(--muted)}
-
   .list-mobile{display:none}
   .item{border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;margin-top:10px}
   .item-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-  .name,.paid{font-weight:1000}
-
+  .name{font-weight:1000}
+  .paid{font-weight:1000}
   .statsline{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
   .pill2{border:1px solid var(--border);background:#f8faff;border-radius:999px;padding:8px 10px;font-size:12px;color:var(--muted);font-weight:900}
   .pill2 b{color:var(--text)}
-
-  @media (max-width:640px){
+  @media(max-width:640px){
     input,select{padding:14px;font-size:16px}
     .table-wrap{display:none}
     .list-mobile{display:block}
@@ -38,14 +33,14 @@
 <div class="card">
   <div class="header">
     <div class="titlebox">
-      <h2>Payroll (Per Hari)</h2>
+      <h2>Payroll (Harian)</h2>
       <div class="chipbar">
         <div class="chip">📅 Bulan: <b>{{ month }}</b></div>
         <div class="chip">🗓️ Hari kerja (libur Minggu): <b>{{ workdays }}</b></div>
         <div class="chip">👥 Karyawan: <b>{{ rows|length }}</b></div>
       </div>
       <div class="muted" style="margin-top:8px">
-        Rumus: <b>gaji_harian × hari_hadir</b>. Poin: <b>1 absen = 1 poin</b>.
+        Rumus: <b>gaji_harian × hari_hadir</b> • Poin: <b>1 poin per hadir</b>
       </div>
     </div>
 
@@ -57,7 +52,6 @@
           <button class="btn btn-primary" type="submit" style="width:100%">Tampilkan</button>
         </div>
       </div>
-      <div class="mini" style="margin-top:8px">Tip: pastikan absensi bulan itu sudah lengkap.</div>
     </form>
   </div>
 </div>
@@ -65,7 +59,7 @@
 <div class="grid-payroll">
   <div class="card">
     <h2>Ringkas</h2>
-    <div class="muted">Daftar payroll karyawan (mobile view).</div>
+    <div class="muted">Payroll harian + poin.</div>
 
     <div class="list-mobile" style="margin-top:10px">
       {% for r in rows %}
@@ -74,6 +68,7 @@
           <div>
             <div class="name">{{ r.name }}</div>
             <div class="mini">Gaji harian: Rp {{ "{:,}".format(r.daily_salary).replace(",", ".") }}</div>
+            <div class="mini">Poin bulan ini: <b>{{ r.points }}</b></div>
           </div>
           <div class="paid">Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}</div>
         </div>
@@ -83,11 +78,10 @@
           <div class="pill2">Sakit <b>{{ r.days_sick }}</b></div>
           <div class="pill2">Cuti <b>{{ r.days_leave }}</b></div>
           <div class="pill2">Absen <b>{{ r.days_absent }}</b></div>
-          <div class="pill2">Poin <b>{{ r.points }}</b></div>
         </div>
 
         <div class="mini" style="margin-top:10px">
-          Rumus: gaji_harian × {{ r.days_present }}
+          Rumus: {{ r.daily_salary }} × {{ r.days_present }} = {{ r.salary_paid }}
         </div>
       </div>
       {% endfor %}
