@@ -11,6 +11,8 @@ from datetime import date
 from functools import wraps
 from flask import redirect, session, abort
 from datetime import date, timedelta
+import calendar
+from psycopg2.extras import RealDictCursor
 import os
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -1349,7 +1351,7 @@ def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
 
 @app.route("/admin/payroll")
 def admin_payroll():
-    admin_guard()  # pastikan ini ada di project kamu
+    admin_required()  # atau admin_guard() sesuai punyamu
 
     month = request.args.get("month")  # format: YYYY-MM
     if not month:
@@ -1359,31 +1361,29 @@ def admin_payroll():
     year = int(month.split("-")[0])
     mon = int(month.split("-")[1])
 
-    # range tanggal bulan itu
     start_date = date(year, mon, 1)
-    if mon == 12:
-        end_date = date(year + 1, 1, 1)
-    else:
-        end_date = date(year, mon + 1, 1)
-
-    # Hari kerja otomatis per bulan (libur Minggu)
-    WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
+    last_day = calendar.monthrange(year, mon)[1]
+    end_date = date(year, mon, last_day)  # inclusive
 
     conn = get_conn()
-    cur = conn.cursor()  # <- FIX: jangan pakai RealDictCursor di sini
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    # Rekap absensi per bulan + gaji per hari + poin (1 hadir = 1 poin)
     cur.execute("""
       SELECT
-        u.id, u.name,
+        u.id,
+        u.name,
         COALESCE(p.daily_salary, 0) AS daily_salary,
+
         COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
         COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
         COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
         COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
+
       FROM users u
       LEFT JOIN payroll_settings p ON p.user_id=u.id
       LEFT JOIN attendance a ON a.user_id=u.id
-        AND a.work_date >= %s AND a.work_date < %s
+        AND a.work_date >= %s AND a.work_date <= %s
       WHERE u.role='employee'
       GROUP BY u.id, u.name, p.daily_salary
       ORDER BY u.name ASC;
@@ -1395,33 +1395,25 @@ def admin_payroll():
 
     result = []
     for r in rows:
-        # kalau cursor kamu RealDictCursor, r["..."] bisa jalan
-        # kalau ternyata tuple, kamu bisa ubah get_conn() supaya RealDictCursor
-        daily_salary = int(r["daily_salary"] or 0)
-        days_present = int(r["days_present"] or 0)
+        daily_salary = int(r.get("daily_salary") or 0)
+        days_present = int(r.get("days_present") or 0)
 
         salary_paid = daily_salary * days_present
-        points_earned = days_present  # 1 hadir = 1 poin
+        points = days_present  # ✅ 1 hadir = 1 poin
 
         result.append({
             "id": r["id"],
             "name": r["name"],
             "daily_salary": daily_salary,
-            "workdays": WORKDAYS,
             "days_present": days_present,
-            "days_sick": int(r["days_sick"] or 0),
-            "days_leave": int(r["days_leave"] or 0),
-            "days_absent": int(r["days_absent"] or 0),
+            "days_sick": int(r.get("days_sick") or 0),
+            "days_leave": int(r.get("days_leave") or 0),
+            "days_absent": int(r.get("days_absent") or 0),
             "salary_paid": salary_paid,
-            "points_earned": points_earned,
+            "points": points,
         })
 
-    return render_template(
-        "admin_payroll.html",
-        month=month,
-        rows=result,
-        workdays=WORKDAYS
-    )
+    return render_template("admin_payroll.html", month=month, rows=result)
 
 
 
@@ -1860,6 +1852,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
