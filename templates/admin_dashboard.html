@@ -410,6 +410,19 @@
       .action-btn:hover {
         transform: translateY(-1px);
       }
+      .feature-icon {
+        width: 32px;
+        height: 32px;
+      }
+      .feature-icon svg {
+        width: 100%;
+        height: 100%;
+        stroke: #111;
+        stroke-width: 1.6; /* tipis */
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
     </style>
   </head>
 
@@ -466,20 +479,38 @@
               <!-- 4 fitur utama (tampil dulu) -->
               <a class="feature" href="/admin/users">
                 <div class="circle">
-                  <img
-                    src="{{ url_for('static', filename='icon_kelola_user.png') }}"
-                    alt=""
-                  />
+                  <div class="feature-icon">
+                    <svg viewBox="0 0 24 24">
+                      <!-- kepala -->
+                      <circle cx="9" cy="7" r="3"></circle>
+
+                      <!-- badan -->
+                      <path d="M3 19c0-3.2 3.5-5 6-5"></path>
+
+                      <!-- panah -->
+                      <path d="M13 10h7"></path>
+                      <path d="M17 7l3 3-3 3"></path>
+                    </svg>
+                  </div>
                 </div>
                 <div class="label">Kelola User</div>
               </a>
 
               <a class="feature" href="/admin/attendance">
                 <div class="circle">
-                  <img
-                    src="{{ url_for('static', filename='icon_absensi.png') }}"
-                    alt=""
-                  />
+                  <div class="feature-icon">
+                    <svg viewBox="0 0 24 24">
+                      <!-- badan kalender -->
+                      <rect x="3" y="5" width="18" height="16" rx="3"></rect>
+
+                      <!-- gantungan -->
+                      <path d="M7 3v4M17 3v4"></path>
+
+                      <!-- garis isi -->
+                      <path d="M7 11h10"></path>
+                      <path d="M7 15h7"></path>
+                    </svg>
+                  </div>
                 </div>
                 <div class="label">Absensi</div>
               </a>
@@ -510,30 +541,66 @@
               <div class="grid">
                 <a class="feature" href="/admin/payroll">
                   <div class="circle">
-                    <img
-                      src="{{ url_for('static', filename='icon_payroll.png') }}"
-                      alt=""
-                    />
+                    <div class="feature-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <!-- kertas -->
+                        <path d="M7 3h7l3 3v15H7z"></path>
+                        <path d="M14 3v3h3"></path>
+
+                        <!-- garis -->
+                        <path d="M9 10h6"></path>
+                        <path d="M9 13h6"></path>
+
+                        <!-- coin -->
+                        <circle cx="9" cy="18" r="2.2"></circle>
+                        <path d="M8.5 18h1.0"></path>
+                      </svg>
+                    </div>
                   </div>
                   <div class="label">Payroll</div>
                 </a>
 
                 <a class="feature" href="/products">
                   <div class="circle">
-                    <img
-                      src="{{ url_for('static', filename='icon_produk.png') }}"
-                      alt=""
-                    />
+                    <div class="feature-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <!-- box -->
+                        <path d="M7 7l5-3 5 3v12l-5 3-5-3z"></path>
+                        <path d="M7 7l5 3 5-3"></path>
+                        <path d="M12 10v12"></path>
+
+                        <!-- tag -->
+                        <path
+                          d="M4.5 12.5l3.5-3.5h3l1.8 1.8v3l-3.5 3.5z"
+                        ></path>
+                        <circle cx="9.3" cy="10.7" r="0.8"></circle>
+                      </svg>
+                    </div>
                   </div>
                   <div class="label">Produk</div>
                 </a>
 
                 <a class="feature" href="/admin/stats">
                   <div class="circle">
-                    <img
-                      src="{{ url_for('static', filename='icon_statistik.png') }}"
-                      alt=""
-                    />
+                    <div class="feature-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <!-- axis -->
+                        <path d="M5 19V5"></path>
+                        <path d="M5 19h14"></path>
+
+                        <!-- bars -->
+                        <path d="M8 19v-5"></path>
+                        <path d="M12 19v-8"></path>
+                        <path d="M16 19v-3"></path>
+
+                        <!-- trend line -->
+                        <path d="M8 11l4-3 4 2 3-4"></path>
+                        <circle cx="8" cy="11" r="0.9"></circle>
+                        <circle cx="12" cy="8" r="0.9"></circle>
+                        <circle cx="16" cy="10" r="0.9"></circle>
+                        <circle cx="19" cy="6" r="0.9"></circle>
+                      </svg>
+                    </div>
                   </div>
                   <div class="label">Statistik</div>
                 </a>
