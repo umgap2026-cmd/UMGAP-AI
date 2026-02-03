@@ -361,6 +361,55 @@
       .is-active .nav-ico .fill {
         fill: #2f5f8f;
       }
+      .top-actions {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        border-radius: 16px;
+        background: #f3f6fc;
+        box-shadow:
+          0 12px 22px rgba(30, 60, 90, 0.18),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+      }
+
+      .action-btn svg {
+        width: 22px;
+        height: 22px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+      }
+
+      /* Badge notif */
+      .badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #ffd84d;
+        color: #1f2937;
+        font-size: 11px;
+        font-weight: 900;
+        padding: 3px 7px;
+        border-radius: 999px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Hover efek halus */
+      .action-btn:hover {
+        transform: translateY(-1px);
+      }
     </style>
   </head>
 
@@ -385,23 +434,24 @@
               </div>
 
               <!-- Notifikasi / Pesan -->
-              <button class="icon-btn" type="button" aria-label="Notifikasi">
-                <!-- Ganti src icon notif kamu -->
-                <img
-                  src="{{ url_for('static', filename='notif.png') }}"
-                  alt="Notif"
-                />
-                <!-- Kalau mau dinamis, ganti 177 dengan variabel -->
-                <span class="badge">{{ notif_count or 0 }}</span>
+              <button class="action-btn" aria-label="Notifikasi">
+                <!-- Icon Mail -->
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+                  <path d="M3 7l9 6 9-6"></path>
+                </svg>
+
+                <span class="badge">177</span>
               </button>
 
               <!-- Logout -->
-              <a class="logout" href="/logout" aria-label="Logout">
-                <!-- Ganti src icon logout kamu -->
-                <img
-                  src="{{ url_for('static', filename='logout.png') }}"
-                  alt="Logout"
-                />
+              <a href="/logout" class="action-btn" aria-label="Logout">
+                <!-- Icon Logout -->
+                <svg viewBox="0 0 24 24">
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+                </svg>
               </a>
             </div>
           </div>
