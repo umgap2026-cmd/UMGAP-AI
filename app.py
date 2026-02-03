@@ -1228,6 +1228,7 @@ def attendance_add():
             checkin_at=EXCLUDED.checkin_at;
     """, (session["user_id"], work_date, status, arrival_type, note, checkin_at))
     conn.commit()
+    sync_user_points_total(session["user_id"])
     cur.close(); conn.close()
     return redirect("/attendance")
 
@@ -1304,6 +1305,7 @@ def admin_attendance_add():
             checkin_at=EXCLUDED.checkin_at;
     """, (user_id, work_date, status, arrival_type, note, checkin_at))
     conn.commit()
+    sync_user_points_total(user_id)
     cur.close(); conn.close()
 
     return redirect("/admin/attendance")
@@ -1858,6 +1860,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
