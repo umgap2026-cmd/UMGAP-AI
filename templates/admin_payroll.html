@@ -1,174 +1,58 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
 <style>
-  .header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .titlebox h2 {
-    margin: 0;
-    font-size: 18px;
-  }
-  .titlebox .muted {
-    margin-top: 6px;
-  }
+  .header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+  .titlebox h2{margin:0;font-size:18px}
+  .chipbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;border:1px solid var(--border);background:#f8faff;font-size:13px;color:var(--muted);font-weight:800}
+  .chip b{color:var(--text)}
 
-  .chipbar {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-  }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #f8faff;
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  .chip b {
-    color: var(--text);
-  }
+  .grid-payroll{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+  @media(min-width:980px){.grid-payroll{grid-template-columns:.9fr 1.1fr;align-items:start}}
 
-  .grid-payroll {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 14px;
-  }
-  @media (min-width: 980px) {
-    .grid-payroll {
-      grid-template-columns: 0.9fr 1.1fr;
-      align-items: start;
-    }
-  }
+  .table-wrap{width:100%;overflow:auto}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:12px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;white-space:nowrap}
+  th{position:sticky;top:0;background:#fff;z-index:1;color:var(--muted);font-size:12px;font-weight:900}
 
-  .table-wrap {
-    width: 100%;
-    overflow: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th,
-  td {
-    padding: 12px 10px;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
-  }
-  th {
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 1;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
-  }
+  .money{font-weight:1000}
+  .mini{font-size:12px;color:var(--muted)}
 
-  .money {
-    font-weight: 1000;
-  }
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-  }
+  .list-mobile{display:none}
+  .item{border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;margin-top:10px}
+  .item-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .name,.paid{font-weight:1000}
+  .statsline{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .pill2{border:1px solid var(--border);background:#f8faff;border-radius:999px;padding:8px 10px;font-size:12px;color:var(--muted);font-weight:900}
+  .pill2 b{color:var(--text)}
 
-  /* Mobile cards */
-  .list-mobile {
-    display: none;
-  }
-  .item {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px;
-    background: #fff;
-    margin-top: 10px;
-  }
-  .item-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: flex-start;
-  }
-  .name {
-    font-weight: 1000;
-  }
-  .paid {
-    font-weight: 1000;
-  }
-
-  .statsline {
-    margin-top: 10px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .pill2 {
-    border: 1px solid var(--border);
-    background: #f8faff;
-    border-radius: 999px;
-    padding: 8px 10px;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 900;
-  }
-  .pill2 b {
-    color: var(--text);
-  }
-
-  @media (max-width: 640px) {
-    input,
-    select {
-      padding: 14px;
-      font-size: 16px;
-    }
-    .table-wrap {
-      display: none;
-    }
-    .list-mobile {
-      display: block;
-    }
+  @media(max-width:640px){
+    input,select{padding:14px;font-size:16px}
+    .table-wrap{display:none}
+    .list-mobile{display:block}
   }
 </style>
 
 <div class="card">
   <div class="header">
     <div class="titlebox">
-      <h2>Payroll</h2>
-
+      <h2>Payroll (Per Hari)</h2>
       <div class="chipbar">
         <div class="chip">📅 Bulan: <b>{{ month }}</b></div>
-        <div class="chip">🗓️ Patokan hari kerja: <b>{{ workdays }}</b></div>
         <div class="chip">👥 Karyawan: <b>{{ rows|length }}</b></div>
+        <div class="chip">⭐ Poin: <b>1 hadir = 1 poin</b></div>
       </div>
     </div>
 
-    <form method="GET" action="/admin/payroll" style="min-width: 240px">
+    <form method="GET" action="/admin/payroll" style="min-width:240px">
       <label>Pilih bulan</label>
       <div class="row">
-        <div>
-          <input type="month" name="month" value="{{ month }}" required />
-        </div>
-        <div style="display: flex; align-items: end">
-          <button class="btn btn-primary" type="submit" style="width: 100%">
-            Tampilkan
-          </button>
+        <div><input type="month" name="month" value="{{ month }}" required /></div>
+        <div style="display:flex;align-items:end">
+          <button class="btn btn-primary" type="submit" style="width:100%">Tampilkan</button>
         </div>
       </div>
-      <div class="mini" style="margin-top: 8px">
-        Tip: kalau hasil “terlalu kecil”, cek absensi bulan itu sudah lengkap.
-      </div>
+      <div class="mini" style="margin-top:8px">Tip: Pastikan absensi bulan itu sudah diinput.</div>
     </form>
   </div>
 </div>
@@ -176,22 +60,17 @@
 <div class="grid-payroll">
   <div class="card">
     <h2>Ringkas</h2>
-    <div class="muted">Daftar payroll karyawan.</div>
+    <div class="muted">Total dibayar = gaji/hari × hadir. Poin = jumlah hadir.</div>
 
-    <div class="list-mobile" style="margin-top: 10px">
+    <div class="list-mobile" style="margin-top:10px">
       {% for r in rows %}
       <div class="item">
         <div class="item-top">
           <div>
             <div class="name">{{ r.name }}</div>
-            <div class="mini">
-              Gaji bulanan: Rp {{ "{:,}".format(r.monthly_salary).replace(",",
-              ".") }}
-            </div>
+            <div class="mini">Gaji/hari: Rp {{ "{:,}".format(r.daily_salary).replace(",", ".") }}</div>
           </div>
-          <div class="paid">
-            Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}
-          </div>
+          <div class="paid">Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}</div>
         </div>
 
         <div class="statsline">
@@ -199,51 +78,50 @@
           <div class="pill2">Sakit <b>{{ r.days_sick }}</b></div>
           <div class="pill2">Cuti <b>{{ r.days_leave }}</b></div>
           <div class="pill2">Absen <b>{{ r.days_absent }}</b></div>
+          <div class="pill2">Poin <b>{{ r.points }}</b></div>
         </div>
 
-        <div class="mini" style="margin-top: 10px">
-          Rumus: gaji × ({{ r.days_present }}/{{ r.workdays }})
+        <div class="mini" style="margin-top:10px">
+          Rumus: {{ r.daily_salary }} × {{ r.days_present }} = {{ r.salary_paid }}
         </div>
       </div>
-      {% endfor %} {% if rows|length == 0 %}
+      {% endfor %}
+      {% if rows|length == 0 %}
       <div class="muted">Belum ada karyawan.</div>
       {% endif %}
     </div>
   </div>
 
   <div class="card">
-    <div class="table-wrap" style="margin-top: 10px">
+    <div class="table-wrap" style="margin-top:10px">
       <table>
         <thead>
           <tr>
-            <th style="min-width: 220px">Karyawan</th>
-            <th style="min-width: 150px">Gaji Bulanan</th>
-            <th style="min-width: 90px">Hadir</th>
-            <th style="min-width: 90px">Sakit</th>
-            <th style="min-width: 90px">Cuti</th>
-            <th style="min-width: 90px">Absen</th>
-            <th style="min-width: 170px">Dibayar</th>
+            <th style="min-width:220px">Karyawan</th>
+            <th style="min-width:140px">Gaji/Hari</th>
+            <th style="min-width:80px">Hadir</th>
+            <th style="min-width:80px">Sakit</th>
+            <th style="min-width:80px">Cuti</th>
+            <th style="min-width:80px">Absen</th>
+            <th style="min-width:90px">Poin</th>
+            <th style="min-width:170px">Dibayar</th>
           </tr>
         </thead>
         <tbody>
           {% for r in rows %}
           <tr>
             <td><b>{{ r.name }}</b></td>
-            <td class="mini">
-              Rp {{ "{:,}".format(r.monthly_salary).replace(",", ".") }}
-            </td>
+            <td class="mini">Rp {{ "{:,}".format(r.daily_salary).replace(",", ".") }}</td>
             <td>{{ r.days_present }}</td>
             <td>{{ r.days_sick }}</td>
             <td>{{ r.days_leave }}</td>
             <td>{{ r.days_absent }}</td>
-            <td class="money">
-              Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}
-            </td>
+            <td><b>{{ r.points }}</b></td>
+            <td class="money">Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}</td>
           </tr>
-          {% endfor %} {% if rows|length == 0 %}
-          <tr>
-            <td colspan="7" class="muted">Belum ada karyawan.</td>
-          </tr>
+          {% endfor %}
+          {% if rows|length == 0 %}
+          <tr><td colspan="8" class="muted">Belum ada karyawan.</td></tr>
           {% endif %}
         </tbody>
       </table>
