@@ -1364,38 +1364,34 @@ def sync_user_points_total(user_id: int):
 
 
 def admin_required():
-    # Wajib login
+    # dipanggil manual di dalam route
     if not session.get("user_id"):
-        return redirect(url_for("login"))
-    # Wajib role admin
+        return redirect("/login")
     if session.get("role") != "admin":
-        flash("Akses ditolak. Hanya admin yang boleh membuka halaman ini.", "danger")
-        return redirect(url_for("dashboard"))
+        return redirect("/dashboard")
     return None
 
 
-def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
-    """
-    Menghitung hari kerja dari start_date (inkl) sampai end_date (ekskl)
-    Libur hanya hari Minggu.
-    """
+def count_workdays_only_sunday_off(start_date, end_date):
+    # end_date = tanggal bulan berikutnya (exclusive)
+    # libur hanya minggu
     d = start_date
     n = 0
     while d < end_date:
-        if d.weekday() != 6:  # Monday=0 ... Sunday=6
+        # Monday=0 ... Sunday=6
+        if d.weekday() != 6:
             n += 1
-        d += timedelta(days=1)
+        d = d.fromordinal(d.toordinal() + 1)
     return n
-
 
 @app.route("/admin/payroll")
 def admin_payroll():
-    # ✅ proteksi admin
-    blocked = admin_required()
-    if blocked:
-        return blocked
+    # ✅ wajib admin
+    deny = admin_required()
+    if deny:
+        return deny
 
-    month = request.args.get("month")  # format: YYYY-MM
+    month = request.args.get("month")  # YYYY-MM
     if not month:
         today = date.today()
         month = f"{today.year:04d}-{today.month:02d}"
@@ -1403,41 +1399,31 @@ def admin_payroll():
     year = int(month.split("-")[0])
     mon = int(month.split("-")[1])
 
-    # range tanggal bulan itu
     start_date = date(year, mon, 1)
-    if mon == 12:
-        end_date = date(year + 1, 1, 1)
-    else:
-        end_date = date(year, mon + 1, 1)
+    end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
 
-    # Hari kerja (info saja)
     workdays = count_workdays_only_sunday_off(start_date, end_date)
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # NOTE:
-    # - payroll_settings sekarang pakai daily_salary
-    # - poin = jumlah ABSENT (1 ABSENT = 1 poin)
-    cur.execute(
-        """
-        SELECT
-          u.id, u.name,
-          COALESCE(p.daily_salary, 0) AS daily_salary,
-          COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-          COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0)    AS days_sick,
-          COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0)   AS days_leave,
-          COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0)  AS days_absent
-        FROM users u
-        LEFT JOIN payroll_settings p ON p.user_id=u.id
-        LEFT JOIN attendance a ON a.user_id=u.id
-          AND a.work_date >= %s AND a.work_date < %s
-        WHERE u.role='employee'
-        GROUP BY u.id, u.name, p.daily_salary
-        ORDER BY u.name ASC;
-        """,
-        (start_date, end_date),
-    )
+    cur.execute("""
+      SELECT
+        u.id,
+        u.name,
+        COALESCE(p.daily_salary, 0) AS daily_salary,
+        COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
+        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
+        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
+        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
+      FROM users u
+      LEFT JOIN payroll_settings p ON p.user_id = u.id
+      LEFT JOIN attendance a ON a.user_id = u.id
+        AND a.work_date >= %s AND a.work_date < %s
+      WHERE u.role='employee'
+      GROUP BY u.id, u.name, p.daily_salary
+      ORDER BY u.name ASC;
+    """, (start_date, end_date))
 
     rows = cur.fetchall()
     cur.close()
@@ -1447,36 +1433,32 @@ def admin_payroll():
     for r in rows:
         daily_salary = int(r["daily_salary"] or 0)
         days_present = int(r["days_present"] or 0)
-        days_absent = int(r["days_absent"] or 0)
 
-        # ✅ gaji dibayar per hari hadir
+        # ✅ Payroll harian
         salary_paid = daily_salary * days_present
 
-        # ✅ poin: 1 kali absen = 1 poin
-        points = days_absent
+        # ✅ Poin: sekali absen masuk (PRESENT) = 1 poin
+        points = days_present
 
-        result.append(
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "daily_salary": daily_salary,
-                "workdays": workdays,
-                "days_present": days_present,
-                "days_sick": int(r["days_sick"] or 0),
-                "days_leave": int(r["days_leave"] or 0),
-                "days_absent": days_absent,
-                "salary_paid": salary_paid,
-                "points": points,
-            }
-        )
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "daily_salary": daily_salary,
+            "workdays": workdays,
+            "days_present": days_present,
+            "days_sick": int(r["days_sick"] or 0),
+            "days_leave": int(r["days_leave"] or 0),
+            "days_absent": int(r["days_absent"] or 0),
+            "salary_paid": salary_paid,
+            "points": points,
+        })
 
     return render_template(
         "admin_payroll.html",
         month=month,
         rows=result,
-        workdays=workdays,
+        workdays=workdays
     )
-
 
 
 
@@ -1917,6 +1899,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
