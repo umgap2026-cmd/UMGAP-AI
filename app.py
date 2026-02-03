@@ -306,6 +306,7 @@ def admin_users():
 
 @app.route("/admin/users/create", methods=["POST"])
 def admin_users_create():
+    admin_guard()
 
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
@@ -321,21 +322,20 @@ def admin_users_create():
     conn = get_conn()
     cur = conn.cursor()
 
-
+    # 1) insert user dulu, ambil uid
     cur.execute("""
-    INSERT INTO payroll_settings (user_id, daily_salary)
-    VALUES (%s, %s)
-    ON CONFLICT (user_id) DO UPDATE
-        SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
-    """, (uid, daily_salary))
-
+        INSERT INTO users (name, email, password_hash, role)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id;
+    """, (name, email, pw_hash, role))
     uid = cur.fetchone()["id"]
 
+    # 2) set payroll daily_salary (yang dipakai admin_payroll)
     cur.execute("""
-      INSERT INTO payroll_settings (user_id, monthly_salary)
-      VALUES (%s, %s)
-      ON CONFLICT (user_id) DO UPDATE
-        SET monthly_salary=EXCLUDED.monthly_salary, updated_at=CURRENT_TIMESTAMP;
+        INSERT INTO payroll_settings (user_id, daily_salary)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id) DO UPDATE
+          SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
     """, (uid, daily_salary))
 
     conn.commit()
@@ -344,13 +344,15 @@ def admin_users_create():
     return redirect("/admin/users")
 
 
+
 @app.route("/admin/users/update/<int:uid>", methods=["POST"])
 def admin_users_update(uid):
+    admin_guard()
 
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
     role = (request.form.get("role") or "employee").strip()
-    monthly_salary = int(request.form.get("monthly_salary") or "0")
+    daily_salary = int(request.form.get("daily_salary") or "0")
     new_password = (request.form.get("new_password") or "").strip()
 
     conn = get_conn()
@@ -359,26 +361,30 @@ def admin_users_update(uid):
     if new_password:
         pw_hash = generate_password_hash(new_password)
         cur.execute("""
-          UPDATE users SET name=%s, email=%s, role=%s, password_hash=%s
+          UPDATE users
+          SET name=%s, email=%s, role=%s, password_hash=%s
           WHERE id=%s;
         """, (name, email, role, pw_hash, uid))
     else:
         cur.execute("""
-          UPDATE users SET name=%s, email=%s, role=%s
+          UPDATE users
+          SET name=%s, email=%s, role=%s
           WHERE id=%s;
         """, (name, email, role, uid))
 
+    # simpan daily_salary (sinkron ke admin_payroll)
     cur.execute("""
-      INSERT INTO payroll_settings (user_id, monthly_salary)
+      INSERT INTO payroll_settings (user_id, daily_salary)
       VALUES (%s, %s)
       ON CONFLICT (user_id) DO UPDATE
-        SET monthly_salary=EXCLUDED.monthly_salary, updated_at=CURRENT_TIMESTAMP;
-    """, (uid, monthly_salary))
+        SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
+    """, (uid, daily_salary))
 
     conn.commit()
     cur.close()
     conn.close()
     return redirect("/admin/users")
+
 
 
 @app.route("/admin/users/delete/<int:uid>", methods=["POST"])
@@ -1970,7 +1976,6 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
 
 
 
