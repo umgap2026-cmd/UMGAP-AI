@@ -13,6 +13,7 @@ from flask import redirect, session, abort
 from datetime import date, timedelta
 import calendar
 from psycopg2.extras import RealDictCursor
+from flask import session, redirect, url_for, request, render_template, flash
 import os
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -1252,6 +1253,7 @@ def attendance_add():
 
 
 
+
 @app.route("/admin/attendance")
 def admin_attendance():
     r = admin_guard()
@@ -1440,6 +1442,7 @@ def admin_payroll():
         })
 
     return render_template("admin_payroll.html", month=month, rows=result, workdays=WORKDAYS)
+
 
 
 
@@ -1879,6 +1882,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
