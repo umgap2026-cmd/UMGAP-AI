@@ -2,161 +2,184 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Admin Dashboard</title>
 
     <style>
-      :root{
-        --bg:#f2f4f8;
-        --card:#f7f8fb;
-        --text:#1d2a44;
-        --muted:#7d8aa6;
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
 
-        --shadow-out: 0 18px 35px rgba(20,35,65,.10);
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
         --shadow-in:
-          inset 10px 10px 18px rgba(25,45,80,.12),
-          inset -10px -10px 18px rgba(255,255,255,.9);
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
 
         --soft-in:
-          inset 6px 6px 12px rgba(25,45,80,.10),
-          inset -6px -6px 12px rgba(255,255,255,.92);
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
 
         --radius: 22px;
         --pill: 999px;
-        --blue:#2f5f8f;
-        --red:#ef4444;
+        --blue: #2f5f8f;
+        --red: #ef4444;
       }
 
-      *{ box-sizing:border-box; }
-      body{
-        margin:0;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial;
         background: var(--bg);
         color: var(--text);
-        min-height:100svh;
+        min-height: 100svh;
       }
 
-      .screen{
-        min-height:100svh;
-        display:flex;
-        justify-content:center;
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
         padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
       }
 
-      .wrap{
-        width:100%;
+      .wrap {
+        width: 100%;
         max-width: 430px;
       }
 
       /* ===== Header Card ===== */
-      .head-card{
+      .head-card {
         background: #fff;
         border-radius: var(--radius);
         box-shadow: var(--shadow-out);
         padding: 12px;
       }
 
-      .head-top{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:10px;
+      .head-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
       }
 
-      .logo{
-        width:44px;
-        height:44px;
-        border-radius:14px;
-        background:#fff;
-        box-shadow: 0 10px 18px rgba(20,35,65,.12);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        overflow:hidden;
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
         flex: 0 0 auto;
       }
-      .logo img{
-        width:100%;
-        height:100%;
-        object-fit:contain;
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
-      .right{
-        display:flex;
-        align-items:center;
-        gap:10px;
-        margin-left:auto;
+      .right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
       }
 
-      .hello{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        background:#f2f5fb;
+      .hello {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f2f5fb;
         border-radius: var(--pill);
         padding: 8px 12px;
         box-shadow: var(--soft-in);
-        white-space:nowrap;
+        white-space: nowrap;
       }
-      .dot{
-        width:8px;height:8px;border-radius:50%;
-        background:#16a34a;
-        flex:0 0 auto;
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex: 0 0 auto;
       }
-      .hello .name{
-        font-size:13px;
-        color:#506381;
-        font-weight:800;
+      .hello .name {
+        font-size: 13px;
+        color: #506381;
+        font-weight: 800;
       }
 
-      .icon-btn{
-        width:44px;height:44px;
-        border:none;
+      .icon-btn {
+        width: 44px;
+        height: 44px;
+        border: none;
         border-radius: 16px;
-        background:#f2f5fb;
+        background: #f2f5fb;
         box-shadow: var(--soft-in);
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        position:relative;
-        flex:0 0 auto;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        flex: 0 0 auto;
       }
-      .icon-btn img{
-        width:22px;height:22px;object-fit:contain;
+      .icon-btn img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
       }
-      .badge{
-        position:absolute;
-        top:6px;
-        right:6px;
-        background:#facc15;
-        color:#1f2937;
-        font-weight:900;
-        font-size:11px;
-        padding:2px 6px;
+      .badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: #facc15;
+        color: #1f2937;
+        font-weight: 900;
+        font-size: 11px;
+        padding: 2px 6px;
         border-radius: var(--pill);
-        box-shadow: 0 8px 14px rgba(0,0,0,.12);
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.12);
       }
 
-      .logout{
-        width:44px;height:44px;
-        border:none;
-        border-radius:16px;
-        background:#f2f5fb;
+      .logout {
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 16px;
+        background: #f2f5fb;
         box-shadow: var(--soft-in);
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        justify-content:center;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      .logout img{ width:22px;height:22px;object-fit:contain; }
+      .logout img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+      }
 
       /* RGB divider */
-      .rgb{
+      .rgb {
         height: 3px;
         border-radius: 999px;
         margin-top: 10px;
-        background: linear-gradient(90deg,
+        background: linear-gradient(
+          90deg,
           #ff0000 0%,
           #ff7a00 18%,
           #ffd500 36%,
@@ -167,7 +190,7 @@
       }
 
       /* ===== Main Content Card ===== */
-      .main-card{
+      .main-card {
         margin-top: 14px;
         background: var(--card);
         border-radius: var(--radius);
@@ -175,127 +198,168 @@
         padding: 16px 14px 18px;
       }
 
-      .inner{
+      .inner {
         border-radius: 20px;
         background: #f3f5f9;
         box-shadow: var(--shadow-in);
         padding: 18px 14px 16px;
       }
 
-      .grid{
-        display:grid;
+      .grid {
+        display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 18px 18px;
         padding: 6px 2px 10px;
       }
 
-      .feature{
-        text-decoration:none;
+      .feature {
+        text-decoration: none;
         color: inherit;
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        gap:10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
       }
 
-      .circle{
-        width:74px;height:74px;
+      .circle {
+        width: 74px;
+        height: 74px;
         border-radius: 999px;
-        background:#f2f5fb;
+        background: #f2f5fb;
         box-shadow:
-          0 10px 18px rgba(20,35,65,.12),
-          inset 6px 6px 12px rgba(25,45,80,.10),
-          inset -6px -6px 12px rgba(255,255,255,.92);
-        display:flex;
-        align-items:center;
-        justify-content:center;
+          0 10px 18px rgba(20, 35, 65, 0.12),
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      .circle img{
-        width:30px;height:30px;object-fit:contain;
-      }
-
-      .label{
-        font-weight:900;
-        font-size:13px;
-        color:#2a3b58;
+      .circle img {
+        width: 30px;
+        height: 30px;
+        object-fit: contain;
       }
 
-      .more-wrap{
-        display:flex;
-        justify-content:center;
+      .label {
+        font-weight: 900;
+        font-size: 13px;
+        color: #2a3b58;
+      }
+
+      .more-wrap {
+        display: flex;
+        justify-content: center;
         margin-top: 8px;
       }
 
-      .more-btn{
+      .more-btn {
         width: 70%;
         height: 44px;
-        border:none;
+        border: none;
         border-radius: var(--pill);
-        background:#f2f5fb;
+        background: #f2f5fb;
         box-shadow: var(--soft-in);
-        cursor:pointer;
-        font-weight:1000;
-        letter-spacing:.6px;
-        color:#2f5f8f;
+        cursor: pointer;
+        font-weight: 1000;
+        letter-spacing: 0.6px;
+        color: #2f5f8f;
       }
 
-      .hidden-features{
-        display:none;
+      .hidden-features {
+        display: none;
         margin-top: 14px;
         padding-top: 10px;
-        border-top: 1px solid rgba(125,138,166,.18);
+        border-top: 1px solid rgba(125, 138, 166, 0.18);
       }
-      .hidden-features.show{ display:block; }
+      .hidden-features.show {
+        display: block;
+      }
 
       /* ===== Bottom Nav ===== */
-      .bottom-nav{
+      .bottom-nav {
         position: fixed;
-        left:0; right:0;
+        left: 0;
+        right: 0;
         bottom: 0;
         padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-        background: rgba(242,244,248,.85);
+        background: rgba(242, 244, 248, 0.85);
         backdrop-filter: blur(8px);
       }
-      .nav-bar{
+      .nav-bar {
         max-width: 430px;
         margin: 0 auto;
-        background:#fff;
+        background: #fff;
         border-radius: 18px;
         box-shadow: var(--shadow-out);
         padding: 10px 10px;
-        display:flex;
-        justify-content:space-between;
-        gap:10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
       }
 
-      .nav-item{
-        flex:1;
-        border:none;
-        background:transparent;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:8px;
+      .nav-item {
+        flex: 1;
+        border: none;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         padding: 10px 8px;
         border-radius: 16px;
-        cursor:pointer;
-        color:#6f7f9c;
-        font-weight:900;
-        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+        cursor: pointer;
+        color: #6f7f9c;
+        font-weight: 900;
+        transition:
+          transform 0.12s ease,
+          box-shadow 0.12s ease,
+          background 0.12s ease;
       }
-      .nav-item img{ width:20px;height:20px;object-fit:contain; }
+      .nav-item img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+      }
 
-      .nav-item.active{
-        background:#f2f5fb;
+      .nav-item.active {
+        background: #f2f5fb;
         box-shadow: var(--soft-in);
         transform: scale(1.06);
-        color:#2f5f8f;
-        border: 1px solid rgba(47,95,143,.14);
+        color: #2f5f8f;
+        border: 1px solid rgba(47, 95, 143, 0.14);
       }
 
       /* kecilin teks nav kalau sempit */
-      @media (max-width:360px){
-        .nav-item span{ font-size:12px; }
+      @media (max-width: 360px) {
+        .nav-item span {
+          font-size: 12px;
+        }
+      }
+      .nav-ico {
+        width: 26px;
+        height: 26px;
+        display: inline-block;
+      }
+      .nav-ico svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* Warna default (non aktif) */
+      .nav-ico .stroke {
+        stroke: #9fb1d6;
+      }
+      .nav-ico .fill {
+        fill: #9fb1d6;
+      }
+
+      /* Contoh aktif */
+      .is-active .nav-ico .stroke {
+        stroke: #2f5f8f;
+      }
+      .is-active .nav-ico .fill {
+        fill: #2f5f8f;
       }
     </style>
   </head>
@@ -303,13 +367,15 @@
   <body>
     <div class="screen">
       <div class="wrap">
-
         <!-- HEADER -->
         <div class="head-card">
           <div class="head-top">
             <div class="logo">
               <!-- Ganti src logo kamu -->
-              <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" />
+              <img
+                src="{{ url_for('static', filename='UMGAP (1).png') }}"
+                alt="Logo"
+              />
             </div>
 
             <div class="right">
@@ -321,7 +387,10 @@
               <!-- Notifikasi / Pesan -->
               <button class="icon-btn" type="button" aria-label="Notifikasi">
                 <!-- Ganti src icon notif kamu -->
-                <img src="{{ url_for('static', filename='notif.png') }}" alt="Notif" />
+                <img
+                  src="{{ url_for('static', filename='notif.png') }}"
+                  alt="Notif"
+                />
                 <!-- Kalau mau dinamis, ganti 177 dengan variabel -->
                 <span class="badge">{{ notif_count or 0 }}</span>
               </button>
@@ -329,7 +398,10 @@
               <!-- Logout -->
               <a class="logout" href="/logout" aria-label="Logout">
                 <!-- Ganti src icon logout kamu -->
-                <img src="{{ url_for('static', filename='logout.png') }}" alt="Logout" />
+                <img
+                  src="{{ url_for('static', filename='logout.png') }}"
+                  alt="Logout"
+                />
               </a>
             </div>
           </div>
@@ -344,28 +416,40 @@
               <!-- 4 fitur utama (tampil dulu) -->
               <a class="feature" href="/admin/users">
                 <div class="circle">
-                  <img src="{{ url_for('static', filename='icon_kelola_user.png') }}" alt="" />
+                  <img
+                    src="{{ url_for('static', filename='icon_kelola_user.png') }}"
+                    alt=""
+                  />
                 </div>
                 <div class="label">Kelola User</div>
               </a>
 
               <a class="feature" href="/admin/attendance">
                 <div class="circle">
-                  <img src="{{ url_for('static', filename='icon_absensi.png') }}" alt="" />
+                  <img
+                    src="{{ url_for('static', filename='icon_absensi.png') }}"
+                    alt=""
+                  />
                 </div>
                 <div class="label">Absensi</div>
               </a>
 
               <a class="feature" href="/admin/sales">
                 <div class="circle">
-                  <img src="{{ url_for('static', filename='icon_penjualan.png') }}" alt="" />
+                  <img
+                    src="{{ url_for('static', filename='icon_penjualan.png') }}"
+                    alt=""
+                  />
                 </div>
                 <div class="label">Penjualan</div>
               </a>
 
               <a class="feature" href="/admin/sales/monitor">
                 <div class="circle">
-                  <img src="{{ url_for('static', filename='icon_monitor_sales.png') }}" alt="" />
+                  <img
+                    src="{{ url_for('static', filename='icon_monitor_sales.png') }}"
+                    alt=""
+                  />
                 </div>
                 <div class="label">Monitor Sales</div>
               </a>
@@ -376,21 +460,30 @@
               <div class="grid">
                 <a class="feature" href="/admin/payroll">
                   <div class="circle">
-                    <img src="{{ url_for('static', filename='icon_payroll.png') }}" alt="" />
+                    <img
+                      src="{{ url_for('static', filename='icon_payroll.png') }}"
+                      alt=""
+                    />
                   </div>
                   <div class="label">Payroll</div>
                 </a>
 
                 <a class="feature" href="/products">
                   <div class="circle">
-                    <img src="{{ url_for('static', filename='icon_produk.png') }}" alt="" />
+                    <img
+                      src="{{ url_for('static', filename='icon_produk.png') }}"
+                      alt=""
+                    />
                   </div>
                   <div class="label">Produk</div>
                 </a>
 
                 <a class="feature" href="/admin/stats">
                   <div class="circle">
-                    <img src="{{ url_for('static', filename='icon_statistik.png') }}" alt="" />
+                    <img
+                      src="{{ url_for('static', filename='icon_statistik.png') }}"
+                      alt=""
+                    />
                   </div>
                   <div class="label">Statistik</div>
                 </a>
@@ -402,7 +495,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
@@ -410,17 +502,96 @@
     <div class="bottom-nav">
       <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
         <button class="nav-item active" type="button" data-nav="dashboard">
-          <img src="{{ url_for('static', filename='nav_dashboard.png') }}" alt="" />
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" aria-label="Dashboard">
+              <rect
+                class="fill"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+            </svg>
+          </span>
           <span>Dashboard</span>
         </button>
 
         <button class="nav-item" type="button" data-nav="data">
-          <img src="{{ url_for('static', filename='nav_data.png') }}" alt="" />
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" aria-label="Data">
+              <!-- panah ke kanan (atas) -->
+              <path
+                class="stroke"
+                d="M4 8h12"
+                fill="none"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <path
+                class="stroke"
+                d="M14.6 5.8L18 8l-3.4 2.2"
+                fill="none"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+
+              <!-- panah ke kiri (bawah) -->
+              <path
+                class="stroke"
+                d="M20 16H8"
+                fill="none"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <path
+                class="stroke"
+                d="M9.4 13.8L6 16l3.4 2.2"
+                fill="none"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+
           <span>Data</span>
         </button>
 
         <button class="nav-item" type="button" data-nav="more">
-          <img src="{{ url_for('static', filename='nav_more.png') }}" alt="" />
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" aria-label="More">
+              <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+              <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+              <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+            </svg>
+          </span>
+
           <span>More</span>
         </button>
       </div>
