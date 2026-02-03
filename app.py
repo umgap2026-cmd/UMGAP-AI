@@ -1325,6 +1325,20 @@ def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
 
 #HITUNG GAJI ADMIN#
 
+def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
+    """
+    Hitung jumlah hari kerja dari start_date (inclusive) sampai end_date (exclusive).
+    Libur hanya Minggu.
+    """
+    d = start_date
+    total = 0
+    while d < end_date:
+        # Monday=0 ... Sunday=6
+        if d.weekday() != 6:
+            total += 1
+        d += timedelta(days=1)
+    return total
+
 @app.route("/admin/payroll")
 def admin_payroll():
     month = request.args.get("month")  # format: YYYY-MM
@@ -1855,6 +1869,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
