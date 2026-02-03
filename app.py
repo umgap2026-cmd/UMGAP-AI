@@ -1309,21 +1309,27 @@ def admin_attendance_add():
     return redirect("/admin/attendance")
 
 
-#gaji otomatis
-def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
-    """
-    Hitung hari kerja dalam range [start_date, end_date) dengan libur hanya Minggu.
-    Python weekday(): Senin=0 ... Minggu=6
-    """
-    d = start_date
-    total = 0
-    while d < end_date:
-        if d.weekday() != 6:  # bukan Minggu
-            total += 1
-        d += timedelta(days=1)
-    return total
+
 
 #HITUNG GAJI ADMIN#
+
+def sync_user_points_total(user_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+      SELECT COALESCE(SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END), 0) AS points
+      FROM attendance
+      WHERE user_id=%s;
+    """, (user_id,))
+    points = cur.fetchone()["points"]
+
+    cur.execute("UPDATE users SET points_total=%s WHERE id=%s;", (points, user_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 
 def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
     """
@@ -1341,6 +1347,8 @@ def count_workdays_only_sunday_off(start_date: date, end_date: date) -> int:
 
 @app.route("/admin/payroll")
 def admin_payroll():
+    admin_guard()  # pastikan ini ada di project kamu
+
     month = request.args.get("month")  # format: YYYY-MM
     if not month:
         today = date.today()
@@ -1356,29 +1364,26 @@ def admin_payroll():
     else:
         end_date = date(year, mon + 1, 1)
 
-    # ✅ Hari kerja otomatis per bulan (libur Minggu)
+    # Hari kerja otomatis per bulan (libur Minggu)
     WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
 
     conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur = conn.cursor()  # <- FIX: jangan pakai RealDictCursor di sini
 
-    # Ambil setting gaji (bulanan & harian kalau ada) + rekap absensi
     cur.execute("""
       SELECT
-        u.id,
-        u.name,
-        COALESCE(p.monthly_salary, 0) AS monthly_salary,
-        COALESCE(p.daily_salary, 0)   AS daily_salary,
+        u.id, u.name,
+        COALESCE(p.daily_salary, 0) AS daily_salary,
         COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0)    AS days_sick,
-        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0)   AS days_leave,
-        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0)  AS days_absent
+        COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
+        COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
+        COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
       FROM users u
-      LEFT JOIN payroll_settings p ON p.user_id = u.id
-      LEFT JOIN attendance a ON a.user_id = u.id
+      LEFT JOIN payroll_settings p ON p.user_id=u.id
+      LEFT JOIN attendance a ON a.user_id=u.id
         AND a.work_date >= %s AND a.work_date < %s
-      WHERE u.role = 'employee'
-      GROUP BY u.id, u.name, p.monthly_salary, p.daily_salary
+      WHERE u.role='employee'
+      GROUP BY u.id, u.name, p.daily_salary
       ORDER BY u.name ASC;
     """, (start_date, end_date))
 
@@ -1388,39 +1393,24 @@ def admin_payroll():
 
     result = []
     for r in rows:
-        monthly_salary = int(r.get("monthly_salary") or 0)
-        daily_salary_db = int(r.get("daily_salary") or 0)
-        days_present = int(r.get("days_present") or 0)
+        # kalau cursor kamu RealDictCursor, r["..."] bisa jalan
+        # kalau ternyata tuple, kamu bisa ubah get_conn() supaya RealDictCursor
+        daily_salary = int(r["daily_salary"] or 0)
+        days_present = int(r["days_present"] or 0)
 
-        # ✅ Tentukan gaji harian:
-        # 1) Jika payroll_settings.daily_salary sudah diisi → pakai itu
-        # 2) Kalau belum ada → fallback dari monthly_salary / WORKDAYS
-        if daily_salary_db > 0:
-            daily_salary = daily_salary_db
-        else:
-            daily_salary = int(round(monthly_salary / WORKDAYS)) if WORKDAYS > 0 else monthly_salary
-
-        # ✅ Payroll harian = gaji_harian * jumlah_hadir
-        salary_paid = int(daily_salary * days_present)
-
-        # ✅ POIN: 1 poin setiap hadir (PRESENT)
-        points_earned = int(days_present)
+        salary_paid = daily_salary * days_present
+        points_earned = days_present  # 1 hadir = 1 poin
 
         result.append({
             "id": r["id"],
             "name": r["name"],
-            "workdays": WORKDAYS,
-
-            # yang ditampilkan
             "daily_salary": daily_salary,
-            "monthly_salary": monthly_salary,  # tetap kirim kalau mau ditampilkan di UI
-            "salary_paid": salary_paid,
-
+            "workdays": WORKDAYS,
             "days_present": days_present,
-            "days_sick": int(r.get("days_sick") or 0),
-            "days_leave": int(r.get("days_leave") or 0),
-            "days_absent": int(r.get("days_absent") or 0),
-
+            "days_sick": int(r["days_sick"] or 0),
+            "days_leave": int(r["days_leave"] or 0),
+            "days_absent": int(r["days_absent"] or 0),
+            "salary_paid": salary_paid,
             "points_earned": points_earned,
         })
 
@@ -1430,7 +1420,6 @@ def admin_payroll():
         rows=result,
         workdays=WORKDAYS
     )
-
 
 
 
@@ -1869,6 +1858,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
