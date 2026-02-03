@@ -54,6 +54,9 @@
   <p class="hint">
     Admin bisa absen sendiri dan bisa absenkan karyawan yang tidak punya HP.
   </p>
+  <div class="mini" style="margin-top: 8px">
+    ⏱️ Sekarang: <b id="liveClock">--:--:--</b>
+  </div>
 </div>
 
 <div class="grid2">
@@ -188,4 +191,16 @@
     </table>
   </div>
 </div>
+<script>
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
+  function tick() {
+    const d = new Date();
+    document.getElementById("liveClock").textContent =
+      pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
 {% endblock %}
