@@ -1,200 +1,461 @@
-{% extends "base.html" %} {% block content %}
-<style>
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  @media (min-width: 980px) {
-    .grid2 {
-      grid-template-columns: 1.1fr 0.9fr;
-    }
-  }
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Admin Dashboard</title>
 
-  .kpi {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  @media (min-width: 720px) {
-    .kpi {
-      grid-template-columns: repeat(4, 1fr);
-    }
-  }
+    <style>
+      :root{
+        --bg:#f2f4f8;
+        --card:#f7f8fb;
+        --text:#1d2a44;
+        --muted:#7d8aa6;
 
-  .k {
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.85);
-    border-radius: 16px;
-    padding: 12px;
-  }
-  .k .t {
-    margin: 0;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
-  }
-  .k .v {
-    margin: 6px 0 0;
-    font-size: 18px;
-    font-weight: 1000;
-  }
+        --shadow-out: 0 18px 35px rgba(20,35,65,.10);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25,45,80,.12),
+          inset -10px -10px 18px rgba(255,255,255,.9);
 
-  .actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-  .btn-big {
-    padding: 14px 14px;
-    border-radius: 14px;
-    font-weight: 900;
-  }
+        --soft-in:
+          inset 6px 6px 12px rgba(25,45,80,.10),
+          inset -6px -6px 12px rgba(255,255,255,.92);
 
-  .chartbox {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px;
-    background: #fff;
-  }
-  .chartbox h3 {
-    margin: 0 0 8px;
-    font-size: 14px;
-    font-weight: 1000;
-  }
-  canvas {
-    width: 100% !important;
-    height: 260px !important;
-  }
+        --radius: 22px;
+        --pill: 999px;
+        --blue:#2f5f8f;
+        --red:#ef4444;
+      }
 
-  @media (max-width: 640px) {
-    .btn-big {
-      width: 100%;
-      justify-content: center;
-    }
-  }
-</style>
+      *{ box-sizing:border-box; }
+      body{
+        margin:0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: var(--bg);
+        color: var(--text);
+        min-height:100svh;
+      }
 
-<div class="card">
-  <h2>Dashboard Admin</h2>
-  <p class="muted">Pantau absensi, penjualan, produk, dan statistik.</p>
+      .screen{
+        min-height:100svh;
+        display:flex;
+        justify-content:center;
+        padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+      }
 
-  <div class="actions">
-    <a class="btn btn-primary btn-big" href="/admin/users"
-      >👥 Kelola Karyawan</a
-    >
-    <a class="btn btn-primary btn-big" href="/admin/attendance">🧾 Absensi</a>
-    <a class="btn btn-primary btn-big" href="/admin/sales"
-      >✅ Approval Penjualan</a
-    >
-    <a class="btn btn-primary btn-big" href="/admin/sales/monitor"
-      >📈 Sales Monitor</a
-    >
+      .wrap{
+        width:100%;
+        max-width: 430px;
+      }
 
-    <!-- ✅ TAMBAH INI -->
-    <a class="btn btn-primary btn-big" href="/admin/payroll">💸 Payroll</a>
+      /* ===== Header Card ===== */
+      .head-card{
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
 
-    <a class="btn btn-primary btn-big" href="/products">📦 Produk</a>
-    <a class="btn btn-primary btn-big" href="#statistik">📊 Statistik</a>
-  </div>
-</div>
+      .head-top{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+      }
 
-<div class="grid2" style="margin-top: 14px">
-  <div class="card">
-    <h2>Ringkasan</h2>
+      .logo{
+        width:44px;
+        height:44px;
+        border-radius:14px;
+        background:#fff;
+        box-shadow: 0 10px 18px rgba(20,35,65,.12);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        overflow:hidden;
+        flex: 0 0 auto;
+      }
+      .logo img{
+        width:100%;
+        height:100%;
+        object-fit:contain;
+      }
 
-    <div class="kpi">
-      <div class="k">
-        <p class="t">Total Karyawan</p>
-        <p class="v">{{ total_employees }}</p>
-      </div>
-      <div class="k">
-        <p class="t">Absensi Hari Ini</p>
-        <p class="v">{{ attendance_today }}</p>
-      </div>
-      <div class="k">
-        <p class="t">Sales Pending</p>
-        <p class="v">{{ sales_pending }}</p>
-      </div>
-      <div class="k">
-        <p class="t">Total Produk</p>
-        <p class="v">{{ total_products }}</p>
+      .right{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        margin-left:auto;
+      }
+
+      .hello{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        background:#f2f5fb;
+        border-radius: var(--pill);
+        padding: 8px 12px;
+        box-shadow: var(--soft-in);
+        white-space:nowrap;
+      }
+      .dot{
+        width:8px;height:8px;border-radius:50%;
+        background:#16a34a;
+        flex:0 0 auto;
+      }
+      .hello .name{
+        font-size:13px;
+        color:#506381;
+        font-weight:800;
+      }
+
+      .icon-btn{
+        width:44px;height:44px;
+        border:none;
+        border-radius: 16px;
+        background:#f2f5fb;
+        box-shadow: var(--soft-in);
+        cursor:pointer;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        position:relative;
+        flex:0 0 auto;
+      }
+      .icon-btn img{
+        width:22px;height:22px;object-fit:contain;
+      }
+      .badge{
+        position:absolute;
+        top:6px;
+        right:6px;
+        background:#facc15;
+        color:#1f2937;
+        font-weight:900;
+        font-size:11px;
+        padding:2px 6px;
+        border-radius: var(--pill);
+        box-shadow: 0 8px 14px rgba(0,0,0,.12);
+      }
+
+      .logout{
+        width:44px;height:44px;
+        border:none;
+        border-radius:16px;
+        background:#f2f5fb;
+        box-shadow: var(--soft-in);
+        cursor:pointer;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+      .logout img{ width:22px;height:22px;object-fit:contain; }
+
+      /* RGB divider */
+      .rgb{
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
+        background: linear-gradient(90deg,
+          #ff0000 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
+        );
+      }
+
+      /* ===== Main Content Card ===== */
+      .main-card{
+        margin-top: 14px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 16px 14px 18px;
+      }
+
+      .inner{
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 18px 14px 16px;
+      }
+
+      .grid{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px 18px;
+        padding: 6px 2px 10px;
+      }
+
+      .feature{
+        text-decoration:none;
+        color: inherit;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        gap:10px;
+      }
+
+      .circle{
+        width:74px;height:74px;
+        border-radius: 999px;
+        background:#f2f5fb;
+        box-shadow:
+          0 10px 18px rgba(20,35,65,.12),
+          inset 6px 6px 12px rgba(25,45,80,.10),
+          inset -6px -6px 12px rgba(255,255,255,.92);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+      .circle img{
+        width:30px;height:30px;object-fit:contain;
+      }
+
+      .label{
+        font-weight:900;
+        font-size:13px;
+        color:#2a3b58;
+      }
+
+      .more-wrap{
+        display:flex;
+        justify-content:center;
+        margin-top: 8px;
+      }
+
+      .more-btn{
+        width: 70%;
+        height: 44px;
+        border:none;
+        border-radius: var(--pill);
+        background:#f2f5fb;
+        box-shadow: var(--soft-in);
+        cursor:pointer;
+        font-weight:1000;
+        letter-spacing:.6px;
+        color:#2f5f8f;
+      }
+
+      .hidden-features{
+        display:none;
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(125,138,166,.18);
+      }
+      .hidden-features.show{ display:block; }
+
+      /* ===== Bottom Nav ===== */
+      .bottom-nav{
+        position: fixed;
+        left:0; right:0;
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(242,244,248,.85);
+        backdrop-filter: blur(8px);
+      }
+      .nav-bar{
+        max-width: 430px;
+        margin: 0 auto;
+        background:#fff;
+        border-radius: 18px;
+        box-shadow: var(--shadow-out);
+        padding: 10px 10px;
+        display:flex;
+        justify-content:space-between;
+        gap:10px;
+      }
+
+      .nav-item{
+        flex:1;
+        border:none;
+        background:transparent;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+        padding: 10px 8px;
+        border-radius: 16px;
+        cursor:pointer;
+        color:#6f7f9c;
+        font-weight:900;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      }
+      .nav-item img{ width:20px;height:20px;object-fit:contain; }
+
+      .nav-item.active{
+        background:#f2f5fb;
+        box-shadow: var(--soft-in);
+        transform: scale(1.06);
+        color:#2f5f8f;
+        border: 1px solid rgba(47,95,143,.14);
+      }
+
+      /* kecilin teks nav kalau sempit */
+      @media (max-width:360px){
+        .nav-item span{ font-size:12px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="screen">
+      <div class="wrap">
+
+        <!-- HEADER -->
+        <div class="head-card">
+          <div class="head-top">
+            <div class="logo">
+              <!-- Ganti src logo kamu -->
+              <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" />
+            </div>
+
+            <div class="right">
+              <div class="hello" title="User">
+                <span class="dot"></span>
+                <span class="name">Hallo, {{ user_name or 'Admin' }}</span>
+              </div>
+
+              <!-- Notifikasi / Pesan -->
+              <button class="icon-btn" type="button" aria-label="Notifikasi">
+                <!-- Ganti src icon notif kamu -->
+                <img src="{{ url_for('static', filename='notif.png') }}" alt="Notif" />
+                <!-- Kalau mau dinamis, ganti 177 dengan variabel -->
+                <span class="badge">{{ notif_count or 0 }}</span>
+              </button>
+
+              <!-- Logout -->
+              <a class="logout" href="/logout" aria-label="Logout">
+                <!-- Ganti src icon logout kamu -->
+                <img src="{{ url_for('static', filename='logout.png') }}" alt="Logout" />
+              </a>
+            </div>
+          </div>
+
+          <div class="rgb"></div>
+        </div>
+
+        <!-- MAIN -->
+        <div class="main-card">
+          <div class="inner">
+            <div class="grid" id="featureGrid">
+              <!-- 4 fitur utama (tampil dulu) -->
+              <a class="feature" href="/admin/users">
+                <div class="circle">
+                  <img src="{{ url_for('static', filename='icon_kelola_user.png') }}" alt="" />
+                </div>
+                <div class="label">Kelola User</div>
+              </a>
+
+              <a class="feature" href="/admin/attendance">
+                <div class="circle">
+                  <img src="{{ url_for('static', filename='icon_absensi.png') }}" alt="" />
+                </div>
+                <div class="label">Absensi</div>
+              </a>
+
+              <a class="feature" href="/admin/sales">
+                <div class="circle">
+                  <img src="{{ url_for('static', filename='icon_penjualan.png') }}" alt="" />
+                </div>
+                <div class="label">Penjualan</div>
+              </a>
+
+              <a class="feature" href="/admin/sales/monitor">
+                <div class="circle">
+                  <img src="{{ url_for('static', filename='icon_monitor_sales.png') }}" alt="" />
+                </div>
+                <div class="label">Monitor Sales</div>
+              </a>
+            </div>
+
+            <!-- hidden: 3 fitur tambahan (jadi total 7) -->
+            <div class="hidden-features" id="moreSection">
+              <div class="grid">
+                <a class="feature" href="/admin/payroll">
+                  <div class="circle">
+                    <img src="{{ url_for('static', filename='icon_payroll.png') }}" alt="" />
+                  </div>
+                  <div class="label">Payroll</div>
+                </a>
+
+                <a class="feature" href="/products">
+                  <div class="circle">
+                    <img src="{{ url_for('static', filename='icon_produk.png') }}" alt="" />
+                  </div>
+                  <div class="label">Produk</div>
+                </a>
+
+                <a class="feature" href="/admin/stats">
+                  <div class="circle">
+                    <img src="{{ url_for('static', filename='icon_statistik.png') }}" alt="" />
+                  </div>
+                  <div class="label">Statistik</div>
+                </a>
+              </div>
+            </div>
+
+            <div class="more-wrap">
+              <button class="more-btn" id="moreBtn" type="button">MORE</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
-    <div id="statistik" style="margin-top: 14px" class="chartbox">
-      <h3>Absensi 7 Hari Terakhir</h3>
-      <canvas id="chartAtt"></canvas>
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+      <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+        <button class="nav-item active" type="button" data-nav="dashboard">
+          <img src="{{ url_for('static', filename='nav_dashboard.png') }}" alt="" />
+          <span>Dashboard</span>
+        </button>
+
+        <button class="nav-item" type="button" data-nav="data">
+          <img src="{{ url_for('static', filename='nav_data.png') }}" alt="" />
+          <span>Data</span>
+        </button>
+
+        <button class="nav-item" type="button" data-nav="more">
+          <img src="{{ url_for('static', filename='nav_more.png') }}" alt="" />
+          <span>More</span>
+        </button>
+      </div>
     </div>
 
-    <div style="margin-top: 14px" class="chartbox">
-      <h3>Penjualan (Qty) 7 Hari Terakhir</h3>
-      <canvas id="chartSales"></canvas>
-    </div>
-  </div>
+    <script>
+      // Toggle MORE (buka/tutup fitur tambahan)
+      (function () {
+        const btn = document.getElementById("moreBtn");
+        const more = document.getElementById("moreSection");
+        if (!btn || !more) return;
 
-  <div class="card">
-    <h2>Top Penjualan Bulan Ini</h2>
-    <p class="muted">5 karyawan dengan qty tertinggi.</p>
+        btn.addEventListener("click", () => {
+          const open = more.classList.toggle("show");
+          btn.textContent = open ? "LESS" : "MORE";
+          if (open) more.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      })();
 
-    <div class="chartbox" style="margin-top: 10px">
-      <canvas id="chartTop"></canvas>
-    </div>
+      // Bottom nav active state (klik -> membesar + border)
+      (function () {
+        const items = document.querySelectorAll(".nav-item");
+        items.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            items.forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
 
-    <p class="muted" style="margin-top: 10px">
-      Tip: approval di menu “Approval Penjualan”, detail jam/tanggal di “Sales
-      Monitor”.
-    </p>
-  </div>
-</div>
-
-<script id="chart-data" type="application/json">
-  {{ {
-    "labels": labels,
-    "attSeries": att_series,
-    "salesSeries": sales_series,
-    "topLabels": top_labels,
-    "topValues": top_values
-  } | tojson }}
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  const raw = document.getElementById("chart-data").textContent;
-  const data = JSON.parse(raw);
-
-  const labels = data.labels || [];
-  const attSeries = data.attSeries || [];
-  const salesSeries = data.salesSeries || [];
-  const topLabels = data.topLabels || [];
-  const topValues = data.topValues || [];
-
-  function safeChart(elId, cfg) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    new Chart(el, cfg);
-  }
-
-  safeChart("chartAtt", {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{ label: "Absensi", data: attSeries, tension: 0.35 }],
-    },
-    options: { responsive: true, maintainAspectRatio: false },
-  });
-
-  safeChart("chartSales", {
-    type: "bar",
-    data: { labels, datasets: [{ label: "Qty", data: salesSeries }] },
-    options: { responsive: true, maintainAspectRatio: false },
-  });
-
-  safeChart("chartTop", {
-    type: "bar",
-    data: { labels: topLabels, datasets: [{ label: "Qty", data: topValues }] },
-    options: { responsive: true, maintainAspectRatio: false, indexAxis: "y" },
-  });
-</script>
-{% endblock %}
+            // OPTIONAL: kalau mau diarahkan ke halaman tertentu, buka ini:
+            // const key = btn.getAttribute("data-nav");
+            // if (key === "dashboard") window.location.href = "/admin/dashboard";
+            // if (key === "data") window.location.href = "/admin/stats"; // misal
+            // if (key === "more") document.getElementById("moreBtn").click();
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
