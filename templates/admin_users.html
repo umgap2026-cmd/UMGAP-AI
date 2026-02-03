@@ -451,8 +451,8 @@
           </div>
 
           <div>
-            <label>Gaji Bulanan (contoh: 5000000)</label>
-            <input name="monthly_salary" type="number" min="0" value="0" />
+            <label>Gaji Harian (contoh: 100000)</label>
+            <input name="dialy_salary" type="number" min="0" value="0" />
           </div>
 
           <div class="divider"></div>
@@ -486,7 +486,7 @@
               <div>
                 <p class="uname">{{ u.name }}</p>
                 <p class="usub">{{ u.email }}</p>
-                <p class="usub">Gaji: {{ u.monthly_salary }}</p>
+                <p class="usub">Gaji: {{ u.dialy_salary }}</p>
               </div>
               <span class="tag">{{ u.role }}</span>
             </div>
@@ -526,7 +526,7 @@
                   </div>
                   <div>
                     <label>Gaji Bulanan</label>
-                    <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
+                    <input name="daily_salary" value="{{ u.daily_salary }}">
                   </div>
                 </div>
 
@@ -557,7 +557,7 @@
                 <th>Nama</th>
                 <th>Email</th>
                 <th>Role</th>
-                <th>Gaji Bulanan</th>
+                <th>Gaji Harian</th>
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -569,7 +569,7 @@
                 <td>{{ u.name }}</td>
                 <td>{{ u.email }}</td>
                 <td>{{ u.role }}</td>
-                <td>{{ u.monthly_salary }}</td>
+                <td>{{ u.dialy_salary }}</td>
                 <td style="white-space:nowrap;">
                   <button class="btn btn-lite" type="button" data-toggle="desk-edit-{{ u.id }}">Edit</button>
                   <form method="POST" action="/admin/users/delete/{{ u.id }}"
@@ -603,8 +603,8 @@
                         </select>
                       </div>
                       <div>
-                        <label>Gaji Bulanan</label>
-                        <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
+                        <label>Gaji Harian</label>
+                        <input name="daily_salary" value="{{ u.daily_salary }}">
                       </div>
                     </div>
 
