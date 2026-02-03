@@ -452,7 +452,7 @@
 
           <div>
             <label>Gaji Harian (contoh: 100000)</label>
-            <input name="dialy_salary" type="number" min="0" value="0" />
+            <input name="daily_salary" type="number" min="0" value="0" />
           </div>
 
           <div class="divider"></div>
@@ -486,7 +486,7 @@
               <div>
                 <p class="uname">{{ u.name }}</p>
                 <p class="usub">{{ u.email }}</p>
-                <p class="usub">Gaji: {{ u.dialy_salary }}</p>
+                <p class="usub">Gaji: {{ u.daily_salary }}</p>
               </div>
               <span class="tag">{{ u.role }}</span>
             </div>
@@ -569,7 +569,7 @@
                 <td>{{ u.name }}</td>
                 <td>{{ u.email }}</td>
                 <td>{{ u.role }}</td>
-                <td>{{ u.dialy_salary }}</td>
+                <td>{{ u.daily_salary }}</td>
                 <td style="white-space:nowrap;">
                   <button class="btn btn-lite" type="button" data-toggle="desk-edit-{{ u.id }}">Edit</button>
                   <form method="POST" action="/admin/users/delete/{{ u.id }}"
@@ -787,4 +787,3 @@
 </script>
 
 {% endblock %}
-
