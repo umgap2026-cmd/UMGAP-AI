@@ -1354,8 +1354,9 @@ def admin_attendance_add():
     else:
         status = "PRESENT"
 
-    today = date.today()
-    now = datetime.utcnow()  # atau pakai timezone lokal kalau kamu sudah set
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    today = now.date()
+
 
     conn = get_conn()
     cur = conn.cursor()
