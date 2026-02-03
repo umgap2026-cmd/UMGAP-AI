@@ -1,300 +1,789 @@
 {% extends "base.html" %}
+{% block topbar %}{% endblock %}
+
 {% block content %}
 <style>
-  .divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  :root{
+    --bg:#f2f4f8;
+    --card:#f7f8fb;
+    --text:#1d2a44;
+    --muted:#7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20,35,65,.10);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25,45,80,.12),
+      inset -10px -10px 18px rgba(255,255,255,.90);
+
+    --soft-in:
+      inset 6px 6px 12px rgba(25,45,80,.10),
+      inset -6px -6px 12px rgba(255,255,255,.92);
+
+    --radius:22px;
+    --pill:999px;
+
+    --blue:#2f5f8f;
+    --primary:#2563eb;
+    --primary2:#1d4ed8;
+    --danger:#ef4444;
+    --border: rgba(125,138,166,.22);
+
+    --bottom-nav-h: 92px;
+  }
+
+  /* penting: ruang bawah biar konten tidak ketutup nav fixed */
+  body{ padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom)); }
+
+  .screen{
+    min-height:100svh;
+    display:flex;
+    justify-content:center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  /* mobile-first: max 430px biar mirip screenshot */
+  .wrap{
+    width:100%;
+    max-width: 430px;
+  }
+
+  /* desktop tetap selaras (lebih lebar) */
+  @media (min-width: 901px){
+    .wrap{ max-width: 1100px; }
+  }
+
+  /* ===== Header Baru ===== */
+  .head-card{
+    background:#fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+
+  .head-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .logo{
+    width:44px;height:44px;
+    border-radius:14px;
+    background:#fff;
+    box-shadow: 0 10px 18px rgba(20,35,65,.12);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    flex:0 0 auto;
+  }
+  .logo img{ width:100%; height:100%; object-fit:contain; }
+
+  .right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-left:auto;
+  }
+
+  .userpill{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:#f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space:nowrap;
+  }
+  .dot{ width:8px;height:8px;border-radius:50%;background:#16a34a; }
+  .userpill .name{
+    font-size:13px;
+    color:#506381;
+    font-weight:800;
+  }
+
+  /* tombol pesan & logout (seperti foto) */
+  .action-btn{
+    position:relative;
+    width:38px;height:38px;
+    border-radius:16px;
+    background:#f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30,60,90,.18),
+      inset 4px 4px 10px rgba(255,255,255,.90),
+      inset -4px -4px 10px rgba(30,60,90,.08);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    border:none;
+    text-decoration:none;
+  }
+  .action-btn svg{
+    width:22px;height:22px;
+    stroke:#7b93c7;
+    stroke-width:2.2;
+    fill:none;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .badge{
+    position:absolute;
+    top:-6px; right:-6px;
+    background:#ffd84d;
+    color:#1f2937;
+    font-size:11px;
+    font-weight:900;
+    padding:3px 7px;
+    border-radius:999px;
+    box-shadow: 0 6px 14px rgba(0,0,0,.20);
+  }
+
+  .rgb{
+    height:3px;
+    border-radius:999px;
+    margin-top:10px;
+    background: linear-gradient(90deg,
+      #ff0000 0%, #ff7a00 18%, #ffd500 36%,
+      #00c853 58%, #00b0ff 78%, #8a2be2 100%);
+  }
+
+  /* ===== Card neumorphism ===== */
+  .main-card{
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner{
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title{
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color:#2a3b58;
+    letter-spacing:.2px;
+  }
+  .desc{
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .divider{
+    height:1px;
+    background: rgba(125,138,166,.18);
+    border-radius:999px;
     margin: 12px 0;
   }
 
-  .grid2 { display:grid; grid-template-columns:1fr; gap:14px; margin-top:16px; }
-  @media(min-width:980px){ .grid2{ grid-template-columns:1.05fr .95fr; } }
-
-  .kpi { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
-  @media(min-width:720px){ .kpi{ grid-template-columns:repeat(3,1fr);} }
-
-  .k { border:1px solid var(--border); background:#f8faff; border-radius:14px; padding:12px; }
-  .k .t{ margin:0; color:var(--muted); font-size:12px; font-weight:900; }
-  .k .v{ margin:6px 0 0; font-size:18px; font-weight:1000; }
-
-  .btn-big { width:100%; padding:14px; border-radius:14px; font-size:16px; }
-
-  /* Desktop table */
-  .tablewrap{
-    overflow:auto;
-    border:1px solid var(--border);
-    border-radius:14px;
-    background:#fff;
+  /* KPI neumorphism seperti screenshot */
+  .kpi-wrap{
+    margin-top: 12px;
+    border-radius: 18px;
+    background:#f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 14px;
   }
-  table{ width:100%; border-collapse:collapse; min-width:860px; }
-  th, td{ padding:12px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
-  th{ color:var(--muted); font-size:13px; }
-
-  .mini{ font-size:12px; color:var(--muted); margin-top:6px; }
-
-  .row-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-  .row-actions .btn{ padding:10px 12px; }
-
-  /* Mobile cards */
-  .list{ display:none; gap:10px; }
-  .item{
-    border:1px solid var(--border);
-    border-radius:14px;
-    background:#fff;
-    padding:12px;
-    box-shadow: var(--shadow);
+  .kpis{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
   }
-  .itemtop{
+  .kpis .k{
+    border-radius: 16px;
+    background:#f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px;
+    text-align:center;
+  }
+  .k .kt{ margin:0; color: var(--muted); font-size: 12px; font-weight: 800; }
+  .k .kv{ margin: 6px 0 0; font-size: 18px; font-weight: 1000; color: var(--blue); }
+  /* supaya 3 KPI, satu kotak turun bawah di mobile (mirip foto) */
+  .kpis .k:nth-child(3){ grid-column: 1 / span 1; }
+  @media (min-width: 420px){
+    .kpis .k:nth-child(3){ grid-column: 1 / span 2; max-width: 200px; justify-self: start; }
+  }
+
+  /* Form */
+  label{
+    display:block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input, select{
+    width:100%;
+    border:none;
+    outline:none;
+    border-radius: 14px;
+    background:#f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size:14px;
+    color: var(--text);
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:12px;
+  }
+  @media (min-width: 901px){
+    .row{ grid-template-columns: 1fr 1fr; }
+  }
+
+  .btn{
+    border:none;
+    border-radius: 16px;
+    cursor:pointer;
+    font-weight: 900;
+  }
+  .btn-primary{
+    width:100%;
+    height: 52px;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary2) 100%);
+    color:#fff;
+    box-shadow: 0 12px 20px rgba(37,99,235,.22);
+  }
+  .btn-lite{
+    background:#f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--blue);
+    padding: 10px 12px;
+  }
+  .btn-danger{
+    background: rgba(239,68,68,.12);
+    color:#b91c1c;
+    border: 1px solid rgba(239,68,68,.25);
+    padding: 10px 12px;
+  }
+
+  /* ===== Daftar User + Search ===== */
+  .search-row{
     display:flex;
+    gap:10px;
+    align-items:flex-end;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .search-row .left{ flex: 1 1 220px; }
+  .search-row .right{ flex: 1 1 220px; }
+  #userSearch{ width:100%; }
+
+  /* Mobile card list */
+  .list{
+    display:grid;
+    gap: 12px;
+  }
+  .item{
+    background:#fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .item-top{
+    display:flex;
+    align-items:flex-start;
     justify-content:space-between;
     gap:10px;
-    flex-wrap:wrap;
-    align-items:flex-start;
   }
-  .namebig{ font-weight:1000; margin:0; }
-  .sub{ margin:6px 0 0; color:var(--muted); font-size:13px; }
+  .uname{ margin:0; font-weight:1000; }
+  .usub{ margin: 6px 0 0; color: var(--muted); font-size: 13px; }
   .tag{
     display:inline-flex;
     align-items:center;
     padding:6px 10px;
     border-radius:999px;
-    border:1px solid var(--border);
-    background:#f8faff;
-    font-weight:900;
+    background:#f2f5fb;
+    box-shadow: var(--soft-in);
+    color:#2a3b58;
     font-size:12px;
+    font-weight:800;
     white-space:nowrap;
   }
-
-  @media(max-width:900px){
-    .tablewrap{ display:none; }
-    .list{ display:grid; }
-    input, select, textarea{ padding:14px; font-size:16px; }
+  .item-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top: 10px;
   }
 
-  .error {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 14px;
-    border: 1px solid rgba(220, 38, 38, 0.25);
-    background: rgba(220, 38, 38, 0.06);
-    color: #b91c1c;
+  .edit-panel{
+    display:none;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(125,138,166,.18);
+  }
+  .edit-panel.show{ display:block; }
+
+  /* Desktop table */
+  .tablewrap{ display:none; overflow:auto; }
+  table{
+    width:100%;
+    border-collapse: collapse;
+    min-width: 900px;
+    background:#fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow:hidden;
+  }
+  th, td{
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(125,138,166,.18);
+    text-align:left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+  th{
+    color: var(--muted);
+    font-size: 12px;
     font-weight: 900;
   }
+
+  @media (min-width: 901px){
+    .list{ display:none; }
+    .tablewrap{ display:block; }
+  }
+
+  .mini{ font-size:12px; color: var(--muted); margin-top:6px; }
 </style>
 
-<div class="card">
-  <h2>👥 Kelola Karyawan</h2>
-  <p class="muted">Tambah / edit / hapus karyawan, atur role, dan set gaji bulanan.</p>
+<div class="screen">
+  <div class="wrap">
 
-  <div class="kpi">
-    <div class="k">
-      <p class="t">Total User</p>
-      <p class="v">{{ rows|length }}</p>
-    </div>
-    <div class="k">
-      <p class="t">Admin</p>
-      <p class="v">{{ (rows|selectattr("role","equalto","admin")|list)|length }}</p>
-    </div>
-    <div class="k">
-      <p class="t">Karyawan</p>
-      <p class="v">{{ (rows|selectattr("role","equalto","employee")|list)|length }}</p>
-    </div>
-  </div>
-</div>
-
-<div class="grid2">
-  <!-- LEFT: tambah user -->
-  <div class="card">
-    <h2>Tambah Karyawan</h2>
-    <p class="muted">Isi data sederhana. Password bisa diganti nanti.</p>
-    <div class="divider"></div>
-
-    {% if error %}
-      <p class="error">{{ error }}</p>
-      <div class="divider"></div>
-    {% endif %}
-
-    <form method="POST" action="/admin/users/create">
-      <div class="row">
-        <div>
-          <label>Nama</label>
-          <input name="name" required placeholder="Nama karyawan" />
+    <!-- HEADER BARU (tanpa header base) -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP"/>
         </div>
-        <div>
-          <label>Email</label>
-          <input name="email" type="email" required placeholder="email@contoh.com" />
-        </div>
-      </div>
 
-      <div class="row">
-        <div>
-          <label>Password</label>
-          <input name="password" type="password" required placeholder="Password awal" />
-        </div>
-        <div>
-          <label>Role</label>
-          <select name="role">
-            <option value="employee" selected>employee</option>
-            <option value="admin">admin</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row-1">
-        <div>
-          <label>Gaji Bulanan (contoh: 5000000)</label>
-          <input name="monthly_salary" type="number" min="0" value="0" />
-        </div>
-      </div>
-
-      <button class="btn btn-primary btn-big" type="submit">➕ Tambah Karyawan</button>
-    </form>
-  </div>
-
-  <!-- RIGHT: info singkat -->
-  <div class="card">
-    <h2>Catatan</h2>
-    <p class="muted">
-      • Admin tidak bisa menghapus akunnya sendiri.<br />
-      • Password baru diisi hanya jika ingin mengganti.<br />
-      • Gaji bulanan dipakai untuk perhitungan payroll.
-    </p>
-  </div>
-</div>
-
-<div class="card" style="margin-top:14px;">
-  <h2>Daftar User</h2>
-  <p class="muted">Desktop: tabel. HP: kartu.</p>
-  <div class="divider"></div>
-
-  <!-- MOBILE LIST -->
-  <div class="list">
-    {% for u in rows %}
-    <div class="item">
-      <div class="itemtop">
-        <div>
-          <p class="namebig">{{ u.name }}</p>
-          <p class="sub">{{ u.email }}</p>
-        </div>
-        <span class="tag">{{ u.role }}</span>
-      </div>
-
-      <div class="divider"></div>
-
-      <form method="POST" action="/admin/users/update/{{ u.id }}">
-        <div class="row-1">
-          <div>
-            <label>Nama</label>
-            <input name="name" value="{{ u.name }}" />
-          </div>
-          <div>
-            <label>Email</label>
-            <input name="email" type="email" value="{{ u.email }}" />
-          </div>
-          <div>
-            <label>Role</label>
-            <select name="role">
-              <option value="employee" {% if u.role=='employee' %}selected{% endif %}>employee</option>
-              <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
-            </select>
-          </div>
-          <div>
-            <label>Gaji Bulanan</label>
-            <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
-          </div>
-          <div>
-            <label>Password baru (opsional)</label>
-            <input name="new_password" type="password" placeholder="Kosongkan jika tidak ganti" />
-            <div class="mini">Aman: kosongkan kalau tidak perlu.</div>
+        <div class="right">
+          <div class="userpill" title="User">
+            <span class="dot"></span>
+            <span class="name">{{ user_name or session.get("user_name","Admin") }}</span>
           </div>
 
-          <div class="row-actions">
-            <button class="btn btn-primary" type="submit">💾 Simpan</button>
-          </div>
-        </div>
-      </form>
-
-      <div style="margin-top:10px;">
-        <form method="POST" action="/admin/users/delete/{{ u.id }}" onsubmit="return confirm('Yakin hapus user ini?')">
-          <button class="btn btn-danger" type="submit" {% if u.id == session.get("user_id") %}disabled{% endif %}>
-            🗑 Hapus
+          <!-- Pesan -->
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="badge">{{ notif_count or 0 }}</span>
           </button>
-        </form>
-        {% if u.id == session.get("user_id") %}
-          <div class="mini">(kamu sendiri tidak bisa dihapus)</div>
-        {% endif %}
+
+          <!-- Logout -->
+          <a href="{{ url_for('logout') }}" class="action-btn" aria-label="Logout">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- Kelola User card -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Kelola User</h2>
+        <p class="desc">Tambah / edit / hapus karyawan, atur role, dan set gaji bulanan.</p>
+
+        <div class="kpi-wrap">
+          <div class="kpis">
+            <div class="k">
+              <p class="kt">Total User</p>
+              <p class="kv">{{ rows|length }}</p>
+            </div>
+            <div class="k">
+              <p class="kt">Admin</p>
+              <p class="kv">{{ (rows|selectattr("role","equalto","admin")|list)|length }}</p>
+            </div>
+            <div class="k">
+              <p class="kt">Karyawan</p>
+              <p class="kv">{{ (rows|selectattr("role","equalto","employee")|list)|length }}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    {% endfor %}
-  </div>
 
-  <!-- DESKTOP TABLE -->
-  <div class="tablewrap">
-    <table>
-      <thead>
-        <tr>
-          <th style="white-space:nowrap;">ID</th>
-          <th>Nama</th>
-          <th>Email</th>
-          <th style="white-space:nowrap;">Role</th>
-          <th style="white-space:nowrap;">Gaji Bulanan</th>
-          <th>Password Baru</th>
-          <th style="white-space:nowrap;">Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for u in rows %}
-        <tr>
-          <td>{{ u.id }}</td>
-          <td colspan="6">
-            <form method="POST" action="/admin/users/update/{{ u.id }}">
-              <div class="row" style="grid-template-columns: 1.2fr 1.6fr .7fr 1fr 1fr auto; gap:10px;">
-                <div>
-                  <label>Nama</label>
-                  <input name="name" value="{{ u.name }}" />
-                </div>
-                <div>
-                  <label>Email</label>
-                  <input name="email" type="email" value="{{ u.email }}" />
-                </div>
-                <div>
-                  <label>Role</label>
-                  <select name="role">
-                    <option value="employee" {% if u.role=='employee' %}selected{% endif %}>employee</option>
-                    <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Gaji Bulanan</label>
-                  <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
-                </div>
-                <div>
-                  <label>Password Baru</label>
-                  <input name="new_password" type="password" placeholder="(opsional)" />
-                </div>
+    <!-- Tambah User card -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Tambah User</h2>
+        <p class="desc">Isi data sederhana. Password bisa diganti nanti.</p>
 
-                <div style="display:flex; gap:8px; align-items:end;">
-                  <button class="btn btn-primary" type="submit">Simpan</button>
-                </div>
+        <div class="divider"></div>
+
+        {# Sesuaikan action ini dengan endpoint lama kamu kalau berbeda #}
+        <form method="POST" action="/admin/users/create">
+          <div class="row">
+            <div>
+              <label>Nama</label>
+              <input name="name" required placeholder="Nama Karyawan" />
+            </div>
+            <div>
+              <label>Email</label>
+              <input name="email" type="email" required placeholder="email@umgap.com" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Password</label>
+              <input name="password" type="password" required placeholder="Password awal" />
+            </div>
+            <div>
+              <label>Role</label>
+              <select name="role">
+                <option value="employee" selected>employee</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label>Gaji Bulanan (contoh: 5000000)</label>
+            <input name="monthly_salary" type="number" min="0" value="0" />
+          </div>
+
+          <div class="divider"></div>
+          <button class="btn btn-primary" type="submit">Tambah Karyawan</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Daftar User + Search -->
+    <div class="main-card">
+      <div class="inner">
+        <div class="search-row">
+          <div class="left">
+            <h2 class="title">Daftar User</h2>
+            <p class="desc">Cari berdasarkan nama / email / role.</p>
+          </div>
+          <div class="right">
+            <label style="margin-top:0;">Search</label>
+            <input id="userSearch" type="text" placeholder="Ketik untuk mencari..." />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- MOBILE LIST -->
+        <div class="list" id="userList">
+          {% for u in rows %}
+          <div class="item user-row"
+               data-search="{{ (u.name ~ ' ' ~ u.email ~ ' ' ~ u.role)|lower }}">
+            <div class="item-top">
+              <div>
+                <p class="uname">{{ u.name }}</p>
+                <p class="usub">{{ u.email }}</p>
+                <p class="usub">Gaji: {{ u.monthly_salary }}</p>
               </div>
-            </form>
+              <span class="tag">{{ u.role }}</span>
+            </div>
 
-            <div style="margin-top:10px;" class="row-actions">
-              <form method="POST" action="/admin/users/delete/{{ u.id }}" onsubmit="return confirm('Yakin hapus user ini?')">
-                <button class="btn btn-danger" type="submit" {% if u.id == session.get("user_id") %}disabled{% endif %}>
+            <div class="item-actions">
+              <button class="btn btn-lite" type="button" data-toggle="edit-{{ u.id }}">Edit</button>
+
+              <form method="POST" action="/admin/users/delete/{{ u.id }}"
+                    onsubmit="return confirm('Yakin hapus user ini?')">
+                <button class="btn btn-danger" type="submit"
+                        {% if u.id == session.get("user_id") %}disabled{% endif %}>
                   Hapus
                 </button>
               </form>
+            </div>
+
+            <div class="edit-panel" id="edit-{{ u.id }}">
+              <form method="POST" action="/admin/users/update/{{ u.id }}">
+                <div class="row">
+                  <div>
+                    <label>Nama</label>
+                    <input name="name" value="{{ u.name }}" />
+                  </div>
+                  <div>
+                    <label>Email</label>
+                    <input name="email" type="email" value="{{ u.email }}" />
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div>
+                    <label>Role</label>
+                    <select name="role">
+                      <option value="employee" {% if u.role=='employee' %}selected{% endif %}>employee</option>
+                      <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Gaji Bulanan</label>
+                    <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
+                  </div>
+                </div>
+
+                <div>
+                  <label>Password baru (opsional)</label>
+                  <input name="new_password" type="password" placeholder="Kosongkan jika tidak ganti" />
+                  <div class="mini">Kosongkan jika tidak ingin mengganti password.</div>
+                </div>
+
+                <div class="divider"></div>
+                <button class="btn btn-primary" type="submit">Simpan</button>
+              </form>
 
               {% if u.id == session.get("user_id") %}
-                <div class="mini">(kamu sendiri tidak bisa dihapus)</div>
+                <div class="mini" style="margin-top:10px;">(akun kamu sendiri tidak bisa dihapus)</div>
               {% endif %}
             </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- DESKTOP TABLE -->
+        <div class="tablewrap" id="userTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Gaji Bulanan</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="userTable">
+              {% for u in rows %}
+              <tr class="user-row"
+                  data-search="{{ (u.name ~ ' ' ~ u.email ~ ' ' ~ u.role)|lower }}">
+                <td>{{ u.id }}</td>
+                <td>{{ u.name }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.role }}</td>
+                <td>{{ u.monthly_salary }}</td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-lite" type="button" data-toggle="desk-edit-{{ u.id }}">Edit</button>
+                  <form method="POST" action="/admin/users/delete/{{ u.id }}"
+                        style="display:inline;"
+                        onsubmit="return confirm('Yakin hapus user ini?')">
+                    <button class="btn btn-danger" type="submit"
+                            {% if u.id == session.get("user_id") %}disabled{% endif %}>
+                      Hapus
+                    </button>
+                  </form>
+                </td>
+              </tr>
+
+              <tr id="desk-edit-{{ u.id }}" class="edit-panel">
+                <td colspan="6" style="padding:14px 12px;">
+                  <form method="POST" action="/admin/users/update/{{ u.id }}">
+                    <div class="row" style="grid-template-columns:1fr 1fr; gap:12px;">
+                      <div>
+                        <label>Nama</label>
+                        <input name="name" value="{{ u.name }}" />
+                      </div>
+                      <div>
+                        <label>Email</label>
+                        <input name="email" type="email" value="{{ u.email }}" />
+                      </div>
+                      <div>
+                        <label>Role</label>
+                        <select name="role">
+                          <option value="employee" {% if u.role=='employee' %}selected{% endif %}>employee</option>
+                          <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label>Gaji Bulanan</label>
+                        <input name="monthly_salary" type="number" min="0" value="{{ u.monthly_salary }}" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label>Password baru (opsional)</label>
+                      <input name="new_password" type="password" placeholder="(opsional)" />
+                      <div class="mini">Kosongkan jika tidak ingin mengganti password.</div>
+                    </div>
+
+                    <div class="divider"></div>
+                    <button class="btn btn-primary" type="submit" style="width:220px;">Simpan</button>
+                  </form>
+
+                  {% if u.id == session.get("user_id") %}
+                    <div class="mini" style="margin-top:10px;">(akun kamu sendiri tidak bisa dihapus)</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </div>
+
+<script>
+  // Toggle edit panels (mobile + desktop)
+  (function(){
+    document.addEventListener("click", function(e){
+      const btn = e.target.closest("[data-toggle]");
+      if(!btn) return;
+      const id = btn.getAttribute("data-toggle");
+      const panel = document.getElementById(id);
+      if(!panel) return;
+      panel.classList.toggle("show");
+    });
+  })();
+
+  // Search filter
+  (function(){
+    const input = document.getElementById("userSearch");
+    if(!input) return;
+
+    function apply(){
+      const q = (input.value || "").trim().toLowerCase();
+
+      document.querySelectorAll(".user-row").forEach(el=>{
+        const hay = (el.getAttribute("data-search") || "");
+        const show = !q || hay.includes(q);
+        el.style.display = show ? "" : "none";
+
+        // tutup panel edit kalau item hilang
+        const toggleId = el.querySelector("[data-toggle]")?.getAttribute("data-toggle");
+        if(!show && toggleId){
+          const p = document.getElementById(toggleId);
+          if(p) p.classList.remove("show");
+        }
+      });
+
+      // untuk panel edit desktop (tr), ikut hide kalau row sebelumnya hide
+      document.querySelectorAll("tr.edit-panel").forEach(p=>{
+        const prev = p.previousElementSibling;
+        if(prev && prev.classList.contains("user-row") && prev.style.display === "none"){
+          p.classList.remove("show");
+          p.style.display = "none";
+        }else{
+          p.style.display = "";
+        }
+      });
+    }
+
+    input.addEventListener("input", apply);
+  })();
+</script>
+{% endblock %}
+
+{% block bottom_nav %}
+<style>
+  .bottom-nav{
+    position: fixed;
+    left:0; right:0;
+    bottom:0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246,248,252,.85);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar{
+    max-width: 430px;
+    margin: 0 auto;
+    background:#fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20,35,65,.10);
+    padding: 10px;
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .nav-item{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    color:#9fb1d6;
+    font-weight:800;
+    text-decoration:none;
+  }
+  .nav-item.is-active{
+    background:#f2f5fb00;
+    border: 0px solid rgb(255, 255, 255);
+  }
+  .nav-ico{ width:22px; height:22px; display:inline-block; }
+  .nav-ico svg{ width:100%; height:100%; display:block; }
+  .stroke{ stroke: currentColor; fill:none; }
+  .fill{ fill: currentColor; }
+  @media (max-width:360px){ .nav-item span{ font-size:12px; } }
+  
+</style>
+
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+
+    <button
+  class="nav-item is-active"
+  type="button"
+  aria-label="Tab tengah (kosong)"
+  onclick="event.preventDefault(); event.stopPropagation(); return false;"
+>
+  <span class="nav-ico" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <path class="stroke" d="M4 8h12" stroke-width="2.2" stroke-linecap="round"></path>
+      <path class="stroke" d="M14.6 5.8L18 8l-3.4 2.2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+      <path class="stroke" d="M20 16H8" stroke-width="2.2" stroke-linecap="round"></path>
+      <path class="stroke" d="M9.4 13.8L6 16l3.4 2.2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </span>
+  <span>Data</span>
+</button>
+
+
+    <a class="nav-item" href="#"
+       onclick="document.querySelector('[data-toggle-more]')?.click(); return false;">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12"  cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
+  </div>
+</div>
+<script>
+  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
+  document.addEventListener("click", (e) => {
+    const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+    if (!mid) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+</script>
+
 {% endblock %}
