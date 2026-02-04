@@ -1,59 +1,21 @@
 {% extends "base.html" %} {% block content %}
 <style>
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    margin-top: 16px;
-  }
-  @media (min-width: 980px) {
-    .grid2 {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-  .hint {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: var(--fs-sm);
-  }
-  .stack {
-    display: grid;
-    gap: 12px;
-  }
-  .btn-full {
-    width: 100%;
-    justify-content: center;
-    padding: 12px 14px;
-    border-radius: 14px;
-    font-weight: 1000;
-  }
-  .table-wrap {
-    overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: #fff;
-  }
-  .time {
-    color: var(--muted);
-    font-size: 12px;
-    white-space: normal;
-  }
-  .badge {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    font-weight: 900;
-    font-size: 12px;
-    background: #f8faff;
-  }
+  .grid2 { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
+  @media (min-width: 980px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+
+  .hint { margin: 6px 0 0; color: var(--muted); font-size: var(--fs-sm); }
+  .stack { display: grid; gap: 12px; }
+  .btn-full { width: 100%; justify-content: center; padding: 12px 14px; border-radius: 14px; font-weight: 1000; }
+
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+  .time { color: var(--muted); font-size: 12px; white-space: normal; }
+  .badge { display: inline-flex; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
+           font-weight: 900; font-size: 12px; background: #f8faff; }
 </style>
 
 <div class="card">
   <h2 style="margin: 0">Absensi</h2>
-  <p class="hint">
-    Admin bisa absen sendiri dan bisa absenkan karyawan yang tidak punya HP.
-  </p>
+  <p class="hint">Admin bisa absen sendiri dan bisa absenkan karyawan yang tidak punya HP.</p>
   <div class="mini" style="margin-top: 8px">
     ⏱️ Sekarang: <b id="liveClock">--:--:--</b>
   </div>
@@ -65,17 +27,9 @@
     <h2 style="margin: 0 0 6px">Absen Saya</h2>
     <p class="hint">Tanggal & jam otomatis (live).</p>
 
-    <form
-      method="POST"
-      action="/admin/attendance/add"
-      class="stack"
-      style="margin-top: 12px"
-    >
-      <input
-        type="hidden"
-        name="user_id"
-        value="{{ session.get('user_id') }}"
-      />
+    <form method="POST" action="/admin/attendance/add" class="stack" style="margin-top: 12px">
+      <input type="hidden" name="user_id" value="{{ session.get('user_id') }}" />
+      <input type="hidden" name="client_ts" class="clientTs" value="" />
 
       <div>
         <label>Tipe kedatangan</label>
@@ -90,15 +44,10 @@
 
       <div>
         <label>Catatan (opsional)</label>
-        <textarea
-          name="note"
-          placeholder="Contoh: macet, sakit, izin keluarga..."
-        ></textarea>
+        <textarea name="note" placeholder="Contoh: macet, sakit, izin keluarga..."></textarea>
       </div>
 
-      <button class="btn btn-primary btn-full" type="submit">
-        Submit Absen Saya
-      </button>
+      <button class="btn btn-primary btn-full" type="submit">Submit Absen Saya</button>
     </form>
   </div>
 
@@ -107,12 +56,9 @@
     <h2 style="margin: 0 0 6px">Absenkan Karyawan</h2>
     <p class="hint">Untuk karyawan yang tidak punya HP.</p>
 
-    <form
-      method="POST"
-      action="/admin/attendance/add"
-      class="stack"
-      style="margin-top: 12px"
-    >
+    <form method="POST" action="/admin/attendance/add" class="stack" style="margin-top: 12px">
+      <input type="hidden" name="client_ts" class="clientTs" value="" />
+
       <div>
         <label>Pilih karyawan</label>
         <select name="user_id" required>
@@ -135,20 +81,14 @@
 
       <div>
         <label>Catatan (opsional)</label>
-        <textarea
-          name="note"
-          placeholder="Contoh: absen oleh admin, alasan..."
-        ></textarea>
+        <textarea name="note" placeholder="Contoh: absen oleh admin, alasan..."></textarea>
       </div>
 
-      <button class="btn btn-primary btn-full" type="submit">
-        Submit Absen Karyawan
-      </button>
+      <button class="btn btn-primary btn-full" type="submit">Submit Absen Karyawan</button>
     </form>
   </div>
 </div>
 
-<!-- Riwayat -->
 <div class="card" style="margin-top: 16px">
   <h2 style="margin: 0 0 10px">Riwayat Terbaru</h2>
 
@@ -168,48 +108,35 @@
         {% for r in rows %}
         <tr>
           <td>{{ r.work_date }}</td>
-          <td class="time">
-            {% if r.checkin_at %} {{ r.checkin_at.strftime("%H:%M:%S") }} {%
-            else %} - {% endif %}
-          </td>
+          <td class="time">{% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M:%S") }}{% else %}-{% endif %}</td>
           <td><b>{{ r.employee_name }}</b></td>
           <td>{{ r.arrival_type }}</td>
           <td><span class="badge">{{ r.status }}</span></td>
-          <td
-            style="
-              white-space: normal;
-              max-width: 420px;
-              word-break: break-word;
-            "
-          >
+          <td style="white-space: normal; max-width: 420px; word-break: break-word;">
             {{ r.note or "-" }}
           </td>
         </tr>
-        {% endfor %} {% if rows|length == 0 %}
-        <tr>
-          <td colspan="6" class="muted">Belum ada data absensi.</td>
-        </tr>
+        {% endfor %}
+        {% if rows|length == 0 %}
+        <tr><td colspan="6" class="muted">Belum ada data absensi.</td></tr>
         {% endif %}
       </tbody>
     </table>
   </div>
 </div>
-<script>
-  function pad(n) {
-    return String(n).padStart(2, "0");
-  }
 
+<script>
   const tz = "Asia/Jakarta";
   const fmtTime = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit"
   });
+
   function tick() {
-    document.getElementById("liveClock").textContent = fmtTime.format(
-      new Date(),
-    );
+    const now = new Date();
+    document.getElementById("liveClock").textContent = fmtTime.format(now);
+
+    const ts = String(now.getTime());
+    document.querySelectorAll(".clientTs").forEach((el) => (el.value = ts));
   }
   tick();
   setInterval(tick, 1000);
