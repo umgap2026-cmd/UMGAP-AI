@@ -1,144 +1,809 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 <style>
-  .grid2 { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
-  @media (min-width: 980px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
 
-  .hint { margin: 6px 0 0; color: var(--muted); font-size: var(--fs-sm); }
-  .stack { display: grid; gap: 12px; }
-  .btn-full { width: 100%; justify-content: center; padding: 12px 14px; border-radius: 14px; font-weight: 1000; }
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
 
-  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
-  .time { color: var(--muted); font-size: 12px; white-space: normal; }
-  .badge { display: inline-flex; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
-           font-weight: 900; font-size: 12px; background: #f8faff; }
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+
+    --blue: #2f5f8f;
+    --primary: #2563eb;
+    --primary2: #1d4ed8;
+    --border: rgba(125, 138, 166, 0.22);
+
+    --bottom-nav-h: 92px;
+  }
+
+  /* penting: ruang bawah biar konten tidak ketutup nav fixed */
+  body {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* ===== Header Baru (SAMA seperti admin_users) ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+
+  .head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+  .userpill .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 7px;
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  }
+
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Card neumorphism ===== */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 12px 0;
+  }
+
+  /* ===== Form styling sama tone ===== */
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  textarea {
+    min-height: 92px;
+    resize: vertical;
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font-weight: 900;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 12px 20px rgba(41, 83, 126, 0.22);
+  }
+
+  /* ===== clock pill ===== */
+  .clock-wrap {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .clock-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+  }
+  .clock-pill .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .clock-pill .val {
+    font-size: 18px;
+    font-weight: 1000;
+    color: var(--text);
+    letter-spacing: 0.6px;
+  }
+
+  /* ===== Grid 2 card ===== */
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  @media (min-width: 980px) {
+    .grid2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  /* ===== Riwayat (ringkas + search) ===== */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .search-row .left {
+    flex: 1 1 220px;
+  }
+  .search-row .right {
+    flex: 1 1 220px;
+  }
+  #historySearch {
+    width: 100%;
+  }
+
+  .tablewrap {
+    display: none;
+    overflow: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 780px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  td.note {
+    white-space: normal;
+    max-width: 420px;
+    word-break: break-word;
+  }
+
+  .badge2 {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: #2a3b58;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .list {
+    display: grid;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .item {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .hname {
+    margin: 0;
+    font-weight: 1000;
+  }
+  .hsub {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .hmeta {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  @media (min-width: 901px) {
+    .list {
+      display: none;
+    }
+    .tablewrap {
+      display: block;
+    }
+  }
+
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
 </style>
 
-<div class="card">
-  <h2 style="margin: 0">Absensi</h2>
-  <p class="hint">Admin bisa absen sendiri dan bisa absenkan karyawan yang tidak punya HP.</p>
-  <div class="mini" style="margin-top: 8px">
-    ⏱️ Sekarang: <b id="liveClock">--:--:--</b>
-  </div>
-</div>
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER SAMA seperti Kelola User -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
 
-<div class="grid2">
-  <!-- Absen Saya -->
-  <div class="card">
-    <h2 style="margin: 0 0 6px">Absen Saya</h2>
-    <p class="hint">Tanggal & jam otomatis (live).</p>
+        <div class="right">
+          <div class="userpill" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
+          </div>
 
-    <form method="POST" action="/admin/attendance/add" class="stack" style="margin-top: 12px">
-      <input type="hidden" name="user_id" value="{{ session.get('user_id') }}" />
-      <input type="hidden" name="client_ts" class="clientTs" value="" />
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="badge">{{ notif_count or 0 }}</span>
+          </button>
 
-      <div>
-        <label>Tipe kedatangan</label>
-        <select name="arrival_type" required>
-          <option value="ONTIME">Hadir (Tepat waktu)</option>
-          <option value="LATE">Terlambat</option>
-          <option value="SICK">Sakit</option>
-          <option value="LEAVE">Izin</option>
-          <option value="ABSENT">Tidak masuk</option>
-        </select>
+          <a
+            href="{{ url_for('logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- Absensi Card (ringkas seperti gaya kelola user) -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Absensi</h2>
+        <p class="desc">Admin bisa absen sendiri dan bisa absenkan karyawan.</p>
+
+        <div class="clock-wrap">
+          <div class="clock-pill">
+            <span class="lbl">Jam</span>
+            <span class="val" id="liveClock">--:--:--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <!-- Absen Saya -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Absen Saya</h2>
+          <p class="desc">Tanggal & jam otomatis (live).</p>
+
+          <div class="divider"></div>
+
+          <form method="POST" action="/admin/attendance/add">
+            <input
+              type="hidden"
+              name="user_id"
+              value="{{ session.get('user_id') }}"
+            />
+            <input type="hidden" name="client_ts" class="clientTs" value="" />
+
+            <label>Tipe Kedatangan</label>
+            <select name="arrival_type" required>
+              <option value="ONTIME">Hadir (Tepat waktu)</option>
+              <option value="LATE">Terlambat</option>
+              <option value="SICK">Sakit</option>
+              <option value="LEAVE">Izin</option>
+              <option value="ABSENT">Tidak masuk</option>
+            </select>
+
+            <label>Catatan (Opsional)</label>
+            <textarea
+              name="note"
+              placeholder="Contoh: sakit, macet, ban bocor"
+            ></textarea>
+
+            <div class="divider"></div>
+            <button class="btn-primary" type="submit">Submit</button>
+          </form>
+        </div>
       </div>
 
-      <div>
-        <label>Catatan (opsional)</label>
-        <textarea name="note" placeholder="Contoh: macet, sakit, izin keluarga..."></textarea>
+      <!-- Absen Karyawan -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Absen Karyawan</h2>
+          <p class="desc">Untuk karyawan yang tidak punya HP.</p>
+
+          <div class="divider"></div>
+
+          <form method="POST" action="/admin/attendance/add">
+            <input type="hidden" name="client_ts" class="clientTs" value="" />
+
+            <label>Pilih Karyawan</label>
+            <select name="user_id" required>
+              {% for e in employees %}
+              <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
+              {% endfor %}
+            </select>
+
+            <label>Tipe Kedatangan</label>
+            <select name="arrival_type" required>
+              <option value="ONTIME">Hadir (Tepat waktu)</option>
+              <option value="LATE">Terlambat</option>
+              <option value="SICK">Sakit</option>
+              <option value="LEAVE">Izin</option>
+              <option value="ABSENT">Tidak masuk</option>
+            </select>
+
+            <label>Catatan (Opsional)</label>
+            <textarea
+              name="note"
+              placeholder="Contoh: absen oleh admin, alasan..."
+            ></textarea>
+
+            <div class="divider"></div>
+            <button class="btn-primary" type="submit">Submit</button>
+          </form>
+        </div>
       </div>
+    </div>
 
-      <button class="btn btn-primary btn-full" type="submit">Submit Absen Saya</button>
-    </form>
-  </div>
+    <!-- Riwayat Terbaru (ringkas + search, selaras kelola user) -->
+    <div class="main-card">
+      <div class="inner">
+        <div class="search-row">
+          <div class="left">
+            <h2 class="title">Riwayat Terbaru</h2>
+            <p class="desc">
+              Cari berdasarkan nama / tanggal / tipe / status / catatan.
+            </p>
+          </div>
+          <div class="right">
+            <label style="margin-top: 0">Search</label>
+            <input
+              id="historySearch"
+              type="text"
+              placeholder="Ketik untuk mencari..."
+            />
+          </div>
+        </div>
 
-  <!-- Absenkan Karyawan -->
-  <div class="card">
-    <h2 style="margin: 0 0 6px">Absenkan Karyawan</h2>
-    <p class="hint">Untuk karyawan yang tidak punya HP.</p>
+        <div class="divider"></div>
 
-    <form method="POST" action="/admin/attendance/add" class="stack" style="margin-top: 12px">
-      <input type="hidden" name="client_ts" class="clientTs" value="" />
+        <!-- MOBILE LIST -->
+        <div class="list" id="historyList">
+          {% for r in rows %}
+          <div
+            class="item h-row"
+            data-search="{{ (r.employee_name ~ ' ' ~ r.work_date ~ ' ' ~ r.checkin_at ~ ' ' ~ r.arrival_type ~ ' ' ~ r.status ~ ' ' ~ (r.note or '-'))|lower }}"
+          >
+            <div class="item-top">
+              <div>
+                <p class="hname">{{ r.employee_name }}</p>
+                <p class="hsub">{{ r.work_date }} • {{ r.checkin_at }}</p>
+              </div>
+              <div style="display: grid; gap: 8px; justify-items: end">
+                <span class="badge2">{{ r.arrival_type }}</span>
+                <span class="badge2">{{ r.status }}</span>
+              </div>
+            </div>
+            <div class="hsub" style="margin-top: 10px">
+              <span style="color: var(--muted); font-weight: 800"
+                >Catatan:</span
+              >
+              {{ r.note or "-" }}
+            </div>
+          </div>
+          {% endfor %} {% if rows|length == 0 %}
+          <div class="mini">Belum ada data absensi.</div>
+          {% endif %}
+        </div>
 
-      <div>
-        <label>Pilih karyawan</label>
-        <select name="user_id" required>
-          {% for e in employees %}
-          <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
-          {% endfor %}
-        </select>
+        <!-- DESKTOP TABLE -->
+        <div class="tablewrap" id="historyTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Jam</th>
+                <th>Karyawan</th>
+                <th>Tipe</th>
+                <th>Status</th>
+                <th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody id="historyTable">
+              {% for r in rows %}
+              <tr
+                class="h-row"
+                data-search="{{ (r.employee_name ~ ' ' ~ r.work_date ~ ' ' ~ r.checkin_at ~ ' ' ~ r.arrival_type ~ ' ' ~ r.status ~ ' ' ~ (r.note or '-'))|lower }}"
+              >
+                <td>{{ r.work_date }}</td>
+                <td class="mini">{{ r.checkin_at }}</td>
+                <td style="font-weight: 1000">{{ r.employee_name }}</td>
+                <td>{{ r.arrival_type }}</td>
+                <td><span class="badge2">{{ r.status }}</span></td>
+                <td class="note">{{ r.note or "-" }}</td>
+              </tr>
+              {% endfor %} {% if rows|length == 0 %}
+              <tr>
+                <td colspan="6" class="mini">Belum ada data absensi.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <div>
-        <label>Tipe kedatangan</label>
-        <select name="arrival_type" required>
-          <option value="ONTIME">Hadir (Tepat waktu)</option>
-          <option value="LATE">Terlambat</option>
-          <option value="SICK">Sakit</option>
-          <option value="LEAVE">Izin</option>
-          <option value="ABSENT">Tidak masuk</option>
-        </select>
-      </div>
-
-      <div>
-        <label>Catatan (opsional)</label>
-        <textarea name="note" placeholder="Contoh: absen oleh admin, alasan..."></textarea>
-      </div>
-
-      <button class="btn btn-primary btn-full" type="submit">Submit Absen Karyawan</button>
-    </form>
-  </div>
-</div>
-
-<div class="card" style="margin-top: 16px">
-  <h2 style="margin: 0 0 10px">Riwayat Terbaru</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Tanggal</th>
-          <th>Jam</th>
-          <th>Karyawan</th>
-          <th>Tipe</th>
-          <th>Status</th>
-          <th>Catatan</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td>{{ r.work_date }}</td>
-          <td class="time">{% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M:%S") }}{% else %}-{% endif %}</td>
-          <td><b>{{ r.employee_name }}</b></td>
-          <td>{{ r.arrival_type }}</td>
-          <td><span class="badge">{{ r.status }}</span></td>
-          <td style="white-space: normal; max-width: 420px; word-break: break-word;">
-            {{ r.note or "-" }}
-          </td>
-        </tr>
-        {% endfor %}
-        {% if rows|length == 0 %}
-        <tr><td colspan="6" class="muted">Belum ada data absensi.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+    </div>
   </div>
 </div>
 
 <script>
-  const tz = "Asia/Jakarta";
-  const fmtTime = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit"
-  });
-
+  // Live clock
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
   function tick() {
-    const now = new Date();
-    document.getElementById("liveClock").textContent = fmtTime.format(now);
-
-    const ts = String(now.getTime());
-    document.querySelectorAll(".clientTs").forEach((el) => (el.value = ts));
+    const d = new Date();
+    document.getElementById("liveClock").textContent =
+      pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
   tick();
   setInterval(tick, 1000);
+
+  // Sync client_ts (2 forms)
+  function syncClientTs() {
+    const v = String(Date.now());
+    document.querySelectorAll(".clientTs").forEach((el) => (el.value = v));
+  }
+  syncClientTs();
+  setInterval(syncClientTs, 1000);
+
+  // Search filter untuk riwayat (mobile + desktop)
+  (function () {
+    const input = document.getElementById("historySearch");
+    if (!input) return;
+
+    function apply() {
+      const q = (input.value || "").trim().toLowerCase();
+      document.querySelectorAll(".h-row").forEach((el) => {
+        const hay = el.getAttribute("data-search") || "";
+        el.style.display = !q || hay.includes(q) ? "" : "none";
+      });
+    }
+
+    input.addEventListener("input", apply);
+  })();
+</script>
+{% endblock %} {% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .nav-item.is-active {
+    background: #f2f5fb00;
+    border: 0px solid rgb(255, 255, 255);
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+  @media (max-width: 360px) {
+    .nav-item span {
+      font-size: 12px;
+    }
+  }
+</style>
+
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+
+    <!-- TAB TENGAH KOSONG: sama persis admin_users -->
+    <button
+      class="nav-item is-active"
+      type="button"
+      aria-label="Tab tengah (kosong)"
+      onclick="
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path
+            class="stroke"
+            d="M4 8h12"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M14.6 5.8L18 8l-3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M20 16H8"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M9.4 13.8L6 16l3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </span>
+      <span>Data</span>
+    </button>
+
+    <a
+      class="nav-item"
+      href="#"
+      onclick="
+        document.querySelector('[data-toggle-more]')?.click();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
+  document.addEventListener(
+    "click",
+    (e) => {
+      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
 </script>
 {% endblock %}
