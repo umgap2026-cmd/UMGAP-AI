@@ -21,7 +21,7 @@ from openai import RateLimitError, APIError, AuthenticationError
 from dotenv import load_dotenv
 load_dotenv()
 from decimal import Decimal
-
+from flask import request, redirect, render_template, session
 
 
 def login_required():
@@ -1223,6 +1223,24 @@ def build_caption(data: dict) -> tuple[str, str]:
     variant_id = hex(seed)[-6:]  # id kecil buat nunjukin beda
     return caption.strip(), variant_id
 
+
+
+def _now_wib_naive_from_form():
+    """
+    Return datetime naive (tanpa tzinfo) tapi nilai waktunya WIB.
+    Ini mencegah lari -7 jam saat disimpan ke kolom timestamp without time zone.
+    """
+    client_ts = request.form.get("client_ts")
+    if client_ts and client_ts.isdigit():
+        # epoch ms -> convert ke WIB aware
+        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+    else:
+        now_wib_aware = datetime.now(ZoneInfo("Asia/Jakarta"))
+
+    # simpan sebagai naive WIB (tanpa tzinfo)
+    return now_wib_aware.replace(tzinfo=None)
+
+
 # =========================
 # USER: VIEW
 # =========================
@@ -1258,13 +1276,7 @@ def attendance_add():
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
 
-    # === pakai jam dari page (client_ts) supaya sama dengan live ===
-    client_ts = request.form.get("client_ts")
-    if client_ts and client_ts.isdigit():
-        now = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
-    else:
-        now = datetime.now(ZoneInfo("Asia/Jakarta"))
-
+    now = _now_wib_naive_from_form()
     work_date = now.date()
     checkin_at = now
 
@@ -1292,7 +1304,7 @@ def attendance_add():
     """, (session["user_id"], work_date))
     already = cur.fetchone() is not None
 
-    # upsert attendance (user_id, work_date harus UNIQUE)
+    # upsert attendance
     cur.execute("""
       INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
       VALUES (%s, %s, %s, %s, %s, %s)
@@ -1326,7 +1338,7 @@ def admin_attendance():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # list karyawan (yang role employee saja)
+    # list karyawan (role employee)
     cur.execute("""
         SELECT id, name, email
         FROM users
@@ -1370,13 +1382,7 @@ def admin_attendance_add():
     else:
         status = "PRESENT"
 
-    # === pakai jam dari page (client_ts) supaya sama dengan live ===
-    client_ts = request.form.get("client_ts")
-    if client_ts and client_ts.isdigit():
-        now = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
-    else:
-        now = datetime.now(ZoneInfo("Asia/Jakarta"))
-
+    now = _now_wib_naive_from_form()
     today = now.date()
 
     conn = get_conn()
@@ -1395,7 +1401,7 @@ def admin_attendance_add():
         att_id = existing["id"]
         old_status = existing["status"]
 
-        # update: checkin_at pakai now agar sinkron jam submit
+        # update (PAKAI now untuk checkin_at biar sinkron dengan yang live)
         cur.execute("""
           UPDATE attendance
           SET status=%s, arrival_type=%s, note=%s, checkin_at=%s
@@ -1415,7 +1421,6 @@ def admin_attendance_add():
     cur.close()
     conn.close()
     return redirect("/admin/attendance")
-
 
 
 
@@ -1998,8 +2003,6 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
 
 
 
