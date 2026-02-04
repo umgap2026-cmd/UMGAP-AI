@@ -21,7 +21,12 @@ from openai import RateLimitError, APIError, AuthenticationError
 from dotenv import load_dotenv
 load_dotenv()
 from decimal import Decimal
-from flask import request, redirect, render_template, session
+from flask import Response, request, redirect, render_template, session, url_for, flash
+from flask import Response
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+import io
+
 
 
 def login_required():
@@ -403,62 +408,59 @@ def admin_users_delete(uid):
     return redirect("/admin/users")
 
 
-@app.route("/init-hr")
-def init_hr():
+# ==== MIGRASI HR V2 (AMAN + LENGKAP) ====
+@app.route("/init-hr-v2")
+def init_hr_v2():
+    """
+    Jalankan sekali untuk memastikan tabel/kolom yang dipakai fitur absensi + export sudah ada.
+    Aman dipanggil berkali-kali (IF NOT EXISTS).
+    """
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'employee';")
-
+    # 1) Pastikan payroll_settings ada (kalau belum ada)
     cur.execute("""
       CREATE TABLE IF NOT EXISTS payroll_settings (
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        daily_salary INTEGER NOT NULL DEFAULT 0,
         monthly_salary INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     """)
 
+    # 2) Pastikan kolom daily_salary ada (kalau tabelnya sudah ada tapi kolomnya belum)
     cur.execute("""
-      CREATE TABLE IF NOT EXISTS attendance (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        work_date DATE NOT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'PRESENT',
-        note TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, work_date)
-      );
+      ALTER TABLE payroll_settings
+      ADD COLUMN IF NOT EXISTS daily_salary INTEGER NOT NULL DEFAULT 0;
     """)
 
+    # (opsional) monthly_salary kalau kamu pakai di payroll
     cur.execute("""
-      CREATE TABLE IF NOT EXISTS leave_requests (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        reason TEXT,
-        status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-        admin_note TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      ALTER TABLE payroll_settings
+      ADD COLUMN IF NOT EXISTS monthly_salary INTEGER NOT NULL DEFAULT 0;
     """)
 
+    # (opsional) updated_at biar ON CONFLICT ... updated_at tidak error
     cur.execute("""
-      CREATE TABLE IF NOT EXISTS sales_submissions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-        qty INTEGER NOT NULL DEFAULT 0,
-        note TEXT,
-        status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      ALTER TABLE payroll_settings
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    """)
+
+    # 3) attendance butuh arrival_type + checkin_at
+    cur.execute("""
+      ALTER TABLE attendance
+      ADD COLUMN IF NOT EXISTS arrival_type VARCHAR(20) NOT NULL DEFAULT 'ONTIME';
+    """)
+    cur.execute("""
+      ALTER TABLE attendance
+      ADD COLUMN IF NOT EXISTS checkin_at TIMESTAMP NULL;
     """)
 
     conn.commit()
     cur.close()
     conn.close()
-    return "OK: HR tables siap."
+    return "OK: HR v2 tables/columns ensured."
+
 
 
 
@@ -1481,38 +1483,36 @@ def admin_payroll():
     else:
         end_date = date(year, mon + 1, 1)
 
+    # Minggu libur (Senin–Sabtu kerja)
     WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
 
     conn = get_conn()
-    cur = conn.cursor()  # kalau get_conn kamu sudah RealDictCursor di db.py, ini aman
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Ambil daily_salary + monthly_salary + rekap attendance
-    cur.execute("""
-      SELECT
-        u.id,
-        u.name,
+    cur.execute(
+        """
+        SELECT
+            u.id,
+            u.name,
+            COALESCE(p.daily_salary, 0)   AS daily_salary,
+            COALESCE(p.monthly_salary, 0) AS monthly_salary,
 
-        -- sumber gaji harian: payroll_settings.daily_salary -> users.daily_salary -> fallback dari monthly_salary/workdays
-        COALESCE(p.daily_salary, NULL) AS daily_salary_setting,
-        COALESCE(u.daily_salary, NULL) AS daily_salary_user,
-        COALESCE(p.monthly_salary, 0)  AS monthly_salary,
-
-        COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-        COALESCE(SUM(CASE WHEN a.status='SICK'    THEN 1 ELSE 0 END), 0) AS days_sick,
-        COALESCE(SUM(CASE WHEN a.status='LEAVE'   THEN 1 ELSE 0 END), 0) AS days_leave,
-        COALESCE(SUM(CASE WHEN a.status='ABSENT'  THEN 1 ELSE 0 END), 0) AS days_absent,
-
-        -- poin per bulan = jumlah hadir
-        COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS points_earned
-
-      FROM users u
-      LEFT JOIN payroll_settings p ON p.user_id = u.id
-      LEFT JOIN attendance a ON a.user_id = u.id
-        AND a.work_date >= %s AND a.work_date < %s
-      WHERE u.role = 'employee'
-      GROUP BY u.id, u.name, p.daily_salary, u.daily_salary, p.monthly_salary
-      ORDER BY u.name ASC;
-    """, (start_date, end_date))
+            COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
+            COALESCE(SUM(CASE WHEN a.status='SICK'    THEN 1 ELSE 0 END), 0) AS days_sick,
+            COALESCE(SUM(CASE WHEN a.status='LEAVE'   THEN 1 ELSE 0 END), 0) AS days_leave,
+            COALESCE(SUM(CASE WHEN a.status='ABSENT'  THEN 1 ELSE 0 END), 0) AS days_absent
+        FROM users u
+        LEFT JOIN payroll_settings p ON p.user_id = u.id
+        LEFT JOIN attendance a
+            ON a.user_id = u.id
+            AND a.work_date >= %s
+            AND a.work_date < %s
+        WHERE u.role = 'employee'
+        GROUP BY u.id, u.name, p.daily_salary, p.monthly_salary
+        ORDER BY u.name ASC;
+        """,
+        (start_date, end_date),
+    )
 
     rows = cur.fetchall()
     cur.close()
@@ -1520,49 +1520,36 @@ def admin_payroll():
 
     result = []
     for r in rows:
-        # catatan: kalau cursor kamu RealDictCursor, r["..."] bisa dipakai.
-        # kalau bukan, berarti r tuple. Tapi sebelumnya kamu memang pakai RealDictCursor.
+        daily_salary = int(r.get("daily_salary") or 0)
         monthly_salary = int(r.get("monthly_salary") or 0)
 
-        ds_setting = r.get("daily_salary_setting")
-        ds_user = r.get("daily_salary_user")
-
-        # users.daily_salary bertipe numeric → bisa Decimal
-        if isinstance(ds_user, Decimal):
-            ds_user = int(ds_user)
-
-        daily_rate = None
-        if ds_setting is not None:
-            daily_rate = int(ds_setting)
-        elif ds_user is not None:
-            daily_rate = int(ds_user)
-        else:
-            # fallback dari monthly_salary / WORKDAYS
-            daily_rate = int(round((monthly_salary / WORKDAYS))) if WORKDAYS > 0 else monthly_salary
+        # fallback kalau daily_salary belum diset tapi monthly_salary ada
+        if daily_salary == 0 and monthly_salary > 0 and WORKDAYS > 0:
+            daily_salary = int(round(monthly_salary / WORKDAYS))
 
         days_present = int(r.get("days_present") or 0)
-        salary_paid = int(daily_rate * days_present)
+        salary_paid = int(daily_salary * days_present)
 
         result.append({
             "id": r["id"],
             "name": r["name"],
-            "daily_salary": int(daily_rate),
-            "monthly_salary": monthly_salary,  # opsional buat info
+            "daily_salary": int(daily_salary),
             "workdays": int(WORKDAYS),
             "days_present": days_present,
             "days_sick": int(r.get("days_sick") or 0),
             "days_leave": int(r.get("days_leave") or 0),
             "days_absent": int(r.get("days_absent") or 0),
             "salary_paid": salary_paid,
-            "points_earned": int(r.get("points_earned") or 0),
         })
 
     return render_template(
         "admin_payroll.html",
         month=month,
         rows=result,
-        workdays=WORKDAYS
+        workdays=int(WORKDAYS),
     )
+
+
 
 
 
@@ -1886,100 +1873,340 @@ def admin_stats():
 
 from datetime import timedelta
 
+# ==== FIX: ADMIN DASHBOARD HARUS KIRIM employees KE TEMPLATE ====
 @app.route("/admin/dashboard")
 def admin_dashboard():
     admin_guard()
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ============= KPI Angka Cepat =============
-    # total karyawan
+    # KPI cepat (biar sesuai kode kamu sebelumnya, boleh kamu sesuaikan)
     cur.execute("SELECT COUNT(*) AS total FROM users WHERE role='employee';")
     total_employees = cur.fetchone()["total"]
 
-    # absensi hari ini (jumlah record hari ini)
-    cur.execute("""
-      SELECT COUNT(*) AS total
-      FROM attendance
-      WHERE work_date = CURRENT_DATE;
-    """)
+    cur.execute("SELECT COUNT(*) AS total FROM attendance WHERE work_date = CURRENT_DATE;")
     attendance_today = cur.fetchone()["total"]
 
-    # sales pending
-    cur.execute("""
-      SELECT COUNT(*) AS total
-      FROM sales_submissions
-      WHERE status='PENDING';
-    """)
+    cur.execute("SELECT COUNT(*) AS total FROM sales_submissions WHERE status='PENDING';")
     sales_pending = cur.fetchone()["total"]
 
-    # total produk
     cur.execute("SELECT COUNT(*) AS total FROM products;")
     total_products = cur.fetchone()["total"]
 
-    # ============= Grafik 7 hari terakhir =============
-    # label tanggal 7 hari terakhir
-    days = []
-    for i in range(6, -1, -1):
-        d = (date.today() - timedelta(days=i))
-        days.append(d)
-
-    # attendance per hari (jumlah hadir / record)
+    # dropdown karyawan untuk export 1 orang
     cur.execute("""
-      SELECT work_date, COUNT(*) AS total
-      FROM attendance
-      WHERE work_date >= CURRENT_DATE - INTERVAL '6 days'
-      GROUP BY work_date
-      ORDER BY work_date ASC;
+        SELECT id, name, email
+        FROM users
+        WHERE role='employee'
+        ORDER BY name ASC;
     """)
-    att_rows = cur.fetchall()
-    att_map = {r["work_date"]: int(r["total"] or 0) for r in att_rows}
-    att_series = [att_map.get(d, 0) for d in days]
-
-    # sales qty per hari (jumlah qty)
-    cur.execute("""
-      SELECT DATE(created_at) AS d, COALESCE(SUM(qty),0) AS total_qty
-      FROM sales_submissions
-      WHERE created_at >= NOW() - INTERVAL '6 days'
-      GROUP BY DATE(created_at)
-      ORDER BY d ASC;
-    """)
-    sales_rows = cur.fetchall()
-    sales_map = {r["d"]: int(r["total_qty"] or 0) for r in sales_rows}
-    sales_series = [sales_map.get(d, 0) for d in days]
-
-    # top karyawan bulan ini (qty)
-    cur.execute("""
-      SELECT u.name AS employee_name, COALESCE(SUM(s.qty),0) AS total_qty
-      FROM users u
-      LEFT JOIN sales_submissions s ON s.user_id=u.id
-        AND DATE_TRUNC('month', s.created_at) = DATE_TRUNC('month', CURRENT_DATE)
-      WHERE u.role='employee'
-      GROUP BY u.name
-      ORDER BY total_qty DESC
-      LIMIT 5;
-    """)
-    top = cur.fetchall()
-    top_labels = [r["employee_name"] for r in top]
-    top_values = [int(r["total_qty"] or 0) for r in top]
+    employees = cur.fetchall()
 
     cur.close()
     conn.close()
 
-    labels = [d.strftime("%d/%m") for d in days]
-
     return render_template(
         "admin_dashboard.html",
+        user_name=session.get("user_name", "Admin"),
+        notif_count=0,
         total_employees=total_employees,
         attendance_today=attendance_today,
         sales_pending=sales_pending,
         total_products=total_products,
-        labels=labels,
-        att_series=att_series,
-        sales_series=sales_series,
-        top_labels=top_labels,
-        top_values=top_values,
+        employees=employees,
+    )
+
+
+# =========================
+# EXPORT XLSX (RANGE 1 BULAN, MAX 31 HARI, 6 BULAN TERAKHIR)
+# =========================
+def _parse_date(s: str | None) -> date | None:
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+def _validate_range(start: date, end: date) -> tuple[bool, str]:
+    if end < start:
+        return False, "Tanggal akhir harus >= tanggal awal."
+    days = (end - start).days + 1
+    if days > 31:
+        return False, "Maksimal range 31 hari."
+
+    today = datetime.now(ZoneInfo("Asia/Jakarta")).date()
+    if start < (today - timedelta(days=183)):
+        return False, "Range hanya boleh dari 6 bulan terakhir."
+
+    # 1 bulan yang sama (biar kalau ganti bulan, rekap bulan lalu otomatis tidak dipakai)
+    if start.year != end.year or start.month != end.month:
+        return False, "Range harus dalam bulan yang sama."
+    return True, ""
+
+def _autosize_columns(ws):
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            v = "" if cell.value is None else str(cell.value)
+            max_len = max(max_len, len(v))
+        ws.column_dimensions[col_letter].width = min(max_len + 2, 42)
+
+def _build_attendance_xlsx(rows_detail: list[dict], recap_rows: list[dict], title: str) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Detail"
+
+    ws.append([title])
+    ws.append([])
+    ws.append(["Nama", "Tanggal", "Jam Kehadiran", "Status", "Gaji Harian", "Gaji Hari Ini"])
+
+    for r in rows_detail:
+        ws.append([r["name"], r["work_date"], r["checkin_time"], r["status"], r["daily_salary"], r["salary_day"]])
+
+    _autosize_columns(ws)
+
+    ws2 = wb.create_sheet("Rekap")
+    ws2.append([title])
+    ws2.append([])
+    ws2.append(["Nama", "Hadir", "Sakit", "Izin", "Absen", "Total Gaji"])
+
+    for rr in recap_rows:
+        ws2.append([rr["name"], rr["present"], rr["sick"], rr["leave"], rr["absent"], rr["total_salary"]])
+
+    _autosize_columns(ws2)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+def ensure_hr_v2_schema():
+    """
+    Auto-ensure skema HR v2 sebelum route-route penting jalan.
+    Aman dipanggil berkali-kali.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+          CREATE TABLE IF NOT EXISTS payroll_settings (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            daily_salary INTEGER NOT NULL DEFAULT 0,
+            monthly_salary INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        """)
+        cur.execute("""
+          ALTER TABLE payroll_settings
+          ADD COLUMN IF NOT EXISTS daily_salary INTEGER NOT NULL DEFAULT 0;
+        """)
+        cur.execute("""
+          ALTER TABLE payroll_settings
+          ADD COLUMN IF NOT EXISTS monthly_salary INTEGER NOT NULL DEFAULT 0;
+        """)
+        cur.execute("""
+          ALTER TABLE payroll_settings
+          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        """)
+        cur.execute("""
+          ALTER TABLE attendance
+          ADD COLUMN IF NOT EXISTS arrival_type VARCHAR(20) NOT NULL DEFAULT 'ONTIME';
+        """)
+        cur.execute("""
+          ALTER TABLE attendance
+          ADD COLUMN IF NOT EXISTS checkin_at TIMESTAMP NULL;
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/admin/data/range.xlsx")
+def admin_download_range_xlsx():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_hr_v2_schema()
+
+
+    start = _parse_date(request.args.get("start"))
+    end = _parse_date(request.args.get("end"))
+    if not start or not end:
+        return "start & end wajib (YYYY-MM-DD)", 400
+
+    ok, msg = _validate_range(start, end)
+    if not ok:
+        return msg, 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("""
+        SELECT
+          u.name,
+          COALESCE(p.daily_salary, 0) AS daily_salary,
+          a.work_date,
+          a.status,
+          a.checkin_at
+        FROM attendance a
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN payroll_settings p ON p.user_id = u.id
+        WHERE u.role='employee'
+          AND a.work_date >= %s
+          AND a.work_date <= %s
+        ORDER BY u.name ASC, a.work_date ASC, a.checkin_at ASC NULLS LAST;
+    """, (start, end))
+    raw = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    detail = []
+    recap = {}
+
+    for r in raw:
+        name = r["name"]
+        ds = int(r["daily_salary"] or 0)
+        status = (r["status"] or "").upper()
+
+        checkin_time = ""
+        if r["checkin_at"]:
+            try:
+                checkin_time = r["checkin_at"].strftime("%H:%M:%S")
+            except Exception:
+                checkin_time = str(r["checkin_at"])
+
+        salary_day = ds if status == "PRESENT" else 0
+
+        detail.append({
+            "name": name,
+            "work_date": r["work_date"].isoformat() if r["work_date"] else "",
+            "checkin_time": checkin_time,
+            "status": status,
+            "daily_salary": ds,
+            "salary_day": salary_day,
+        })
+
+        if name not in recap:
+            recap[name] = {"name": name, "present": 0, "sick": 0, "leave": 0, "absent": 0, "total_salary": 0}
+
+        if status == "PRESENT":
+            recap[name]["present"] += 1
+            recap[name]["total_salary"] += ds
+        elif status == "SICK":
+            recap[name]["sick"] += 1
+        elif status == "LEAVE":
+            recap[name]["leave"] += 1
+        elif status == "ABSENT":
+            recap[name]["absent"] += 1
+
+    recap_rows = list(recap.values())
+    title = f"Rekap Absensi & Gaji ({start.isoformat()} s/d {end.isoformat()})"
+    xlsx_bytes = _build_attendance_xlsx(detail, recap_rows, title)
+    filename = f"rekap_{start.isoformat()}_{end.isoformat()}.xlsx"
+
+    return Response(
+        xlsx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.route("/admin/data/range_user.xlsx")
+def admin_download_range_user_xlsx():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_hr_v2_schema()
+
+
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "user_id wajib", 400
+
+    start = _parse_date(request.args.get("start"))
+    end = _parse_date(request.args.get("end"))
+    if not start or not end:
+        return "start & end wajib (YYYY-MM-DD)", 400
+
+    ok, msg = _validate_range(start, end)
+    if not ok:
+        return msg, 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("SELECT id, name FROM users WHERE id=%s LIMIT 1;", (int(user_id),))
+    urow = cur.fetchone()
+    if not urow:
+        cur.close(); conn.close()
+        return "User tidak ditemukan", 404
+    user_name = urow["name"]
+
+    cur.execute("""
+        SELECT
+          COALESCE(p.daily_salary, 0) AS daily_salary,
+          a.work_date,
+          a.status,
+          a.checkin_at
+        FROM attendance a
+        LEFT JOIN payroll_settings p ON p.user_id = a.user_id
+        WHERE a.user_id=%s
+          AND a.work_date >= %s
+          AND a.work_date <= %s
+        ORDER BY a.work_date ASC, a.checkin_at ASC NULLS LAST;
+    """, (int(user_id), start, end))
+    raw = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    detail = []
+    recap = {"name": user_name, "present": 0, "sick": 0, "leave": 0, "absent": 0, "total_salary": 0}
+
+    for r in raw:
+        ds = int(r["daily_salary"] or 0)
+        status = (r["status"] or "").upper()
+
+        checkin_time = ""
+        if r["checkin_at"]:
+            try:
+                checkin_time = r["checkin_at"].strftime("%H:%M:%S")
+            except Exception:
+                checkin_time = str(r["checkin_at"])
+
+        salary_day = ds if status == "PRESENT" else 0
+
+        detail.append({
+            "name": user_name,
+            "work_date": r["work_date"].isoformat() if r["work_date"] else "",
+            "checkin_time": checkin_time,
+            "status": status,
+            "daily_salary": ds,
+            "salary_day": salary_day,
+        })
+
+        if status == "PRESENT":
+            recap["present"] += 1
+            recap["total_salary"] += ds
+        elif status == "SICK":
+            recap["sick"] += 1
+        elif status == "LEAVE":
+            recap["leave"] += 1
+        elif status == "ABSENT":
+            recap["absent"] += 1
+
+    title = f"Rekap {user_name} ({start.isoformat()} s/d {end.isoformat()})"
+    xlsx_bytes = _build_attendance_xlsx(detail, [recap], title)
+    filename = f"rekap_{user_name}_{start.isoformat()}_{end.isoformat()}.xlsx".replace(" ", "_")
+
+    return Response(
+        xlsx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
@@ -2003,7 +2230,6 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
 
 
 
