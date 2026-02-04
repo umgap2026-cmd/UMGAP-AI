@@ -1223,41 +1223,52 @@ def build_caption(data: dict) -> tuple[str, str]:
     variant_id = hex(seed)[-6:]  # id kecil buat nunjukin beda
     return caption.strip(), variant_id
 
+# =========================
+# USER: VIEW
+# =========================
 @app.route("/attendance")
 def attendance_page():
     if not is_logged_in():
         return redirect("/login")
-    # optional: kalau admin jangan masuk halaman user
     if is_admin():
         return redirect("/admin")
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT work_date, arrival_type, status, note, checkin_at
         FROM attendance
         WHERE user_id=%s
-        ORDER BY work_date DESC, checkin_at DESC;
+        ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
     """, (session["user_id"],))
     rows = cur.fetchall()
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
     return render_template("attendance.html", rows=rows)
 
 
+# =========================
+# USER: SUBMIT
+# =========================
 @app.route("/attendance/add", methods=["POST"])
 def attendance_add():
     if not is_logged_in():
         return redirect("/login")
-    if is_admin():
-        return redirect("/admin")
 
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
 
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    # === pakai jam dari page (client_ts) supaya sama dengan live ===
+    client_ts = request.form.get("client_ts")
+    if client_ts and client_ts.isdigit():
+        now = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+    else:
+        now = datetime.now(ZoneInfo("Asia/Jakarta"))
+
     work_date = now.date()
     checkin_at = now
 
+    # mapping status
     if arrival_type in ("ONTIME", "LATE"):
         status = "PRESENT"
     elif arrival_type == "SICK":
@@ -1271,31 +1282,49 @@ def attendance_add():
         arrival_type = "ONTIME"
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # cek apakah sudah pernah absen hari ini (agar poin tidak dobel)
     cur.execute("""
-        INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id, work_date)
-        DO UPDATE SET
-            status=EXCLUDED.status,
-            arrival_type=EXCLUDED.arrival_type,
-            note=EXCLUDED.note,
-            checkin_at=EXCLUDED.checkin_at;
+        SELECT 1 FROM attendance
+        WHERE user_id=%s AND work_date=%s
+        LIMIT 1;
+    """, (session["user_id"], work_date))
+    already = cur.fetchone() is not None
+
+    # upsert attendance (user_id, work_date harus UNIQUE)
+    cur.execute("""
+      INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
+      VALUES (%s, %s, %s, %s, %s, %s)
+      ON CONFLICT (user_id, work_date)
+      DO UPDATE SET
+        status=EXCLUDED.status,
+        arrival_type=EXCLUDED.arrival_type,
+        note=EXCLUDED.note,
+        checkin_at=EXCLUDED.checkin_at;
     """, (session["user_id"], work_date, status, arrival_type, note, checkin_at))
+
+    # tambah poin hanya jika pertama kali absen hari itu
+    if not already:
+        cur.execute("UPDATE users SET points = points + 1 WHERE id=%s;", (session["user_id"],))
+
     conn.commit()
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
     return redirect("/attendance")
 
 
-
-
+# =========================
+# ADMIN: VIEW
+# =========================
 @app.route("/admin/attendance")
 def admin_attendance():
     r = admin_guard()
-    if r: return r
+    if r:
+        return r
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # list karyawan (yang role employee saja)
     cur.execute("""
@@ -1317,50 +1346,74 @@ def admin_attendance():
     """)
     rows = cur.fetchall()
 
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
     return render_template("admin_attendance.html", employees=employees, rows=rows)
 
 
+# =========================
+# ADMIN: SUBMIT
+# =========================
 @app.route("/admin/attendance/add", methods=["POST"])
 def admin_attendance_add():
-    r = admin_guard()
-    if r: return r
+    deny = admin_required()
+    if deny:
+        return deny
 
-    user_id = int(request.form.get("user_id"))
+    user_id = int(request.form["user_id"])
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
 
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
-    work_date = now.date()
-    checkin_at = now
-
-    if arrival_type in ("ONTIME", "LATE"):
-        status = "PRESENT"
-    elif arrival_type == "SICK":
-        status = "SICK"
-    elif arrival_type == "LEAVE":
-        status = "LEAVE"
-    elif arrival_type == "ABSENT":
-        status = "ABSENT"
+    # mapping arrival_type -> status
+    if arrival_type in ("SICK", "LEAVE", "ABSENT"):
+        status = arrival_type
     else:
         status = "PRESENT"
-        arrival_type = "ONTIME"
+
+    # === pakai jam dari page (client_ts) supaya sama dengan live ===
+    client_ts = request.form.get("client_ts")
+    if client_ts and client_ts.isdigit():
+        now = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+    else:
+        now = datetime.now(ZoneInfo("Asia/Jakarta"))
+
+    today = now.date()
 
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id, work_date)
-        DO UPDATE SET
-            status=EXCLUDED.status,
-            arrival_type=EXCLUDED.arrival_type,
-            note=EXCLUDED.note,
-            checkin_at=EXCLUDED.checkin_at;
-    """, (user_id, work_date, status, arrival_type, note, checkin_at))
-    conn.commit()
-    cur.close(); conn.close()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    # cek existing
+    cur.execute("""
+      SELECT id, status
+      FROM attendance
+      WHERE user_id=%s AND work_date=%s
+      LIMIT 1
+    """, (user_id, today))
+    existing = cur.fetchone()
+
+    if existing:
+        att_id = existing["id"]
+        old_status = existing["status"]
+
+        # update: checkin_at pakai now agar sinkron jam submit
+        cur.execute("""
+          UPDATE attendance
+          SET status=%s, arrival_type=%s, note=%s, checkin_at=%s
+          WHERE id=%s
+        """, (status, arrival_type, note, now, att_id))
+
+        adjust_points_for_attendance_change(cur, user_id, old_status, status)
+    else:
+        cur.execute("""
+          INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
+          VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (user_id, today, status, arrival_type, note, now, now))
+
+        adjust_points_for_attendance_change(cur, user_id, None, status)
+
+    conn.commit()
+    cur.close()
+    conn.close()
     return redirect("/admin/attendance")
 
 
@@ -1945,6 +1998,7 @@ def api_caption():
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
