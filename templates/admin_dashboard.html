@@ -19,7 +19,6 @@
         --shadow-in:
           inset 10px 10px 18px rgba(25, 45, 80, 0.12),
           inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-
         --soft-in:
           inset 6px 6px 12px rgba(25, 45, 80, 0.1),
           inset -6px -6px 12px rgba(255, 255, 255, 0.92);
@@ -27,7 +26,6 @@
         --radius: 22px;
         --pill: 999px;
         --blue: #2f5f8f;
-        --red: #ef4444;
       }
 
       * {
@@ -54,7 +52,6 @@
         justify-content: center;
         padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
       }
-
       .wrap {
         width: 100%;
         max-width: 430px;
@@ -67,14 +64,12 @@
         box-shadow: var(--shadow-out);
         padding: 12px;
       }
-
       .head-top {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
       }
-
       .logo {
         width: 44px;
         height: 44px;
@@ -91,13 +86,6 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
-      }
-
-      .right {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-left: auto;
       }
 
       .hello {
@@ -123,57 +111,45 @@
         font-weight: 800;
       }
 
-      .icon-btn {
-        width: 44px;
-        height: 44px;
-        border: none;
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
         border-radius: 16px;
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
-        cursor: pointer;
+        background: #f3f6fc;
+        box-shadow:
+          0 12px 22px rgba(30, 60, 90, 0.18),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.08);
         display: flex;
         align-items: center;
         justify-content: center;
-        position: relative;
-        flex: 0 0 auto;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
       }
-      .icon-btn img {
+      .action-btn svg {
         width: 22px;
         height: 22px;
-        object-fit: contain;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
       .badge {
         position: absolute;
-        top: 6px;
-        right: 6px;
-        background: #facc15;
+        top: -6px;
+        right: -6px;
+        background: #ffd84d;
         color: #1f2937;
-        font-weight: 900;
         font-size: 11px;
-        padding: 2px 6px;
-        border-radius: var(--pill);
-        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.12);
+        font-weight: 900;
+        padding: 3px 7px;
+        border-radius: 999px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
       }
 
-      .logout {
-        width: 44px;
-        height: 44px;
-        border: none;
-        border-radius: 16px;
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .logout img {
-        width: 22px;
-        height: 22px;
-        object-fit: contain;
-      }
-
-      /* RGB divider */
       .rgb {
         height: 3px;
         border-radius: 999px;
@@ -189,7 +165,7 @@
         );
       }
 
-      /* ===== Main Content Card ===== */
+      /* ===== Main Card ===== */
       .main-card {
         margin-top: 14px;
         background: var(--card);
@@ -197,7 +173,6 @@
         box-shadow: var(--shadow-out);
         padding: 16px 14px 18px;
       }
-
       .inner {
         border-radius: 20px;
         background: #f3f5f9;
@@ -208,10 +183,9 @@
       .grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 18px 18px;
+        gap: 18px;
         padding: 6px 2px 10px;
       }
-
       .feature {
         text-decoration: none;
         color: inherit;
@@ -220,7 +194,6 @@
         align-items: center;
         gap: 10px;
       }
-
       .circle {
         width: 74px;
         height: 74px;
@@ -234,12 +207,6 @@
         align-items: center;
         justify-content: center;
       }
-      .circle img {
-        width: 30px;
-        height: 30px;
-        object-fit: contain;
-      }
-
       .label {
         font-weight: 900;
         font-size: 13px;
@@ -251,7 +218,6 @@
         justify-content: center;
         margin-top: 8px;
       }
-
       .more-btn {
         width: 70%;
         height: 44px;
@@ -264,7 +230,6 @@
         letter-spacing: 0.6px;
         color: #2f5f8f;
       }
-
       .hidden-features {
         display: none;
         margin-top: 14px;
@@ -273,6 +238,115 @@
       }
       .hidden-features.show {
         display: block;
+      }
+
+      /* ===== Data section ===== */
+      .title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: #2a3b58;
+        letter-spacing: 0.2px;
+      }
+      .desc {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 12px 0;
+      }
+
+      label {
+        display: block;
+        margin: 10px 0 6px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      input,
+      select {
+        width: 100%;
+        border: none;
+        outline: none;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 12px 12px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .actions-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .btn-pill {
+        border: none;
+        cursor: pointer;
+        border-radius: 16px;
+        padding: 12px 14px;
+        font-weight: 900;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: #2f5f8f;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .btn-primary {
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        color: #fff;
+        box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+      }
+      .btn-pill[disabled] {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .item {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .item-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .mini {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: #2a3b58;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
       }
 
       /* ===== Bottom Nav ===== */
@@ -291,12 +365,11 @@
         background: #fff;
         border-radius: 18px;
         box-shadow: var(--shadow-out);
-        padding: 10px 10px;
+        padding: 10px;
         display: flex;
         justify-content: space-between;
         gap: 10px;
       }
-
       .nav-item {
         flex: 1;
         border: none;
@@ -315,12 +388,6 @@
           box-shadow 0.12s ease,
           background 0.12s ease;
       }
-      .nav-item img {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-      }
-
       .nav-item.active {
         background: #f2f5fb;
         box-shadow: var(--soft-in);
@@ -328,12 +395,11 @@
         color: #2f5f8f;
         border: 1px solid rgba(47, 95, 143, 0.14);
       }
-
-      /* kecilin teks nav kalau sempit */
-      @media (max-width: 360px) {
-        .nav-item span {
-          font-size: 12px;
-        }
+      .right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
       }
       .nav-ico {
         width: 26px;
@@ -345,83 +411,23 @@
         height: 100%;
         display: block;
       }
-
-      /* Warna default (non aktif) */
       .nav-ico .stroke {
         stroke: #9fb1d6;
+        fill: none;
       }
       .nav-ico .fill {
         fill: #9fb1d6;
       }
-
-      /* Contoh aktif */
-      .is-active .nav-ico .stroke {
+      .nav-item.active .nav-ico .stroke {
         stroke: #2f5f8f;
       }
-      .is-active .nav-ico .fill {
+      .nav-item.active .nav-ico .fill {
         fill: #2f5f8f;
       }
-      .top-actions {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-      }
-
-      .action-btn {
-        position: relative;
-        width: 38px;
-        height: 38px;
-        border-radius: 16px;
-        background: #f3f6fc;
-        box-shadow:
-          0 12px 22px rgba(30, 60, 90, 0.18),
-          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-          inset -4px -4px 10px rgba(30, 60, 90, 0.08);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        border: none;
-      }
-
-      .action-btn svg {
-        width: 22px;
-        height: 22px;
-        stroke: #7b93c7;
-        stroke-width: 2.2;
-        fill: none;
-      }
-
-      /* Badge notif */
-      .badge {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        background: #ffd84d;
-        color: #1f2937;
-        font-size: 11px;
-        font-weight: 900;
-        padding: 3px 7px;
-        border-radius: 999px;
-        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
-      }
-
-      /* Hover efek halus */
-      .action-btn:hover {
-        transform: translateY(-1px);
-      }
-      .feature-icon {
-        width: 32px;
-        height: 32px;
-      }
-      .feature-icon svg {
-        width: 100%;
-        height: 100%;
-        stroke: #111;
-        stroke-width: 1.6; /* tipis */
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+      @media (max-width: 360px) {
+        .nav-item span {
+          font-size: 12px;
+        }
       }
     </style>
   </head>
@@ -430,10 +436,9 @@
     <div class="screen">
       <div class="wrap">
         <!-- HEADER -->
-        <div class="head-card">
+        <div class="head-card" id="dashboardTop">
           <div class="head-top">
             <div class="logo">
-              <!-- Ganti src logo kamu -->
               <img
                 src="{{ url_for('static', filename='UMGAP (1).png') }}"
                 alt="Logo"
@@ -446,20 +451,15 @@
                 <span class="name">Hallo, {{ user_name or 'Admin' }}</span>
               </div>
 
-              <!-- Notifikasi / Pesan -->
-              <button class="action-btn" aria-label="Notifikasi">
-                <!-- Icon Mail -->
+              <button class="action-btn" aria-label="Notifikasi" type="button">
                 <svg viewBox="0 0 24 24">
                   <rect x="3" y="5" width="18" height="14" rx="3"></rect>
                   <path d="M3 7l9 6 9-6"></path>
                 </svg>
-
-                <span class="badge">177</span>
+                <span class="badge">{{ notif_count or 0 }}</span>
               </button>
 
-              <!-- Logout -->
               <a href="/logout" class="action-btn" aria-label="Logout">
-                <!-- Icon Logout -->
                 <svg viewBox="0 0 24 24">
                   <path d="M10 17l5-5-5-5"></path>
                   <path d="M15 12H3"></path>
@@ -468,142 +468,45 @@
               </a>
             </div>
           </div>
-
           <div class="rgb"></div>
         </div>
 
-        <!-- MAIN -->
-        <div class="main-card">
+        <!-- DASHBOARD -->
+        <div class="main-card" id="dashboardSection">
           <div class="inner">
             <div class="grid" id="featureGrid">
-              <!-- 4 fitur utama (tampil dulu) -->
-              <a class="feature" href="/admin/users">
-                <div class="circle">
-                  <div class="feature-icon">
-                    <svg viewBox="0 0 24 24">
-                      <!-- kepala -->
-                      <circle cx="9" cy="7" r="3"></circle>
-
-                      <!-- badan -->
-                      <path d="M3 19c0-3.2 3.5-5 6-5"></path>
-
-                      <!-- panah -->
-                      <path d="M13 10h7"></path>
-                      <path d="M17 7l3 3-3 3"></path>
-                    </svg>
-                  </div>
-                </div>
-                <div class="label">Kelola User</div>
-              </a>
-
-              <a class="feature" href="/admin/attendance">
-                <div class="circle">
-                  <div class="feature-icon">
-                    <svg viewBox="0 0 24 24">
-                      <!-- badan kalender -->
-                      <rect x="3" y="5" width="18" height="16" rx="3"></rect>
-
-                      <!-- gantungan -->
-                      <path d="M7 3v4M17 3v4"></path>
-
-                      <!-- garis isi -->
-                      <path d="M7 11h10"></path>
-                      <path d="M7 15h7"></path>
-                    </svg>
-                  </div>
-                </div>
-                <div class="label">Absensi</div>
-              </a>
-
-              <a class="feature" href="/admin/sales">
-                <div class="circle">
-                  <img
-                    src="{{ url_for('static', filename='icon_penjualan.png') }}"
-                    alt=""
-                  />
-                </div>
-                <div class="label">Penjualan</div>
-              </a>
-
-              <a class="feature" href="/admin/sales/monitor">
-                <div class="circle">
-                  <img
-                    src="{{ url_for('static', filename='icon_monitor_sales.png') }}"
-                    alt=""
-                  />
-                </div>
-                <div class="label">Monitor Sales</div>
-              </a>
+              <a class="feature" href="/admin/users"
+                ><div class="circle">👤</div>
+                <div class="label">Kelola User</div></a
+              >
+              <a class="feature" href="/admin/attendance"
+                ><div class="circle">🗓️</div>
+                <div class="label">Absensi</div></a
+              >
+              <a class="feature" href="/admin/sales"
+                ><div class="circle">🧾</div>
+                <div class="label">Penjualan</div></a
+              >
+              <a class="feature" href="/admin/sales/monitor"
+                ><div class="circle">📡</div>
+                <div class="label">Monitor Sales</div></a
+              >
             </div>
 
-            <!-- hidden: 3 fitur tambahan (jadi total 7) -->
             <div class="hidden-features" id="moreSection">
               <div class="grid">
-                <a class="feature" href="/admin/payroll">
-                  <div class="circle">
-                    <div class="feature-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <!-- kertas -->
-                        <path d="M7 3h7l3 3v15H7z"></path>
-                        <path d="M14 3v3h3"></path>
-
-                        <!-- garis -->
-                        <path d="M9 10h6"></path>
-                        <path d="M9 13h6"></path>
-
-                        <!-- coin -->
-                        <circle cx="9" cy="18" r="2.2"></circle>
-                        <path d="M8.5 18h1.0"></path>
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="label">Payroll</div>
-                </a>
-
-                <a class="feature" href="/products">
-                  <div class="circle">
-                    <div class="feature-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <!-- box -->
-                        <path d="M7 7l5-3 5 3v12l-5 3-5-3z"></path>
-                        <path d="M7 7l5 3 5-3"></path>
-                        <path d="M12 10v12"></path>
-
-                        <!-- tag -->
-                        <path
-                          d="M4.5 12.5l3.5-3.5h3l1.8 1.8v3l-3.5 3.5z"
-                        ></path>
-                        <circle cx="9.3" cy="10.7" r="0.8"></circle>
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="label">Produk</div>
-                </a>
-
-                <a class="feature" href="/admin/stats">
-                  <div class="circle">
-                    <div class="feature-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <!-- axis -->
-                        <path d="M5 19V5"></path>
-                        <path d="M5 19h14"></path>
-
-                        <!-- bars -->
-                        <path d="M8 19v-5"></path>
-                        <path d="M12 19v-8"></path>
-                        <path d="M16 19v-3"></path>
-
-                        <!-- trend line -->
-                        <path d="M8 11l4-3 4 2 3-4"></path>
-                        <circle cx="8" cy="11" r="0.9"></circle>
-                        <circle cx="12" cy="8" r="0.9"></circle>
-                        <circle cx="16" cy="10" r="0.9"></circle>
-                        <circle cx="19" cy="6" r="0.9"></circle>
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="label">Statistik</div>
-                </a>
+                <a class="feature" href="/admin/payroll"
+                  ><div class="circle">💰</div>
+                  <div class="label">Payroll</div></a
+                >
+                <a class="feature" href="/products"
+                  ><div class="circle">📦</div>
+                  <div class="label">Produk</div></a
+                >
+                <a class="feature" href="/admin/stats"
+                  ><div class="circle">📈</div>
+                  <div class="label">Statistik</div></a
+                >
               </div>
             </div>
 
@@ -612,110 +515,180 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- BOTTOM NAV -->
-    <div class="bottom-nav">
-      <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-        <button class="nav-item active" type="button" data-nav="dashboard">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img" aria-label="Dashboard">
-              <rect
-                class="fill"
-                x="3"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="3"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-            </svg>
-          </span>
-          <span>Dashboard</span>
-        </button>
+        <!-- DATA (EXPORT) -->
+        <div class="main-card" id="dataSection">
+          <div class="inner">
+            <h2 class="title">Data</h2>
+            <p class="desc">
+              Rekap absensi & gaji harian. Pilih periode (maks 31 hari, 1 bulan
+              yang sama).
+            </p>
 
-        <button class="nav-item" type="button" data-nav="data">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img" aria-label="Data">
-              <!-- panah ke kanan (atas) -->
-              <path
-                class="stroke"
-                d="M4 8h12"
-                fill="none"
-                stroke-width="2.2"
-                stroke-linecap="round"
-              />
-              <path
-                class="stroke"
-                d="M14.6 5.8L18 8l-3.4 2.2"
-                fill="none"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
+            <div class="divider"></div>
 
-              <!-- panah ke kiri (bawah) -->
-              <path
-                class="stroke"
-                d="M20 16H8"
-                fill="none"
-                stroke-width="2.2"
-                stroke-linecap="round"
-              />
-              <path
-                class="stroke"
-                d="M9.4 13.8L6 16l3.4 2.2"
-                fill="none"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+            <div class="row2">
+              <div>
+                <label>Tanggal mulai</label>
+                <input id="dateStart" type="date" />
+              </div>
+              <div>
+                <label>Tanggal selesai</label>
+                <input id="dateEnd" type="date" />
+              </div>
+            </div>
 
-          <span>Data</span>
-        </button>
+            <div class="row2" style="margin-top: 12px">
+              <div>
+                <label>Download untuk 1 orang (opsional)</label>
+                <select id="userPick">
+                  <option value="">(Semua karyawan)</option>
+                  {% for e in employees %}
+                  <option value="{{ e.id }}">
+                    {{ e.name }} ({{ e.email }})
+                  </option>
+                  {% endfor %}
+                </select>
+                <div class="mini">
+                  Kalau pilih nama, download hanya untuk 1 orang.
+                </div>
+              </div>
 
-        <button class="nav-item" type="button" data-nav="more">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img" aria-label="More">
-              <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
-              <circle class="fill" cx="12" cy="12" r="1.8"></circle>
-              <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
-            </svg>
-          </span>
+              <div>
+                <label>Search nama (untuk tampilan)</label>
+                <input
+                  id="searchName"
+                  type="text"
+                  placeholder="Ketik nama karyawan..."
+                />
+              </div>
+            </div>
 
-          <span>More</span>
-        </button>
+            <div class="actions-row">
+              <button id="btnAll" class="btn-pill btn-primary" type="button">
+                ⬇️ Download Semua (Excel)
+              </button>
+              <button id="btnOne" class="btn-pill" type="button">
+                ⬇️ Download 1 Orang (Excel)
+              </button>
+            </div>
+
+            <div class="mini" id="rangeHint" style="margin-top: 10px"></div>
+
+            <div class="divider"></div>
+
+            <div class="list" id="previewList">
+              <div class="item">
+                <div class="item-top">
+                  <div>
+                    <p class="title" style="font-size: 14px; margin: 0">
+                      Preview
+                    </p>
+                    <p class="mini">
+                      Pilih tanggal untuk mengaktifkan tombol download.
+                    </p>
+                  </div>
+                  <span class="tag">.xlsx</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM NAV (scroll, tanpa ganti page) -->
+        <div class="bottom-nav">
+          <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+            <button class="nav-item active" type="button" data-nav="dashboard">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    class="fill"
+                    x="3"
+                    y="3"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="13"
+                    y="3"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="3"
+                    y="13"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="13"
+                    y="13"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                </svg>
+              </span>
+              <span>Dashboard</span>
+            </button>
+
+            <button class="nav-item" type="button" data-nav="data">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    class="stroke"
+                    d="M4 8h12"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M14.6 5.8L18 8l-3.4 2.2"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M20 16H8"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M9.4 13.8L6 16l3.4 2.2"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                </svg>
+              </span>
+              <span>Data</span>
+            </button>
+
+            <button class="nav-item" type="button" data-nav="more">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+                  <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+                  <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+                </svg>
+              </span>
+              <span>More</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
     <script>
-      // Toggle MORE (buka/tutup fitur tambahan)
+      // MORE toggle
       (function () {
         const btn = document.getElementById("moreBtn");
         const more = document.getElementById("moreSection");
@@ -728,22 +701,179 @@
         });
       })();
 
-      // Bottom nav active state (klik -> membesar + border)
+      // bottom nav scroll
       (function () {
         const items = document.querySelectorAll(".nav-item");
-        items.forEach((btn) => {
-          btn.addEventListener("click", () => {
-            items.forEach((b) => b.classList.remove("active"));
-            btn.classList.add("active");
 
-            // OPTIONAL: kalau mau diarahkan ke halaman tertentu, buka ini:
-            // const key = btn.getAttribute("data-nav");
-            // if (key === "dashboard") window.location.href = "/admin/dashboard";
-            // if (key === "data") window.location.href = "/admin/stats"; // misal
-            // if (key === "more") document.getElementById("moreBtn").click();
-          });
-        });
+        function setActive(key) {
+          items.forEach((b) => b.classList.remove("active"));
+          const btn = document.querySelector(
+            '.nav-item[data-nav="' + key + '"]',
+          );
+          if (btn) btn.classList.add("active");
+        }
+
+        function go(key) {
+          if (key === "dashboard") {
+            document
+              .getElementById("dashboardTop")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setActive("dashboard");
+            return;
+          }
+          if (key === "data") {
+            document
+              .getElementById("dataSection")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setActive("data");
+            return;
+          }
+          if (key === "more") {
+            document.getElementById("moreBtn")?.click();
+            setActive("more");
+            return;
+          }
+        }
+
+        items.forEach((btn) =>
+          btn.addEventListener("click", () => go(btn.getAttribute("data-nav"))),
+        );
+
+        // auto highlight by scroll (simple)
+        const dataEl = document.getElementById("dataSection");
+        function onScroll() {
+          const y = window.scrollY || document.documentElement.scrollTop;
+          const dataTop = dataEl
+            ? dataEl.getBoundingClientRect().top + y
+            : 999999;
+          if (y + 140 >= dataTop) setActive("data");
+          else setActive("dashboard");
+        }
+        window.addEventListener(
+          "scroll",
+          () => requestAnimationFrame(onScroll),
+          { passive: true },
+        );
       })();
+
+      // ===== EXPORT LOGIC (ANTI DOWNLOAD dashboard.htm) =====
+      function ymd(d) {
+        const p = (n) => String(n).padStart(2, "0");
+        return (
+          d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+        );
+      }
+      function monthKey(s) {
+        return (s || "").slice(0, 7);
+      }
+      function daysDiff(a, b) {
+        const A = new Date(a + "T00:00:00");
+        const B = new Date(b + "T00:00:00");
+        return Math.floor((B - A) / 86400000) + 1;
+      }
+
+      const startEl = document.getElementById("dateStart");
+      const endEl = document.getElementById("dateEnd");
+      const pickEl = document.getElementById("userPick");
+      const hintEl = document.getElementById("rangeHint");
+      const btnAll = document.getElementById("btnAll");
+      const btnOne = document.getElementById("btnOne");
+
+      let lastMonth = "";
+
+      function setDisabled(btn, disabled) {
+        btn.disabled = !!disabled;
+      }
+
+      function validateAndMaybeReset(resetIfMonthChange) {
+        const s = startEl.value;
+        const e = endEl.value;
+        if (!s || !e) {
+          hintEl.textContent = "Pilih tanggal mulai & selesai.";
+          setDisabled(btnAll, true);
+          setDisabled(btnOne, true);
+          return { ok: false };
+        }
+
+        const mk = monthKey(s);
+        if (resetIfMonthChange && lastMonth && mk !== lastMonth) {
+          endEl.value = s; // reset end -> start kalau pindah bulan
+        }
+        lastMonth = monthKey(startEl.value);
+
+        const s2 = startEl.value;
+        const e2 = endEl.value;
+
+        if (monthKey(s2) !== monthKey(e2)) {
+          hintEl.textContent = "Range harus dalam bulan yang sama.";
+          setDisabled(btnAll, true);
+          setDisabled(btnOne, true);
+          return { ok: false };
+        }
+
+        const d = daysDiff(s2, e2);
+        if (d < 1) {
+          hintEl.textContent = "Tanggal akhir harus >= tanggal awal.";
+          setDisabled(btnAll, true);
+          setDisabled(btnOne, true);
+          return { ok: false };
+        }
+        if (d > 31) {
+          hintEl.textContent = "Maksimal 31 hari.";
+          setDisabled(btnAll, true);
+          setDisabled(btnOne, true);
+          return { ok: false };
+        }
+
+        const today = new Date();
+        const limit = new Date(today.getTime() - 183 * 86400000);
+        if (new Date(s2 + "T00:00:00") < limit) {
+          hintEl.textContent = "Range hanya boleh dari 6 bulan terakhir.";
+          setDisabled(btnAll, true);
+          setDisabled(btnOne, true);
+          return { ok: false };
+        }
+
+        hintEl.textContent = `Periode aktif: ${s2} s/d ${e2} (${d} hari)`;
+
+        // All selalu bisa
+        setDisabled(btnAll, false);
+
+        // One hanya kalau ada user
+        const uid = pickEl.value;
+        setDisabled(btnOne, !uid);
+
+        return { ok: true, start: s2, end: e2, uid };
+      }
+
+      function goDownloadAll() {
+        const v = validateAndMaybeReset(false);
+        if (!v.ok) return;
+        window.location.href = `/admin/data/range.xlsx?start=${encodeURIComponent(v.start)}&end=${encodeURIComponent(v.end)}`;
+      }
+
+      function goDownloadOne() {
+        const v = validateAndMaybeReset(false);
+        if (!v.ok) return;
+        if (!v.uid) return;
+        window.location.href = `/admin/data/range_user.xlsx?user_id=${encodeURIComponent(v.uid)}&start=${encodeURIComponent(v.start)}&end=${encodeURIComponent(v.end)}`;
+      }
+
+      // default: hari ini
+      (function () {
+        const t = new Date();
+        startEl.value = ymd(t);
+        endEl.value = ymd(t);
+        lastMonth = monthKey(startEl.value);
+        validateAndMaybeReset(false);
+      })();
+
+      startEl.addEventListener("change", () => validateAndMaybeReset(true));
+      endEl.addEventListener("change", () => validateAndMaybeReset(false));
+      pickEl.addEventListener("change", () => validateAndMaybeReset(false));
+
+      btnAll.addEventListener("click", goDownloadAll);
+      btnOne.addEventListener("click", goDownloadOne);
     </script>
   </body>
 </html>
