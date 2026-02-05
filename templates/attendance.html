@@ -1,71 +1,498 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {# Hilangkan topbar dari base supaya tampilannya mirip
+admin #} {% block topbar %}{% endblock %} {% block content %}
 <style>
-  /* ===== Attendance Page Styles ===== */
-  .page-title { margin: 16px 0 0; }
-  .helper { margin-top: 6px; }
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--bg);
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+  }
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+
+  /* ===== Header Card (mirip admin) ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .hello {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+  .hello .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Sections ===== */
+  .card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 12px 0;
+  }
 
   /* Live clock */
   .clock {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; padding: 14px 16px; border-radius: 14px;
-    border: 1px solid var(--border); background: #f8faff; margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    margin-top: 12px;
   }
-  .clock .left { display: flex; flex-direction: column; gap: 4px; }
-  .clock .label { font-size: 13px; color: var(--muted); }
-  .clock .time { font-size: 22px; font-weight: 900; letter-spacing: 0.3px; }
-  .clock .date { font-size: 14px; color: var(--muted); }
+  .clock .left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .clock .label {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .clock .time {
+    font-size: 22px;
+    font-weight: 1000;
+    letter-spacing: 0.3px;
+    color: #2a3b58;
+  }
+  .clock .date {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .mini {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 800;
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    margin-top: 12px;
+    cursor: pointer;
+    font-weight: 1000;
+    color: #fff;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+  }
 
   /* Riwayat: desktop table vs mobile cards */
-  .table-wrap { width: 100%; overflow: auto; }
-  .list-mobile { display: none; }
-
-  .item {
-    border: 1px solid var(--border); border-radius: 14px;
-    padding: 12px; background: #fff; margin-top: 10px;
+  .table-wrap {
+    width: 100%;
+    overflow: auto;
+    margin-top: 10px;
   }
-  .item-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .item-top .date { font-weight: 900; font-size: 15px; line-height: 1.1; }
-  .item-top .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-  .item-note { margin-top: 10px; line-height: 1.4; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  th {
+    position: sticky;
+    top: 0;
+    background: #f3f5f9;
+    z-index: 1;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  td.muted {
+    color: var(--muted);
+    white-space: normal;
+  }
 
-  .btn-big { width: 100%; padding: 14px 16px; font-size: 16px; border-radius: 14px; }
-  .mini { font-size: 12px; color: var(--muted); }
+  .list-mobile {
+    display: none;
+    margin-top: 10px;
+  }
+  .item {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+    margin-top: 10px;
+  }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .item-top .date {
+    font-weight: 1000;
+    font-size: 14px;
+    color: #2a3b58;
+  }
+  .item-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.4;
+  }
 
-  .badge-ok   { background: #ecfdf5; border-color: #bbf7d0; color: #166534; }
-  .badge-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-  .badge-bad  { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-  .badge-info { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: #2a3b58;
+    font-size: 12px;
+    font-weight: 1000;
+    border: 1px solid rgba(125, 138, 166, 0.18);
+  }
+  .badge-ok {
+    background: #ecfdf5;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+  .badge-warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+  .badge-bad {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+  .badge-info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e3a8a;
+  }
+
+  /* ===== Bottom Nav ===== */
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(242, 244, 248, 0.85);
+    backdrop-filter: blur(8px);
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    cursor: pointer;
+    color: #6f7f9c;
+    font-weight: 900;
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      background 0.12s ease;
+    text-decoration: none;
+  }
+  .nav-item.active {
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    transform: scale(1.06);
+    color: #2f5f8f;
+    border: 1px solid rgba(47, 95, 143, 0.14);
+  }
+  .nav-ico {
+    width: 26px;
+    height: 26px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .nav-ico .stroke {
+    stroke: #9fb1d6;
+    fill: none;
+  }
+  .nav-ico .fill {
+    fill: #9fb1d6;
+  }
+  .nav-item.active .nav-ico .stroke {
+    stroke: #2f5f8f;
+  }
+  .nav-item.active .nav-ico .fill {
+    fill: #2f5f8f;
+  }
 
   @media (max-width: 640px) {
-    .table-wrap { display: none; }
-    .list-mobile { display: block; }
-    input, select, textarea { padding: 14px; font-size: 16px; }
+    input,
+    select,
+    textarea {
+      padding: 14px;
+      font-size: 16px;
+    }
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
   }
 </style>
 
-<div class="grid">
-  <!-- ===== FORM ABSENSI ===== -->
-  <div class="card">
-    <h2 class="page-title">Absensi Hari Ini</h2>
-    <div class="muted helper">
-      Tanggal &amp; jam otomatis. Kamu cukup pilih tipe kedatangan dan isi alasan.
-    </div>
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card" id="top">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="Logo"
+          />
+        </div>
 
-    <div class="clock" aria-live="polite">
-      <div class="left">
-        <div class="label">Waktu sekarang</div>
-        <div class="time" id="liveTime">--:--:--</div>
-        <div class="date" id="liveDate">---</div>
+        <div class="right">
+          <div class="hello" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >Hallo, {{ session.get("user_name","User") }}</span
+            >
+          </div>
+
+          <a href="/logout" class="action-btn" aria-label="Logout">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
       </div>
-      <div class="muted">Asia/Jakarta</div>
+      <div class="rgb"></div>
     </div>
 
-    <form method="POST" action="/attendance/add" style="margin-top: 14px">
-      <!-- INI KUNCI: timestamp dari page -->
-      <input type="hidden" name="client_ts" id="clientTs" value="" />
+    <!-- FORM ABSENSI -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">Absensi Hari Ini</h2>
+        <p class="desc">
+          Tanggal & jam otomatis. Kamu cukup pilih tipe kedatangan dan isi
+          alasan.
+        </p>
 
-      <div class="row-1">
-        <div>
+        <div class="clock" aria-live="polite">
+          <div class="left">
+            <div class="label">Waktu sekarang</div>
+            <div class="time" id="liveTime">--:--:--</div>
+            <div class="date" id="liveDate">---</div>
+          </div>
+          <div class="mini">Asia/Jakarta</div>
+        </div>
+
+        <form method="POST" action="/attendance/add" style="margin-top: 12px">
+          <input type="hidden" name="client_ts" id="clientTs" value="" />
+
           <label>Tipe kedatangan</label>
           <select name="arrival_type" required>
             <option value="ONTIME" selected>Hadir (Tepat waktu)</option>
@@ -74,92 +501,165 @@
             <option value="LEAVE">Cuti</option>
             <option value="ABSENT">Tidak hadir</option>
           </select>
-          <div class="mini" style="margin-top: 6px">
+          <div class="mini">
             Jika submit lagi hari yang sama, data akan otomatis diperbarui.
           </div>
-        </div>
 
-        <div>
           <label>Alasan / catatan</label>
-          <textarea name="note" placeholder="Contoh: macet, sakit, izin keluarga..."></textarea>
-        </div>
+          <textarea
+            name="note"
+            placeholder="Contoh: macet, sakit, izin keluarga..."
+          ></textarea>
 
-        <button class="btn btn-primary btn-big" type="submit">Submit Absensi</button>
+          <button class="btn-primary" type="submit">Submit Absensi</button>
+        </form>
       </div>
-    </form>
-  </div>
-
-  <!-- ===== RIWAYAT ABSENSI ===== -->
-  <div class="card">
-    <h2 class="page-title">Riwayat Absensi</h2>
-    <div class="muted helper">Desktop: tabel • Mobile: kartu</div>
-
-    <div class="table-wrap" style="margin-top: 10px">
-      <table>
-        <thead>
-          <tr>
-            <th style="min-width: 120px">Tanggal</th>
-            <th style="min-width: 110px">Jam</th>
-            <th style="min-width: 130px">Tipe</th>
-            <th style="min-width: 110px">Status</th>
-            <th>Catatan</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in rows %}
-          <tr>
-            <td>{{ r.work_date }}</td>
-            <td>{% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M:%S") }}{% else %}-{% endif %}</td>
-            <td>
-              {% set t = (r.arrival_type or '') %}
-              {% if t == 'ONTIME' %}<span class="badge badge-ok">ONTIME</span>
-              {% elif t == 'LATE' %}<span class="badge badge-warn">LATE</span>
-              {% elif t == 'SICK' %}<span class="badge badge-info">SICK</span>
-              {% elif t == 'LEAVE' %}<span class="badge badge-info">LEAVE</span>
-              {% elif t == 'ABSENT' %}<span class="badge badge-bad">ABSENT</span>
-              {% else %}<span class="badge">{{ r.arrival_type }}</span>{% endif %}
-            </td>
-            <td class="muted">{{ r.status }}</td>
-            <td class="muted">{{ r.note }}</td>
-          </tr>
-          {% endfor %}
-          {% if rows|length == 0 %}
-          <tr><td colspan="5" class="muted">Belum ada absensi.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
     </div>
 
-    <div class="list-mobile" style="margin-top: 10px">
-      {% for r in rows %} {% set t = (r.arrival_type or '') %}
-      <div class="item">
-        <div class="item-top">
-          <div class="date">
-            {{ r.work_date }}
-            <div class="mini" style="margin-top: 4px">
-              {% if r.checkin_at %} Jam: <b>{{ r.checkin_at.strftime("%H:%M:%S") }}</b>
-              {% else %} Jam: - {% endif %}
-            </div>
-          </div>
-          <div class="right">
-            {% if t == 'ONTIME' %}<span class="badge badge-ok">ONTIME</span>
-            {% elif t == 'LATE' %}<span class="badge badge-warn">LATE</span>
-            {% elif t == 'SICK' %}<span class="badge badge-info">SICK</span>
-            {% elif t == 'LEAVE' %}<span class="badge badge-info">LEAVE</span>
-            {% elif t == 'ABSENT' %}<span class="badge badge-bad">ABSENT</span>
-            {% else %}<span class="badge">{{ r.arrival_type }}</span>{% endif %}
-            <div class="mini">Status: <b>{{ r.status }}</b></div>
-          </div>
+    <!-- RIWAYAT -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">Riwayat Absensi</h2>
+        <p class="desc">Desktop: tabel • Mobile: kartu</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width: 120px">Tanggal</th>
+                <th style="min-width: 110px">Jam</th>
+                <th style="min-width: 130px">Tipe</th>
+                <th style="min-width: 110px">Status</th>
+                <th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rows %}
+              <tr>
+                <td>{{ r.work_date }}</td>
+                <td>
+                  {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M:%S") }}{%
+                  else %}-{% endif %}
+                </td>
+                <td>
+                  {% set t = (r.arrival_type or '') %} {% if t == 'ONTIME'
+                  %}<span class="badge badge-ok">ONTIME</span> {% elif t ==
+                  'LATE' %}<span class="badge badge-warn">LATE</span> {% elif t
+                  == 'SICK' %}<span class="badge badge-info">SICK</span> {% elif
+                  t == 'LEAVE' %}<span class="badge badge-info">LEAVE</span> {%
+                  elif t == 'ABSENT' %}<span class="badge badge-bad"
+                    >ABSENT</span
+                  >
+                  {% else %}<span class="badge">{{ r.arrival_type }}</span>{%
+                  endif %}
+                </td>
+                <td class="muted">{{ r.status }}</td>
+                <td class="muted">{{ r.note }}</td>
+              </tr>
+              {% endfor %} {% if rows|length == 0 %}
+              <tr>
+                <td colspan="5" class="muted">Belum ada absensi.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
         </div>
 
-        <div class="item-note muted">
-          {% if r.note and r.note|length > 0 %}{{ r.note }}{% else %}Catatan: -{% endif %}
+        <div class="list-mobile">
+          {% for r in rows %} {% set t = (r.arrival_type or '') %}
+          <div class="item">
+            <div class="item-top">
+              <div>
+                <div class="date">{{ r.work_date }}</div>
+                <div class="mini" style="margin-top: 6px">
+                  {% if r.checkin_at %}Jam:
+                  <b>{{ r.checkin_at.strftime("%H:%M:%S") }}</b>
+                  {% else %}Jam: -{% endif %}
+                </div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: 8px;
+                "
+              >
+                {% if t == 'ONTIME' %}<span class="badge badge-ok">ONTIME</span>
+                {% elif t == 'LATE' %}<span class="badge badge-warn">LATE</span>
+                {% elif t == 'SICK' %}<span class="badge badge-info">SICK</span>
+                {% elif t == 'LEAVE' %}<span class="badge badge-info"
+                  >LEAVE</span
+                >
+                {% elif t == 'ABSENT' %}<span class="badge badge-bad"
+                  >ABSENT</span
+                >
+                {% else %}<span class="badge">{{ r.arrival_type }}</span>{%
+                endif %}
+                <div class="mini">Status: <b>{{ r.status }}</b></div>
+              </div>
+            </div>
+
+            <div class="item-note">
+              {% if r.note and r.note|length > 0 %}{{ r.note }}{% else
+              %}Catatan: -{% endif %}
+            </div>
+          </div>
+          {% endfor %} {% if rows|length == 0 %}
+          <div class="mini">Belum ada absensi.</div>
+          {% endif %}
         </div>
       </div>
-      {% endfor %}
-      {% if rows|length == 0 %}
-      <div class="muted">Belum ada absensi.</div>
-      {% endif %}
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+      <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+        <a class="nav-item" href="/dashboard">
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect
+                class="fill"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+            </svg>
+          </span>
+          <span>Dashboard</span>
+        </a>
+
+        
+
+        
+        </a>
+      </div>
     </div>
   </div>
 </div>
@@ -168,20 +668,28 @@
   // ===== LIVE CLOCK (WIB) + kirim client_ts =====
   const tz = "Asia/Jakarta";
   const fmtTime = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit"
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
   const fmtDate = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz, weekday: "long", year: "numeric", month: "long", day: "numeric"
+    timeZone: tz,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
   function tick() {
     const now = new Date();
-    document.getElementById("liveTime").textContent = fmtTime.format(now);
-    document.getElementById("liveDate").textContent = fmtDate.format(now);
+    const tEl = document.getElementById("liveTime");
+    const dEl = document.getElementById("liveDate");
+    if (tEl) tEl.textContent = fmtTime.format(now);
+    if (dEl) dEl.textContent = fmtDate.format(now);
 
-    // epoch ms -> supaya server simpan jam yang sama dengan yang terlihat di page
-    const el = document.getElementById("clientTs");
-    if (el) el.value = String(now.getTime());
+    const ts = document.getElementById("clientTs");
+    if (ts) ts.value = String(now.getTime());
   }
   tick();
   setInterval(tick, 1000);
