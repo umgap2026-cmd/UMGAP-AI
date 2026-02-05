@@ -26,7 +26,7 @@ from flask import Response
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 import io
-
+from psycopg2.extras import RealDictCursor
 
 
 def login_required():
@@ -54,19 +54,16 @@ def adjust_points_for_attendance_change(cur, user_id: int, old_status: str | Non
     new_present = (new_status == "PRESENT")
 
     if old_present == new_present:
-        return  # tidak ada perubahan poin
+        return
 
     delta = 1 if new_present else -1
 
-    # points_total = akumulasi seumur hidup
-    # points = bisa kamu pakai sebagai saldo saat ini (opsional)
     cur.execute("""
         UPDATE users
-        SET
-          points_total = COALESCE(points_total, 0) + %s,
-          points       = COALESCE(points, 0) + %s
+        SET points = COALESCE(points, 0) + %s
         WHERE id = %s
-    """, (delta, delta, user_id))
+    """, (delta, user_id))
+
 
 
 
@@ -90,11 +87,41 @@ Maksimal 2 kalimat + hashtag.
     return r.output_text.strip()
 
 
+# ====== TAMBAHKAN FUNGSI INI (sekali saja) ======
+def ensure_points_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # kolom users
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points_admin INTEGER DEFAULT 0;")
+
+    # log table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS points_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      admin_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      delta INT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    );
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
+
+try:
+    ensure_points_schema()
+except Exception as e:
+    # jangan bikin app crash saat deploy; log aja
+    print("ensure_points_schema failed:", e)
 
 
 def is_logged_in():
@@ -230,43 +257,57 @@ def init_products_v2():
     return "OK: products v2 (is_global) siap."
 
 
-@app.route("/dashboard")
-def dashboard_redirect():
-    if not is_logged_in():
-        return redirect("/login")
+#@app.route("/dashboard")
+#def dashboard_redirect():
+#   if not is_logged_in():
+#        return redirect("/login")
 
-    role = session.get("role", "employee")
-    if role == "admin":
-        return redirect("/admin/dashboard")
+ #   role = session.get("role", "employee")
+ #   if role == "admin":
+ #       return redirect("/admin/dashboard")
 
     # user/karyawan arahkan ke halaman kerja utama
-    return redirect("/sales")
+#    return redirect("/sales")
 
 
+# ======================================================================
+#  DASHBOARD USER (GANTI route dashboard user kamu jadi ini)
+#  - tetap redirect admin ke /admin/dashboard
+#  - tambahkan points_admin untuk ditampilkan
+# ======================================================================
 @app.route("/")
-@app.route("/dashboard")  # <-- tambah ini
+@app.route("/dashboard")
 def dashboard():
     if not is_logged_in():
         return redirect("/login")
 
-    # ✅ Admin jangan masuk dashboard user
     if session.get("role") == "admin":
         return redirect("/admin/dashboard")
 
-    conn = get_conn()
-    cur = conn.cursor()
+    ensure_points_schema()
 
-    # jumlah produk (untuk user)
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # contoh KPI user (sesuaikan kalau tabel kamu beda)
     cur.execute("SELECT COUNT(*) AS total FROM products WHERE user_id=%s;", (session["user_id"],))
     total_products = cur.fetchone()["total"]
 
-    # jumlah rencana konten
     cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s;", (session["user_id"],))
     total_contents = cur.fetchone()["total"]
 
-    # jumlah konten yang sudah selesai
     cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s AND is_done=TRUE;", (session["user_id"],))
     total_done = cur.fetchone()["total"]
+
+    # poin dari admin + poin absensi
+    cur.execute("""
+        SELECT COALESCE(points,0) AS points,
+               COALESCE(points_admin,0) AS points_admin
+        FROM users
+        WHERE id=%s
+        LIMIT 1;
+    """, (session["user_id"],))
+    pr = cur.fetchone() or {"points": 0, "points_admin": 0}
 
     cur.close()
     conn.close()
@@ -274,10 +315,16 @@ def dashboard():
     return render_template(
         "dashboard.html",
         user_name=session.get("user_name"),
+        notif_count=0,
         total_products=total_products,
         total_contents=total_contents,
-        total_done=total_done
+        total_done=total_done,
+        points=int(pr["points"] or 0),
+        points_admin=int(pr["points_admin"] or 0),
     )
+
+
+
 
 
 
@@ -461,7 +508,43 @@ def init_hr_v2():
     conn.close()
     return "OK: HR v2 tables/columns ensured."
 
+def init_points_admin_log(cur):
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS points_admin_log (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      admin_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      delta INT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    );
+    """)
 
+
+def init_points_v1():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # Kolom poin (attendance) + poin_admin (manual dari admin)
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0;")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points_admin INTEGER NOT NULL DEFAULT 0;")
+
+    # Log perubahan poin manual
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS points_logs (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            delta INTEGER NOT NULL,
+            note TEXT,
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    print("Points v1 ensured.")
 
 
 
@@ -1307,6 +1390,7 @@ def attendance_add():
     already = cur.fetchone() is not None
 
     # upsert attendance
+    # upsert attendance
     cur.execute("""
       INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
       VALUES (%s, %s, %s, %s, %s, %s)
@@ -1318,9 +1402,10 @@ def attendance_add():
         checkin_at=EXCLUDED.checkin_at;
     """, (session["user_id"], work_date, status, arrival_type, note, checkin_at))
 
-    # tambah poin hanya jika pertama kali absen hari itu
+    # POIN ABSENSI DIMATIKAN (tidak ada update users.points)
     if not already:
-        cur.execute("UPDATE users SET points = points + 1 WHERE id=%s;", (session["user_id"],))
+        cur.execute("UPDATE users SET points = COALESCE(points,0) + 1 WHERE id=%s;", (session["user_id"],))
+
 
     conn.commit()
     cur.close()
@@ -1401,21 +1486,25 @@ def admin_attendance_add():
 
     if existing:
         att_id = existing["id"]
-        old_status = existing["status"]
 
-        # update (PAKAI now untuk checkin_at biar sinkron dengan yang live)
         cur.execute("""
           UPDATE attendance
           SET status=%s, arrival_type=%s, note=%s, checkin_at=%s
           WHERE id=%s
         """, (status, arrival_type, note, now, att_id))
 
-        adjust_points_for_attendance_change(cur, user_id, old_status, status)
+        # POIN ABSENSI DIMATIKAN
+        # adjust_points_for_attendance_change(cur, user_id, old_status, status)
+
     else:
         cur.execute("""
           INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
           VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (user_id, today, status, arrival_type, note, now, now))
+
+        # POIN ABSENSI DIMATIKAN
+        # adjust_points_for_attendance_change(cur, user_id, None, status)
+
 
         adjust_points_for_attendance_change(cur, user_id, None, status)
 
@@ -1432,8 +1521,7 @@ def admin_attendance_add():
 
 def sync_user_points_total(user_id: int):
     conn = get_conn()
-    cur = conn.cursor()
-
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
       SELECT COALESCE(SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END), 0) AS points
       FROM attendance
@@ -1441,10 +1529,11 @@ def sync_user_points_total(user_id: int):
     """, (user_id,))
     points = cur.fetchone()["points"]
 
-    cur.execute("UPDATE users SET points_total=%s WHERE id=%s;", (points, user_id))
+    cur.execute("UPDATE users SET points=%s WHERE id=%s;", (points, user_id))
     conn.commit()
     cur.close()
     conn.close()
+
 
 
 
@@ -1873,28 +1962,37 @@ def admin_stats():
 
 from datetime import timedelta
 
-# ==== FIX: ADMIN DASHBOARD HARUS KIRIM employees KE TEMPLATE ====
+# ======================================================================
+#  ADMIN DASHBOARD (GANTI route admin_dashboard kamu jadi ini)
+# ======================================================================
 @app.route("/admin/dashboard")
 def admin_dashboard():
-    admin_guard()
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_points_schema()
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # KPI cepat (biar sesuai kode kamu sebelumnya, boleh kamu sesuaikan)
+    # KPI ringkas
     cur.execute("SELECT COUNT(*) AS total FROM users WHERE role='employee';")
     total_employees = cur.fetchone()["total"]
 
-    cur.execute("SELECT COUNT(*) AS total FROM attendance WHERE work_date = CURRENT_DATE;")
-    attendance_today = cur.fetchone()["total"]
-
-    cur.execute("SELECT COUNT(*) AS total FROM sales_submissions WHERE status='PENDING';")
-    sales_pending = cur.fetchone()["total"]
+    today = date.today()
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM attendance
+        WHERE work_date=%s
+          AND status='PRESENT';
+    """, (today,))
+    total_attendance_today = cur.fetchone()["total"]
 
     cur.execute("SELECT COUNT(*) AS total FROM products;")
     total_products = cur.fetchone()["total"]
 
-    # dropdown karyawan untuk export 1 orang
+    # list employee untuk dropdown export (Data section)
     cur.execute("""
         SELECT id, name, email
         FROM users
@@ -1908,14 +2006,16 @@ def admin_dashboard():
 
     return render_template(
         "admin_dashboard.html",
-        user_name=session.get("user_name", "Admin"),
+        user_name=session.get("user_name","Admin"),
         notif_count=0,
         total_employees=total_employees,
-        attendance_today=attendance_today,
-        sales_pending=sales_pending,
+        total_attendance_today=total_attendance_today,
         total_products=total_products,
-        employees=employees,
+        employees=employees
     )
+
+
+
 
 
 # =========================
@@ -2211,6 +2311,108 @@ def admin_download_range_user_xlsx():
 
 
 
+# ======================================================================
+#  INPUT POIN 
+# ======================================================================
+@app.route("/admin/points")
+def admin_points():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_points_schema()  # punyamu
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # dropdown + monitor
+    cur.execute("""
+        SELECT
+          id, name, email,
+          COALESCE(points, 0) AS points,
+          COALESCE(points_admin, 0) AS points_admin
+        FROM users
+        WHERE role = 'employee'
+        ORDER BY name ASC;
+    """)
+    employees = cur.fetchall()
+
+    # log 50 terakhir
+    cur.execute("""
+        SELECT
+          l.created_at,
+          u.name AS user_name,
+          l.delta,
+          l.note,
+          a.name AS admin_name
+        FROM points_logs l
+        JOIN users u ON u.id = l.user_id
+        JOIN users a ON a.id = l.admin_id
+        ORDER BY l.created_at DESC
+        LIMIT 50;
+    """)
+    logs = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return render_template(
+        "input_poin.html",
+        user_name=session.get("user_name"),
+        notif_count=0,
+        employees=employees,
+        logs=logs
+    )
+
+
+
+@app.route("/admin/points/add", methods=["POST"])
+def admin_points_add():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_points_schema()
+
+    user_id = int(request.form["user_id"])
+    delta_raw = (request.form.get("delta") or "").strip()
+    note = (request.form.get("note") or "").strip()
+
+    try:
+        delta = int(delta_raw)
+    except:
+        return "Delta poin harus angka. Contoh: 10 atau -5", 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # update points_admin (hanya employee biar admin tidak ikut)
+    cur.execute("""
+        UPDATE users
+        SET points_admin = COALESCE(points_admin,0) + %s
+        WHERE id=%s AND role='employee';
+    """, (delta, user_id))
+
+    # insert log
+    cur.execute("""
+        INSERT INTO points_logs (user_id, admin_id, delta, note)
+        VALUES (%s, %s, %s, %s);
+    """, (user_id, session.get("user_id"), delta, note if note else None))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect("/admin/points")
+
+
+
+
+
+
+
+
+
 
 @app.route("/api/caption", methods=["POST"])
 def api_caption():
@@ -2235,6 +2437,12 @@ if __name__ == "__main__":
 
 
 
+try:
+    init_db()
+    init_hr_v2()
+    init_points_v1()
+except Exception as e:
+    print("Init error:", e)
 
 
 
