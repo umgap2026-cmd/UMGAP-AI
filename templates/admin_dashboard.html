@@ -111,6 +111,13 @@
         font-weight: 800;
       }
 
+      .right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+      }
+
       .action-btn {
         position: relative;
         width: 38px;
@@ -149,7 +156,6 @@
         border-radius: 999px;
         box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
       }
-
       .rgb {
         height: 3px;
         border-radius: 999px;
@@ -206,6 +212,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        font-size: 22px;
       }
       .label {
         font-weight: 900;
@@ -285,6 +292,7 @@
         grid-template-columns: 1fr;
         gap: 12px;
       }
+
       .actions-row {
         display: flex;
         gap: 10px;
@@ -395,12 +403,6 @@
         color: #2f5f8f;
         border: 1px solid rgba(47, 95, 143, 0.14);
       }
-      .right {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-left: auto;
-      }
       .nav-ico {
         width: 26px;
         height: 26px;
@@ -428,6 +430,33 @@
         .nav-item span {
           font-size: 12px;
         }
+      }
+
+      /* KPI mini */
+      .kpi {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .k {
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        border-radius: 16px;
+        padding: 12px;
+        text-align: center;
+      }
+      .kt {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .kv {
+        margin: 6px 0 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: var(--blue);
       }
     </style>
   </head>
@@ -493,6 +522,7 @@
               >
             </div>
 
+
             <div class="hidden-features" id="moreSection">
               <div class="grid">
                 <a class="feature" href="/admin/payroll"
@@ -506,6 +536,12 @@
                 <a class="feature" href="/admin/stats"
                   ><div class="circle">📈</div>
                   <div class="label">Statistik</div></a
+                >
+
+                <!-- BARU: Input Poin -->
+                <a class="feature" href="/admin/points"
+                  ><div class="circle">🏅</div>
+                  <div class="label">Input Poin</div></a
                 >
               </div>
             </div>
@@ -739,7 +775,7 @@
           btn.addEventListener("click", () => go(btn.getAttribute("data-nav"))),
         );
 
-        // auto highlight by scroll (simple)
+        // auto highlight by scroll
         const dataEl = document.getElementById("dataSection");
         function onScroll() {
           const y = window.scrollY || document.documentElement.scrollTop;
@@ -756,7 +792,7 @@
         );
       })();
 
-      // ===== EXPORT LOGIC (ANTI DOWNLOAD dashboard.htm) =====
+      // ===== EXPORT LOGIC =====
       function ymd(d) {
         const p = (n) => String(n).padStart(2, "0");
         return (
@@ -797,7 +833,7 @@
 
         const mk = monthKey(s);
         if (resetIfMonthChange && lastMonth && mk !== lastMonth) {
-          endEl.value = s; // reset end -> start kalau pindah bulan
+          endEl.value = s;
         }
         lastMonth = monthKey(startEl.value);
 
@@ -825,21 +861,9 @@
           return { ok: false };
         }
 
-        const today = new Date();
-        const limit = new Date(today.getTime() - 183 * 86400000);
-        if (new Date(s2 + "T00:00:00") < limit) {
-          hintEl.textContent = "Range hanya boleh dari 6 bulan terakhir.";
-          setDisabled(btnAll, true);
-          setDisabled(btnOne, true);
-          return { ok: false };
-        }
-
         hintEl.textContent = `Periode aktif: ${s2} s/d ${e2} (${d} hari)`;
-
-        // All selalu bisa
         setDisabled(btnAll, false);
 
-        // One hanya kalau ada user
         const uid = pickEl.value;
         setDisabled(btnOne, !uid);
 
