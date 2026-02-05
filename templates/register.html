@@ -1,30 +1,33 @@
 <!doctype html>
 <html lang="id">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Daftar • UMGAP</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>UMGAP • Register</title>
 
     <style>
       :root {
-        --bg: #f6f8fc;
-        --card: #ffffff;
-        --border: #e6eaf2;
-        --text: #0f172a;
-        --muted: #64748b;
-        --primary: #2563eb;
-        --primary2: #1d4ed8;
-        --good: #16a34a;
-        --bad: #dc2626;
-        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-        --radius: 16px;
-
-        --font:
-          ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
-          "Noto Sans", "Helvetica Neue", sans-serif;
-        --fs: 16px;
-        --fs-sm: 14px;
-        --fs-lg: 22px;
+        --bg1: #eef4ff;
+        --bg2: #f7f9ff;
+        --card: #f5f7fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+        --blue: #2f5f8f;
+        --blue2: #2a537e;
+        --green: #18b956;
+        --shadow1: 0 18px 40px rgba(20, 35, 65, 0.12);
+        --shadow2: 0 8px 18px rgba(20, 35, 65, 0.1);
+        --inset:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.12),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.8);
+        --inset-soft:
+          inset 4px 4px 10px rgba(25, 45, 80, 0.1),
+          inset -4px -4px 10px rgba(255, 255, 255, 0.85);
+        --radius: 26px;
+        --radius2: 18px;
       }
 
       * {
@@ -32,350 +35,358 @@
       }
       body {
         margin: 0;
-        font-family: var(--font);
-        font-size: var(--fs);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          "Apple Color Emoji",
+          "Segoe UI Emoji";
         color: var(--text);
-        background:
-          radial-gradient(
-            900px 420px at 12% -10%,
-            rgba(37, 99, 235, 0.16) 0%,
-            transparent 60%
-          ),
-          radial-gradient(
-            700px 360px at 105% 0%,
-            rgba(245, 158, 11, 0.14) 0%,
-            transparent 55%
-          ),
-          var(--bg);
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 18px;
+        background: radial-gradient(
+          1100px 700px at 50% -10%,
+          var(--bg1) 0%,
+          var(--bg2) 45%,
+          #ffffff 100%
+        );
+        min-height: 100svh;
       }
 
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      .wrap {
-        width: 100%;
-        max-width: 980px;
-      }
-
-      /* Top bar (mini, tanpa session) */
-      .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-      }
-      .avatar-logo {
-        width: 42px;
-        height: 42px;
-        border-radius: 12px;
-        background: #fff;
-        border: 1px solid var(--border);
+      .screen {
+        min-height: 100svh;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+        padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+      }
+
+      .card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow1);
+        padding: 22px 18px 18px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 6px 14px;
+      }
+      .brand-logo {
+        width: 99px;
+        height: 99px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
         flex: 0 0 auto;
       }
-      .avatar-logo img {
-        width: 28px;
-        height: 28px;
+      .brand-logo img {
+        width: 100%;
+        height: 100%;
         object-fit: contain;
-        display: block;
       }
-      .brand-title {
-        display: flex;
-        flex-direction: column;
+
+      .brand {
         line-height: 1.1;
-        min-width: 0;
       }
-      .brand-title .name {
-        font-weight: 900;
-        font-size: 16px;
-      }
-      .brand-title .sub {
-        font-size: var(--fs-sm);
-        color: var(--muted);
-      }
-
-      .actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        border: 1px solid var(--border);
-        background: var(--card);
-        padding: 10px 14px;
-        border-radius: 12px;
-        cursor: pointer;
+      .brand .name {
         font-weight: 800;
-        transition:
-          transform 0.12s ease,
-          background 0.12s ease,
-          border-color 0.12s ease;
+        letter-spacing: 0.6px;
+        font-size: 26px;
+        color: #274b7a;
       }
-      .btn:hover {
-        transform: translateY(-1px);
-        border-color: #cbd5e1;
-      }
-      .btn-primary {
-        background: var(--primary);
-        border-color: rgba(37, 99, 235, 0.35);
-        color: white;
-      }
-      .btn-primary:hover {
-        background: var(--primary2);
+      .brand .tag {
+        font-size: 12px;
+        color: var(--muted);
+        font-style: italic;
+        margin-top: 2px;
       }
 
-      /* Main card */
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-top: 16px;
+      .header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 6px 10px;
       }
-      .card {
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        padding: 18px;
-        backdrop-filter: blur(10px);
-      }
-
-      h1 {
-        margin: 0 0 6px 0;
-        font-size: var(--fs-lg);
+      .header h2 {
+        margin: 0;
+        font-size: 22px;
+        color: #6c8fc2;
         letter-spacing: 0.2px;
       }
-      .muted {
-        color: var(--muted);
-        font-size: var(--fs-sm);
-        margin: 0;
-        line-height: 1.4;
-      }
-
-      .divider {
-        height: 1px;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          var(--border),
-          transparent
-        );
-        margin: 14px 0;
-      }
-
-      label {
-        display: block;
-        font-size: var(--fs-sm);
-        color: var(--muted);
-        margin-bottom: 6px;
+      .header a {
+        font-size: 12px;
+        color: #7ea0d8;
+        text-decoration: none;
         font-weight: 800;
       }
-      input {
+      .header a:hover {
+        text-decoration: underline;
+      }
+
+      .field {
+        position: relative;
+        margin: 12px 6px;
+      }
+      .input {
         width: 100%;
-        padding: 12px 12px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: #ffffff;
-        font-size: var(--fs);
+        height: 46px;
+        border: none;
         outline: none;
-        transition:
-          border-color 0.12s ease,
-          box-shadow 0.12s ease;
+        border-radius: 999px;
+        padding: 0 44px 0 44px;
+        background: #f2f5fb;
+        box-shadow: var(--inset);
+        color: var(--text);
+        font-size: 14px;
       }
-      input:focus {
-        border-color: rgba(37, 99, 235, 0.55);
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
-      }
-
-      .row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-      .row-1 {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 12px;
+      .input::placeholder {
+        color: #9aa8c3;
       }
 
-      .error {
-        margin: 0;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(220, 38, 38, 0.25);
-        background: rgba(220, 38, 38, 0.08);
-        color: #b91c1c;
-        font-weight: 800;
-        font-size: var(--fs-sm);
+      .icon {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        opacity: 0.55;
+        pointer-events: none;
+      }
+      .icon svg {
+        width: 100%;
+        height: 100%;
+        fill: none;
+        stroke: #5f7aa8;
+        stroke-width: 2;
+      }
+
+      .eye {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 34px;
+        height: 34px;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.75;
+      }
+      .eye:hover {
+        opacity: 1;
+      }
+      .eye svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: #5f7aa8;
+        stroke-width: 2;
+      }
+
+      .btn {
+        width: 55%;
+        max-width: 300px;
+        margin: 14px auto 10px;
+        display: block;
+
+        height: 52px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--blue) 0%, var(--blue2) 100%);
+        color: #fff;
+        font-weight: 700;
+        font-size: 16px;
+        box-shadow: 0 10px 18px rgba(41, 83, 126, 0.25);
+        cursor: pointer;
+      }
+      .btn:active {
+        transform: translateY(1px);
       }
 
       .hint {
-        margin-top: 10px;
-        font-size: var(--fs-sm);
-        color: var(--muted);
+        margin: 0 6px 6px;
+        font-size: 12px;
+        color: #9aa8c3;
       }
 
-      .footer {
+      .divider {
         text-align: center;
-        margin: 18px 0 0;
-        color: var(--muted);
-        font-size: var(--fs-sm);
+        color: #a0afc8;
+        font-size: 12px;
+        margin: 8px 0 10px;
       }
 
-      /* Mobile */
-      @media (max-width: 900px) {
-        .brand-title {
-          display: none;
-        }
-        .grid {
-          grid-template-columns: 1fr;
-        }
-        .row {
-          grid-template-columns: 1fr;
-        }
-        .actions {
-          width: auto;
-        }
+      .btn-green {
+        width: calc(100% - 12px);
+        margin: 0 6px 6px;
+        height: 52px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #1cd460 0%, var(--green) 100%);
+        color: #fff;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 12px 20px rgba(24, 185, 86, 0.25);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .err {
+        margin: 0 6px 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #ffe9ea;
+        color: #a12b2b;
+        font-size: 13px;
+        border: 1px solid rgba(161, 43, 43, 0.08);
       }
     </style>
   </head>
 
   <body>
-    <div class="wrap">
-      <!-- Mini topbar -->
-      <div class="topbar">
-        <div class="brand">
-          <div class="avatar-logo">
-            <img src="/static/UMGAP (1).png" alt="UMGAP" />
+    <div class="screen">
+      <div class="card">
+        <div class="top">
+          <div class="brand-logo">
+            <img
+              src="{{ url_for('static', filename='UMGAP (1).png') }}"
+              alt="UMGAP"
+            />
           </div>
-          <div class="brand-title">
+          <div class="brand">
             <div class="name">UMGAP</div>
-            <div class="sub">Asisten UMKM</div>
-          </div>
-        </div>
-        <div class="actions">
-          <a class="btn" href="/login">Login</a>
-        </div>
-      </div>
-
-      <div class="grid">
-        <!-- Left: Info -->
-        <div class="card">
-          <h1>Daftar Akun</h1>
-          <p class="muted">
-            Buat akun untuk mulai pakai UMGAP. Jika sudah punya akun, langsung
-            login.
-          </p>
-
-          <div class="divider"></div>
-
-          <div class="row-1">
-            <div>
-              <div class="muted" style="font-weight: 800">Yang kamu dapat:</div>
-              <ul class="muted" style="margin: 10px 0 0; padding-left: 18px">
-                <li>Submit penjualan cepat</li>
-                <li>Riwayat penjualan rapi</li>
-                <li>UI nyaman di HP & desktop</li>
-              </ul>
-            </div>
+            <div class="tag">Pembantu UMKM</div>
           </div>
         </div>
 
-        <!-- Right: Form -->
-        <div class="card">
-          <h1 style="font-size: 18px; margin-bottom: 6px">Form Daftar</h1>
-          <p class="muted">Isi data di bawah, lalu klik daftar.</p>
-
-          <div class="divider"></div>
-
-          {% if error %}
-          <p class="error">{{ error }}</p>
-          <div class="divider"></div>
-          {% endif %}
-
-          <form method="post" autocomplete="on">
-            <div class="row-1">
-              <div>
-                <label>Nama</label>
-                <input
-                  type="text"
-                  name="name"
-                  placeholder="Contoh: Andre"
-                  required
-                />
-              </div>
-
-              <div>
-                <label>Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="nama@email.com"
-                  required
-                  inputmode="email"
-                  autocomplete="email"
-                />
-              </div>
-
-              <div>
-                <label>Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  placeholder="Minimal 6 karakter"
-                  required
-                  minlength="6"
-                  autocomplete="new-password"
-                />
-                <div class="hint">Tip: gunakan kombinasi huruf & angka.</div>
-              </div>
-
-              <button
-                class="btn btn-primary"
-                type="submit"
-                style="width: 100%; padding: 12px 14px"
-              >
-                Daftar
-              </button>
-
-              <div class="muted" style="text-align: center; margin-top: 8px">
-                Sudah punya akun?
-                <a href="/login" style="color: var(--primary); font-weight: 900"
-                  >Login</a
-                >
-              </div>
-            </div>
-          </form>
+        <div class="header">
+          <h2>Register</h2>
+          <a href="{{ url_for('login') }}">Sudah punya akun?</a>
         </div>
-      </div>
 
-      <div class="footer">UMGAP • Reserve 2026</div>
+        {% if error %}
+        <div class="err">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('register') }}">
+          <div class="field">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M20 21a8 8 0 0 0-16 0" />
+                <circle cx="12" cy="8" r="4" />
+              </svg>
+            </span>
+            <input
+              class="input"
+              name="name"
+              placeholder="Nama lengkap"
+              required
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="field">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 7h16v10H4z" />
+                <path d="M4 7l8 6 8-6" />
+              </svg>
+            </span>
+            <input
+              class="input"
+              type="email"
+              name="email"
+              placeholder="Email"
+              required
+              inputmode="email"
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="field">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <rect x="4" y="10" width="16" height="10" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </span>
+
+            <input
+              class="input"
+              id="pw"
+              type="password"
+              name="password"
+              placeholder="Password (min 6 karakter)"
+              required
+              minlength="6"
+              autocomplete="new-password"
+            />
+
+            <button
+              class="eye"
+              type="button"
+              id="togglePw"
+              aria-label="Tampilkan password"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="hint" style="margin-top: -2px">
+            Tip: gunakan kombinasi huruf & angka.
+          </div>
+
+          <button class="btn" type="submit">Daftar</button>
+        </form>
+
+        <div class="divider">atau</div>
+
+        <a class="btn-green" href="{{ url_for('login') }}">Kembali ke Login</a>
+      </div>
     </div>
+
+    <script>
+      (function () {
+        const btn = document.getElementById("togglePw");
+        const input = document.getElementById("pw");
+        if (!btn || !input) return;
+
+        btn.addEventListener("click", () => {
+          const show = input.type === "password";
+          input.type = show ? "text" : "password";
+          btn.setAttribute(
+            "aria-label",
+            show ? "Sembunyikan password" : "Tampilkan password",
+          );
+        });
+      })();
+    </script>
   </body>
 </html>
