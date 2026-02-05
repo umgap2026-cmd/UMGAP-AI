@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Input Poin (Admin)</title>
+
+    <style>
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+        --soft-in:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+        --radius: 22px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100svh;
+        padding-bottom: 92px; /* biar konten nggak ketutup bottom nav */
+      }
+
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
+        padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
+      }
+      .wrap {
+        width: 100%;
+        max-width: 430px;
+      }
+
+      /* ===== Header Card ===== */
+      .head-card {
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .head-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+      }
+
+      .hello {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f2f5fb;
+        border-radius: var(--pill);
+        padding: 8px 12px;
+        box-shadow: var(--soft-in);
+        white-space: nowrap;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex: 0 0 auto;
+      }
+      .hello .name {
+        font-size: 13px;
+        color: #506381;
+        font-weight: 800;
+      }
+
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        border-radius: 16px;
+        background: #f3f6fc;
+        box-shadow:
+          0 12px 22px rgba(30, 60, 90, 0.18),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+      }
+      .action-btn svg {
+        width: 22px;
+        height: 22px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #ffd84d;
+        color: #1f2937;
+        font-size: 11px;
+        font-weight: 900;
+        padding: 3px 7px;
+        border-radius: 999px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+      }
+
+      .rgb {
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
+        background: linear-gradient(
+          90deg,
+          #ff0000 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
+        );
+      }
+
+      /* ===== Cards ===== */
+      .main-card {
+        margin-top: 14px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 16px 14px 18px;
+      }
+      .inner {
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 18px 14px 16px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: #2a3b58;
+        letter-spacing: 0.2px;
+      }
+      .desc {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 12px 0;
+      }
+
+      label {
+        display: block;
+        margin: 10px 0 6px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 12px 12px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .btn-primary {
+        width: 100%;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 14px 14px;
+        font-weight: 1000;
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        color: #fff;
+        box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+        margin-top: 10px;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .item {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .item-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .name {
+        font-weight: 1000;
+        font-size: 15px;
+        margin: 0;
+      }
+      .mini {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: #2a3b58;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      /* ===== Table log (rapi di mobile) ===== */
+      .table-wrap {
+        overflow: auto;
+        border-radius: 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 520px;
+      }
+      th,
+      td {
+        padding: 12px 10px;
+        border-bottom: 1px solid rgba(125, 138, 166, 0.18);
+        text-align: left;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 1;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      /* ===== Bottom Nav (ikut admin_users.html) ===== */
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(246, 248, 252, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 99;
+      }
+      .nav-bar {
+        max-width: 430px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .nav-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 8px;
+        border-radius: 16px;
+        color: #9fb1d6;
+        font-weight: 800;
+        text-decoration: none;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+      }
+      .nav-item.is-active {
+        background: #f2f5fb;
+        box-shadow:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+        transform: scale(1.06);
+        color: #2f5f8f;
+        border: 1px solid rgba(47, 95, 143, 0.14);
+      }
+      .nav-ico {
+        width: 22px;
+        height: 22px;
+        display: inline-block;
+      }
+      .nav-ico svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .stroke {
+        stroke: currentColor;
+        fill: none;
+      }
+      .fill {
+        fill: currentColor;
+      }
+      @media (max-width: 360px) {
+        .nav-item span {
+          font-size: 12px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="screen">
+      <div class="wrap">
+        <!-- HEADER -->
+        <div class="head-card">
+          <div class="head-top">
+            <div class="logo">
+              <img
+                src="{{ url_for('static', filename='UMGAP (1).png') }}"
+                alt="Logo"
+              />
+            </div>
+
+            <div class="right">
+              <div class="hello" title="User">
+                <span class="dot"></span>
+                <span class="name">Hallo, {{ user_name or 'Admin' }}</span>
+              </div>
+
+              <button class="action-btn" aria-label="Notifikasi" type="button">
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+                  <path d="M3 7l9 6 9-6"></path>
+                </svg>
+                <span class="badge">{{ notif_count or 0 }}</span>
+              </button>
+
+              <a href="/logout" class="action-btn" aria-label="Logout">
+                <svg viewBox="0 0 24 24">
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+                </svg>
+              </a>
+            </div>
+          </div>
+          <div class="rgb"></div>
+        </div>
+
+        <!-- FORM INPUT POIN -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Input Poin (Manual)</h2>
+            <p class="desc">
+              Tambah / kurang poin admin ke user. Contoh delta: <b>10</b> atau
+              <b>-5</b>.
+            </p>
+
+            <div class="divider"></div>
+
+            <form method="POST" action="/admin/points/add">
+              <label>Pilih karyawan</label>
+              <select name="user_id" required>
+                <option value="">-- pilih --</option>
+                {% for e in employees %}
+                <option value="{{ e.id }}">
+                  {{ e.name }} ({{ e.email }}) • absensi={{ e.points }} •
+                  admin={{ e.points_admin }}
+                </option>
+                {% endfor %}
+              </select>
+
+              <label>Delta poin</label>
+              <input
+                name="delta"
+                type="number"
+                placeholder="contoh 10 atau -5"
+                required
+              />
+              <div class="mini">Pakai minus untuk mengurangi.</div>
+
+              <label>Catatan (opsional)</label>
+              <textarea
+                name="note"
+                placeholder="misal: bonus rajin / koreksi"
+              ></textarea>
+
+              <button class="btn-primary" type="submit">Simpan Poin</button>
+            </form>
+
+            <div class="divider"></div>
+
+            <!-- MONITOR -->
+            <h3 class="title" style="font-size: 16px">Monitor Poin Karyawan</h3>
+
+            <div class="list">
+              {% for e in employees %}
+              <div class="item">
+                <div class="item-top">
+                  <div>
+                    <p class="name">{{ e.name }}</p>
+                    <p class="mini">{{ e.email }}</p>
+                    <p class="mini">
+                    </b> • Admin:
+                      <b>{{ e.points_admin }}</b>
+                    </p>
+                  </div>
+                  <span class="tag"
+                    >Total: {{ (e.points_admin or 0) }}</span
+                  >
+                </div>
+              </div>
+              {% endfor %} {% if employees|length == 0 %}
+              <div class="item">
+                <p class="mini" style="margin: 0">Belum ada karyawan.</p>
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- LOG -->
+            <h3 class="title" style="font-size: 16px">
+              Riwayat Perubahan Poin
+            </h3>
+            <p class="desc">Log 50 terakhir.</p>
+
+            <div class="table-wrap" style="margin-top: 10px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Karyawan</th>
+                    <th>Delta</th>
+                    <th>Catatan</th>
+                    <th>Admin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for l in logs %}
+                  <tr>
+                    <td>{{ l.created_at }}</td>
+                    <td><b>{{ l.user_name }}</b></td>
+                    <td><b>{{ l.delta }}</b></td>
+                    <td>{{ l.note or "-" }}</td>
+                    <td>{{ l.admin_name }}</td>
+                  </tr>
+                  {% endfor %} {% if logs|length == 0 %}
+                  <tr>
+                    <td colspan="5" class="mini">Belum ada log.</td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM NAV (admin_users style) -->
+        {% block bottom_nav %}
+        <style>
+          .bottom-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+            background: rgba(246, 248, 252, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 99;
+          }
+          .nav-bar {
+            max-width: 430px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+          }
+          .nav-item {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 8px;
+            border-radius: 16px;
+            color: #9fb1d6;
+            font-weight: 800;
+            text-decoration: none;
+          }
+          .nav-item.is-active {
+            background: #ffffff00;
+            border: 0px solid rgba(255, 255, 255, 0);
+          }
+          .nav-ico {
+            width: 22px;
+            height: 22px;
+            display: inline-block;
+          }
+          .nav-ico svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+          }
+          .stroke {
+            stroke: currentColor;
+            fill: none;
+          }
+          .fill {
+            fill: currentColor;
+          }
+          @media (max-width: 360px) {
+            .nav-item span {
+              font-size: 12px;
+            }
+          }
+        </style>
+
+        <div class="bottom-nav" data-bottom-nav>
+          <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+            <a class="nav-item" href="{{ url_for('dashboard') }}">
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    class="fill"
+                    x="3"
+                    y="3"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="13"
+                    y="3"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="3"
+                    y="13"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                  <rect
+                    class="fill"
+                    x="13"
+                    y="13"
+                    width="8"
+                    height="8"
+                    rx="1.6"
+                  ></rect>
+                </svg>
+              </span>
+              <span>Dashboard</span>
+            </a>
+
+            <button
+              class="nav-item is-activ"
+              type="button"
+              aria-label="Tab tengah (kosong)"
+              onclick="
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+              "
+            >
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    class="stroke"
+                    d="M4 8h12"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M14.6 5.8L18 8l-3.4 2.2"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M20 16H8"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                  ></path>
+                  <path
+                    class="stroke"
+                    d="M9.4 13.8L6 16l3.4 2.2"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                </svg>
+              </span>
+              <span>Data</span>
+            </button>
+
+            <a
+              class="nav-item"
+              href="#"
+              onclick="
+                document.querySelector('[data-toggle-more]')?.click();
+                return false;
+              "
+            >
+              <span class="nav-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+                  <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+                  <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+                </svg>
+              </span>
+              <span>More</span>
+            </a>
+          </div>
+        </div>
+        <script>
+          // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
+          document.addEventListener(
+            "click",
+            (e) => {
+              const mid = e.target.closest(
+                'button[aria-label="Tab tengah (kosong)"]',
+              );
+              if (!mid) return;
+              e.preventDefault();
+              e.stopPropagation();
+            },
+            true,
+          );
+        </script>
+
+        {% endblock %}
+      </div>
+    </div>
+  </body>
+</html>
