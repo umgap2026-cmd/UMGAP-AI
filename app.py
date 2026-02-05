@@ -27,6 +27,25 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 import io
 from psycopg2.extras import RealDictCursor
+import re
+import ssl
+import time
+import hmac
+import hashlib
+import random
+import smtplib
+from datetime import datetime, timedelta
+from email.message import EmailMessage
+
+from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+load_dotenv()
+
+from authlib.integrations.flask_client import OAuth
+from werkzeug.security import generate_password_hash
+import hashlib, time
+from authlib.integrations.flask_client import OAuth
+
 
 
 def login_required():
@@ -117,6 +136,11 @@ def ensure_points_schema():
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+
+
 try:
     ensure_points_schema()
 except Exception as e:
@@ -138,12 +162,8 @@ def admin_guard():
         abort(403)
     return None
 
-@app.route("/debug-key")
-def debug_key():
-    k = os.getenv("OPENAI_API_KEY", "")
-    if not k:
-        return "OPENAI_API_KEY belum terbaca (cek .env & restart app)"
-    return f"Key kebaca ✅ (last4: {k[-4:]})"
+
+
 
 
 @app.route("/ai-test")
@@ -2406,6 +2426,279 @@ def admin_points_add():
     return redirect("/admin/points")
 
 
+# =======================
+# EMAIL + OTP HELPERS
+# =======================
+def _otp_hash(email: str, otp: str) -> str:
+    """
+    Hash OTP pakai salt biar aman.
+    """
+    salt = (os.getenv("RESET_OTP_SALT") or "umgap-reset-salt").encode("utf-8")
+    msg = (email.lower().strip() + ":" + otp.strip()).encode("utf-8")
+    return hashlib.sha256(salt + msg).hexdigest()
+
+
+def ensure_password_reset_schema():
+    """
+    Table untuk simpan OTP reset password.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_otps (
+          id SERIAL PRIMARY KEY,
+          email TEXT NOT NULL,
+          otp_hash TEXT NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          used BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def send_email(to_email: str, subject: str, body: str):
+    """
+    Kirim email OTP via SMTP.
+    Set env di Render:
+      SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+    """
+    host = (os.getenv("SMTP_HOST") or "").strip()
+    port = int(os.getenv("SMTP_PORT") or "587")
+    user = (os.getenv("SMTP_USER") or "").strip()
+    passwd = (os.getenv("SMTP_PASS") or "").strip()
+    mail_from = (os.getenv("SMTP_FROM") or user).strip()
+
+    if not host or not user or not passwd:
+        raise RuntimeError("SMTP belum dikonfigurasi. Set SMTP_HOST/SMTP_USER/SMTP_PASS.")
+
+    msg = EmailMessage()
+    msg["From"] = mail_from
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(host, port) as s:
+        s.starttls(context=context)
+        s.login(user, passwd)
+        s.send_message(msg)
+
+
+# =======================
+# GOOGLE LOGIN (Authlib) - FINAL
+# =======================
+from authlib.integrations.flask_client import OAuth
+
+# Pastikan secret key stabil (WAJIB supaya state OAuth aman)
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
+
+# Biar cookie session aman untuk OAuth di localhost
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False  # localhost masih http
+app.config["PREFERRED_URL_SCHEME"] = "http"
+
+oauth = OAuth(app)
+
+GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
+
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+
+@app.route("/login/google")
+def login_google():
+    if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
+        return "Google OAuth belum dikonfigurasi", 500
+
+    redirect_uri = url_for("google_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+@app.route("/auth/google/callback")
+def google_callback():
+    token = oauth.google.authorize_access_token()
+
+    userinfo = token.get("userinfo")
+    if not userinfo:
+        userinfo = oauth.google.get(
+            "https://openidconnect.googleapis.com/v1/userinfo"
+        ).json()
+
+    email = userinfo.get("email", "").lower()
+    name = userinfo.get("name", "User")
+
+    if not email:
+        return "Email Google tidak ditemukan", 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute(
+        "SELECT id, name, role FROM users WHERE lower(email)=%s LIMIT 1;",
+        (email,),
+    )
+    u = cur.fetchone()
+
+    if not u:
+        rand_pw = hashlib.sha256(f"{email}:{time.time()}".encode()).hexdigest()
+        pw_hash = generate_password_hash(rand_pw)
+
+        cur.execute(
+            """
+            INSERT INTO users (name, email, password_hash, role)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, name, role;
+            """,
+            (name, email, pw_hash, "employee"),
+        )
+        u = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    session.clear()
+    session["user_id"] = u["id"]
+    session["user_name"] = u["name"]
+    session["role"] = u["role"]
+
+    return redirect("/admin/dashboard" if u["role"] == "admin" else "/dashboard")
+
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "GET":
+        return render_template("forgot_password.html")
+
+    ensure_password_reset_schema()
+
+    email = (request.form.get("email") or "").strip().lower()
+    if not email:
+        return "Email wajib diisi.", 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # cek user ada
+    cur.execute("SELECT id, email FROM users WHERE lower(email)=%s LIMIT 1;", (email,))
+    u = cur.fetchone()
+    if not u:
+        cur.close()
+        conn.close()
+        # jangan bocorin bahwa email tidak terdaftar (lebih aman)
+        return render_template("forgot_password.html", sent=True)
+
+    # buat OTP 6 digit
+    otp = f"{random.randint(0, 999999):06d}"
+    otp_h = _otp_hash(email, otp)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    # optional: invalidate OTP lama yang belum dipakai
+    cur.execute("""
+        UPDATE password_reset_otps
+        SET used=TRUE
+        WHERE email=%s AND used=FALSE;
+    """, (email,))
+
+    cur.execute("""
+        INSERT INTO password_reset_otps (email, otp_hash, expires_at, used)
+        VALUES (%s, %s, %s, FALSE);
+    """, (email, otp_h, expires_at))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    # kirim email
+    try:
+        send_email(
+            to_email=email,
+            subject="UMGAP • Kode OTP Reset Password",
+            body=(
+                f"Halo,\n\n"
+                f"Kode OTP reset password kamu: {otp}\n"
+                f"Berlaku 10 menit.\n\n"
+                f"Jika kamu tidak meminta reset, abaikan email ini.\n"
+            ),
+        )
+    except Exception as e:
+        # kalau SMTP error, tampilkan jelas biar gampang debug
+        return f"Gagal kirim email OTP. Error: {str(e)}", 500
+
+    return render_template("forgot_password.html", sent=True, email=email)
+
+
+
+@app.route("/reset", methods=["GET", "POST"])
+def reset_password():
+    if request.method == "GET":
+        email = (request.args.get("email") or "").strip().lower()
+        return render_template("reset_password.html", email=email)
+
+    ensure_password_reset_schema()
+
+    email = (request.form.get("email") or "").strip().lower()
+    otp = (request.form.get("otp") or "").strip()
+    new_password = (request.form.get("new_password") or "").strip()
+    confirm = (request.form.get("confirm_password") or "").strip()
+
+    if not email or not otp or not new_password:
+        return "Email, OTP, dan password baru wajib diisi.", 400
+    if new_password != confirm:
+        return "Konfirmasi password tidak sama.", 400
+    if len(new_password) < 6:
+        return "Password minimal 6 karakter.", 400
+
+    otp_h = _otp_hash(email, otp)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # ambil otp terbaru yang belum dipakai
+    cur.execute("""
+        SELECT id, otp_hash, expires_at, used
+        FROM password_reset_otps
+        WHERE email=%s AND used=FALSE
+        ORDER BY created_at DESC
+        LIMIT 1;
+    """, (email,))
+    row = cur.fetchone()
+
+    if not row:
+        cur.close(); conn.close()
+        return "OTP tidak ditemukan / sudah dipakai. Minta OTP lagi.", 400
+
+    if datetime.utcnow() > row["expires_at"]:
+        # tandai used biar tidak dipakai lagi
+        cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
+        conn.commit()
+        cur.close(); conn.close()
+        return "OTP sudah kedaluwarsa. Minta OTP lagi.", 400
+
+    if not hmac.compare_digest(row["otp_hash"], otp_h):
+        cur.close(); conn.close()
+        return "OTP salah.", 400
+
+    # update password
+    pw_hash = generate_password_hash(new_password)
+
+    cur.execute("UPDATE users SET password_hash=%s WHERE lower(email)=%s;", (pw_hash, email))
+    cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect("/login")
 
 
 
@@ -2431,7 +2724,10 @@ def api_caption():
 
 # ✅ app.run HARUS PALING BAWAH
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Windows + werkzeug reloader sering bikin WinError 10038
+    # Matikan reloader supaya tidak run 2x
+    app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)
+
 
 
 
