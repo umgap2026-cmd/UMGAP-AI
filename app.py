@@ -2495,10 +2495,14 @@ from authlib.integrations.flask_client import OAuth
 # Pastikan secret key stabil (WAJIB supaya state OAuth aman)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
-# Biar cookie session aman untuk OAuth di localhost
+# ===== Session cookie config (OAuth safe) =====
+IS_PROD = os.getenv("RENDER") == "true" or os.getenv("FLASK_ENV") == "production"
+
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = False  # localhost masih http
-app.config["PREFERRED_URL_SCHEME"] = "http"
+app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
+app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
+
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 oauth = OAuth(app)
 
@@ -2739,6 +2743,7 @@ try:
     init_points_v1()
 except Exception as e:
     print("Init error:", e)
+
 
 
 
