@@ -294,7 +294,7 @@
 
         <div class="header">
           <h2>Login</h2>
-          <a href="#" aria-label="Lupa password">Forgot Password?</a>
+          <a href="forgot" aria-label="Lupa password">Forgot Password?</a>
         </div>
 
         {% if error %}
@@ -358,12 +358,12 @@
         <!-- Google login: aman tanpa Jinja di onclick -->
         <a
           class="btn-lite"
-          href="#"
+          href="/login/google"
           role="button"
           aria-label="Login dengan Google"
         >
           <img
-            src="{{ url_for('static', filename='icon_goggle.png') }}"
+            src="{{ url_for('static', filename='google.jpeg') }}"
             alt="Google"
           />
           Google
@@ -393,4 +393,3 @@
     </script>
   </body>
 </html>
-
