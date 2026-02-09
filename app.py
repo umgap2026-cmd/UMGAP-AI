@@ -162,7 +162,21 @@ def admin_guard():
         abort(403)
     return None
 
-
+def _parse_manual_wib_naive(manual_dt: str | None):
+    """
+    manual_dt format dari <input type="datetime-local"> biasanya: 'YYYY-MM-DDTHH:MM'
+    Return datetime naive (nilai WIB) atau None kalau gagal.
+    """
+    if not manual_dt:
+        return None
+    manual_dt = manual_dt.strip()
+    try:
+        # datetime-local biasanya tanpa detik
+        dt = datetime.strptime(manual_dt, "%Y-%m-%dT%H:%M")
+        # Anggap input itu WIB, simpan sebagai naive WIB
+        return dt
+    except Exception:
+        return None
 
 
 
@@ -1489,49 +1503,50 @@ def admin_attendance_add():
     else:
         status = "PRESENT"
 
-    now = _now_wib_naive_from_form()
-    today = now.date()
+    # ==== WAKTU CHECKIN ====
+    # Absen saya (admin sendiri) -> wajib live (pakai client_ts)
+    # Absen karyawan -> boleh manual_checkin (datetime-local), kalau kosong pakai client_ts/live
+    manual_checkin = (request.form.get("manual_checkin") or "").strip()
+
+    if user_id == session.get("user_id"):
+        # admin absen dirinya sendiri: live
+        now = _now_wib_naive_from_form()
+    else:
+        # admin absenkan karyawan: boleh manual
+        now = _parse_manual_wib_naive(manual_checkin) or _now_wib_naive_from_form()
+
+    work_date = now.date()
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # cek existing
+    # cek existing (berdasarkan work_date dari waktu yang dipilih)
     cur.execute("""
       SELECT id, status
       FROM attendance
       WHERE user_id=%s AND work_date=%s
       LIMIT 1
-    """, (user_id, today))
+    """, (user_id, work_date))
     existing = cur.fetchone()
 
     if existing:
         att_id = existing["id"]
-
         cur.execute("""
           UPDATE attendance
           SET status=%s, arrival_type=%s, note=%s, checkin_at=%s
           WHERE id=%s
         """, (status, arrival_type, note, now, att_id))
-
-        # POIN ABSENSI DIMATIKAN
-        # adjust_points_for_attendance_change(cur, user_id, old_status, status)
-
     else:
         cur.execute("""
           INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
           VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (user_id, today, status, arrival_type, note, now, now))
-
-        # POIN ABSENSI DIMATIKAN
-        # adjust_points_for_attendance_change(cur, user_id, None, status)
-
-
-        adjust_points_for_attendance_change(cur, user_id, None, status)
+        """, (user_id, work_date, status, arrival_type, note, now, now))
 
     conn.commit()
     cur.close()
     conn.close()
     return redirect("/admin/attendance")
+
 
 
 
@@ -2743,10 +2758,3 @@ try:
     init_points_v1()
 except Exception as e:
     print("Init error:", e)
-
-
-
-
-
-
-
