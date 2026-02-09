@@ -2096,10 +2096,18 @@ def _build_attendance_xlsx(rows_detail: list[dict], recap_rows: list[dict], titl
 
     ws.append([title])
     ws.append([])
-    ws.append(["Nama", "Tanggal", "Jam Kehadiran", "Status", "Gaji Harian", "Gaji Hari Ini"])
+    # ✅ Detail: hapus "Gaji Hari Ini", ganti "Catatan"
+    ws.append(["Nama", "Tanggal", "Jam Kehadiran", "Status", "Gaji Harian", "Catatan"])
 
     for r in rows_detail:
-        ws.append([r["name"], r["work_date"], r["checkin_time"], r["status"], r["daily_salary"], r["salary_day"]])
+        ws.append([
+            r.get("name", ""),
+            r.get("work_date", ""),
+            r.get("checkin_time", ""),
+            r.get("status", ""),
+            r.get("daily_salary", 0),
+            r.get("note", "")  # ✅ catatan dari attendance.note
+        ])
 
     _autosize_columns(ws)
 
@@ -2116,6 +2124,7 @@ def _build_attendance_xlsx(rows_detail: list[dict], recap_rows: list[dict], titl
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
 
 def ensure_hr_v2_schema():
     """
@@ -2181,20 +2190,22 @@ def admin_download_range_xlsx():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     cur.execute("""
-        SELECT
-          u.name,
-          COALESCE(p.daily_salary, 0) AS daily_salary,
-          a.work_date,
-          a.status,
-          a.checkin_at
-        FROM attendance a
-        JOIN users u ON u.id = a.user_id
-        LEFT JOIN payroll_settings p ON p.user_id = u.id
-        WHERE u.role='employee'
-          AND a.work_date >= %s
-          AND a.work_date <= %s
-        ORDER BY u.name ASC, a.work_date ASC, a.checkin_at ASC NULLS LAST;
-    """, (start, end))
+    SELECT
+      u.name,
+      COALESCE(p.daily_salary, 0) AS daily_salary,
+      a.work_date,
+      a.status,
+      a.note,         -- ✅ tambah ini
+      a.checkin_at
+    FROM attendance a
+    JOIN users u ON u.id = a.user_id
+    LEFT JOIN payroll_settings p ON p.user_id = u.id
+    WHERE u.role='employee'
+      AND a.work_date >= %s
+      AND a.work_date <= %s
+    ORDER BY u.name ASC, a.work_date ASC, a.checkin_at ASC NULLS LAST;
+""", (start, end))
+
     raw = cur.fetchall()
     cur.close()
     conn.close()
@@ -2222,8 +2233,9 @@ def admin_download_range_xlsx():
             "checkin_time": checkin_time,
             "status": status,
             "daily_salary": ds,
-            "salary_day": salary_day,
+            "note": (r.get("note") or "").strip(),  # ✅ catatan
         })
+
 
         if name not in recap:
             recap[name] = {"name": name, "present": 0, "sick": 0, "leave": 0, "absent": 0, "total_salary": 0}
@@ -2282,18 +2294,20 @@ def admin_download_range_user_xlsx():
     user_name = urow["name"]
 
     cur.execute("""
-        SELECT
-          COALESCE(p.daily_salary, 0) AS daily_salary,
-          a.work_date,
-          a.status,
-          a.checkin_at
-        FROM attendance a
-        LEFT JOIN payroll_settings p ON p.user_id = a.user_id
-        WHERE a.user_id=%s
-          AND a.work_date >= %s
-          AND a.work_date <= %s
-        ORDER BY a.work_date ASC, a.checkin_at ASC NULLS LAST;
-    """, (int(user_id), start, end))
+    SELECT
+      COALESCE(p.daily_salary, 0) AS daily_salary,
+      a.work_date,
+      a.status,
+      a.note,         -- ✅ tambah ini
+      a.checkin_at
+    FROM attendance a
+    LEFT JOIN payroll_settings p ON p.user_id = a.user_id
+    WHERE a.user_id=%s
+      AND a.work_date >= %s
+      AND a.work_date <= %s
+    ORDER BY a.work_date ASC, a.checkin_at ASC NULLS LAST;
+""", (int(user_id), start, end))
+
     raw = cur.fetchall()
 
     cur.close()
@@ -2321,8 +2335,9 @@ def admin_download_range_user_xlsx():
             "checkin_time": checkin_time,
             "status": status,
             "daily_salary": ds,
-            "salary_day": salary_day,
+            "note": (r.get("note") or "").strip(),  # ✅ catatan
         })
+
 
         if status == "PRESENT":
             recap["present"] += 1
