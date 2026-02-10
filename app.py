@@ -87,23 +87,102 @@ def adjust_points_for_attendance_change(cur, user_id: int, old_status: str | Non
 
 
 
-def generate_caption_ai(product, price, style):
+def generate_caption_ai(product: str, price: str, style: str, brand: str = "", platform: str = "Instagram", notes: str = "") -> str:
+    """
+    Generate caption lebih panjang, organik, dan variatif sesuai platform.
+    Output: 3 versi (V1-V3) + hashtag.
+    """
+    product = (product or "").strip()
+    price = (price or "").strip()
+    style = (style or "Santai").strip()
+    brand = (brand or "").strip()
+    platform = (platform or "Instagram").strip()
+    notes = (notes or "").strip()
+
+    # Force brand usage if provided
+    brand_rule = ""
+    if brand:
+        brand_rule = f'- WAJIB sebut brand "{brand}" minimal 1x di tiap versi (boleh di awal/akhir, natural).\n'
+
+    # Price formatting hint
+    price_hint = ""
+    if price:
+        price_hint = f'- Cantumkan harga "{price}" dengan format yang enak dibaca (contoh: Rp{price}).\n'
+
+    # Platform rules
+    platform_rules = {
+        "WhatsApp": (
+            "Gaya WhatsApp:\n"
+            "- Ringkas tapi tetap natural.\n"
+            "- 4–7 baris.\n"
+            "- CTA chat/wa.\n"
+            "- Hashtag maksimal 0–2.\n"
+        ),
+        "TikTok": (
+            "Gaya TikTok:\n"
+            "- Wajib ada HOOK 1 baris (bikin penasaran).\n"
+            "- 8–14 baris (pakai enter biar enak dibaca).\n"
+            "- Ada ajakan komentar (contoh: 'tim jahe atau tim kopi?').\n"
+            "- Hashtag 5–9.\n"
+        ),
+        "Instagram": (
+            "Gaya Instagram:\n"
+            "- Semi storytelling.\n"
+            "- 9–15 baris (pakai enter biar rapi).\n"
+            "- CTA DM/komentar.\n"
+            "- Hashtag 5–10.\n"
+        ),
+    }
+    plat_rule = platform_rules.get(platform, platform_rules["Instagram"])
+
+    notes_block = f'Catatan pendukung (kalau ada): "{notes}"\n' if notes else ""
+
     prompt = f"""
-Buatkan caption jualan singkat untuk UMKM.
+Kamu adalah copywriter UMKM Indonesia. Buat caption jualan yang ORGANIK, manusiawi, tidak kaku, tidak terdengar seperti iklan murahan.
 
-Produk: {product}
-Harga: {price}
-Gaya: {style}
+DATA:
+- Produk: "{product}"
+- Platform: "{platform}"
+- Tone/Gaya: "{style}"
+{notes_block}
 
-Gunakan bahasa Indonesia yang mudah dipahami.
-Maksimal 2 kalimat + hashtag.
+ATURAN UMUM:
+- Jangan membuat klaim medis/menjanjikan "sehat/menyembuhkan/detox" dsb.
+  Boleh pakai kata: "hangat", "nyaman", "bikin mood enak", "pas buat nemenin aktivitas".
+{brand_rule}{price_hint}
+- Masukkan catatan pendukung secara natural (contoh jam buka, stok, varian, COD, lokasi) jika tersedia.
+- Tulis dengan bahasa Indonesia sehari-hari, pakai jeda baris biar mudah dicopy.
+
+ATURAN PLATFORM:
+{plat_rule}
+
+OUTPUT WAJIB:
+Buat 3 versi yang BENAR-BENAR beda angle:
+- V1: fokus manfaat & rasa/experience
+- V2: fokus cerita/kejadian sehari-hari + relate
+- V3: fokus promo/urgency yang halus (tanpa lebay)
+
+Format persis seperti ini:
+
+V1:
+(caption...)
+
+V2:
+(caption...)
+
+V3:
+(caption...)
 """
 
     r = client.responses.create(
         model="gpt-4.1-mini",
-        input=prompt
+        input=prompt,
+        temperature=0.9,   # lebih variatif
+        max_output_tokens=700
     )
-    return r.output_text.strip()
+    return (r.output_text or "").strip()
+
+
 
 
 # ====== TAMBAHKAN FUNGSI INI (sekali saja) ======
@@ -221,15 +300,19 @@ def api_caption_ai():
     product = (request.form.get("product") or "").strip()
     price = (request.form.get("price") or "").strip()
     style = (request.form.get("style") or "Santai").strip()
+    brand = (request.form.get("brand") or "").strip()
+    platform = (request.form.get("platform") or "Instagram").strip()
+    notes = (request.form.get("notes") or "").strip()
 
     if not product:
         return jsonify({"ok": False, "error": "Nama produk wajib diisi."}), 400
 
     try:
-        caption = generate_caption_ai(product, price, style)
+        caption = generate_caption_ai(product, price, style, brand=brand, platform=platform, notes=notes)
         return jsonify({"ok": True, "caption": caption})
     except Exception:
         return jsonify({"ok": False, "error": "AI sedang sibuk / quota bermasalah. Coba lagi."}), 500
+
 
 
 @app.route("/db-check")
