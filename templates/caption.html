@@ -1,106 +1,248 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {# Hilangkan topbar dari base supaya tampilannya mirip
+attendance/admin #} {% block topbar %}{% endblock %} {% block content %}
+
 <style>
-  .cap-wrap {
-    max-width: 1100px;
-    margin: 0 auto;
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+    --primary: #2563eb;
+    --border: rgba(125, 138, 166, 0.18);
   }
-  .cap-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: flex-start;
+  * {
+    box-sizing: border-box;
   }
-  .cap-head h2 {
-    margin: 0;
-    font-size: 18px;
-  }
-  .cap-head .muted {
-    margin-top: 6px;
-  }
-  .cap-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 14px;
-  }
-  @media (min-width: 980px) {
-    .cap-grid {
-      grid-template-columns: 0.95fr 1.05fr;
-    }
-  }
-  .cardx {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-    padding: 14px;
+  body {
+    background: var(--bg);
   }
 
-  .toolbar {
+  .screen {
+    min-height: 100svh;
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    justify-content: center;
+    padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+  }
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+
+  /* ===== Header Card (match attendance) ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .hello {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+  .hello .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Cards (match attendance) ===== */
+  .card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+    font-weight: 800;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    border-radius: 999px;
+    margin: 12px 0;
+  }
+
+  /* iPhone-ish chips */
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
     margin-top: 12px;
   }
-  .btn-ghost {
-    border: 1px solid var(--border);
-    background: #fff;
-    border-radius: 14px;
-    padding: 10px 12px;
-    font-weight: 900;
-    cursor: pointer;
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .pill {
+  .chip {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
     border-radius: 999px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
     border: 1px solid var(--border);
-    background: #f8faff;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 1000;
     color: var(--muted);
   }
-  .pill b {
+  .chip b {
     color: var(--text);
   }
 
+  /* Form */
   label {
     display: block;
-    font-size: 12px;
-    font-weight: 900;
-    color: var(--muted);
     margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 900;
   }
   input,
   select,
   textarea {
     width: 100%;
-    padding: 12px 12px;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: #fff;
+    border: none;
     outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
     font-size: 14px;
+    color: var(--text);
   }
   textarea {
-    min-height: 220px;
+    min-height: 230px;
     resize: vertical;
     line-height: 1.55;
   }
-  @media (max-width: 640px) {
-    input,
-    select,
-    textarea {
-      padding: 14px;
-      font-size: 16px;
+  .row2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 640px) {
+    .row2 {
+      grid-template-columns: 1fr 1fr;
     }
+  }
+
+  .mini {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 800;
   }
 
   .btnbar {
@@ -108,29 +250,75 @@
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 12px;
+    align-items: center;
   }
   .btn-primary {
-    border: 0;
-    background: var(--primary);
-    color: #fff;
-    border-radius: 14px;
-    padding: 12px 14px;
-    font-weight: 1000;
-    cursor: pointer;
     flex: 1;
     min-width: 180px;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font-weight: 1000;
+    color: #fff;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
   }
   .btn-primary:disabled {
-    opacity: 0.7;
+    opacity: 0.72;
     cursor: not-allowed;
   }
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 8px;
+  .btn-ghost {
+    border: none;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border-radius: 16px;
+    height: 52px;
+    padding: 0 14px;
+    font-weight: 1000;
+    cursor: pointer;
+    color: #2a3b58;
   }
 
-  /* ====== SUPER LOADING (lebih keren) ====== */
+  /* Result actions */
+  .btn-mini {
+    border: none;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border-radius: 16px;
+    padding: 10px 12px;
+    font-weight: 1000;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #2a3b58;
+  }
+
+  .ok {
+    margin-top: 10px;
+    background: #e7f7ee;
+    border: 1px solid #bfead1;
+    color: #166534;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-weight: 900;
+    font-size: 13px;
+    display: none;
+  }
+  .err {
+    margin-top: 10px;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #7f1d1d;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-weight: 900;
+    font-size: 13px;
+    display: none;
+  }
+
+  /* ===== Loading overlay (iPhone-ish) ===== */
   .overlay {
     position: fixed;
     inset: 0;
@@ -151,7 +339,7 @@
         transparent 55%
       ),
       rgba(15, 23, 42, 0.28);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
   }
   .overlay.show {
     display: flex;
@@ -160,7 +348,7 @@
     width: min(520px, 100%);
     border-radius: 26px;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.78);
     box-shadow: 0 30px 90px rgba(2, 6, 23, 0.3);
     overflow: hidden;
   }
@@ -171,34 +359,32 @@
     padding: 16px 16px 12px;
     background: linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.85),
-      rgba(255, 255, 255, 0.55)
+      rgba(255, 255, 255, 0.92),
+      rgba(255, 255, 255, 0.58)
     );
   }
-  .orb {
+
+  .umgap-badge {
     width: 54px;
     height: 54px;
     border-radius: 18px;
+    display: grid;
+    place-items: center;
     background: conic-gradient(from 180deg, #2563eb, #60a5fa, #a78bfa, #2563eb);
     position: relative;
-    animation: spin 1.2s linear infinite;
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.25);
+    overflow: hidden;
   }
-  .orb:after {
-    content: "";
-    position: absolute;
-    inset: 6px;
+  .umgap-badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.88);
+    padding: 6px;
     border: 1px solid rgba(37, 99, 235, 0.18);
   }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  .loader-title {
-    min-width: 0;
-  }
+
   .loader-title h3 {
     margin: 0;
     font-size: 15px;
@@ -207,18 +393,18 @@
     margin-top: 6px;
     font-size: 12px;
     color: var(--muted);
-    font-weight: 800;
+    font-weight: 900;
     white-space: nowrap;
     overflow: hidden;
     width: 0ch;
-    animation: type 1.6s steps(22, end) infinite alternate;
+    animation: type 1.6s steps(28, end) infinite alternate;
   }
   @keyframes type {
     from {
       width: 0ch;
     }
     to {
-      width: 22ch;
+      width: 28ch;
     }
   }
   .sparkline {
@@ -258,7 +444,6 @@
       opacity: 1;
     }
   }
-
   .shimmer {
     position: relative;
     height: 12px;
@@ -285,112 +470,282 @@
       transform: translateX(160%);
     }
   }
-
   .loader-body {
     padding: 0 16px 16px;
   }
-  .chips {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-  }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid rgba(2, 6, 23, 0.08);
-    font-size: 12px;
-    font-weight: 900;
-    color: var(--muted);
-  }
-  .chip b {
-    color: var(--text);
-  }
-
   .hint {
     margin-top: 10px;
     font-size: 12px;
     color: var(--muted);
     line-height: 1.4;
+    font-weight: 900;
+  }
+
+  /* ===== Bottom Nav (Dashboard + More) ===== */
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(242, 244, 248, 0.85);
+    backdrop-filter: blur(8px);
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    cursor: pointer;
+    color: #6f7f9c;
+    font-weight: 900;
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      background 0.12s ease;
+    text-decoration: none;
+  }
+  .nav-item.active {
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    transform: scale(1.06);
+    color: #2f5f8f;
+    border: 1px solid rgba(47, 95, 143, 0.14);
+  }
+  .nav-ico {
+    width: 26px;
+    height: 26px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .nav-ico .stroke {
+    stroke: #9fb1d6;
+    fill: none;
+  }
+  .nav-ico .fill {
+    fill: #9fb1d6;
+  }
+  .nav-item.active .nav-ico .stroke {
+    stroke: #2f5f8f;
+  }
+  .nav-item.active .nav-ico .fill {
+    fill: #2f5f8f;
+  }
+
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      padding: 14px;
+      font-size: 16px;
+    }
   }
 </style>
 
-<div class="cap-wrap">
-  <div class="cardx cap-head">
-    <div>
-      <h2>AI Caption</h2>
-      <div class="muted">Tulis produk → caption jadi → tinggal copy.</div>
-
-      <div class="toolbar">
-        <div class="pill">⚡ Mode <b>AI</b></div>
-        <div class="pill">📝 Output <b>ringkas</b></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="cap-grid">
-    <div class="cardx">
-      <form method="POST" action="/caption/ai" id="capForm">
-        <label>Nama Produk</label>
-        <input
-          name="product"
-          required
-          placeholder="Contoh: Kopi Susu Gula Aren"
-        />
-
-        <label>Harga (opsional)</label>
-        <input name="price" placeholder="Contoh: 15.000" />
-
-        <label>Gaya Caption</label>
-        <select name="style">
-          <option value="Santai">Santai</option>
-          <option value="Promo">Promo</option>
-          <option value="Serius">Serius</option>
-        </select>
-
-        <div class="btnbar">
-          <button class="btn-primary" id="btnGen">✨ Generate</button>
-          <button type="button" class="btn-ghost" id="btnReset">Reset</button>
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="Logo"
+          />
         </div>
 
-        <div class="mini">
-          Animasi loading akan muncul saat proses generate.
+        <div class="right">
+          <div class="hello" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >Hallo, {{ session.get("user_name","User") }}</span
+            >
+          </div>
+
+          <a href="/logout" class="action-btn" aria-label="Logout">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
         </div>
-      </form>
+      </div>
+      <div class="rgb"></div>
     </div>
 
-    <div class="cardx">
-      <h2 style="margin: 0 0 10px; font-size: 16px">Hasil</h2>
+    <!-- AI CAPTION -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">AI Caption</h2>
 
-      {% if ai_result %}
-      <textarea id="out" readonly>{{ ai_result }}</textarea>
-      <div class="btnbar" style="margin-top: 10px">
-        <button type="button" class="btn-ghost" id="btnCopy">📋 Copy</button>
+        <div class="chips">
+          <div class="chip">⚡ Mode <b>AI</b></div>
+          <div class="chip">🧩 Output <b>3 variasi</b></div>
+          <div class="chip">🎯 Sesuai <b>platform</b></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <form id="capForm">
+          <label>Nama Produk</label>
+          <input name="product" required placeholder=" " />
+
+          <div class="row2">
+            <div>
+              <label>Harga (opsional)</label>
+              <input name="price" placeholder="" />
+            </div>
+            <div>
+              <label>Brand (opsional)</label>
+              <input name="brand" placeholder=" " />
+            </div>
+          </div>
+
+          <div class="row2">
+            <div>
+              <label>Platform</label>
+              <select name="platform">
+                <option value="Instagram">Instagram</option>
+                <option value="TikTok">TikTok</option>
+                <option value="WhatsApp">WhatsApp</option>
+              </select>
+            </div>
+            <div>
+              <label>Gaya/Tone</label>
+              <select name="style">
+                <option value="Santai">Santai</option>
+                <option value="Promo">Promo</option>
+                <option value="Storytelling">Storytelling</option>
+                <option value="Serius">Serius</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Catatan pendukung (opsional)</label>
+          <input
+            name="notes"
+            placeholder="Contoh: varian rasa, jam buka, lokasi, COD, stok, bonus, dll."
+          />
+          <div class="mini">
+            Tip: isi catatan biar caption terasa “real”, bukan template.
+          </div>
+
+          <div class="btnbar">
+            <button class="btn-primary" id="btnGen" type="submit">
+              Generate
+            </button>
+            <button class="btn-ghost" id="btnReset" type="button">Reset</button>
+          </div>
+
+          <div class="err" id="errBox"></div>
+          <div class="ok" id="okBox"></div>
+        </form>
       </div>
-      <div class="mini" id="copyInfo"></div>
-      {% else %}
-      <textarea
-        readonly
-        placeholder="Hasil caption akan muncul di sini..."
-      ></textarea>
-      <div class="mini">Belum ada hasil. Isi form lalu klik Generate.</div>
-      {% endif %}
+    </div>
+
+    <!-- HASIL -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">Hasil</h2>
+        <p class="desc">Copy / regenerate kapan saja.</p>
+
+        <textarea
+          id="out"
+          readonly
+          placeholder="Hasil caption akan muncul di sini..."
+        ></textarea>
+
+        <div class="btnbar" style="margin-top: 10px">
+          <button type="button" class="btn-mini" id="btnCopy">📋 Copy</button>
+          <button type="button" class="btn-mini" id="btnRegen">
+            🔃 Regenerate
+          </button>
+        </div>
+        <div class="mini" id="copyInfo"></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+      <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+        <a class="nav-item" href="/dashboard">
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect
+                class="fill"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+            </svg>
+          </span>
+          <span>Dashboard</span>
+        </a>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Super Loading -->
+<!-- Loading Overlay -->
 <div class="overlay" id="overlay">
   <div class="loader">
     <div class="loader-top">
-      <div class="orb" aria-hidden="true"></div>
+      <div class="umgap-badge" aria-hidden="true">
+        <img
+          src="{{ url_for('static', filename='UMGAP (1).png') }}"
+          alt="UMGAP"
+        />
+      </div>
       <div class="loader-title">
         <h3>Menghasilkan caption</h3>
-        <div class="typing">menyusun kata terbaik…</div>
+        <div class="typing">menyusun kata yang terasa real…</div>
       </div>
       <div class="sparkline" aria-hidden="true">
         <i style="height: 14px"></i><i style="height: 24px"></i
@@ -402,13 +757,14 @@
     <div class="shimmer"></div>
 
     <div class="loader-body">
-      <div class="chips">
-        <div class="chip">🧠 Tone <b>sesuai gaya</b></div>
-        <div class="chip">🎯 CTA <b>ringkas</b></div>
-        <div class="chip"># <b>hashtag</b></div>
+      <div class="chips" style="margin-top: 0">
+        <div class="chip">🧠 Brand <b>ikut disebut</b></div>
+        <div class="chip">📣 CTA <b>lebih natural</b></div>
+        <div class="chip"># <b>hashtag relevan</b></div>
       </div>
       <div class="hint">
-        Tip: biar makin akurat, isi nama produk + harga (kalau ada).
+        Jika hasil masih terasa “template”, isi catatan pendukung (lokasi, jam
+        buka, stok, bonus, varian, COD).
       </div>
     </div>
   </div>
@@ -418,36 +774,86 @@
   const form = document.getElementById("capForm");
   const overlay = document.getElementById("overlay");
   const btnGen = document.getElementById("btnGen");
+  const out = document.getElementById("out");
+  const errBox = document.getElementById("errBox");
+  const okBox = document.getElementById("okBox");
+  const copyInfo = document.getElementById("copyInfo");
 
-  form.addEventListener("submit", () => {
-    overlay.classList.add("show");
-    btnGen.disabled = true;
-  });
-
-  window.addEventListener("load", () => {
-    overlay.classList.remove("show");
-    btnGen.disabled = false;
-  });
-
-  document
-    .getElementById("btnReset")
-    .addEventListener("click", () => form.reset());
-
-  const btnCopy = document.getElementById("btnCopy");
-  if (btnCopy) {
-    btnCopy.addEventListener("click", async () => {
-      const out = document.getElementById("out");
-      const info = document.getElementById("copyInfo");
-      const text = (out.value || "").trim();
-      if (!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-        info.textContent = "✅ Tersalin";
-        setTimeout(() => (info.textContent = ""), 1200);
-      } catch (e) {
-        info.textContent = "⚠️ Gagal copy (browser blokir).";
-      }
-    });
+  function showErr(msg) {
+    errBox.style.display = "block";
+    errBox.textContent = msg || "Terjadi error.";
+    okBox.style.display = "none";
+    okBox.textContent = "";
   }
+  function showOk(msg) {
+    okBox.style.display = "block";
+    okBox.textContent = msg || "Berhasil.";
+    errBox.style.display = "none";
+    errBox.textContent = "";
+  }
+  function setLoading(isLoading) {
+    if (isLoading) {
+      overlay.classList.add("show");
+      btnGen.disabled = true;
+    } else {
+      overlay.classList.remove("show");
+      btnGen.disabled = false;
+    }
+  }
+
+  async function submitToAI() {
+    const fd = new FormData(form);
+    const product = (fd.get("product") || "").toString().trim();
+    if (!product) {
+      showErr("Nama produk wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/caption-ai", { method: "POST", body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        showErr(json.error || "Gagal generate caption.");
+        return;
+      }
+      out.value = (json.caption || "").trim();
+      showOk("✅ Caption berhasil dibuat (3 versi).");
+    } catch (e) {
+      showErr("Gagal konek ke server. Coba refresh.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitToAI();
+  });
+
+  document.getElementById("btnReset").addEventListener("click", () => {
+    form.reset();
+    out.value = "";
+    errBox.style.display = "none";
+    okBox.style.display = "none";
+    copyInfo.textContent = "";
+  });
+
+  document.getElementById("btnRegen").addEventListener("click", () => {
+    submitToAI();
+  });
+
+  document.getElementById("btnCopy").addEventListener("click", async () => {
+    const text = (out.value || "").trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      copyInfo.textContent = "✅ Tersalin";
+      setTimeout(() => (copyInfo.textContent = ""), 1200);
+    } catch (e) {
+      copyInfo.textContent = "⚠️ Gagal copy (browser blokir).";
+    }
+  });
 </script>
+
 {% endblock %}
