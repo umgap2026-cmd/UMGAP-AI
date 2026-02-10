@@ -45,6 +45,7 @@ from authlib.integrations.flask_client import OAuth
 from werkzeug.security import generate_password_hash
 import hashlib, time
 from authlib.integrations.flask_client import OAuth
+import requests
 
 
 
@@ -257,6 +258,8 @@ def _parse_manual_wib_naive(manual_dt: str | None):
     except Exception:
         return None
 
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
+oa_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 @app.route("/ai-test")
@@ -392,7 +395,6 @@ def init_products_v2():
 #  - tetap redirect admin ke /admin/dashboard
 #  - tambahkan points_admin untuk ditampilkan
 # ======================================================================
-@app.route("/")
 @app.route("/dashboard")
 def dashboard():
     if not is_logged_in():
@@ -406,25 +408,38 @@ def dashboard():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # contoh KPI user (sesuaikan kalau tabel kamu beda)
+    # KPI kamu (contoh yang sudah ada)
     cur.execute("SELECT COUNT(*) AS total FROM products WHERE user_id=%s;", (session["user_id"],))
-    total_products = cur.fetchone()["total"]
+    total_products = (cur.fetchone() or {}).get("total", 0)
 
     cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s;", (session["user_id"],))
-    total_contents = cur.fetchone()["total"]
+    total_contents = (cur.fetchone() or {}).get("total", 0)
 
     cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s AND is_done=TRUE;", (session["user_id"],))
-    total_done = cur.fetchone()["total"]
+    total_done = (cur.fetchone() or {}).get("total", 0)
 
-    # poin dari admin + poin absensi
+    # poin keaktifan (hanya dari admin)
     cur.execute("""
-        SELECT COALESCE(points,0) AS points,
-               COALESCE(points_admin,0) AS points_admin
+        SELECT COALESCE(points_admin,0) AS points_admin
         FROM users
         WHERE id=%s
         LIMIT 1;
     """, (session["user_id"],))
-    pr = cur.fetchone() or {"points": 0, "points_admin": 0}
+    pr = cur.fetchone() or {"points_admin": 0}
+
+    # ringkasan absensi 7 hari terakhir
+    cur.execute("""
+        SELECT
+          COALESCE(SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END),0) AS hadir,
+          COALESCE(SUM(CASE WHEN status='SICK' THEN 1 ELSE 0 END),0) AS sakit,
+          COALESCE(SUM(CASE WHEN status='LEAVE' THEN 1 ELSE 0 END),0) AS cuti,
+          COALESCE(SUM(CASE WHEN status='ABSENT' THEN 1 ELSE 0 END),0) AS absen
+        FROM attendance
+        WHERE user_id=%s
+          AND work_date >= (CURRENT_DATE - INTERVAL '6 days')
+          AND work_date <= CURRENT_DATE;
+    """, (session["user_id"],))
+    attendance_7d = cur.fetchone() or {"hadir": 0, "sakit": 0, "cuti": 0, "absen": 0}
 
     cur.close()
     conn.close()
@@ -433,12 +448,95 @@ def dashboard():
         "dashboard.html",
         user_name=session.get("user_name"),
         notif_count=0,
-        total_products=total_products,
-        total_contents=total_contents,
-        total_done=total_done,
-        points=int(pr["points"] or 0),
-        points_admin=int(pr["points_admin"] or 0),
+        total_products=int(total_products or 0),
+        total_contents=int(total_contents or 0),
+        total_done=int(total_done or 0),
+        points_admin=int(pr.get("points_admin") or 0),
+        attendance_7d=attendance_7d,  # penting biar ga UndefinedError
     )
+
+
+
+@app.route("/")
+def landing():
+    # kalau sudah login, arahkan ke dashboard sesuai role
+    if is_logged_in():
+        if session.get("role") == "admin":
+            return redirect("/admin/dashboard")
+        return redirect("/dashboard")
+    # publik lihat landing
+    return render_template("landing.html")
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    data = request.get_json(silent=True) or {}
+    msg = (data.get("message") or "").strip()
+
+    if not msg:
+        return jsonify({"ok": False, "error": "Pesan kosong."}), 400
+    if not oa_client:
+        return jsonify({"ok": False, "error": "OPENAI_API_KEY belum dikonfigurasi."}), 500
+
+    # Simpan history di session biar nyambung (maks 12 pesan terakhir)
+    hist = session.get("chat_history") or []
+    hist = [h for h in hist if isinstance(h, dict) and h.get("role") and h.get("content")]
+    hist = hist[-12:]
+
+    # URL dinamis (biar aman di localhost / Render)
+    base_url = request.host_url.rstrip("/")  # contoh: https://umgap-ai.onrender.com
+    app_url = base_url  # kamu bisa ganti kalau app utama beda domain
+
+    system_prompt = f"""
+Kamu adalah "Asisten UMGAP" untuk UMKM di Salatiga & Jawa Tengah.
+
+TUJUAN UTAMA:
+1) Bantu user dengan jawaban praktis,
+2) SEKALIGUS arahkan solusi agar user tertarik pakai UMGAP (soft-selling, bukan maksa).
+
+FOKUS FITUR UMGAP YANG HARUS SERING DITAWARKAN (pilih yang relevan):
+- Absensi karyawan (rekap rapi, bisa export Excel)
+- Monitor/Laporan penjualan (lebih terkontrol)
+- AI Caption Generator untuk promosi sosmed (Instagram/TikTok/WhatsApp)
+- Kelola karyawan & data usaha dalam satu aplikasi
+
+GAYA JAWAB:
+- Bahasa Indonesia yang ramah, terasa “orang lokal”, tidak kaku.
+- Tanyakan maks 1–2 pertanyaan klarifikasi kalau info kurang (contoh: jenis usaha, target customer, platform jualan, jumlah karyawan).
+- Beri langkah konkret (bullet list pendek).
+- Selalu sisipkan 1 CTA yang relevan ke fitur UMGAP + arahkan tombol/fitur yang harus diklik user di web.
+
+ATURAN PENTING:
+- Jangan hanya memberi teori umum. Minimal 50% jawaban harus mengaitkan ke UMGAP:
+  “Kalau pakai UMGAP, kamu bisa … (fitur) …”
+- Akhiri dengan ajakan tindakan yang jelas:
+  “Mau aku bantu set up di UMGAP? Buka {app_url}/login atau {app_url}/register”
+- Jika user bilang jenis usaha (mis. coffee shop), rekomendasikan flow UMGAP:
+  absensi (kalau ada karyawan) + penjualan harian + AI caption untuk promo.
+""".strip()
+
+    messages = [{"role": "system", "content": system_prompt}] + hist + [{"role": "user", "content": msg}]
+
+    try:
+        resp = oa_client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=messages,
+            temperature=0.7,
+            max_tokens=450,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
+
+        hist.append({"role": "user", "content": msg})
+        hist.append({"role": "assistant", "content": reply})
+        session["chat_history"] = hist[-12:]
+
+        return jsonify({"ok": True, "reply": reply, "app_url": app_url})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Gagal memproses AI: {str(e)}"}), 500
+
+
+
 
 
 
