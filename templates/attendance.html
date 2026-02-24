@@ -353,91 +353,91 @@ admin #} {% block topbar %}{% endblock %} {% block content %}
     color: #1e3a8a;
   }
 
-  /* ===== Bottom Nav ===== */
-  .bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(242, 244, 248, 0.85);
-    backdrop-filter: blur(8px);
-  }
-  .nav-bar {
-    max-width: 430px;
-    margin: 0 auto;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    padding: 10px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .nav-item {
-    flex: 1;
-    border: none;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 8px;
-    border-radius: 16px;
-    cursor: pointer;
-    color: #6f7f9c;
-    font-weight: 900;
-    transition:
-      transform 0.12s ease,
-      box-shadow 0.12s ease,
-      background 0.12s ease;
-    text-decoration: none;
-  }
-  .nav-item.active {
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    transform: scale(1.06);
-    color: #2f5f8f;
-    border: 1px solid rgba(47, 95, 143, 0.14);
-  }
-  .nav-ico {
-    width: 26px;
-    height: 26px;
-    display: inline-block;
-  }
-  .nav-ico svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .nav-ico .stroke {
-    stroke: #9fb1d6;
-    fill: none;
-  }
-  .nav-ico .fill {
-    fill: #9fb1d6;
-  }
-  .nav-item.active .nav-ico .stroke {
-    stroke: #2f5f8f;
-  }
-  .nav-item.active .nav-ico .fill {
-    fill: #2f5f8f;
-  }
+  /* ===== BOTTOM NAV (mirip dashboard/attendance) ===== */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  pointer-events: none;
+}
 
-  @media (max-width: 640px) {
-    input,
-    select,
-    textarea {
-      padding: 14px;
-      font-size: 16px;
-    }
-    .table-wrap {
-      display: none;
-    }
-    .list-mobile {
-      display: block;
-    }
-  }
+.nav-bar {
+  pointer-events: auto;
+  width: 430px;
+  max-width: calc(100% - 28px);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(125, 138, 166, 0.18);
+  box-shadow: var(--shadow-out);
+  backdrop-filter: blur(10px);
+  border-radius: 26px;
+  padding: 10px 12px;
+}
+
+.nav-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-item {
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  padding: 10px 10px;
+  border-radius: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  color: #63779a;
+  font-weight: 900;
+  transition: background 0.12s ease;
+}
+
+.nav-item:hover {
+  background: rgba(47, 95, 143, 0.08);
+}
+
+.nav-item.active {
+  background: rgba(47, 95, 143, 0.12);
+  color: var(--blue);
+}
+
+.nav-ico {
+  width: 26px;
+  height: 26px;
+  display: inline-block;
+}
+
+.nav-ico svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.nav-ico .stroke {
+  stroke: #9fb1d6;
+  fill: none;
+  stroke-width: 2;
+}
+
+.nav-ico .fill {
+  fill: #9fb1d6;
+}
+
+.nav-item.active .nav-ico .stroke {
+  stroke: var(--blue);
+}
+
+.nav-item.active .nav-ico .fill {
+  fill: var(--blue);
+}
 </style>
 
 <div class="screen">
@@ -613,48 +613,37 @@ admin #} {% block topbar %}{% endblock %} {% block content %}
     </div>
 
     <!-- BOTTOM NAV -->
-    <div class="bottom-nav">
-      <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-        <a class="nav-item" href="/dashboard">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <rect
-                class="fill"
-                x="3"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="3"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-            </svg>
-          </span>
-          <span>Dashboard</span>
-        </a>
+<div class="bottom-nav">
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <div class="nav-row">
+      <a class="nav-item" href="/dashboard">
+        <span class="nav-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+            <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+            <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+            <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+          </svg>
+        </span>
+        <span>Dashboard</span>
+      </a>
 
+      <a class="nav-item active" href="/content">
+        <span class="nav-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <rect class="stroke" x="4" y="5" width="16" height="15" rx="2.5"></rect>
+            <path class="stroke" d="M8 3v4"></path>
+            <path class="stroke" d="M16 3v4"></path>
+            <path class="stroke" d="M4 10h16"></path>
+            <path class="stroke" d="M8 14h3"></path>
+            <path class="stroke" d="M8 17h6"></path>
+          </svg>
+        </span>
+        <span>Absensi</span>
+      </a>
+    </div>
+  </div>
+</div>
         
 
         
