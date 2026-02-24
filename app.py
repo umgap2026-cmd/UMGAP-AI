@@ -43,6 +43,8 @@ from zoneinfo import ZoneInfo
 # Load .env
 load_dotenv()
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 # ==================== APP CONFIG ====================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -1860,7 +1862,8 @@ def preview_template(name):
 
 # ==================== RUN ====================
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)
+    port = int(os.getenv("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 # Init DB on startup
 try:
@@ -1870,3 +1873,4 @@ try:
     ensure_announcements_schema()
 except Exception as e:
     print("Init error:", e)
+
