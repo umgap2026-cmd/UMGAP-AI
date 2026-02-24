@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Admin • Pengumuman</title>
+
+    <style>
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+        --soft-in:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+        --radius: 22px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+        --danger: #dc2626;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100svh;
+      }
+
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
+        padding: 14px 14px calc(26px + env(safe-area-inset-bottom));
+      }
+      .wrap {
+        width: 100%;
+        max-width: 430px;
+      }
+
+      .head-card {
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .head-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .hello {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f2f5fb;
+        border-radius: var(--pill);
+        padding: 8px 12px;
+        box-shadow: var(--soft-in);
+        white-space: nowrap;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex: 0 0 auto;
+      }
+      .hello .name {
+        font-size: 13px;
+        color: #506381;
+        font-weight: 800;
+      }
+
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        border-radius: 16px;
+        background: #f3f6fc;
+        box-shadow:
+          0 12px 22px rgba(30, 60, 90, 0.18),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+      }
+      .action-btn svg {
+        width: 22px;
+        height: 22px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .rgb {
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
+        background: linear-gradient(
+          90deg,
+          #ff0000 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
+        );
+      }
+
+      .main-card {
+        margin-top: 14px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 16px 14px 18px;
+      }
+      .inner {
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 16px 14px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: #2a3b58;
+        letter-spacing: 0.2px;
+      }
+      .desc {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 12px 0;
+      }
+
+      label {
+        display: block;
+        margin: 10px 0 6px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      input,
+      textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 12px 12px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      .actions-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .btn-pill {
+        border: none;
+        cursor: pointer;
+        border-radius: 16px;
+        padding: 12px 14px;
+        font-weight: 900;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: #2f5f8f;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .btn-primary {
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        color: #fff;
+        box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+      }
+      .btn-danger {
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+        border: 1px solid rgba(220, 38, 38, 0.25);
+        box-shadow: none;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .item {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .item-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .mini {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: #2a3b58;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        font-weight: 900;
+        padding: 14px 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="screen">
+      <div class="wrap">
+        <!-- HEADER -->
+        <div class="head-card">
+          <div class="head-top">
+            <div class="hello" title="Admin">
+              <span class="dot"></span>
+              <span class="name">Admin • Pengumuman</span>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center">
+              <a
+                href="/admin/dashboard"
+                class="action-btn"
+                aria-label="Kembali"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M15 18l-6-6 6-6"></path>
+                  <path d="M9 12h12"></path>
+                </svg>
+              </a>
+              <a href="/logout" class="action-btn" aria-label="Logout">
+                <svg viewBox="0 0 24 24">
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+                </svg>
+              </a>
+            </div>
+          </div>
+          <div class="rgb"></div>
+        </div>
+
+        <!-- FORM ADD -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Buat Pengumuman</h2>
+            <p class="desc">Pengumuman akan masuk ke notifikasi semua user.</p>
+
+            <div class="divider"></div>
+
+            <form method="post" action="/admin/announcements/add">
+              <label>Judul</label>
+              <input
+                type="text"
+                name="title"
+                placeholder="Contoh: Update harga / Jadwal / Info penting"
+                required
+              />
+
+              <label>Isi Pengumuman</label>
+              <textarea
+                name="message"
+                placeholder="Tulis pengumuman di sini..."
+                required
+              ></textarea>
+
+              <div class="actions-row">
+                <button class="btn-pill btn-primary" type="submit">
+                  📣 Kirim Pengumuman
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- LIST -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Riwayat Pengumuman</h2>
+            <p class="desc">Terbaru akan tampil paling atas.</p>
+
+            <div class="divider"></div>
+
+            <div class="list">
+              {% if data and data|length > 0 %} {% for a in data %}
+              <div class="item">
+                <div class="item-top">
+                  <div>
+                    <div style="font-weight: 1000; font-size: 14px">
+                      {{ a.title }}
+                    </div>
+                    <div class="mini">{{ a.message }}</div>
+                    <div
+                      class="mini"
+                      style="margin-top: 10px; font-weight: 900"
+                    >
+                      {{ a.created_at }} {% if a.created_by %} • by #{{
+                      a.created_by }} {% endif %}
+                    </div>
+                  </div>
+
+                  <div
+                    style="
+                      display: flex;
+                      flex-direction: column;
+                      gap: 10px;
+                      align-items: flex-end;
+                    "
+                  >
+                    <span class="tag">ID #{{ a.id }}</span>
+                    <a
+                      class="btn-pill btn-danger"
+                      href="/admin/announcements/delete/{{ a.id }}"
+                      onclick="return confirm('Hapus pengumuman ini?');"
+                      style="text-decoration: none"
+                    >
+                      🗑 Hapus
+                    </a>
+                  </div>
+                </div>
+              </div>
+              {% endfor %} {% else %}
+              <div class="item empty">Belum ada pengumuman.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
