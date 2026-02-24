@@ -1,21 +1,225 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
+
 <style>
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+  }
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+
+  /* ===== Header Card (mirip attendance) ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .hello {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+  .hello .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Sections ===== */
+  .card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
   .divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
     margin: 12px 0;
   }
 
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 10px;
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
   }
-  @media (min-width: 980px) {
-    .grid2 {
-      grid-template-columns: 1.05fr 0.95fr;
-    }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .mini {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 800;
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    margin-top: 12px;
+    cursor: pointer;
+    font-weight: 1000;
+    color: #fff;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
   }
 
   .kpi {
@@ -25,10 +229,11 @@
     margin-top: 12px;
   }
   .k {
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.85);
+    padding: 12px 12px;
     border-radius: 16px;
-    padding: 10px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border: 1px solid rgba(125, 138, 166, 0.18);
   }
   .k .t {
     margin: 0;
@@ -40,141 +245,122 @@
     margin: 6px 0 0;
     font-size: 18px;
     font-weight: 1000;
+    color: #2a3b58;
   }
 
-  .tag {
+  .badge {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
     padding: 6px 10px;
     border-radius: 999px;
-    border: 1px solid var(--border);
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: #2a3b58;
     font-size: 12px;
-    font-weight: 900;
-    background: rgba(255, 255, 255, 0.85);
+    font-weight: 1000;
+    border: 1px solid rgba(125, 138, 166, 0.18);
     white-space: nowrap;
   }
-
-  .done {
-    color: #16a34a;
-    font-weight: 1000;
+  .badge-ok {
+    background: #ecfdf5;
+    border-color: #bbf7d0;
+    color: #166534;
   }
-  .todo {
-    color: #dc2626;
-    font-weight: 1000;
+  .badge-warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
   }
 
-  .tablewrap {
+  /* Riwayat: desktop table vs mobile cards */
+  .table-wrap {
+    width: 100%;
     overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.75);
+    margin-top: 10px;
   }
   table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    min-width: 720px;
+    border-collapse: collapse;
   }
   th,
   td {
-    border-bottom: 1px solid var(--border);
-    padding: 12px 12px;
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
     text-align: left;
-    font-size: 14px;
     vertical-align: top;
-    background: transparent;
+    white-space: nowrap;
+    font-size: 13px;
   }
   th {
-    font-size: 12px;
-    letter-spacing: 0.3px;
-    color: var(--muted);
-    text-transform: uppercase;
     position: sticky;
     top: 0;
-    background: rgba(249, 250, 251, 0.95);
-    backdrop-filter: blur(8px);
+    background: #f3f5f9;
     z-index: 1;
-  }
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  .notes {
-    max-width: 360px;
-    overflow: hidden;
-    word-break: break-word;
-    white-space: pre-wrap;
-  }
-
-  /* Mobile list */
-  .list {
-    display: none;
-    gap: 10px;
-  }
-  .item {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.85);
-    padding: 12px;
-    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.06);
-  }
-  .itemtop {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .itemtitle {
-    font-weight: 1000;
-    margin: 0;
-  }
-  .sub {
-    margin: 6px 0 0;
     color: var(--muted);
     font-size: 12px;
+    font-weight: 900;
   }
-  .meta {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  td.muted {
+    color: var(--muted);
+    white-space: normal;
+  }
+
+  .list-mobile {
+    display: none;
     margin-top: 10px;
   }
-  .actions {
+  .item {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+    margin-top: 10px;
+  }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .item-top .date {
+    font-weight: 1000;
+    font-size: 14px;
+    color: #2a3b58;
+  }
+  .item-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .btn-row {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 12px;
   }
-  .link {
-    text-decoration: none;
-    color: var(--brand);
-    font-weight: 1000;
+  .btn-mini {
+    border: none;
+    cursor: pointer;
+    border-radius: 14px;
     padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #fff;
+    font-weight: 900;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: #2f5f8f;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
-  .link.danger {
-    color: #b91c1c;
-    border-color: rgba(220, 38, 38, 0.25);
-    background: rgba(220, 38, 38, 0.06);
-  }
-
-  @media (max-width: 820px) {
-    .tablewrap {
-      display: none;
-    }
-    .list {
-      display: grid;
-    }
-    input,
-    select,
-    textarea {
-      padding: 14px;
-      font-size: 16px;
-    }
+  .btn-danger {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    box-shadow: none;
   }
 
   .error {
@@ -185,39 +371,161 @@
     background: rgba(220, 38, 38, 0.06);
     color: #b91c1c;
     font-weight: 900;
+    font-size: 13px;
   }
 
-  .btn-big {
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      padding: 14px;
+      font-size: 16px;
+    }
+    .table-wrap {
+      display: none;
+    }
+    .list-mobile {
+      display: block;
+    }
+  }
+  /* ===== BOTTOM NAV (mirip dashboard/attendance) ===== */
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    display: grid;
+    place-items: center;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .nav-bar {
+    pointer-events: auto;
+    width: 430px;
+    max-width: calc(100% - 28px);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(125, 138, 166, 0.18);
+    box-shadow: var(--shadow-out);
+    backdrop-filter: blur(10px);
+    border-radius: 26px;
+    padding: 10px 12px;
+  }
+
+  .nav-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .nav-item {
+    text-decoration: none;
+    border: 0;
+    background: transparent;
+    padding: 10px 10px;
+    border-radius: 18px;
+    cursor: pointer;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    color: #63779a;
+    font-weight: 900;
+    transition: background 0.12s ease;
+  }
+
+  .nav-item:hover {
+    background: rgba(47, 95, 143, 0.08);
+  }
+
+  .nav-item.active {
+    background: rgba(47, 95, 143, 0.12);
+    color: var(--blue);
+  }
+
+  .nav-ico {
+    width: 26px;
+    height: 26px;
+    display: inline-block;
+  }
+
+  .nav-ico svg {
     width: 100%;
-    padding: 14px;
-    font-size: 16px;
-    border-radius: 14px;
+    height: 100%;
+    display: block;
+  }
+
+  .nav-ico .stroke {
+    stroke: #9fb1d6;
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .nav-ico .fill {
+    fill: #9fb1d6;
+  }
+
+  .nav-item.active .nav-ico .stroke {
+    stroke: var(--blue);
+  }
+
+  .nav-item.active .nav-ico .fill {
+    fill: var(--blue);
   }
 </style>
 
-<div class="grid2">
-  <!-- Left: Form -->
-  <div class="card">
-    <h2>🗓️ Kalender Konten</h2>
-    <p class="muted">
-      Tambah rencana posting. Setelah posting, klik “Selesai”.
-    </p>
-
-    <div class="divider"></div>
-
-    {% if error %}
-    <p class="error">{{ error }}</p>
-    <div class="divider"></div>
-    {% endif %}
-
-    <form method="post" action="/content/add">
-      <div class="row-1">
-        <div>
-          <label>Tanggal</label>
-          <input type="date" name="plan_date" required />
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card" id="top">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="Logo"
+          />
         </div>
 
-        <div>
+        <div class="right">
+          <div class="hello" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >Hallo, {{ session.get("user_name","User") }}</span
+            >
+          </div>
+
+          <a href="/logout" class="action-btn" aria-label="Logout">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- FORM TAMBAH -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">Kalender Konten</h2>
+        <p class="desc">
+          Tambah rencana posting. Setelah posting, klik “Selesai”.
+        </p>
+
+        <div class="divider"></div>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        <div class="divider"></div>
+        {% endif %}
+
+        <form method="post" action="/content/add">
+          <label>Tanggal</label>
+          <input type="date" name="plan_date" required />
+
           <label>Platform</label>
           <select name="platform" required>
             <option value="WhatsApp">WhatsApp</option>
@@ -225,9 +533,7 @@
             <option value="TikTok">TikTok</option>
             <option value="Facebook">Facebook</option>
           </select>
-        </div>
 
-        <div>
           <label>Jenis Konten</label>
           <select name="content_type" required>
             <option value="Promo">Promo</option>
@@ -236,144 +542,221 @@
             <option value="Testimoni">Testimoni</option>
             <option value="Reminder">Reminder</option>
           </select>
-        </div>
 
-        <div>
           <label>Catatan (opsional)</label>
           <textarea
             name="notes"
-            rows="3"
             placeholder="Contoh: Diskon 10%, jam 19.00, ajak chat WA"
           ></textarea>
-        </div>
 
-        <button class="btn btn-primary btn-big" type="submit">
-          ➕ Tambah Rencana
-        </button>
-      </div>
+          <button class="btn-primary" type="submit">➕ Tambah Rencana</button>
 
-      <div class="kpi">
-        <div class="k">
-          <p class="t">Total Rencana</p>
-          <p class="v">{{ plans|length }}</p>
-        </div>
-        <div class="k">
-          <p class="t">Selesai</p>
-          <p class="v">{{ (plans|selectattr("is_done")|list)|length }}</p>
-        </div>
-      </div>
-
-      <p class="muted" style="margin-top: 10px">
-        Tip: isi catatan singkat saja (diskon, jam posting, call-to-action).
-      </p>
-    </form>
-  </div>
-
-  <!-- Right: List -->
-  <div class="card">
-    <h2>Daftar Rencana</h2>
-    <p class="muted">Versi tabel (desktop) dan kartu (HP).</p>
-
-    <div class="divider"></div>
-
-    <!-- Mobile card list -->
-    <div class="list">
-      {% for c in plans %}
-      <div class="item">
-        <div class="itemtop">
-          <div>
-            <p class="itemtitle">📅 {{ c.plan_date }}</p>
-            <p class="sub">{{ c.platform }} • {{ c.content_type }}</p>
+          <div class="kpi">
+            <div class="k">
+              <p class="t">Total Rencana</p>
+              <p class="v">{{ plans|length }}</p>
+            </div>
+            <div class="k">
+              <p class="t">Selesai</p>
+              <p class="v">{{ (plans|selectattr("is_done")|list)|length }}</p>
+            </div>
           </div>
-          <div>
-            {% if c.is_done %}
-            <span class="done">✅ Selesai</span>
-            {% else %}
-            <span class="todo">⏳ Belum</span>
-            {% endif %}
-          </div>
-        </div>
 
-        <div class="meta">
-          <span class="tag">📣 {{ c.platform }}</span>
-          <span class="tag">🏷️ {{ c.content_type }}</span>
-        </div>
-
-        <p
-          class="muted"
-          style="
-            margin: 10px 0 0;
-            white-space: pre-wrap;
-            word-break: break-word;
-          "
-        >
-          {{ c.notes or "-" }}
-        </p>
-
-        <div class="actions">
-          {% if not c.is_done %}
-          <a class="link" href="/content/done/{{ c.id }}">✔ Selesai</a>
-          {% else %}
-          <a class="link" href="/content/undo/{{ c.id }}">↩ Batalkan</a>
-          {% endif %}
-          <a
-            class="link danger"
-            href="/content/delete/{{ c.id }}"
-            onclick="return confirm('Hapus rencana konten ini?');"
-            >🗑 Hapus</a
-          >
-        </div>
+          <p class="mini" style="margin-top: 10px">
+            Tip: isi catatan singkat saja (diskon, jam posting, call-to-action).
+          </p>
+        </form>
       </div>
-      {% endfor %} {% if plans|length == 0 %}
-      <p class="muted">Belum ada rencana konten.</p>
-      {% endif %}
     </div>
 
-    <!-- Desktop table -->
-    <div class="tablewrap">
-      <table>
-        <tr>
-          <th>Tanggal</th>
-          <th>Platform</th>
-          <th>Jenis</th>
-          <th>Catatan</th>
-          <th>Status</th>
-          <th>Aksi</th>
-        </tr>
+    <!-- RIWAYAT -->
+    <div class="card">
+      <div class="inner">
+        <h2 class="title">Rencana Konten</h2>
+        <p class="desc">Desktop: tabel • Mobile: kartu</p>
 
-        {% for c in plans %}
-        <tr>
-          <td style="white-space: nowrap">{{ c.plan_date }}</td>
-          <td><span class="tag">📣 {{ c.platform }}</span></td>
-          <td><span class="tag">🏷️ {{ c.content_type }}</span></td>
-          <td><div class="notes">{{ c.notes or "-" }}</div></td>
-          <td>
-            {% if c.is_done %}
-            <span class="done">✅ Selesai</span>
-            {% else %}
-            <span class="todo">⏳ Belum</span>
-            {% endif %}
-          </td>
-          <td style="white-space: nowrap">
-            {% if not c.is_done %}
-            <a href="/content/done/{{ c.id }}">✔ Selesai</a>
-            {% else %}
-            <a href="/content/undo/{{ c.id }}">↩ Batalkan</a>
-            {% endif %} &nbsp;|&nbsp;
-            <a
-              href="/content/delete/{{ c.id }}"
-              onclick="return confirm('Hapus rencana konten ini?');"
-              >🗑 Hapus</a
-            >
-          </td>
-        </tr>
-        {% endfor %} {% if plans|length == 0 %}
-        <tr>
-          <td colspan="6" class="muted">Belum ada rencana konten.</td>
-        </tr>
-        {% endif %}
-      </table>
+        <!-- Desktop table -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width: 110px">Tanggal</th>
+                <th style="min-width: 120px">Platform</th>
+                <th style="min-width: 120px">Jenis</th>
+                <th>Catatan</th>
+                <th style="min-width: 110px">Status</th>
+                <th style="min-width: 160px">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in plans %}
+              <tr>
+                <td>{{ c.plan_date }}</td>
+                <td><span class="badge">{{ c.platform }}</span></td>
+                <td><span class="badge">{{ c.content_type }}</span></td>
+                <td class="muted">{{ c.notes or "-" }}</td>
+                <td>
+                  {% if c.is_done %}
+                  <span class="badge badge-ok">SELESAI</span>
+                  {% else %}
+                  <span class="badge badge-warn">BELUM</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if not c.is_done %}
+                  <a class="btn-mini" href="/content/done/{{ c.id }}"
+                    >✔ Selesai</a
+                  >
+                  {% else %}
+                  <a class="btn-mini" href="/content/undo/{{ c.id }}"
+                    >↩ Batalkan</a
+                  >
+                  {% endif %}
+                  <a
+                    class="btn-mini btn-danger"
+                    href="/content/delete/{{ c.id }}"
+                    onclick="return confirm('Hapus rencana konten ini?');"
+                    >🗑 Hapus</a
+                  >
+                </td>
+              </tr>
+              {% endfor %} {% if plans|length == 0 %}
+              <tr>
+                <td colspan="6" class="muted">Belum ada rencana konten.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="list-mobile">
+          {% for c in plans %}
+          <div class="item">
+            <div class="item-top">
+              <div>
+                <div class="date">{{ c.plan_date }}</div>
+                <div class="mini" style="margin-top: 6px">
+                  <b>{{ c.platform }}</b> • {{ c.content_type }}
+                </div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: 8px;
+                "
+              >
+                {% if c.is_done %}
+                <span class="badge badge-ok">SELESAI</span>
+                {% else %}
+                <span class="badge badge-warn">BELUM</span>
+                {% endif %}
+                <span class="badge">ID #{{ c.id }}</span>
+              </div>
+            </div>
+
+            <div class="item-note">{{ c.notes or "-" }}</div>
+
+            <div class="btn-row">
+              {% if not c.is_done %}
+              <a class="btn-mini" href="/content/done/{{ c.id }}">✔ Selesai</a>
+              {% else %}
+              <a class="btn-mini" href="/content/undo/{{ c.id }}">↩ Batalkan</a>
+              {% endif %}
+              <a
+                class="btn-mini btn-danger"
+                href="/content/delete/{{ c.id }}"
+                onclick="return confirm('Hapus rencana konten ini?');"
+                >🗑 Hapus</a
+              >
+            </div>
+          </div>
+          {% endfor %} {% if plans|length == 0 %}
+          <div class="mini">Belum ada rencana konten.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+      <div class="nav-row">
+        <a class="nav-item" href="/dashboard">
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect
+                class="fill"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+            </svg>
+          </span>
+          <span>Dashboard</span>
+        </a>
+
+        <a class="nav-item active" href="/content">
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect
+                class="stroke"
+                x="4"
+                y="5"
+                width="16"
+                height="15"
+                rx="2.5"
+              ></rect>
+              <path class="stroke" d="M8 3v4"></path>
+              <path class="stroke" d="M16 3v4"></path>
+              <path class="stroke" d="M4 10h16"></path>
+              <path class="stroke" d="M8 14h3"></path>
+              <path class="stroke" d="M8 17h6"></path>
+            </svg>
+          </span>
+          <span>Konten</span>
+        </a>
+      </div>
     </div>
   </div>
 </div>
+
 {% endblock %}
+<script>
+  (function () {
+    const path = window.location.pathname;
+    document.querySelectorAll(".nav-item").forEach((a) => {
+      const href = a.getAttribute("href") || "";
+      if (href === path) a.classList.add("active");
+      else a.classList.remove("active");
+    });
+  })();
+</script>
