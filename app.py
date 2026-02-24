@@ -515,15 +515,18 @@ def register():
 
     try:
         conn = get_conn()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             "INSERT INTO users (name, email, password_hash, role) VALUES (%s, %s, %s, 'employee') RETURNING id;",
             (name, email, pw_hash),
         )
-        user_id = cur.fetchone()["id"]
+        user_id = (cur.fetchone() or {}).get("id")
         conn.commit()
         cur.close()
         conn.close()
+
+        if not user_id:
+            return render_template("register.html", error="Gagal membuat user (DB).")
 
         session["user_id"] = user_id
         session["user_name"] = name
@@ -541,7 +544,7 @@ def login():
     password = request.form.get("password", "")
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id, name, email, password_hash, role FROM users WHERE email=%s;", (email,))
     user = cur.fetchone()
     cur.close()
@@ -1866,12 +1869,17 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=port, debug=False)
 
 # Init DB on startup
-try:
-    ensure_points_schema()
-    ensure_hr_v2_schema()
-    init_points_v1()
-    ensure_announcements_schema()
-except Exception as e:
-    print("Init error:", e)
+def safe_init_db():
+    try:
+        ensure_points_schema()
+        ensure_hr_v2_schema()
+        init_points_v1()
+        ensure_announcements_schema()
+        print("DB init OK")
+    except Exception as e:
+        print("Init error:", e)
 
-
+# Jangan auto-init saat import di gunicorn.
+# Jalankan hanya kalau kamu set env INIT_DB_ON_STARTUP=true
+if os.getenv("INIT_DB_ON_STARTUP", "").lower() == "true":
+    safe_init_db()
