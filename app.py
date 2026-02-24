@@ -44,7 +44,7 @@ from zoneinfo import ZoneInfo
 load_dotenv()
 
 from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 # ==================== APP CONFIG ====================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -53,7 +53,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
-
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 # OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -1873,4 +1873,5 @@ try:
     ensure_announcements_schema()
 except Exception as e:
     print("Init error:", e)
+
 
