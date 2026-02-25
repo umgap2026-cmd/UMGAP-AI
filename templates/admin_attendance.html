@@ -364,6 +364,23 @@
     margin: 6px 0 0;
     color: var(--muted);
     font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: anywhere; /* kunci: memaksa wrap */
+    word-break: break-word; /* fallback */
+  }
+
+  /* khusus catatan panjang supaya rapi */
+  .note-preview {
+    margin-top: 10px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+
+    /* biar tidak kepanjangan di mobile */
+    display: -webkit-box;
+
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .hmeta {
     margin-top: 8px;
@@ -568,7 +585,7 @@
                 <span class="badge2">{{ r.status }}</span>
               </div>
             </div>
-            <div class="hsub" style="margin-top: 10px">
+            <div class="hsub">
               <span style="color: var(--muted); font-weight: 800"
                 >Catatan:</span
               >
