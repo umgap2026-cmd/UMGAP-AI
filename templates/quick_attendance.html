@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>UMGAP • Absen Cepat</title>
+    <style>
+      :root {
+        --bg: #f6f8fc;
+        --card: rgba(255, 255, 255, 0.86);
+        --text: #0f172a;
+        --muted: #64748b;
+        --line: #e5e7eb;
+        --brand: #2563eb;
+        --shadow: 0 12px 30px rgba(2, 6, 23, 0.08);
+        --r: 18px;
+        --danger: #b91c1c;
+        --ok: #16a34a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          Arial;
+        color: var(--text);
+        background:
+          radial-gradient(
+            900px 420px at 12% -10%,
+            rgba(37, 99, 235, 0.16) 0%,
+            transparent 60%
+          ),
+          radial-gradient(
+            700px 360px at 105% 0%,
+            rgba(245, 158, 11, 0.16) 0%,
+            transparent 55%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      .wrap {
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 18px 14px 64px;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(
+          180deg,
+          rgba(37, 99, 235, 0.98),
+          rgba(29, 78, 216, 0.98)
+        );
+        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        flex: 0 0 auto;
+      }
+      .title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 1000;
+        line-height: 1.1;
+      }
+      .sub {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.05);
+        font-size: 12px;
+        font-weight: 900;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .card {
+        margin-top: 14px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: 14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        margin: 0 0 6px;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #fff;
+        outline: none;
+        font-size: 14px;
+        font-weight: 900;
+      }
+      input[type="text"]:focus {
+        border-color: rgba(37, 99, 235, 0.55);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+      input[type="file"] {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #fff;
+        font-weight: 900;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--text);
+        font-weight: 1000;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.05);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        background: #fff;
+      }
+      .btn.primary {
+        width: 100%;
+        background: linear-gradient(
+          180deg,
+          rgba(37, 99, 235, 0.98),
+          rgba(29, 78, 216, 0.98)
+        );
+        border-color: rgba(37, 99, 235, 0.35);
+        color: #fff;
+        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.22);
+        padding: 14px 14px;
+        border-radius: 16px;
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+        color: var(--muted);
+        padding: 8px 10px;
+      }
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      @media (max-width: 440px) {
+        .row2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .divider {
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--line),
+          transparent
+        );
+        margin: 12px 0;
+      }
+      .hint {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1.35;
+      }
+      .mini {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .error {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(220, 38, 38, 0.25);
+        background: rgba(220, 38, 38, 0.06);
+        color: #b91c1c;
+        font-weight: 1000;
+        font-size: 13px;
+      }
+      .success {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(22, 163, 74, 0.25);
+        background: rgba(22, 163, 74, 0.06);
+        color: var(--ok);
+        font-weight: 1000;
+        font-size: 13px;
+      }
+
+      .preview {
+        display: none;
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.85);
+        overflow: hidden;
+      }
+      .preview img {
+        width: 100%;
+        display: block;
+      }
+
+      .step {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .step .left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .badgeStep {
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: rgba(37, 99, 235, 0.12);
+        color: var(--brand);
+        font-weight: 1000;
+        border: 1px solid rgba(37, 99, 235, 0.18);
+      }
+      .statusOk {
+        color: var(--ok);
+        font-weight: 1000;
+      }
+      .statusWait {
+        color: var(--muted);
+        font-weight: 1000;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z"
+                stroke="white"
+                stroke-width="2"
+              ></path>
+              <path
+                d="M20 7.4l-8 4.6-8-4.6"
+                stroke="white"
+                stroke-width="2"
+              ></path>
+              <path d="M12 12v9.2" stroke="white" stroke-width="2"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="title">Absen Cepat</p>
+            <p class="sub">Nama • Lokasi • Selfie</p>
+          </div>
+        </div>
+        <span class="pill" id="devicePill">📱 -</span>
+      </div>
+
+      <div class="card">
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        <div class="divider"></div>
+        {% endif %} {% if success %}
+        <p class="success">{{ success }}</p>
+        <div class="divider"></div>
+        {% endif %}
+
+        <form
+          method="post"
+          action="/quick-attendance/{{ token }}/submit"
+          enctype="multipart/form-data"
+          id="qaForm"
+        >
+          <!-- Hidden fields -->
+          <input type="hidden" name="device_id" id="device_id" />
+          <input type="hidden" name="latitude" id="latitude" />
+          <input type="hidden" name="longitude" id="longitude" />
+          <input type="hidden" name="accuracy" id="accuracy" />
+
+          <div class="grid">
+            <div>
+              <div class="step">
+                <div class="left">
+                  <div class="badgeStep">1</div>
+                  <div style="font-weight: 1000">Nama</div>
+                </div>
+              </div>
+              <div style="margin-top: 10px">
+                <input
+                  type="text"
+                  name="name_input"
+                  placeholder="Nama lengkap"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <div class="step">
+                <div class="left">
+                  <div class="badgeStep">2</div>
+                  <div style="font-weight: 1000">Lokasi</div>
+                </div>
+                <div id="locStatus" class="statusWait">belum</div>
+              </div>
+              <div class="row2" style="margin-top: 10px">
+                <button class="btn" type="button" id="btnLoc">📍 Ambil</button>
+                <span class="pill" id="locHint">aktifkan GPS</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="step">
+                <div class="left">
+                  <div class="badgeStep">3</div>
+                  <div style="font-weight: 1000">Selfie</div>
+                </div>
+                <div id="selfieStatus" class="statusWait">belum</div>
+              </div>
+
+              <div style="margin-top: 10px">
+                <input
+                  type="file"
+                  name="selfie"
+                  id="selfie"
+                  accept="image/*"
+                  capture="user"
+                  required
+                />
+                <div class="preview" id="previewBox" style="margin-top: 10px">
+                  <img id="previewImg" alt="preview" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <button class="btn primary" type="submit" id="btnSubmit">
+                KIRIM
+              </button>
+              <div
+                style="display: flex; justify-content: center; margin-top: 8px"
+              >
+                <button class="btn ghost" type="button" id="btnReset">
+                  reset
+                </button>
+              </div>
+              <p class="mini" style="text-align: center; margin-top: 8px">
+                akan dicek admin
+              </p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Device ID (backend yang enforce 1 device per hari)
+      (function initDeviceId() {
+        let id = localStorage.getItem("umgap_device_id");
+        if (!id) {
+          id =
+            (crypto?.randomUUID && crypto.randomUUID()) ||
+            "dev_" + Math.random().toString(16).slice(2) + Date.now();
+          localStorage.setItem("umgap_device_id", id);
+        }
+        document.getElementById("device_id").value = id;
+        document.getElementById("devicePill").textContent =
+          "📱 " + id.slice(0, 8) + "…";
+      })();
+
+      // Lokasi
+      const btnLoc = document.getElementById("btnLoc");
+      const locStatus = document.getElementById("locStatus");
+      const locHint = document.getElementById("locHint");
+
+      btnLoc.addEventListener("click", () => {
+        locStatus.textContent = "ambil…";
+        locStatus.className = "statusWait";
+        locHint.textContent = "mohon tunggu…";
+
+        if (!navigator.geolocation) {
+          locStatus.textContent = "gagal";
+          locHint.textContent = "tidak didukung";
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = pos.coords.accuracy;
+
+            document.getElementById("latitude").value = lat;
+            document.getElementById("longitude").value = lng;
+            document.getElementById("accuracy").value = acc;
+
+            locStatus.textContent = "ok";
+            locStatus.className = "statusOk";
+            locHint.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)} (±${Math.round(acc)}m)`;
+          },
+          (err) => {
+            console.log(err);
+            locStatus.textContent = "gagal";
+            locStatus.className = "statusWait";
+            locHint.textContent = "izinkan lokasi";
+          },
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+        );
+      });
+
+      // Selfie preview
+      const selfie = document.getElementById("selfie");
+      const previewBox = document.getElementById("previewBox");
+      const previewImg = document.getElementById("previewImg");
+      const selfieStatus = document.getElementById("selfieStatus");
+
+      selfie.addEventListener("change", () => {
+        const file = selfie.files && selfie.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        previewImg.src = url;
+        previewBox.style.display = "block";
+        selfieStatus.textContent = "ok";
+        selfieStatus.className = "statusOk";
+      });
+
+      // Reset
+      document.getElementById("btnReset").addEventListener("click", () => {
+        document.getElementById("qaForm").reset();
+        document.getElementById("latitude").value = "";
+        document.getElementById("longitude").value = "";
+        document.getElementById("accuracy").value = "";
+        locStatus.textContent = "belum";
+        locStatus.className = "statusWait";
+        locHint.textContent = "aktifkan GPS";
+        previewBox.style.display = "none";
+        selfieStatus.textContent = "belum";
+        selfieStatus.className = "statusWait";
+      });
+
+      // Validasi minimal
+      document.getElementById("qaForm").addEventListener("submit", (e) => {
+        const dev = document.getElementById("device_id").value;
+        if (!dev) {
+          e.preventDefault();
+          alert("Coba refresh.");
+          return;
+        }
+        const file = selfie.files && selfie.files[0];
+        if (!file) {
+          e.preventDefault();
+          alert("Selfie dulu.");
+          return;
+        }
+      });
+    </script>
+  </body>
+</html>
