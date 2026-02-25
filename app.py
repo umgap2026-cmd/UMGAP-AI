@@ -13,6 +13,9 @@ from datetime import datetime, date, timedelta
 from email.message import EmailMessage
 from functools import wraps
 from decimal import Decimal
+import uuid
+import psycopg2
+
 
 # Flask & Extensions
 from flask import (
@@ -94,6 +97,45 @@ def admin_required():
         flash("Akses ditolak. Hanya admin.", "danger")
         return redirect(url_for("dashboard"))
     return None
+
+UPLOAD_QA_DIR = os.path.join("static", "uploads", "quick_attendance")
+
+def _ensure_upload_dir():
+    os.makedirs(UPLOAD_QA_DIR, exist_ok=True)
+
+def cleanup_old_quick_attendance_photos():
+    """
+    Hapus foto quick attendance yang bukan hari ini.
+    Nama file kita buat prefix: qa_YYYY_MM_DD_...
+    """
+    _ensure_upload_dir()
+    today_prefix = "qa_" + date.today().strftime("%Y_%m_%d") + "_"
+    for fn in os.listdir(UPLOAD_QA_DIR):
+        if fn.startswith("qa_") and not fn.startswith(today_prefix):
+            try:
+                os.remove(os.path.join(UPLOAD_QA_DIR, fn))
+            except Exception as e:
+                print("cleanup error:", fn, e)
+
+def is_token_valid(token: str) -> bool:
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT 1 FROM attendance_links WHERE token=%s AND is_active=TRUE LIMIT 1;",
+            (token,)
+        )
+        return cur.fetchone() is not None
+    finally:
+        cur.close()
+        conn.close()
+
+def _public_ip():
+    # Render biasanya set X-Forwarded-For
+    xf = request.headers.get("X-Forwarded-For", "")
+    if xf:
+        return xf.split(",")[0].strip()
+    return request.remote_addr
 
 def login_required():
     def decorator(fn):
@@ -879,6 +921,125 @@ def admin_users_delete(uid):
     conn.close()
     return redirect("/admin/users")
 
+# ---------- ADMIN: APPROVAL QUICK ATTENDANCE ----------
+@app.route("/admin/attendance-approval", methods=["GET"])
+def admin_attendance_approval():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, name_input, device_id, latitude, longitude, accuracy, photo_path, created_at
+            FROM attendance_pending
+            WHERE status='PENDING'
+            ORDER BY created_at DESC;
+        """)
+        pendings = cur.fetchall()
+
+        # daftar karyawan untuk dropdown (role employee)
+        cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+        employees = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template("admin_attendance_approval.html", pendings=pendings, employees=employees)
+
+@app.route("/admin/attendance-approval/approve", methods=["POST"])
+def admin_attendance_approve():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    pending_id = request.form.get("pending_id")
+    user_id = request.form.get("user_id")
+    if not pending_id or not user_id:
+        return redirect("/admin/attendance-approval")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # ambil data pending
+        cur.execute("""
+            SELECT id, name_input, latitude, longitude, accuracy, photo_path, created_at
+            FROM attendance_pending
+            WHERE id=%s AND status='PENDING'
+            LIMIT 1;
+        """, (pending_id,))
+        p = cur.fetchone()
+        if not p:
+            return redirect("/admin/attendance-approval")
+
+        # set approved
+        cur.execute("""
+            UPDATE attendance_pending
+            SET status='APPROVED',
+                approved_user_id=%s,
+                approved_by=%s,
+                approved_at=NOW()
+            WHERE id=%s;
+        """, (int(user_id), session.get("user_id"), int(pending_id)))
+
+        # masukkan ke attendance utama (tanpa ubah schema attendance)
+        work_date = p["created_at"].date()
+        checkin_at = p["created_at"]
+        latv = p.get("latitude")
+        lngv = p.get("longitude")
+        map_url = f"https://www.google.com/maps?q={latv},{lngv}" if (latv is not None and lngv is not None) else ""
+        note = (
+            f"[QUICK] pending_id={p['id']} name_input={p['name_input']} "
+            f"lat={latv} lng={lngv} acc={p.get('accuracy')} "
+            f"map={map_url} "
+            f"photo=/static/{p.get('photo_path')}"
+        )
+
+        # status present + arrival_type ontime
+        cur.execute("""
+            INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
+            VALUES (%s, %s, 'PRESENT', 'ONTIME', %s, %s)
+            ON CONFLICT (user_id, work_date)
+            DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at;
+        """, (int(user_id), work_date, note, checkin_at))
+
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect("/admin/attendance-approval")
+
+@app.route("/admin/attendance-approval/reject", methods=["POST"])
+def admin_attendance_reject():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    pending_id = request.form.get("pending_id")
+    reason = (request.form.get("reason") or "").strip()
+    if not pending_id:
+        return redirect("/admin/attendance-approval")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            UPDATE attendance_pending
+            SET status='REJECTED',
+                rejected_by=%s,
+                rejected_at=NOW(),
+                reject_reason=%s
+            WHERE id=%s AND status='PENDING';
+        """, (session.get("user_id"), reason, int(pending_id)))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect("/admin/attendance-approval")
+
 # ---------- ATTENDANCE ----------
 @app.route("/attendance")
 def attendance_page():
@@ -996,6 +1157,89 @@ def admin_attendance_add():
     cur.close()
     conn.close()
     return redirect("/admin/attendance")
+
+# ---------- QUICK ATTENDANCE (PUBLIC, NO LOGIN) ----------
+@app.route("/quick-attendance/<token>", methods=["GET"])
+def quick_attendance_form(token):
+    if not is_token_valid(token):
+        return "Link absensi tidak valid / sudah nonaktif.", 404
+    return render_template("quick_attendance.html", token=token)
+
+@app.route("/quick-attendance/<token>/submit", methods=["POST"])
+def quick_attendance_submit(token):
+    if not is_token_valid(token):
+        return "Link absensi tidak valid / sudah nonaktif.", 404
+
+    name_input = (request.form.get("name_input") or "").strip()
+    device_id = (request.form.get("device_id") or "").strip()
+    lat = request.form.get("latitude")
+    lng = request.form.get("longitude")
+    acc = request.form.get("accuracy")
+
+    if not name_input:
+        return render_template("quick_attendance.html", token=token, error="Nama wajib diisi.")
+    if not device_id:
+        return render_template("quick_attendance.html", token=token, error="Device tidak terdeteksi. Coba refresh halaman.")
+
+    # selfie file
+    photo = request.files.get("selfie")
+    if not photo or photo.filename == "":
+        return render_template("quick_attendance.html", token=token, error="Selfie wajib diambil.")
+
+    # bersihin foto lama (harian)
+    cleanup_old_quick_attendance_photos()
+
+    # simpan file
+    _ensure_upload_dir()
+    today_tag = date.today().strftime("%Y_%m_%d")
+    filename = f"qa_{today_tag}_{uuid.uuid4().hex}.jpg"
+    save_path = os.path.join(UPLOAD_QA_DIR, filename)
+    photo.save(save_path)
+
+    # path untuk ditampilkan via web
+    photo_path = f"uploads/quick_attendance/{filename}"
+
+    # parse angka (boleh kosong)
+    def _to_float(x):
+        try:
+            return float(x) if x not in (None, "", "null") else None
+        except:
+            return None
+
+    lat_f = _to_float(lat)
+    lng_f = _to_float(lng)
+    acc_f = _to_float(acc)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO attendance_pending
+              (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status)
+            VALUES
+              (%s, %s, %s, %s, %s, %s, %s, 'PENDING')
+            RETURNING id;
+        """, (name_input, device_id, lat_f, lng_f, acc_f, photo_path, _public_ip()))
+        row = cur.fetchone() or {}
+        conn.commit()
+        pending_id = row.get("id")
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        # biasanya kena UNIQUE uq_pending_device_per_day
+        return render_template(
+            "quick_attendance.html",
+            token=token,
+            error="Perangkat ini sudah melakukan absensi hari ini."
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "quick_attendance.html",
+        token=token,
+        success=f"Absensi terkirim (ID #{pending_id}). Menunggu approval admin."
+    )
 
 # ---------- PAYROLL ----------
 def count_workdays_only_sunday_off(start_date, end_date):
