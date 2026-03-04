@@ -590,6 +590,13 @@
 </div>
 
 <script>
+   (function () {
+        const btn = document.getElementById("notifBtn");
+        if (!btn) return;
+        btn.addEventListener("click", () => {
+          window.location.href = "/admin/announcements";
+        });
+      })();
   document.addEventListener(
     "click",
     (e) => {
@@ -602,3 +609,4 @@
   );
 </script>
 {% endblock %}
+
