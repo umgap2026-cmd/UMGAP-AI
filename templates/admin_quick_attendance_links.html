@@ -1,83 +1,55 @@
-<!doctype html>
-<html lang="id">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Link Absen Cepat</title>
-  <style>
-    body{font-family:system-ui,Arial; background:#f2f4f8; margin:0; padding:18px;}
-    .card{max-width:820px; margin:0 auto; background:#fff; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.08)}
-    h1{margin:0 0 10px}
-    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    input{padding:10px 12px; border-radius:12px; border:1px solid #e5e7eb; flex:1}
-    button{padding:10px 12px; border-radius:12px; border:0; cursor:pointer}
-    .btn{background:#2563eb; color:#fff; font-weight:700}
-    .btn2{background:#eef2ff; color:#1e3a8a; font-weight:700}
-    table{width:100%; border-collapse:collapse; margin-top:14px}
-    th,td{padding:10px; border-bottom:1px solid #eee; text-align:left; vertical-align:top}
-    .pill{padding:4px 10px; border-radius:999px; background:#f3f4f6; display:inline-block; font-size:12px; font-weight:700}
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px}
-    a{color:#2563eb; text-decoration:none}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h1>Generate Link Absen Cepat</h1>
-      <a href="/admin/dashboard">← Dashboard</a>
-    </div>
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 
-    <form method="post" class="row" style="margin-top:10px">
-      <input type="hidden" name="action" value="create">
-      <input name="title" placeholder="Nama link (contoh: Absen Shift Pagi)">
-      <button class="btn" type="submit">Buat Link</button>
+<div style="max-width: 750px; margin: auto">
+  <h2>Generate Link Absen Cepat</h2>
+  <p>
+    Admin dapat membuat link absensi tanpa login untuk dibagikan ke karyawan.
+  </p>
+
+  <form method="post" style="margin-bottom: 20px">
+    <input type="hidden" name="action" value="create" />
+
+    <input
+      name="label"
+      placeholder="Contoh: Absen Shift Pagi"
+      style="padding: 10px; width: 70%"
+    />
+
+    <button type="submit">Buat Link</button>
+  </form>
+
+  <hr />
+
+  <h3>Daftar Link</h3>
+
+  {% for l in links %} {% set full = base_url ~ "/quick-attendance/" ~ l.token
+  %}
+
+  <div style="border: 1px solid #ddd; padding: 12px; margin-bottom: 10px">
+    <b>{{ l.label or "Link Absensi" }}</b><br />
+
+    <small>{{ l.created_at }}</small>
+
+    <br /><br />
+
+    <input value="{{ full }}" readonly style="width: 80%" />
+
+    <button onclick="navigator.clipboard.writeText('{{ full }}')">Copy</button>
+
+    <form method="post" style="display: inline">
+      <input type="hidden" name="action" value="toggle" />
+      <input type="hidden" name="id" value="{{l.id}}" />
+
+      <button type="submit">
+        {% if l.is_active %} Nonaktifkan {% else %} Aktifkan {% endif %}
+      </button>
     </form>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Label</th>
-          <th>Link</th>
-          <th>Status</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for l in links %}
-        {% set full = base_url ~ "/quick-attendance/" ~ l.token %}
-        <tr>
-          <td><b>{{ l.title or "Link Absensi" }}</b><div style="color:#666;font-size:12px">{{ l.created_at }}</div></td>
-          <td class="mono">
-            <input id="link-{{l.id}}" value="{{ full }}" readonly style="width:100%">
-            <button type="button" class="btn2" style="margin-top:6px"
-              onclick="navigator.clipboard.writeText(document.getElementById('link-{{l.id}}').value)">
-              Copy
-            </button>
-          </td>
-          <td>
-            {% if l.is_active %}
-              <span class="pill">aktif</span>
-            {% else %}
-              <span class="pill">nonaktif</span>
-            {% endif %}
-          </td>
-          <td>
-            <form method="post">
-              <input type="hidden" name="action" value="toggle">
-              <input type="hidden" name="id" value="{{ l.id }}">
-              <button class="btn2" type="submit">
-                {% if l.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}
-              </button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-
-        {% if links|length == 0 %}
-        <tr><td colspan="4" style="color:#666">Belum ada link.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
   </div>
-</body>
-</html>
+
+  {% endfor %} {% if links|length == 0 %} Belum ada link. {% endif %}
+
+  <br />
+  <a href="/admin/dashboard">← Kembali</a>
+</div>
+
+{% endblock %}
