@@ -1152,23 +1152,7 @@ def attendance_add():
 
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
-    now = _now_wib_naive_from_form()
-    work_date = now.date()
 
-    # ===== status mapping (tetap seperti sekarang) =====
-    if arrival_type in ("ONTIME", "LATE"):
-        status = "PRESENT"
-    elif arrival_type == "SICK":
-        status = "SICK"
-    elif arrival_type == "LEAVE":
-        status = "LEAVE"
-    elif arrival_type == "ABSENT":
-        status = "ABSENT"
-    else:
-        status = "PRESENT"
-        arrival_type = "ONTIME"
-
-    # ===== lokasi & device =====
     device_id = (request.form.get("device_id") or "").strip()
     lat = request.form.get("latitude")
     lng = request.form.get("longitude")
@@ -1187,55 +1171,43 @@ def attendance_add():
     # ===== selfie =====
     photo = request.files.get("selfie")
     photo_path = None
+
     if photo and photo.filename:
         _ensure_att_user_upload_dir()
+
         today_tag = date.today().strftime("%Y_%m_%d")
-        filename = f"att_{today_tag}_{uuid.uuid4().hex}.jpg"
+        filename = f"user_{today_tag}_{uuid.uuid4().hex}.jpg"
+
         save_path = os.path.join(UPLOAD_ATT_USER_DIR, filename)
         photo.save(save_path)
+
         photo_path = f"uploads/attendance_user/{filename}"
 
-    # ===== gabung ke note (tanpa ubah schema attendance) =====
-    map_url = f"https://www.google.com/maps?q={lat_f},{lng_f}" if (lat_f is not None and lng_f is not None) else ""
-    meta_parts = []
-    if device_id:
-        meta_parts.append(f"device={device_id}")
-    if lat_f is not None and lng_f is not None:
-        meta_parts.append(f"lat={lat_f}")
-        meta_parts.append(f"lng={lng_f}")
-    if acc_f is not None:
-        meta_parts.append(f"acc={acc_f}")
-    if map_url:
-        meta_parts.append(f"map={map_url}")
-    if photo_path:
-        meta_parts.append(f"photo=/static/{photo_path}")
-
-    meta = " ".join(meta_parts).strip()
-    if meta:
-        if note:
-            note = f"{note}\n[USER_ATT] {meta}"
-        else:
-            note = f"[USER_ATT] {meta}"
-
-    # ===== insert/update (tetap seperti sekarang) =====
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT 1 FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (session["user_id"], work_date))
-    already = cur.fetchone() is not None
 
-    cur.execute("""
-        INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id, work_date)
-        DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at;
-    """, (session["user_id"], work_date, status, arrival_type, note, now))
+    try:
+        cur.execute("""
+            INSERT INTO attendance_pending
+            (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status)
+            VALUES
+            (%s,%s,%s,%s,%s,%s,%s,'PENDING')
+        """,(
+            session.get("user_name"),
+            device_id,
+            lat_f,
+            lng_f,
+            acc_f,
+            photo_path,
+            _public_ip()
+        ))
 
-    if not already:
-        cur.execute("UPDATE users SET points = COALESCE(points,0) + 1 WHERE id=%s;", (session["user_id"],))
+        conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/attendance")
 
 @app.route("/admin/attendance")
