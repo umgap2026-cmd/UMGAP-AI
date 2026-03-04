@@ -944,7 +944,7 @@ def admin_users_delete(uid):
     conn.close()
     return redirect("/admin/users")
 
-@app.route("/admin/quick-attendance-links", methods=["GET", "POST"])
+@app.route("/admin/quick-attendance-links", methods=["GET","POST"])
 def admin_quick_attendance_links():
     deny = admin_required()
     if deny:
@@ -960,32 +960,41 @@ def admin_quick_attendance_links():
             if action == "create":
                 label = (request.form.get("label") or "").strip() or "Link Absensi"
                 token = uuid.uuid4().hex
+
                 cur.execute("""
                     INSERT INTO attendance_links (token, label, created_by, is_active)
-                    VALUES (%s, %s, %s, TRUE)
-                    RETURNING id, token;
-                """, (token, label, session.get("user_id")))
+                    VALUES (%s,%s,%s,TRUE)
+                """, (token,label,session.get("user_id")))
+
                 conn.commit()
 
             elif action == "toggle":
                 link_id = int(request.form.get("id"))
+
                 cur.execute("""
                     UPDATE attendance_links
                     SET is_active = NOT is_active
-                    WHERE id=%s;
-                """, (link_id,))
+                    WHERE id=%s
+                """,(link_id,))
+
                 conn.commit()
 
         cur.execute("""
-            SELECT id, token, label, created_by, created_at, is_active
+            SELECT id, token, label, created_at, is_active
             FROM attendance_links
             ORDER BY created_at DESC
-            LIMIT 50;
+            LIMIT 50
         """)
+
         links = cur.fetchall()
 
         base_url = request.host_url.rstrip("/")
-        return render_template("admin_quick_attendance_links.html", links=links, base_url=base_url)
+
+        return render_template(
+            "admin_quick_attendance_links.html",
+            links=links,
+            base_url=base_url
+        )
 
     finally:
         cur.close()
