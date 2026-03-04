@@ -490,8 +490,13 @@ admin #} {% block topbar %}{% endblock %} {% block content %}
           <div class="mini">Asia/Jakarta</div>
         </div>
 
-        <form method="POST" action="/attendance/add" style="margin-top: 12px">
+        <form method="POST" action="/attendance/add" style="margin-top: 12px" enctype="multipart/form-data" id="attForm">
           <input type="hidden" name="client_ts" id="clientTs" value="" />
+
+          <input type="hidden" name="device_id" id="device_id" />
+          <input type="hidden" name="latitude" id="latitude" />
+          <input type="hidden" name="longitude" id="longitude" />
+          <input type="hidden" name="accuracy" id="accuracy" />
 
           <label>Tipe kedatangan</label>
           <select name="arrival_type" required>
@@ -510,6 +515,42 @@ admin #} {% block topbar %}{% endblock %} {% block content %}
             name="note"
             placeholder="Contoh: macet, sakit, izin keluarga..."
           ></textarea>
+
+          <div class="divider"></div>
+
+          <!-- LOKASI -->
+          <div>
+            <div class="clock" style="margin-top: 10px">
+              <div class="left">
+                <div class="label">Lokasi</div>
+                <div class="mini" id="locHint">aktifkan GPS</div>
+              </div>
+              <div class="mini" id="locStatus">belum</div>
+            </div>
+
+            <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap">
+              <button class="btn-primary" type="button" id="btnLoc" style="width:auto; padding:12px 14px; height:auto">
+                📍 Ambil Lokasi
+              </button>
+              <div class="mini" style="align-self:center" id="devicePill">📱 -</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- SELFIE -->
+          <div>
+            <label>Selfie (opsional dulu)</label>
+            <input type="file" name="selfie" id="selfie" accept="image/*" capture="user" />
+
+            <div class="item" id="previewBox" style="display:none; margin-top:10px; padding:0; overflow:hidden">
+              <img id="previewImg" alt="preview" style="width:100%; display:block">
+            </div>
+
+            <div class="mini" style="margin-top:8px">
+              Tip: kalau selfie wajib nanti, kita bisa aktifkan validasinya.
+            </div>
+          </div>
 
           <button class="btn-primary" type="submit">Submit Absensi</button>
         </form>
@@ -682,5 +723,74 @@ admin #} {% block topbar %}{% endblock %} {% block content %}
   }
   tick();
   setInterval(tick, 1000);
+   // Device ID
+  (function initDeviceId() {
+    let id = localStorage.getItem("umgap_device_id");
+    if (!id) {
+      id =
+        (crypto?.randomUUID && crypto.randomUUID()) ||
+        "dev_" + Math.random().toString(16).slice(2) + Date.now();
+      localStorage.setItem("umgap_device_id", id);
+    }
+    const inp = document.getElementById("device_id");
+    const pill = document.getElementById("devicePill");
+    if (inp) inp.value = id;
+    if (pill) pill.textContent = "📱 " + id.slice(0, 8) + "…";
+  })();
+
+  // Lokasi
+  const btnLoc = document.getElementById("btnLoc");
+  const locStatus = document.getElementById("locStatus");
+  const locHint = document.getElementById("locHint");
+
+  if (btnLoc) {
+    btnLoc.addEventListener("click", () => {
+      if (locStatus) locStatus.textContent = "ambil…";
+      if (locHint) locHint.textContent = "mohon tunggu…";
+
+      if (!navigator.geolocation) {
+        if (locStatus) locStatus.textContent = "gagal";
+        if (locHint) locHint.textContent = "tidak didukung";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const acc = pos.coords.accuracy;
+
+          document.getElementById("latitude").value = lat;
+          document.getElementById("longitude").value = lng;
+          document.getElementById("accuracy").value = acc;
+
+          if (locStatus) locStatus.textContent = "ok";
+          if (locHint) locHint.textContent =
+            `${lat.toFixed(4)}, ${lng.toFixed(4)} (±${Math.round(acc)}m)`;
+        },
+        (err) => {
+          console.log(err);
+          if (locStatus) locStatus.textContent = "gagal";
+          if (locHint) locHint.textContent = "izinkan lokasi";
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // Selfie preview
+  const selfie = document.getElementById("selfie");
+  const previewBox = document.getElementById("previewBox");
+  const previewImg = document.getElementById("previewImg");
+
+  if (selfie) {
+    selfie.addEventListener("change", () => {
+      const file = selfie.files && selfie.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      if (previewImg) previewImg.src = url;
+      if (previewBox) previewBox.style.display = "block";
+    });
+  }
 </script>
 {% endblock %}
