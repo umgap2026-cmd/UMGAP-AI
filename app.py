@@ -950,8 +950,6 @@ def admin_quick_attendance_links():
     if deny:
         return deny
 
-    ensure_attendance_links_schema()
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -960,13 +958,13 @@ def admin_quick_attendance_links():
             action = (request.form.get("action") or "").strip()
 
             if action == "create":
-                title = (request.form.get("title") or "").strip() or "Link Absensi"
-                token = uuid.uuid4().hex  # token URL-safe
+                label = (request.form.get("label") or "").strip() or "Link Absensi"
+                token = uuid.uuid4().hex
                 cur.execute("""
-                    INSERT INTO attendance_links (token, title, created_by, is_active)
+                    INSERT INTO attendance_links (token, label, created_by, is_active)
                     VALUES (%s, %s, %s, TRUE)
                     RETURNING id, token;
-                """, (token, title, session.get("user_id")))
+                """, (token, label, session.get("user_id")))
                 conn.commit()
 
             elif action == "toggle":
@@ -978,17 +976,15 @@ def admin_quick_attendance_links():
                 """, (link_id,))
                 conn.commit()
 
-        # list links
         cur.execute("""
-            SELECT id, token, title, created_by, created_at, is_active
+            SELECT id, token, label, created_by, created_at, is_active
             FROM attendance_links
             ORDER BY created_at DESC
             LIMIT 50;
         """)
         links = cur.fetchall()
 
-        # base url untuk copy link
-        base_url = request.host_url.rstrip("/")  # ProxyFix sudah kamu set :contentReference[oaicite:2]{index=2}
+        base_url = request.host_url.rstrip("/")
         return render_template("admin_quick_attendance_links.html", links=links, base_url=base_url)
 
     finally:
