@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 # Database
 from psycopg2.extras import RealDictCursor
-from db import db_conn
+from db import get_conn
 
 # AI
 from openai import OpenAI
@@ -56,7 +56,6 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
-app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 # OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -124,7 +123,7 @@ def cleanup_old_quick_attendance_photos():
                 print("cleanup error:", fn, e)
 
 def is_token_valid(token: str) -> bool:
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(
@@ -205,7 +204,7 @@ def _otp_hash(email, otp):
 
 # ==================== SCHEMA ENSURERS ====================
 def ensure_points_schema():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points_admin INTEGER DEFAULT 0;")
@@ -224,7 +223,7 @@ def ensure_points_schema():
     conn.close()
 
 def init_points_v1():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0;")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS points_admin INTEGER NOT NULL DEFAULT 0;")
@@ -243,7 +242,7 @@ def init_points_v1():
     conn.close()
 
 def ensure_hr_v2_schema():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("""
@@ -265,7 +264,7 @@ def ensure_hr_v2_schema():
         conn.close()
 
 def ensure_password_reset_schema():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS password_reset_otps (
@@ -282,7 +281,7 @@ def ensure_password_reset_schema():
     conn.close()
 
 def ensure_announcements_schema():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS announcements (
@@ -308,7 +307,7 @@ def ensure_announcements_schema():
     conn.close()
 
 def get_unread_notifications(user_id):
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
@@ -328,7 +327,7 @@ def get_unread_notifications(user_id):
         conn.close()
 
 def get_notif_count():
-    conn = db_conn()
+    conn = get_conn()
     # PAKAI RealDictCursor kalau kamu konsisten pakai dict di app
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -340,7 +339,7 @@ def get_notif_count():
         conn.close()
 
 def ensure_attendance_links_schema():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     try:
         # 1) pastikan tabel ada (minimal)
@@ -516,7 +515,7 @@ def landing():
 
 @app.route("/db-check")
 def db_check():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT 1 AS ok;")
     row = cur.fetchone()
@@ -526,7 +525,7 @@ def db_check():
 
 @app.route("/init-db")
 def init_db():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -547,7 +546,7 @@ def init_db():
 
 @app.route("/init-products")
 def init_products():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS products (
@@ -585,7 +584,7 @@ def register():
     pw_hash = generate_password_hash(password)
 
     try:
-        conn = db_conn()
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             "INSERT INTO users (name, email, password_hash, role) VALUES (%s, %s, %s, 'employee') RETURNING id;",
@@ -614,7 +613,7 @@ def login():
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id, name, email, password_hash, role FROM users WHERE email=%s;", (email,))
     user = cur.fetchone()
@@ -651,7 +650,7 @@ def google_callback():
     if not email:
         return "Email Google tidak ditemukan", 400
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id, name, role FROM users WHERE lower(email)=%s LIMIT 1;", (email,))
     u = cur.fetchone()
@@ -686,7 +685,7 @@ def forgot_password():
     if not email:
         return "Email wajib diisi.", 400
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id FROM users WHERE lower(email)=%s LIMIT 1;", (email,))
     u = cur.fetchone()
@@ -700,7 +699,7 @@ def forgot_password():
     otp_h = _otp_hash(email, otp)
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE email=%s AND used=FALSE;", (email,))
     cur.execute(
@@ -742,7 +741,7 @@ def reset_password():
         return "Password minimal 6 karakter.", 400
 
     otp_h = _otp_hash(email, otp)
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute(
         "SELECT id, otp_hash, expires_at, used FROM password_reset_otps WHERE email=%s AND used=FALSE ORDER BY created_at DESC LIMIT 1;",
@@ -787,8 +786,9 @@ def dashboard():
     # unread khusus user
     notif_count = get_unread_notifications(session["user_id"])
 
-    ensure_points_schema()
-    conn = db_conn()
+    if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
+        ensure_points_schema()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     cur.execute("SELECT COUNT(*) AS total FROM products WHERE user_id=%s;", (session["user_id"],))
@@ -839,8 +839,9 @@ def admin_dashboard():
     if deny:
         return deny
 
-    ensure_points_schema()
-    conn = db_conn()
+    if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
+        ensure_points_schema()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     cur.execute("SELECT COUNT(*) AS total FROM users WHERE role='employee';")
@@ -874,7 +875,7 @@ def admin_dashboard():
 @app.route("/admin/users")
 def admin_users():
     admin_guard()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary
@@ -900,7 +901,7 @@ def admin_users_create():
         return redirect("/admin/users")
 
     pw_hash = generate_password_hash(password)
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("INSERT INTO users (name, email, password_hash, role) VALUES (%s, %s, %s, %s) RETURNING id;",
         (name, email, pw_hash, role))
@@ -921,7 +922,7 @@ def admin_users_update(uid):
     daily_salary = int(request.form.get("daily_salary") or "0")
     new_password = (request.form.get("new_password") or "").strip()
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
 
     if new_password:
@@ -942,7 +943,7 @@ def admin_users_update(uid):
 def admin_users_delete(uid):
     if uid == session.get("user_id"):
         return redirect("/admin/users")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM users WHERE id=%s;", (uid,))
     conn.commit()
@@ -956,7 +957,7 @@ def admin_quick_attendance_links():
     if deny:
         return deny
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
@@ -1018,7 +1019,7 @@ def admin_attendance_approval():
     if deny:
         return deny
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
@@ -1049,7 +1050,7 @@ def admin_attendance_approve():
     if not pending_id or not user_id:
         return redirect("/admin/attendance-approval")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         # ambil data pending
@@ -1112,7 +1113,7 @@ def admin_attendance_reject():
     if not pending_id:
         return redirect("/admin/attendance-approval")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
@@ -1138,7 +1139,7 @@ def attendance_page():
     if is_admin():
         return redirect("/admin")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT work_date, arrival_type, status, note, checkin_at FROM attendance WHERE user_id=%s ORDER BY work_date DESC, checkin_at DESC NULLS LAST;", (session["user_id"],))
     rows = cur.fetchall()
@@ -1153,7 +1154,23 @@ def attendance_add():
 
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
+    now = _now_wib_naive_from_form()
+    work_date = now.date()
 
+    # ===== status mapping (tetap seperti sekarang) =====
+    if arrival_type in ("ONTIME", "LATE"):
+        status = "PRESENT"
+    elif arrival_type == "SICK":
+        status = "SICK"
+    elif arrival_type == "LEAVE":
+        status = "LEAVE"
+    elif arrival_type == "ABSENT":
+        status = "ABSENT"
+    else:
+        status = "PRESENT"
+        arrival_type = "ONTIME"
+
+    # ===== lokasi & device =====
     device_id = (request.form.get("device_id") or "").strip()
     lat = request.form.get("latitude")
     lng = request.form.get("longitude")
@@ -1172,43 +1189,55 @@ def attendance_add():
     # ===== selfie =====
     photo = request.files.get("selfie")
     photo_path = None
-
     if photo and photo.filename:
         _ensure_att_user_upload_dir()
-
         today_tag = date.today().strftime("%Y_%m_%d")
-        filename = f"user_{today_tag}_{uuid.uuid4().hex}.jpg"
-
+        filename = f"att_{today_tag}_{uuid.uuid4().hex}.jpg"
         save_path = os.path.join(UPLOAD_ATT_USER_DIR, filename)
         photo.save(save_path)
-
         photo_path = f"uploads/attendance_user/{filename}"
 
-    conn = db_conn()
+    # ===== gabung ke note (tanpa ubah schema attendance) =====
+    map_url = f"https://www.google.com/maps?q={lat_f},{lng_f}" if (lat_f is not None and lng_f is not None) else ""
+    meta_parts = []
+    if device_id:
+        meta_parts.append(f"device={device_id}")
+    if lat_f is not None and lng_f is not None:
+        meta_parts.append(f"lat={lat_f}")
+        meta_parts.append(f"lng={lng_f}")
+    if acc_f is not None:
+        meta_parts.append(f"acc={acc_f}")
+    if map_url:
+        meta_parts.append(f"map={map_url}")
+    if photo_path:
+        meta_parts.append(f"photo=/static/{photo_path}")
+
+    meta = " ".join(meta_parts).strip()
+    if meta:
+        if note:
+            note = f"{note}\n[USER_ATT] {meta}"
+        else:
+            note = f"[USER_ATT] {meta}"
+
+    # ===== insert/update (tetap seperti sekarang) =====
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT 1 FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (session["user_id"], work_date))
+    already = cur.fetchone() is not None
 
-    try:
-        cur.execute("""
-            INSERT INTO attendance_pending
-            (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status)
-            VALUES
-            (%s,%s,%s,%s,%s,%s,%s,'PENDING')
-        """,(
-            session.get("user_name"),
-            device_id,
-            lat_f,
-            lng_f,
-            acc_f,
-            photo_path,
-            _public_ip()
-        ))
+    cur.execute("""
+        INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (user_id, work_date)
+        DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at;
+    """, (session["user_id"], work_date, status, arrival_type, note, now))
 
-        conn.commit()
+    if not already:
+        cur.execute("UPDATE users SET points = COALESCE(points,0) + 1 WHERE id=%s;", (session["user_id"],))
 
-    finally:
-        cur.close()
-        conn.close()
-
+    conn.commit()
+    cur.close()
+    conn.close()
     return redirect("/attendance")
 
 @app.route("/admin/attendance")
@@ -1217,7 +1246,7 @@ def admin_attendance():
     if r:
         return r
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
     employees = cur.fetchall()
@@ -1226,7 +1255,7 @@ def admin_attendance():
         FROM attendance a
         JOIN users u ON u.id=a.user_id
         ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-        LIMIT 40;
+        LIMIT 80;
     """)
     rows = cur.fetchall()
     cur.close()
@@ -1255,7 +1284,7 @@ def admin_attendance_add():
         now = _parse_manual_wib_naive(manual_checkin) or _now_wib_naive_from_form()
 
     work_date = now.date()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
     existing = cur.fetchone()
@@ -1324,7 +1353,7 @@ def quick_attendance_submit(token):
     lng_f = _to_float(lng)
     acc_f = _to_float(acc)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
@@ -1382,7 +1411,7 @@ def admin_payroll():
     end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
     WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT u.id, u.name, COALESCE(p.daily_salary, 0) AS daily_salary, COALESCE(p.monthly_salary, 0) AS monthly_salary,
@@ -1440,7 +1469,7 @@ def sales_user():
         if qty_int <= 0:
             return redirect("/sales")
 
-        conn = db_conn()
+        conn = get_conn()
         cur = conn.cursor()
         cur.execute("SELECT id FROM products WHERE id=%s AND is_global=TRUE;", (product_id,))
         ok = cur.fetchone()
@@ -1457,7 +1486,7 @@ def sales_user():
         conn.close()
         return redirect("/sales")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, name FROM products WHERE is_global=TRUE ORDER BY id DESC;")
     products = cur.fetchall()
@@ -1476,7 +1505,7 @@ def sales_user():
 @app.route("/admin/sales")
 def admin_sales():
     admin_guard()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         SELECT s.id, s.qty, s.note, s.status, s.admin_note, s.created_at, u.name AS employee_name, p.name AS product_name
@@ -1494,7 +1523,7 @@ def admin_sales():
 def admin_sales_approve(sid):
     admin_guard()
     admin_note = (request.form.get("admin_note") or "").strip()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE sales_submissions SET status='APPROVED', admin_note=%s, decided_at=CURRENT_TIMESTAMP, decided_by=%s WHERE id=%s;",
         (admin_note, session["user_id"], sid))
@@ -1507,7 +1536,7 @@ def admin_sales_approve(sid):
 def admin_sales_reject(sid):
     admin_guard()
     admin_note = (request.form.get("admin_note") or "").strip()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE sales_submissions SET status='REJECTED', admin_note=%s, decided_at=CURRENT_TIMESTAMP, decided_by=%s WHERE id=%s;",
         (admin_note, session["user_id"], sid))
@@ -1519,7 +1548,7 @@ def admin_sales_reject(sid):
 @app.route("/admin/sales/monitor")
 def admin_sales_monitor():
     admin_guard()
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         SELECT u.id, u.name AS employee_name, COALESCE(SUM(s.qty), 0) AS total_qty
@@ -1555,7 +1584,7 @@ def admin_stats():
     start_date = date(year, mon, 1)
     end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         SELECT u.id, u.name AS employee_name,
@@ -1610,7 +1639,7 @@ def products():
     if not is_logged_in():
         return redirect("/login")
     # Semua user yang login bisa akses (admin dan employee)
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, name, price, user_id, is_global FROM products ORDER BY id DESC;")
     rows = cur.fetchall()
@@ -1633,7 +1662,7 @@ def products_add():
             price_int = 0
     except ValueError:
         price_int = 0
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("INSERT INTO products (user_id, name, price, is_global) VALUES (%s, %s, %s, TRUE);",
         (session["user_id"], name, price_int))
@@ -1647,7 +1676,7 @@ def products_delete(pid):
     if not is_logged_in():
         return redirect("/login")
     # Semua user yang login bisa hapus produk
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM products WHERE id=%s;", (pid,))
     conn.commit()
@@ -1660,7 +1689,7 @@ def products_edit(pid):
     if not is_logged_in():
         return redirect("/login")
     # Semua user yang login bisa edit produk
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, name, price, user_id, is_global FROM products WHERE id=%s;", (pid,))
     product = cur.fetchone()
@@ -1693,7 +1722,7 @@ def products_edit(pid):
 # ---------- CONTENT ----------
 @app.route("/init-content")
 def init_content():
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS content_plans (
@@ -1716,7 +1745,7 @@ def init_content():
 def content():
     if not is_logged_in():
         return redirect("/login")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, plan_date, platform, content_type, notes, is_done FROM content_plans WHERE user_id=%s ORDER BY plan_date DESC, id DESC;", (session["user_id"],))
     plans = cur.fetchall()
@@ -1734,7 +1763,7 @@ def content_add():
     notes = (request.form.get("notes") or "").strip()
     if not plan_date or not platform or not content_type:
         return redirect("/content")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("INSERT INTO content_plans (user_id, plan_date, platform, content_type, notes) VALUES (%s, %s, %s, %s, %s);",
         (session["user_id"], plan_date, platform, content_type, notes))
@@ -1747,7 +1776,7 @@ def content_add():
 def content_done(cid):
     if not is_logged_in():
         return redirect("/login")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE content_plans SET is_done=TRUE WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
     conn.commit()
@@ -1759,7 +1788,7 @@ def content_done(cid):
 def content_undo(cid):
     if not is_logged_in():
         return redirect("/login")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE content_plans SET is_done=FALSE WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
     conn.commit()
@@ -1771,7 +1800,7 @@ def content_undo(cid):
 def content_delete(cid):
     if not is_logged_in():
         return redirect("/login")
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM content_plans WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
     conn.commit()
@@ -1825,7 +1854,7 @@ def notifications():
     if "user_id" not in session:
         return redirect("/login")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT id, title, message, created_at
@@ -1845,7 +1874,7 @@ def mark_notification_read(ann_id):
     if "user_id" not in session:
         return redirect("/login")
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
 
     cur.execute("""
@@ -1864,7 +1893,7 @@ def admin_announcements():
     if session.get("role") != "admin":
         return abort(403)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     cur.execute("SELECT * FROM announcements ORDER BY created_at DESC")
@@ -1882,7 +1911,7 @@ def add_announcement():
     title = request.form["title"]
     message = request.form["message"]
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
 
     cur.execute("""
@@ -1900,7 +1929,7 @@ def delete_announcement(id):
     if session.get("role") != "admin":
         return abort(403)
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor()
 
     cur.execute("DELETE FROM announcements WHERE id=%s", (id,))
@@ -2002,8 +2031,9 @@ def admin_points():
     deny = admin_required()
     if deny:
         return deny
-    ensure_points_schema()
-    conn = db_conn()
+    if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
+        ensure_points_schema()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT id, name, email, COALESCE(points, 0) AS points, COALESCE(points_admin, 0) AS points_admin
@@ -2027,7 +2057,8 @@ def admin_points_add():
     deny = admin_required()
     if deny:
         return deny
-    ensure_points_schema()
+    if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
+        ensure_points_schema()
     user_id = int(request.form["user_id"])
     delta_raw = (request.form.get("delta") or "").strip()
     note = (request.form.get("note") or "").strip()
@@ -2035,7 +2066,7 @@ def admin_points_add():
         delta = int(delta_raw)
     except:
         return "Delta poin harus angka.", 400
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("UPDATE users SET points_admin = COALESCE(points_admin,0) + %s WHERE id=%s AND role='employee';", (delta, user_id))
     cur.execute("INSERT INTO points_logs (user_id, admin_id, delta, note) VALUES (%s, %s, %s, %s);", (user_id, session.get("user_id"), delta, note if note else None))
@@ -2106,7 +2137,7 @@ def admin_download_range_xlsx():
     if not ok:
         return msg, 400
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT u.name, COALESCE(p.daily_salary, 0) AS daily_salary, a.work_date, a.status, a.note, a.checkin_at
@@ -2165,7 +2196,7 @@ def admin_download_range_user_xlsx():
     if not ok:
         return msg, 400
 
-    conn = db_conn()
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("SELECT id, name FROM users WHERE id=%s LIMIT 1;", (int(user_id),))
     urow = cur.fetchone()
@@ -2229,7 +2260,8 @@ if __name__ == "__main__":
 # Init DB on startup
 def safe_init_db():
     try:
-        ensure_points_schema()
+        if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
+            ensure_points_schema()
         ensure_hr_v2_schema()
         init_points_v1()
         ensure_announcements_schema()
