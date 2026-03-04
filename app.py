@@ -333,6 +333,25 @@ def get_notif_count():
         cur.close()
         conn.close()
 
+def ensure_attendance_links_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS attendance_links (
+                id SERIAL PRIMARY KEY,
+                token TEXT UNIQUE NOT NULL,
+                title TEXT,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE
+            );
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
 # ==================== AI CAPTION GENERATOR ====================
 def generate_caption_ai(product, price, style, brand="", platform="Instagram", notes=""):
     product = (product or "").strip()
@@ -920,6 +939,57 @@ def admin_users_delete(uid):
     cur.close()
     conn.close()
     return redirect("/admin/users")
+
+@app.route("/admin/quick-attendance-links", methods=["GET", "POST"])
+def admin_quick_attendance_links():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_attendance_links_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        if request.method == "POST":
+            action = (request.form.get("action") or "").strip()
+
+            if action == "create":
+                title = (request.form.get("title") or "").strip() or "Link Absensi"
+                token = uuid.uuid4().hex  # token URL-safe
+                cur.execute("""
+                    INSERT INTO attendance_links (token, title, created_by, is_active)
+                    VALUES (%s, %s, %s, TRUE)
+                    RETURNING id, token;
+                """, (token, title, session.get("user_id")))
+                conn.commit()
+
+            elif action == "toggle":
+                link_id = int(request.form.get("id"))
+                cur.execute("""
+                    UPDATE attendance_links
+                    SET is_active = NOT is_active
+                    WHERE id=%s;
+                """, (link_id,))
+                conn.commit()
+
+        # list links
+        cur.execute("""
+            SELECT id, token, title, created_by, created_at, is_active
+            FROM attendance_links
+            ORDER BY created_at DESC
+            LIMIT 50;
+        """)
+        links = cur.fetchall()
+
+        # base url untuk copy link
+        base_url = request.host_url.rstrip("/")  # ProxyFix sudah kamu set :contentReference[oaicite:2]{index=2}
+        return render_template("admin_quick_attendance_links.html", links=links, base_url=base_url)
+
+    finally:
+        cur.close()
+        conn.close()
 
 # ---------- ADMIN: APPROVAL QUICK ATTENDANCE ----------
 @app.route("/admin/attendance-approval", methods=["GET"])
