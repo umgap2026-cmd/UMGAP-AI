@@ -109,4 +109,10 @@ def close_pool():
         finally:
             _POOL = None
 
+# === Compatibility layer (biar app.py lama tetap jalan) ===
+def get_conn():
+    # Kembalikan koneksi dari pool (PooledConn)
+    return db_conn()
+
 atexit.register(close_pool)
+
