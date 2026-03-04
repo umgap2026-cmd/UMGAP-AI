@@ -614,14 +614,40 @@
               {% for r in rows %}
               <tr
                 class="h-row"
-                data-search="{{ (r.employee_name ~ ' ' ~ r.work_date ~ ' ' ~ r.checkin_at ~ ' ' ~ r.arrival_type ~ ' ' ~ r.status ~ ' ' ~ (r.note or '-'))|lower }}"
+                data-search="{{ (r.employee_name ~ ' ' ~ r.work_date ~ ' ' ~ r.checkin_at ~ ' ' ~ r.arrival_type ~ ' ' ~ r.status ~ ' ' ~ (r.note or '-') )|lower }}"
               >
                 <td>{{ r.work_date }}</td>
                 <td class="mini">{{ r.checkin_at }}</td>
                 <td style="font-weight: 1000">{{ r.employee_name }}</td>
                 <td>{{ r.arrival_type }}</td>
                 <td><span class="badge2">{{ r.status }}</span></td>
-                <td class="note">{{ r.note or "-" }}</td>
+
+                <!-- CATATAN + BUKTI (rapi, tidak teks panjang) -->
+                <td class="note">
+                  <div>{{ r.note or "-" }}</div>
+
+                  <div
+                    style="
+                      margin-top: 6px;
+                      display: flex;
+                      gap: 10px;
+                      flex-wrap: wrap;
+                    "
+                  >
+                    {% if r.map_url %}
+                    <a href="{{ r.map_url }}" target="_blank" rel="noopener"
+                      >📍 Lokasi</a
+                    >
+                    {% endif %} {% if r.photo_path %}
+                    <a
+                      href="/static/{{ r.photo_path }}"
+                      target="_blank"
+                      rel="noopener"
+                      >🤳 Foto</a
+                    >
+                    {% endif %}
+                  </div>
+                </td>
               </tr>
               {% endfor %} {% if rows|length == 0 %}
               <tr>
