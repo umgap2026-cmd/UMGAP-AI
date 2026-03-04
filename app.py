@@ -1225,7 +1225,7 @@ def admin_attendance():
         FROM attendance a
         JOIN users u ON u.id=a.user_id
         ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-        LIMIT 80;
+        LIMIT 40;
     """)
     rows = cur.fetchall()
     cur.close()
