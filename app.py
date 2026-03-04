@@ -979,6 +979,11 @@ def admin_quick_attendance_links():
 
                 conn.commit()
 
+            elif action == "delete":
+                link_id = int(request.form.get("id"))
+                cur.execute("DELETE FROM attendance_links WHERE id=%s", (link_id,))
+                conn.commit()
+
         cur.execute("""
             SELECT id, token, label, created_at, is_active
             FROM attendance_links
