@@ -56,6 +56,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 # OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
