@@ -337,16 +337,20 @@ def ensure_attendance_links_schema():
     conn = get_conn()
     cur = conn.cursor()
     try:
+        # 1) pastikan tabel ada (minimal)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS attendance_links (
                 id SERIAL PRIMARY KEY,
-                token TEXT UNIQUE NOT NULL,
-                title TEXT,
-                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE
+                token TEXT UNIQUE NOT NULL
             );
         """)
+
+        # 2) migrasi kolom-kolom yang mungkin belum ada (untuk DB lama)
+        cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS title TEXT;")
+        cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS created_by INTEGER;")
+        cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;")
+        cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;")
+
         conn.commit()
     finally:
         cur.close()
