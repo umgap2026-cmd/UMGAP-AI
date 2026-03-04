@@ -1012,7 +1012,7 @@ def admin_quick_attendance_links():
         cur.close()
         conn.close()
 
-# ---------- ADMIN: APPROVAL QUICK ATTENDANCE ----------
+# ---------- ADMIN: APPROVAL ATTENDANCE (QUICK + USER LOGIN) ----------
 @app.route("/admin/attendance-approval", methods=["GET"])
 def admin_attendance_approval():
     deny = admin_required()
@@ -1022,15 +1022,24 @@ def admin_attendance_approval():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        # tampilkan pending: untuk quick (name_input ada) & untuk login (user_id/work_date/arrival_type/note ada)
         cur.execute("""
-            SELECT id, name_input, device_id, latitude, longitude, accuracy, photo_path, created_at
+            SELECT
+                id,
+                name_input,
+                user_id,
+                work_date,
+                arrival_type,
+                note,
+                device_id, latitude, longitude, accuracy, photo_path,
+                created_at
             FROM attendance_pending
             WHERE status='PENDING'
-            ORDER BY created_at DESC;
+            ORDER BY created_at DESC
+            LIMIT 200;
         """)
         pendings = cur.fetchall()
 
-        # daftar karyawan untuk dropdown (role employee)
         cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
         employees = cur.fetchall()
     finally:
@@ -1039,6 +1048,7 @@ def admin_attendance_approval():
 
     return render_template("admin_attendance_approval.html", pendings=pendings, employees=employees)
 
+
 @app.route("/admin/attendance-approval/approve", methods=["POST"])
 def admin_attendance_approve():
     deny = admin_required()
@@ -1046,25 +1056,67 @@ def admin_attendance_approve():
         return deny
 
     pending_id = request.form.get("pending_id")
-    user_id = request.form.get("user_id")
-    if not pending_id or not user_id:
+    user_id_form = request.form.get("user_id")  # dropdown (untuk quick)
+    if not pending_id:
         return redirect("/admin/attendance-approval")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # ambil data pending
         cur.execute("""
-            SELECT id, name_input, latitude, longitude, accuracy, photo_path, created_at
+            SELECT
+                id, name_input,
+                user_id, work_date, arrival_type, note,
+                device_id, latitude, longitude, accuracy, photo_path,
+                created_at
             FROM attendance_pending
             WHERE id=%s AND status='PENDING'
             LIMIT 1;
-        """, (pending_id,))
+        """, (int(pending_id),))
         p = cur.fetchone()
         if not p:
             return redirect("/admin/attendance-approval")
 
-        # set approved
+        # Tentukan user_id target:
+        # - Jika pending berasal dari user login: p.user_id sudah ada
+        # - Jika quick: ambil dari dropdown user_id_form
+        target_user_id = p.get("user_id") or (int(user_id_form) if user_id_form else None)
+        if not target_user_id:
+            return redirect("/admin/attendance-approval")
+
+        # tanggal kerja:
+        # - Jika pending punya work_date: pakai itu
+        # - Jika quick: pakai created_at date
+        work_date = p.get("work_date") or p["created_at"].date()
+        checkin_at = p["created_at"]
+
+        # arrival_type:
+        # - user login: bisa ONTIME/LATE/SICK/LEAVE/ABSENT
+        # - quick: default ONTIME
+        arrival_type = (p.get("arrival_type") or "ONTIME").strip().upper()
+
+        # status mapping
+        if arrival_type in ("ONTIME", "LATE"):
+            status = "PRESENT"
+        elif arrival_type == "SICK":
+            status = "SICK"
+        elif arrival_type == "LEAVE":
+            status = "LEAVE"
+        elif arrival_type == "ABSENT":
+            status = "ABSENT"
+        else:
+            status = "PRESENT"
+            arrival_type = "ONTIME"
+
+        # map_url
+        latv = p.get("latitude")
+        lngv = p.get("longitude")
+        map_url = f"https://www.google.com/maps?q={latv},{lngv}" if (latv is not None and lngv is not None) else None
+
+        # NOTE BERSIH: hanya catatan user (tanpa metadata panjang)
+        clean_note = (p.get("note") or "").strip()
+
+        # set pending approved
         cur.execute("""
             UPDATE attendance_pending
             SET status='APPROVED',
@@ -1072,28 +1124,42 @@ def admin_attendance_approve():
                 approved_by=%s,
                 approved_at=NOW()
             WHERE id=%s;
-        """, (int(user_id), session.get("user_id"), int(pending_id)))
+        """, (int(target_user_id), session.get("user_id"), int(pending_id)))
 
-        # masukkan ke attendance utama (tanpa ubah schema attendance)
-        work_date = p["created_at"].date()
-        checkin_at = p["created_at"]
-        latv = p.get("latitude")
-        lngv = p.get("longitude")
-        map_url = f"https://www.google.com/maps?q={latv},{lngv}" if (latv is not None and lngv is not None) else ""
-        note = (
-            f"[QUICK] pending_id={p['id']} name_input={p['name_input']} "
-            f"lat={latv} lng={lngv} acc={p.get('accuracy')} "
-            f"map={map_url} "
-            f"photo=/static/{p.get('photo_path')}"
-        )
-
-        # status present + arrival_type ontime
+        # masukkan ke attendance utama (BUKTI disimpan di kolom khusus)
         cur.execute("""
-            INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-            VALUES (%s, %s, 'PRESENT', 'ONTIME', %s, %s)
+            INSERT INTO attendance
+                (user_id, work_date, status, arrival_type, note, checkin_at,
+                 device_id, latitude, longitude, accuracy, photo_path, map_url)
+            VALUES
+                (%s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s)
             ON CONFLICT (user_id, work_date)
-            DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at;
-        """, (int(user_id), work_date, note, checkin_at))
+            DO UPDATE SET
+                status=EXCLUDED.status,
+                arrival_type=EXCLUDED.arrival_type,
+                note=EXCLUDED.note,
+                checkin_at=EXCLUDED.checkin_at,
+                device_id=EXCLUDED.device_id,
+                latitude=EXCLUDED.latitude,
+                longitude=EXCLUDED.longitude,
+                accuracy=EXCLUDED.accuracy,
+                photo_path=EXCLUDED.photo_path,
+                map_url=EXCLUDED.map_url;
+        """, (
+            int(target_user_id),
+            work_date,
+            status,
+            arrival_type,
+            clean_note,
+            checkin_at,
+            p.get("device_id"),
+            latv,
+            lngv,
+            p.get("accuracy"),
+            p.get("photo_path"),
+            map_url
+        ))
 
         conn.commit()
     finally:
@@ -1101,6 +1167,7 @@ def admin_attendance_approve():
         conn.close()
 
     return redirect("/admin/attendance-approval")
+
 
 @app.route("/admin/attendance-approval/reject", methods=["POST"])
 def admin_attendance_reject():
@@ -1157,20 +1224,6 @@ def attendance_add():
     now = _now_wib_naive_from_form()
     work_date = now.date()
 
-    # ===== status mapping (tetap seperti sekarang) =====
-    if arrival_type in ("ONTIME", "LATE"):
-        status = "PRESENT"
-    elif arrival_type == "SICK":
-        status = "SICK"
-    elif arrival_type == "LEAVE":
-        status = "LEAVE"
-    elif arrival_type == "ABSENT":
-        status = "ABSENT"
-    else:
-        status = "PRESENT"
-        arrival_type = "ONTIME"
-
-    # ===== lokasi & device =====
     device_id = (request.form.get("device_id") or "").strip()
     lat = request.form.get("latitude")
     lng = request.form.get("longitude")
@@ -1186,58 +1239,48 @@ def attendance_add():
     lng_f = _to_float(lng)
     acc_f = _to_float(acc)
 
-    # ===== selfie =====
+    # selfie upload
     photo = request.files.get("selfie")
     photo_path = None
     if photo and photo.filename:
-        _ensure_att_user_upload_dir()
+        os.makedirs(os.path.join("static", "uploads", "attendance_user"), exist_ok=True)
         today_tag = date.today().strftime("%Y_%m_%d")
         filename = f"att_{today_tag}_{uuid.uuid4().hex}.jpg"
-        save_path = os.path.join(UPLOAD_ATT_USER_DIR, filename)
+        save_path = os.path.join("static", "uploads", "attendance_user", filename)
         photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
 
-    # ===== gabung ke note (tanpa ubah schema attendance) =====
-    map_url = f"https://www.google.com/maps?q={lat_f},{lng_f}" if (lat_f is not None and lng_f is not None) else ""
-    meta_parts = []
-    if device_id:
-        meta_parts.append(f"device={device_id}")
-    if lat_f is not None and lng_f is not None:
-        meta_parts.append(f"lat={lat_f}")
-        meta_parts.append(f"lng={lng_f}")
-    if acc_f is not None:
-        meta_parts.append(f"acc={acc_f}")
-    if map_url:
-        meta_parts.append(f"map={map_url}")
-    if photo_path:
-        meta_parts.append(f"photo=/static/{photo_path}")
-
-    meta = " ".join(meta_parts).strip()
-    if meta:
-        if note:
-            note = f"{note}\n[USER_ATT] {meta}"
-        else:
-            note = f"[USER_ATT] {meta}"
-
-    # ===== insert/update (tetap seperti sekarang) =====
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT 1 FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (session["user_id"], work_date))
-    already = cur.fetchone() is not None
+    try:
+        # masukkan ke pending (menunggu admin)
+        cur.execute("""
+            INSERT INTO attendance_pending
+                (user_id, work_date, arrival_type, note,
+                 name_input, device_id, latitude, longitude, accuracy, photo_path,
+                 ip_address, status)
+            VALUES
+                (%s,%s,%s,%s,
+                 %s,%s,%s,%s,%s,%s,
+                 %s,'PENDING')
+        """, (
+            session.get("user_id"),
+            work_date,
+            arrival_type,
+            note,
+            session.get("user_name"),
+            device_id,
+            lat_f,
+            lng_f,
+            acc_f,
+            photo_path,
+            _public_ip()
+        ))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
 
-    cur.execute("""
-        INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id, work_date)
-        DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at;
-    """, (session["user_id"], work_date, status, arrival_type, note, now))
-
-    if not already:
-        cur.execute("UPDATE users SET points = COALESCE(points,0) + 1 WHERE id=%s;", (session["user_id"],))
-
-    conn.commit()
-    cur.close()
-    conn.close()
     return redirect("/attendance")
 
 @app.route("/admin/attendance")
