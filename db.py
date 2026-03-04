@@ -1,31 +1,78 @@
 import os
+import atexit
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import ThreadedConnectionPool
 from dotenv import load_dotenv
+from pathlib import Path
+from contextlib import contextmanager
 
-load_dotenv()
+# paksa baca .env dari folder project (root)
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
-def get_conn():
-    # Prioritas: DATABASE_URL (Render)
-    db_url = os.getenv("DATABASE_URL")
+_POOL = None
 
-    if db_url:
-        # pastikan sslmode=require (Render biasanya perlu)
-        if "sslmode=" not in db_url:
-            joiner = "&" if "?" in db_url else "?"
-            db_url = db_url + f"{joiner}sslmode=require"
+def _init_pool():
+    """
+    Buat pool koneksi sekali saja.
+    Ini jauh lebih cepat daripada connect tiap request.
+    """
+    global _POOL
+    if _POOL is not None:
+        return _POOL
 
-        return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+    minconn = int(os.getenv("DB_POOL_MIN", "1"))
+    maxconn = int(os.getenv("DB_POOL_MAX", "6"))
 
-    # Fallback: pecahan env (local)
-    db_password = os.getenv("DB_PASSWORD") or os.getenv("DB_PASS")
-
-    return psycopg2.connect(
+    _POOL = ThreadedConnectionPool(
+        minconn=minconn,
+        maxconn=maxconn,
         host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT", "5432"),
+        port=os.getenv("DB_PORT"),
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
-        password=db_password,
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        cursor_factory=RealDictCursor,
+        password=os.getenv("DB_PASSWORD"),
+
+        # bikin koneksi lebih stabil di Render
+        connect_timeout=8,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=5,
+        sslmode=os.getenv("DB_SSLMODE", "require"),
     )
+
+    return _POOL
+
+@contextmanager
+def db_conn():
+    """
+    Pakai ini di app.py:
+        with db_conn() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            ...
+    """
+    pool = _init_pool()
+    conn = pool.getconn()
+    try:
+        yield conn
+        # commit dilakukan manual di app (lebih aman), tapi kalau lupa tetap bisa
+    finally:
+        # rollback kalau ada transaksi nyangkut
+        try:
+            if conn and conn.status != psycopg2.extensions.STATUS_READY:
+                conn.rollback()
+        except Exception:
+            pass
+        pool.putconn(conn)
+
+def close_pool():
+    global _POOL
+    if _POOL is not None:
+        try:
+            _POOL.closeall()
+        finally:
+            _POOL = None
+
+atexit.register(close_pool)
