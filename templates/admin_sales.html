@@ -10,7 +10,6 @@
     --shadow-in:
       inset 10px 10px 18px rgba(25, 45, 80, 0.12),
       inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-
     --soft-in:
       inset 6px 6px 12px rgba(25, 45, 80, 0.1),
       inset -6px -6px 12px rgba(255, 255, 255, 0.92);
@@ -19,14 +18,13 @@
     --pill: 999px;
 
     --blue: #2f5f8f;
-    --primary: #2563eb;
-    --primary2: #1d4ed8;
+    --green: #16a34a;
+    --red: #dc2626;
     --border: rgba(125, 138, 166, 0.22);
 
     --bottom-nav-h: 92px;
   }
 
-  /* penting: ruang bawah biar konten tidak ketutup nav fixed */
   body {
     padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
   }
@@ -48,21 +46,19 @@
     }
   }
 
-  /* ===== Header Baru (SAMA seperti admin_users) ===== */
+  /* ===== Header ===== */
   .head-card {
     background: #fff;
     border-radius: var(--radius);
     box-shadow: var(--shadow-out);
     padding: 12px;
   }
-
   .head-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
   }
-
   .logo {
     width: 44px;
     height: 44px;
@@ -87,7 +83,6 @@
     gap: 10px;
     margin-left: auto;
   }
-
   .userpill {
     display: flex;
     align-items: center;
@@ -136,7 +131,7 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .badge {
+  .notif-badge {
     position: absolute;
     top: -6px;
     right: -6px;
@@ -148,7 +143,6 @@
     border-radius: 999px;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
   }
-
   .rgb {
     height: 3px;
     border-radius: 999px;
@@ -164,7 +158,7 @@
     );
   }
 
-  /* ===== Card neumorphism ===== */
+  /* ===== Cards ===== */
   .main-card {
     margin-top: 14px;
     background: var(--card);
@@ -199,7 +193,57 @@
     margin: 12px 0;
   }
 
-  /* ===== Form styling sama tone ===== */
+  /* ===== Stat pills ===== */
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    flex: 1 1 80px;
+    background: #f2f5fb;
+    border-radius: 16px;
+    box-shadow: var(--soft-in);
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .stat-pill .s-num {
+    font-size: 22px;
+    font-weight: 1000;
+    color: var(--text);
+  }
+  .stat-pill .s-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    margin-top: 2px;
+  }
+  .stat-pill.ok .s-num {
+    color: #166534;
+  }
+  .stat-pill.bad .s-num {
+    color: #991b1b;
+  }
+  .stat-pill.pend .s-num {
+    color: #92400e;
+  }
+
+  /* ===== Search row ===== */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .search-row .sr-left {
+    flex: 1 1 220px;
+  }
+  .search-row .sr-right {
+    flex: 1 1 220px;
+  }
+
   label {
     display: block;
     margin: 10px 0 6px;
@@ -219,136 +263,80 @@
     padding: 12px 12px;
     font-size: 14px;
     color: var(--text);
-  }
-  textarea {
-    min-height: 92px;
-    resize: vertical;
+    box-sizing: border-box;
   }
 
+  /* ===== Buttons ===== */
   .btn-primary {
     width: 100%;
-    height: 52px;
+    height: 48px;
     border: none;
-    border-radius: 16px;
+    border-radius: 14px;
     cursor: pointer;
     font-weight: 900;
     background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
     color: #fff;
-    box-shadow: 0 12px 20px rgba(41, 83, 126, 0.22);
-  }
-
-  /* ===== clock pill ===== */
-  .clock-wrap {
-    margin-top: 12px;
-    display: flex;
-    justify-content: flex-start;
-  }
-  .clock-pill {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 16px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-  }
-  .clock-pill .lbl {
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  .clock-pill .val {
-    font-size: 18px;
-    font-weight: 1000;
-    color: var(--text);
-    letter-spacing: 0.6px;
-  }
-
-  /* ===== Grid 2 card ===== */
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 14px;
-  }
-  @media (min-width: 980px) {
-    .grid2 {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  /* ===== Riwayat (ringkas + search) ===== */
-  .search-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    justify-content: space-between;
-    flex-wrap: wrap;
-  }
-  .search-row .left {
-    flex: 1 1 220px;
-  }
-  .search-row .right {
-    flex: 1 1 220px;
-  }
-  #historySearch {
-    width: 100%;
-  }
-
-  .tablewrap {
-    display: none;
-    overflow: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 780px;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    overflow: hidden;
-  }
-  th,
-  td {
-    padding: 12px 12px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
-    text-align: left;
-    vertical-align: top;
+    box-shadow: 0 10px 18px rgba(41, 83, 126, 0.22);
     font-size: 14px;
   }
-  th {
-    color: var(--muted);
-    font-size: 12px;
+  .btn-approve {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
     font-weight: 900;
+    font-size: 13px;
+    background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(21, 128, 61, 0.22);
   }
-  td.note {
-    white-space: normal;
-    max-width: 420px;
-    word-break: break-word;
+  .btn-reject {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 13px;
+    background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(185, 28, 28, 0.22);
   }
 
+  /* ===== Badge status ===== */
   .badge2 {
     display: inline-flex;
-    padding: 6px 10px;
+    padding: 5px 10px;
     border-radius: 999px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: #2a3b58;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 900;
     white-space: nowrap;
   }
+  .badge2.ok {
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+  }
+  .badge2.bad {
+    background: rgba(220, 38, 38, 0.12);
+    color: #991b1b;
+  }
+  .badge2.pend {
+    background: rgba(146, 64, 14, 0.1);
+    color: #92400e;
+  }
 
+  /* ===== Mobile List ===== */
   .list {
     display: grid;
     gap: 12px;
-    margin-top: 10px;
+    margin-top: 12px;
   }
   .item {
     background: #fff;
     border-radius: 18px;
     box-shadow: var(--shadow-out);
-    padding: 12px;
+    padding: 14px;
   }
   .item-top {
     display: flex;
@@ -359,34 +347,99 @@
   .hname {
     margin: 0;
     font-weight: 1000;
+    font-size: 15px;
   }
   .hsub {
-    margin: 6px 0 0;
+    margin: 5px 0 0;
     color: var(--muted);
     font-size: 13px;
-    line-height: 1.35;
-    overflow-wrap: anywhere; /* kunci: memaksa wrap */
-    word-break: break-word; /* fallback */
-  }
-
-  /* khusus catatan panjang supaya rapi */
-  .note-preview {
-    margin-top: 10px;
+    line-height: 1.4;
     overflow-wrap: anywhere;
     word-break: break-word;
-    line-height: 1.35;
-
-    /* biar tidak kepanjangan di mobile */
-    display: -webkit-box;
-
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
   .hmeta {
     margin-top: 8px;
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .action-form {
+    margin-top: 12px;
+  }
+  .action-form input {
+    margin-bottom: 8px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .admin-note-done {
+    margin-top: 10px;
+    background: #f2f5fb;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .admin-note-done b {
+    color: var(--text);
+  }
+
+  /* ===== Desktop Table ===== */
+  .tablewrap {
+    display: none;
+    overflow: auto;
+    margin-top: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 820px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.15);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    background: #f8faff;
+  }
+  td.note-cell {
+    white-space: normal;
+    max-width: 300px;
+    word-break: break-word;
+  }
+
+  .tbl-action {
+    min-width: 240px;
+  }
+  .tbl-actbox {
+    display: grid;
+    gap: 8px;
+  }
+  .tbl-actbox input {
+    margin: 0;
+  }
+  .tbl-btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .tbl-btn-row .btn-approve,
+  .tbl-btn-row .btn-reject {
+    height: 38px;
+    font-size: 12px;
   }
 
   @media (min-width: 901px) {
@@ -401,370 +454,260 @@
   .mini {
     font-size: 12px;
     color: var(--muted);
-    margin-top: 6px;
+    margin-top: 4px;
+  }
+  .fill {
+    fill: currentColor;
   }
 </style>
-<style>.head {
-    padding: 12px 2px;
-  }
-  .title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 1000;
-  }
-  .sub {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: var(--fs-sm);
-  }
 
-  .table-wrap {
-    margin-top: 12px;
-    overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: #fff;
-  }
-  table {
-    min-width: 980px;
-  }
-  th {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  td {
-    vertical-align: top;
-  }
-
-  .badge {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    font-weight: 900;
-    font-size: 12px;
-    background: #f8faff;
-  }
-  .ok {
-    background: rgba(22, 163, 74, 0.1);
-    border-color: rgba(22, 163, 74, 0.25);
-    color: #166534;
-  }
-  .bad {
-    background: rgba(220, 38, 38, 0.1);
-    border-color: rgba(220, 38, 38, 0.25);
-    color: #991b1b;
-  }
-
-  .time {
-    color: var(--muted);
-    font-size: 12px;
-    white-space: normal;
-    min-width: 170px;
-  }
-  .note {
-    white-space: normal;
-    min-width: 240px;
-    max-width: 360px;
-    word-break: break-word;
-  }
-
-  /* Action compact */
-  .act {
-    min-width: 260px;
-  }
-  .actbox {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    align-items: end;
-  }
-  .actbox input {
-    grid-column: 1 / -1;
-  }
-  .btn-small {
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-weight: 900;
-  }
-
-  /* Mobile cards */
-  .list {
-    display: none;
-    gap: 12px;
-    margin-top: 12px;
-  }
-  .cardx {
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    background: #fff;
-    box-shadow: var(--shadow);
-    padding: 14px;
-  }
-  .top {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  .name {
-    margin: 0;
-    font-weight: 1000;
-  }
-  .mini {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-  }
-  .tags {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-  }
-  .tag {
-    display: inline-flex;
-    padding: 7px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #f8faff;
-    font-size: 12px;
-    font-weight: 900;
-  }
-  .actm {
-    margin-top: 12px;
-    display: grid;
-    gap: 10px;
-  }
-  .actm .row2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .btn-full {
-    width: 100%;
-    justify-content: center;
-  }
-
-  @media (max-width: 820px) {
-    .table-wrap {
-      display: none;
-    }
-    .list {
-      display: grid;
-    }
-    input {
-      padding: 14px;
-      font-size: 16px;
-    }
-  }</style>
 <div class="screen">
   <div class="wrap">
+    <!-- HEADER -->
     <div class="head-card">
       <div class="head-top">
         <div class="logo">
-          <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" />
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
         </div>
-
         <div class="right">
           <div class="userpill" title="User">
             <span class="dot"></span>
-            <span class="name">{{ user_name or session.get("user_name","Admin") }}</span>
+            <span class="name"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
           </div>
-
-          <button class="action-btn" type="button" data-toggle-more aria-label="More menu">
-            <span class="ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="12" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
-              </svg>
-            </span>
-            <span>Menu</span>
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
           </button>
+          <a
+            href="{{ url_for('logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
         </div>
       </div>
+      <div class="rgb"></div>
+    </div>
 
-      <div class="head-title">
-        <h1>Approval Penjualan</h1>
-        <p>Approve/Reject submit penjualan karyawan (PENDING).</p>
+    <!-- INTRO CARD -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Approval Penjualan</h2>
+        <p class="desc">
+          Approve atau Reject submit penjualan karyawan yang masih PENDING.
+        </p>
       </div>
     </div>
 
-    <div class="card">
-  <div class="head">
-    <h2 class="title">Approval Penjualan</h2>
-    <p class="sub">
-      Pilih submit yang <b>PENDING</b>, lalu Approve atau Reject.
-    </p>
-  </div>
-</div>
+    <!-- STAT PILLS -->
+    <div class="stat-row">
+      <div class="stat-pill pend">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','PENDING') | list | length }}
+        </div>
+        <div class="s-lbl">Pending</div>
+      </div>
+      <div class="stat-pill ok">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','APPROVED') | list | length }}
+        </div>
+        <div class="s-lbl">Approved</div>
+      </div>
+      <div class="stat-pill bad">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','REJECTED') | list | length }}
+        </div>
+        <div class="s-lbl">Rejected</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">{{ rows | length }}</div>
+        <div class="s-lbl">Total</div>
+      </div>
+    </div>
 
-<!-- DESKTOP TABLE -->
-<div class="card" style="margin-top: 16px">
-  <h2 style="margin: 0 0 10px">Daftar Submit</h2>
+    <!-- DATA CARD -->
+    <div class="main-card">
+      <div class="inner">
+        <div class="search-row">
+          <div class="sr-left">
+            <h2 class="title">Daftar Submit</h2>
+            <p class="desc">Pilih submit PENDING, lalu Approve atau Reject.</p>
+          </div>
+          <div class="sr-right">
+            <label style="margin-top: 0">Search</label>
+            <input
+              id="salesSearch"
+              type="text"
+              placeholder="Cari karyawan, produk, status…"
+            />
+          </div>
+        </div>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Karyawan</th>
-          <th>Produk</th>
-          <th>Qty</th>
-          <th>Status</th>
-          <th>Waktu</th>
-          <th>Catatan</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
+        <div class="divider"></div>
 
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td><b>{{ r.employee_name }}</b></td>
-          <td>{{ r.product_name or "-" }}</td>
-          <td><b>{{ r.qty }}</b></td>
-          <td>
-            {% if r.status == 'APPROVED' %}
-            <span class="badge ok">APPROVED</span>
-            {% elif r.status == 'REJECTED' %}
-            <span class="badge bad">REJECTED</span>
-            {% else %}
-            <span class="badge">PENDING</span>
-            {% endif %}
-          </td>
-          <td class="time">{{ r.created_at }}</td>
-          <td class="note">{{ r.note or "-" }}</td>
+        <!-- MOBILE LIST -->
+        <div class="list" id="salesList">
+          {% for r in rows %}
+          <div
+            class="item s-row"
+            data-search="{{ (r.employee_name ~ ' ' ~ r.product_name ~ ' ' ~ r.status ~ ' ' ~ (r.note or ''))|lower }}"
+          >
+            <div class="item-top">
+              <div>
+                <p class="hname">{{ r.employee_name }}</p>
+                <p class="hsub">
+                  {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
+                </p>
+                <p class="hsub">⏱ {{ r.created_at }}</p>
+              </div>
+              <span
+                class="badge2 {% if r.status=='APPROVED' %}ok{% elif r.status=='REJECTED' %}bad{% else %}pend{% endif %}"
+              >
+                {{ r.status }}
+              </span>
+            </div>
 
-          <td class="act">
-            {% if r.status == 'PENDING' %}
-            <form method="POST" style="margin: 0">
-              <div class="actbox">
-                <input
-                  name="admin_note"
-                  placeholder="Catatan admin (opsional)"
-                />
+            {% if r.note %}
+            <div class="mini" style="margin-top: 8px">
+              Catatan: <b style="color: var(--text)">{{ r.note }}</b>
+            </div>
+            {% endif %} {% if r.status == 'PENDING' %}
+            <form method="POST" class="action-form">
+              <label>Catatan admin (opsional)</label>
+              <input name="admin_note" placeholder="ok / data kurang jelas" />
+              <div class="btn-row">
                 <button
-                  class="btn btn-primary btn-small"
+                  class="btn-approve"
                   type="submit"
                   formaction="/admin/sales/approve/{{ r.id }}"
                 >
-                  Approve
+                  ✓ Approve
                 </button>
                 <button
-                  class="btn btn-danger btn-small"
+                  class="btn-reject"
                   type="submit"
                   formaction="/admin/sales/reject/{{ r.id }}"
                 >
-                  Reject
+                  ✕ Reject
                 </button>
               </div>
             </form>
             {% else %}
-            <div class="muted" style="font-size: 12px">
+            <div class="admin-note-done">
               Catatan admin: <b>{{ r.admin_note or "-" }}</b>
             </div>
             {% endif %}
-          </td>
-        </tr>
-        {% endfor %} {% if rows|length == 0 %}
-        <tr>
-          <td colspan="7" class="muted">Belum ada submit.</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- MOBILE CARDS -->
-  <div class="list">
-    {% for r in rows %}
-    <div class="cardx">
-      <div class="top">
-        <div>
-          <p class="name">{{ r.employee_name }}</p>
-          <p class="mini">
-            {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
-          </p>
-          <p class="mini">⏱ {{ r.created_at }}</p>
-        </div>
-        <div>
-          {% if r.status == 'APPROVED' %}
-          <span class="badge ok">APPROVED</span>
-          {% elif r.status == 'REJECTED' %}
-          <span class="badge bad">REJECTED</span>
-          {% else %}
-          <span class="badge">PENDING</span>
+          </div>
+          {% endfor %} {% if rows|length == 0 %}
+          <div class="mini">Belum ada submit penjualan.</div>
           {% endif %}
         </div>
-      </div>
 
-      <div class="tags">
-        <span class="tag">📦 {{ r.product_name or "-" }}</span>
-        <span class="tag">🔢 {{ r.qty }}</span>
-      </div>
-
-      <div class="mini" style="margin-top: 10px">
-        Catatan: <b style="color: var(--text)">{{ r.note or "-" }}</b>
-      </div>
-
-      {% if r.status == 'PENDING' %}
-      <form method="POST" class="actm">
-        <div>
-          <label>Catatan admin (opsional)</label>
-          <input name="admin_note" placeholder="ok / data kurang jelas" />
+        <!-- DESKTOP TABLE -->
+        <div class="tablewrap" id="salesTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th>Produk</th>
+                <th>Qty</th>
+                <th>Status</th>
+                <th>Waktu</th>
+                <th>Catatan</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="salesTable">
+              {% for r in rows %}
+              <tr
+                class="s-row"
+                data-search="{{ (r.employee_name ~ ' ' ~ r.product_name ~ ' ' ~ r.status ~ ' ' ~ (r.note or ''))|lower }}"
+              >
+                <td><b>{{ r.employee_name }}</b></td>
+                <td>{{ r.product_name or "-" }}</td>
+                <td><b>{{ r.qty }}</b></td>
+                <td>
+                  <span
+                    class="badge2 {% if r.status=='APPROVED' %}ok{% elif r.status=='REJECTED' %}bad{% else %}pend{% endif %}"
+                  >
+                    {{ r.status }}
+                  </span>
+                </td>
+                <td class="mini">{{ r.created_at }}</td>
+                <td class="note-cell">{{ r.note or "-" }}</td>
+                <td class="tbl-action">
+                  {% if r.status == 'PENDING' %}
+                  <form method="POST" class="tbl-actbox">
+                    <input
+                      name="admin_note"
+                      placeholder="Catatan admin (opsional)"
+                    />
+                    <div class="tbl-btn-row">
+                      <button
+                        class="btn-approve"
+                        type="submit"
+                        formaction="/admin/sales/approve/{{ r.id }}"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        class="btn-reject"
+                        type="submit"
+                        formaction="/admin/sales/reject/{{ r.id }}"
+                      >
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </form>
+                  {% else %}
+                  <div class="mini">
+                    Catatan admin:
+                    <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %} {% if rows|length == 0 %}
+              <tr>
+                <td colspan="7" class="mini">Belum ada submit penjualan.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
         </div>
-        <div class="row2">
-          <button
-            class="btn btn-primary btn-full"
-            type="submit"
-            formaction="/admin/sales/approve/{{ r.id }}"
-          >
-            Approve
-          </button>
-          <button
-            class="btn btn-danger btn-full"
-            type="submit"
-            formaction="/admin/sales/reject/{{ r.id }}"
-          >
-            Reject
-          </button>
-        </div>
-      </form>
-      {% else %}
-      <div class="mini" style="margin-top: 10px">
-        Catatan admin:
-        <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
       </div>
-      {% endif %}
     </div>
-    {% endfor %} {% if rows|length == 0 %}
-    <div class="muted">Belum ada submit.</div>
-    {% endif %}
-  </div>
-</div>
-
-
   </div>
 </div>
 
 <script>
-  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
-  document.addEventListener(
-    "click",
-    (e) => {
-      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
-      if (!mid) return;
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    true,
-  );
+  // Search filter
+  (function () {
+    const input = document.getElementById("salesSearch");
+    if (!input) return;
+    input.addEventListener("input", function () {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll(".s-row").forEach(function (el) {
+        const hay = el.getAttribute("data-search") || "";
+        el.style.display = !q || hay.includes(q) ? "" : "none";
+      });
+    });
+  })();
 </script>
-{% endblock %}
-
-{% block bottom_nav %}
+{% endblock %} {% block bottom_nav %}
 <style>
   .bottom-nav {
     position: fixed;
@@ -801,7 +744,7 @@
   }
   .nav-item.is-active {
     background: #f2f5fb00;
-    border: 0px solid rgb(255, 255, 255);
+    border: 0px solid #fff;
   }
   .nav-ico {
     width: 22px;
@@ -820,11 +763,6 @@
   .fill {
     fill: currentColor;
   }
-  @media (max-width: 360px) {
-    .nav-item span {
-      font-size: 12px;
-    }
-  }
 </style>
 
 <div class="bottom-nav" data-bottom-nav>
@@ -840,8 +778,6 @@
       </span>
       <span>Dashboard</span>
     </a>
-
-    <!-- TAB TENGAH KOSONG: sama persis admin_users -->
     <button
       class="nav-item is-active"
       type="button"
@@ -884,7 +820,6 @@
       </span>
       <span>Data</span>
     </button>
-
     <a
       class="nav-item"
       href="#"
@@ -906,10 +841,9 @@
 </div>
 
 <script>
-  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
   document.addEventListener(
     "click",
-    (e) => {
+    function (e) {
       const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
       if (!mid) return;
       e.preventDefault();
