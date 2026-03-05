@@ -1655,6 +1655,7 @@ def admin_sales_monitor():
 @app.route("/admin/stats")
 def admin_stats():
     admin_guard()
+
     month = request.args.get("month")
     if not month:
         today = date.today()
@@ -1666,34 +1667,45 @@ def admin_stats():
     end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
 
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT u.id, u.name AS employee_name,
-            COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS present_days,
-            COALESCE(SUM(CASE WHEN a.arrival_type='LATE' THEN 1 ELSE 0 END), 0) AS late_days,
-            COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS sick_days,
-            COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS leave_days,
-            COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS absent_days
-        FROM users u
-        LEFT JOIN attendance a ON a.user_id=u.id AND a.work_date >= %s AND a.work_date < %s
-        WHERE u.role='employee'
-        GROUP BY u.id, u.name ORDER BY u.name ASC;
-    """, (start_date, end_date))
-    att = cur.fetchall()
+    cur = conn.cursor(cursor_factory=RealDictCursor)  # <<< FIX DI SINI
+    try:
+        cur.execute("""
+            SELECT u.id, u.name AS employee_name,
+                COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS present_days,
+                COALESCE(SUM(CASE WHEN a.arrival_type='LATE' THEN 1 ELSE 0 END), 0) AS late_days,
+                COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS sick_days,
+                COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS leave_days,
+                COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS absent_days
+            FROM users u
+            LEFT JOIN attendance a
+                ON a.user_id=u.id
+                AND a.work_date >= %s AND a.work_date < %s
+            WHERE u.role='employee'
+            GROUP BY u.id, u.name
+            ORDER BY u.name ASC;
+        """, (start_date, end_date))
+        att = cur.fetchall()
 
-    cur.execute("""
-        SELECT u.id, COALESCE(SUM(s.qty), 0) AS sales_qty
-        FROM users u
-        LEFT JOIN sales_submissions s ON s.user_id=u.id AND s.created_at >= %s AND s.created_at < %s
-        WHERE u.role='employee' GROUP BY u.id;
-    """, (start_date, end_date))
-    sales = cur.fetchall()
-    cur.close()
-    conn.close()
+        cur.execute("""
+            SELECT u.id, COALESCE(SUM(s.qty), 0) AS sales_qty
+            FROM users u
+            LEFT JOIN sales_submissions s
+                ON s.user_id=u.id
+                AND s.created_at >= %s AND s.created_at < %s
+            WHERE u.role='employee'
+            GROUP BY u.id;
+        """, (start_date, end_date))
+        sales = cur.fetchall()
+
+    finally:
+        cur.close()
+        conn.close()
 
     sales_map = {r["id"]: int(r["sales_qty"] or 0) for r in sales}
+
     rows = []
     totals = {"present": 0, "late": 0, "sick": 0, "leave": 0, "absent": 0, "sales": 0}
+
     for r in att:
         row = {
             "employee_name": r["employee_name"],
