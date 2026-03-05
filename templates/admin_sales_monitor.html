@@ -10,7 +10,6 @@
     --shadow-in:
       inset 10px 10px 18px rgba(25, 45, 80, 0.12),
       inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-
     --soft-in:
       inset 6px 6px 12px rgba(25, 45, 80, 0.1),
       inset -6px -6px 12px rgba(255, 255, 255, 0.92);
@@ -19,671 +18,445 @@
     --pill: 999px;
 
     --blue: #2f5f8f;
-    --primary: #2563eb;
-    --primary2: #1d4ed8;
     --border: rgba(125, 138, 166, 0.22);
-
     --bottom-nav-h: 92px;
   }
 
-  /* penting: ruang bawah biar konten tidak ketutup nav fixed */
   body {
     padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
   }
 
   .screen {
     min-height: 100svh;
-    display: flex;
-    justify-content: center;
+    display: flex; justify-content: center;
     padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
   }
+  .wrap { width: 100%; max-width: 430px; }
+  @media (min-width: 901px) { .wrap { max-width: 1100px; } }
 
-  .wrap {
-    width: 100%;
-    max-width: 430px;
-  }
-  @media (min-width: 901px) {
-    .wrap {
-      max-width: 1100px;
-    }
-  }
-
-  /* ===== Header Baru (SAMA seperti admin_users) ===== */
+  /* ===== Header ===== */
   .head-card {
-    background: #fff;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    padding: 12px;
+    background: #fff; border-radius: var(--radius);
+    box-shadow: var(--shadow-out); padding: 12px;
   }
-
   .head-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 10px;
   }
-
   .logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    flex: 0 0 auto;
+    width: 44px; height: 44px; border-radius: 14px;
+    background: #fff; box-shadow: 0 10px 18px rgba(20,35,65,0.12);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex: 0 0 auto;
   }
-  .logo img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
 
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-left: auto;
-  }
-
+  .right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
   .userpill {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f2f5fb;
-    border-radius: var(--pill);
-    padding: 8px 12px;
-    box-shadow: var(--soft-in);
-    white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+    background: #f2f5fb; border-radius: var(--pill);
+    padding: 8px 12px; box-shadow: var(--soft-in); white-space: nowrap;
   }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #16a34a;
-  }
-  .userpill .name {
-    font-size: 13px;
-    color: #506381;
-    font-weight: 800;
-  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; }
+  .userpill .name { font-size: 13px; color: #506381; font-weight: 800; }
 
   .action-btn {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 16px;
-    background: #f3f6fc;
+    position: relative; width: 38px; height: 38px;
+    border-radius: 16px; background: #f3f6fc;
     box-shadow:
-      0 12px 22px rgba(30, 60, 90, 0.18),
-      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border: none;
-    text-decoration: none;
+      0 12px 22px rgba(30,60,90,0.18),
+      inset 4px 4px 10px rgba(255,255,255,0.9),
+      inset -4px -4px 10px rgba(30,60,90,0.08);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none; text-decoration: none;
   }
   .action-btn svg {
-    width: 22px;
-    height: 22px;
-    stroke: #7b93c7;
-    stroke-width: 2.2;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    width: 22px; height: 22px; stroke: #7b93c7;
+    stroke-width: 2.2; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
   }
-  .badge {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #ffd84d;
-    color: #1f2937;
-    font-size: 11px;
-    font-weight: 900;
-    padding: 3px 7px;
-    border-radius: 999px;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  .notif-badge {
+    position: absolute; top: -6px; right: -6px;
+    background: #ffd84d; color: #1f2937;
+    font-size: 11px; font-weight: 900;
+    padding: 3px 7px; border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.2);
   }
-
   .rgb {
-    height: 3px;
-    border-radius: 999px;
-    margin-top: 10px;
-    background: linear-gradient(
-      90deg,
-      #ff0000 0%,
-      #ff7a00 18%,
-      #ffd500 36%,
-      #00c853 58%,
-      #00b0ff 78%,
-      #8a2be2 100%
-    );
+    height: 3px; border-radius: 999px; margin-top: 10px;
+    background: linear-gradient(90deg,#ff0000 0%,#ff7a00 18%,#ffd500 36%,#00c853 58%,#00b0ff 78%,#8a2be2 100%);
   }
 
-  /* ===== Card neumorphism ===== */
+  /* ===== Cards ===== */
   .main-card {
-    margin-top: 14px;
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
+    margin-top: 14px; background: var(--card);
+    border-radius: var(--radius); box-shadow: var(--shadow-out);
     padding: 16px 14px 18px;
   }
   .inner {
-    border-radius: 20px;
-    background: #f3f5f9;
-    box-shadow: var(--shadow-in);
-    padding: 18px 14px 16px;
+    border-radius: 20px; background: #f3f5f9;
+    box-shadow: var(--shadow-in); padding: 18px 14px 16px;
   }
-
   .title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 1000;
-    color: #2a3b58;
-    letter-spacing: 0.2px;
+    margin: 0; font-size: 18px; font-weight: 1000;
+    color: #2a3b58; letter-spacing: 0.2px;
   }
-  .desc {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.35;
-  }
+  .desc { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
   .divider {
-    height: 1px;
-    background: rgba(125, 138, 166, 0.18);
-    border-radius: 999px;
-    margin: 12px 0;
+    height: 1px; background: rgba(125,138,166,0.18);
+    border-radius: 999px; margin: 12px 0;
   }
 
-  /* ===== Form styling sama tone ===== */
-  label {
-    display: block;
-    margin: 10px 0 6px;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
+  /* ===== Stat pills ===== */
+  .stat-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .stat-pill {
+    flex: 1 1 80px; background: #f2f5fb;
+    border-radius: 16px; box-shadow: var(--soft-in);
+    padding: 12px 14px; text-align: center;
   }
-  input,
-  select,
-  textarea {
-    width: 100%;
-    border: none;
-    outline: none;
-    border-radius: 14px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    padding: 12px 12px;
-    font-size: 14px;
-    color: var(--text);
-  }
-  textarea {
-    min-height: 92px;
-    resize: vertical;
-  }
+  .stat-pill .s-num { font-size: 22px; font-weight: 1000; color: var(--text); }
+  .stat-pill .s-lbl { font-size: 11px; color: var(--muted); font-weight: 800; margin-top: 2px; }
+  .stat-pill.accent .s-num { color: #1e40af; }
 
-  .btn-primary {
-    width: 100%;
-    height: 52px;
-    border: none;
-    border-radius: 16px;
-    cursor: pointer;
-    font-weight: 900;
-    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
-    color: #fff;
-    box-shadow: 0 12px 20px rgba(41, 83, 126, 0.22);
-  }
-
-  /* ===== clock pill ===== */
-  .clock-wrap {
-    margin-top: 12px;
-    display: flex;
-    justify-content: flex-start;
-  }
-  .clock-pill {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 16px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-  }
-  .clock-pill .lbl {
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  .clock-pill .val {
-    font-size: 18px;
-    font-weight: 1000;
-    color: var(--text);
-    letter-spacing: 0.6px;
-  }
-
-  /* ===== Grid 2 card ===== */
+  /* ===== Grid layout ===== */
   .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 14px;
+    display: grid; grid-template-columns: 1fr;
+    gap: 14px; margin-top: 14px;
   }
   @media (min-width: 980px) {
-    .grid2 {
-      grid-template-columns: 1fr 1fr;
-    }
+    .grid2 { grid-template-columns: 360px 1fr; }
   }
 
-  /* ===== Riwayat (ringkas + search) ===== */
+  /* ===== Search row ===== */
   .search-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    display: flex; gap: 10px;
+    align-items: flex-end; justify-content: space-between; flex-wrap: wrap;
   }
-  .search-row .left {
-    flex: 1 1 220px;
-  }
-  .search-row .right {
-    flex: 1 1 220px;
-  }
-  #historySearch {
-    width: 100%;
-  }
+  .sr-left { flex: 1 1 220px; }
+  .sr-right { flex: 1 1 220px; }
 
-  .tablewrap {
-    display: none;
-    overflow: auto;
+  label {
+    display: block; margin: 10px 0 6px;
+    font-size: 12px; color: var(--muted); font-weight: 800;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 780px;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    overflow: hidden;
-  }
-  th,
-  td {
-    padding: 12px 12px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
-    text-align: left;
-    vertical-align: top;
-    font-size: 14px;
-  }
-  th {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
-  }
-  td.note {
-    white-space: normal;
-    max-width: 420px;
-    word-break: break-word;
-  }
-
-  .badge2 {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: #f2f5fb;
+  input, select, textarea {
+    width: 100%; border: none; outline: none;
+    border-radius: 14px; background: #f2f5fb;
     box-shadow: var(--soft-in);
-    color: #2a3b58;
-    font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
+    padding: 12px 12px; font-size: 14px; color: var(--text);
+    box-sizing: border-box;
   }
 
-  .list {
-    display: grid;
-    gap: 12px;
-    margin-top: 10px;
+  /* ===== Rank badge (leaderboard) ===== */
+  .rank-num {
+    width: 28px; height: 28px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 1000;
+    background: #f2f5fb; box-shadow: var(--soft-in);
+    color: var(--muted); flex: 0 0 auto;
   }
+  .rank-num.gold { background: linear-gradient(135deg,#fbbf24,#f59e0b); color: #fff; box-shadow: 0 4px 10px rgba(245,158,11,0.3); }
+  .rank-num.silver { background: linear-gradient(135deg,#cbd5e1,#94a3b8); color: #fff; box-shadow: 0 4px 10px rgba(148,163,184,0.3); }
+  .rank-num.bronze { background: linear-gradient(135deg,#d97706,#b45309); color: #fff; box-shadow: 0 4px 10px rgba(180,83,9,0.25); }
+
+  /* ===== Leaderboard mobile ===== */
+  .lboard { display: grid; gap: 10px; margin-top: 10px; }
+  .litem {
+    background: #fff; border-radius: 16px;
+    box-shadow: var(--shadow-out); padding: 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .litem .lname { font-weight: 1000; font-size: 14px; color: var(--text); }
+  .litem .lsub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .litem .lqty { font-size: 20px; font-weight: 1000; color: var(--text); margin-left: auto; }
+
+  /* ===== Detail list mobile ===== */
+  .list { display: grid; gap: 10px; margin-top: 10px; }
   .item {
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    padding: 12px;
+    background: #fff; border-radius: 16px;
+    box-shadow: var(--shadow-out); padding: 12px;
   }
   .item-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 10px;
   }
-  .hname {
-    margin: 0;
-    font-weight: 1000;
-  }
+  .hname { margin: 0; font-weight: 1000; font-size: 14px; }
   .hsub {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.35;
-    overflow-wrap: anywhere; /* kunci: memaksa wrap */
-    word-break: break-word; /* fallback */
+    margin: 4px 0 0; color: var(--muted); font-size: 12px;
+    line-height: 1.4;
+  }
+  .badge2 {
+    display: inline-flex; padding: 5px 10px; border-radius: 999px;
+    background: #f2f5fb; box-shadow: var(--soft-in);
+    color: #2a3b58; font-size: 12px; font-weight: 900; white-space: nowrap;
   }
 
-  /* khusus catatan panjang supaya rapi */
-  .note-preview {
-    margin-top: 10px;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    line-height: 1.35;
-
-    /* biar tidak kepanjangan di mobile */
-    display: -webkit-box;
-
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  /* ===== Desktop Table ===== */
+  .tablewrap { display: none; overflow: auto; margin-top: 12px; }
+  table {
+    width: 100%; border-collapse: collapse;
+    min-width: 480px; background: #fff;
+    border-radius: 18px; box-shadow: var(--shadow-out); overflow: hidden;
   }
-  .hmeta {
-    margin-top: 8px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  th, td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(125,138,166,0.15);
+    text-align: left; vertical-align: middle; font-size: 14px;
   }
+  th { color: var(--muted); font-size: 12px; font-weight: 900; background: #f8faff; }
+  .note-cell { white-space: normal; max-width: 260px; word-break: break-word; }
+
+  /* Leaderboard table — always show on desktop */
+  .lboard-tablewrap { display: none; overflow: auto; margin-top: 10px; }
+  .lboard-table { min-width: 300px; }
 
   @media (min-width: 901px) {
-    .list {
-      display: none;
-    }
-    .tablewrap {
-      display: block;
-    }
+    .list { display: none; }
+    .lboard { display: none; }
+    .tablewrap { display: block; }
+    .lboard-tablewrap { display: block; }
   }
 
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 6px;
-  }
+  .mini { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .fill { fill: currentColor; }
 </style>
-<style>
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  @media (min-width: 900px) {
-    .grid2 {
-      grid-template-columns: 360px 1fr;
-    }
-  }
-  .table-wrap {
-    width: 100%;
-    overflow: auto;
-  }
-  .list-mobile {
-    display: none;
-  }
-  .item {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
-    background: #fff;
-    margin-top: 10px;
-  }
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .big {
-    font-size: 18px;
-    font-weight: 900;
-  }
-  @media (max-width: 640px) {
-    .table-wrap {
-      display: none;
-    }
-    .list-mobile {
-      display: block;
-    }
-  }
-</style>
+
 <div class="screen">
   <div class="wrap">
+
+    <!-- HEADER -->
     <div class="head-card">
       <div class="head-top">
         <div class="logo">
-          <img
-            src="{{ url_for('static', filename='UMGAP (1).png') }}"
-            alt="UMGAP"
-          />
+          <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" />
         </div>
-
         <div class="right">
           <div class="userpill" title="User">
             <span class="dot"></span>
-            <span class="name"
-              >{{ user_name or session.get("user_name","Admin") }}</span
-            >
+            <span class="name">{{ user_name or session.get("user_name","Admin") }}</span>
           </div>
-
-          <button
-            class="action-btn"
-            type="button"
-            data-toggle-more
-            aria-label="More menu"
-          >
-            <span class="ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="12" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
-              </svg>
-            </span>
-            <span>Menu</span>
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
           </button>
+          <a href="{{ url_for('logout') }}" class="action-btn" aria-label="Logout">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
         </div>
       </div>
+      <div class="rgb"></div>
+    </div>
 
-      <div class="head-title">
-        <h1>Monitoring Penjualan</h1>
-        <p>Pantau total penjualan per karyawan dan detail submit terbaru.</p>
+    <!-- INTRO CARD -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Monitoring Penjualan</h2>
+        <p class="desc">Pantau total penjualan per karyawan dan detail submit terbaru.</p>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Monitoring Penjualan Karyawan</h2>
-      <div class="muted">
-        Admin hanya memantau: total penjualan per karyawan dan detail submit
-        terbaru.
+    <!-- STAT PILLS -->
+    <div class="stat-row">
+      <div class="stat-pill accent">
+        <div class="s-num">{{ summary | length }}</div>
+        <div class="s-lbl">Karyawan</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">{{ rows | length }}</div>
+        <div class="s-lbl">Total Submit</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">
+          {% set ns = namespace(total=0) %}
+          {% for r in rows %}{% set ns.total = ns.total + r.qty %}{% endfor %}
+          {{ ns.total }}
+        </div>
+        <div class="s-lbl">Total Qty</div>
       </div>
     </div>
 
-    <div class="grid2" style="margin-top: 14px">
-      <!-- Rekap per karyawan -->
-      <div class="card">
-        <h2>Rekap Total per Karyawan</h2>
-        <div class="muted">Urut dari paling banyak.</div>
+    <!-- TWO-COLUMN GRID -->
+    <div class="grid2">
 
-        <div class="table-wrap" style="margin-top: 10px">
-          <table>
-            <thead>
-              <tr>
-                <th>Karyawan</th>
-                <th style="min-width: 120px">Total Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for s in summary %}
-              <tr>
-                <td><b>{{ s.employee_name }}</b></td>
-                <td class="big">{{ s.total_qty }}</td>
-              </tr>
-              {% endfor %} {% if summary|length == 0 %}
-              <tr>
-                <td colspan="2" class="muted">Belum ada data.</td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
+      <!-- LEFT: Leaderboard per karyawan -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Rekap per Karyawan</h2>
+          <p class="desc">Urut dari penjualan terbanyak.</p>
+          <div class="divider"></div>
 
-        <div class="list-mobile" style="margin-top: 10px">
-          {% for s in summary %}
-          <div class="item">
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                gap: 10px;
-                align-items: center;
-              "
-            >
-              <div>
-                <div style="font-weight: 900">{{ s.employee_name }}</div>
-                <div class="mini">Total penjualan</div>
+          <!-- Mobile Leaderboard -->
+          <div class="lboard">
+            {% for s in summary %}
+            <div class="litem">
+              <div class="rank-num {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
+                {{ loop.index }}
               </div>
-              <div class="big">{{ s.total_qty }}</div>
+              <div>
+                <div class="lname">{{ s.employee_name }}</div>
+                <div class="lsub">Total penjualan</div>
+              </div>
+              <div class="lqty">{{ s.total_qty }}</div>
+            </div>
+            {% endfor %}
+            {% if summary|length == 0 %}
+            <div class="mini">Belum ada data.</div>
+            {% endif %}
+          </div>
+
+          <!-- Desktop Table Leaderboard -->
+          <div class="lboard-tablewrap">
+            <table class="lboard-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Karyawan</th>
+                  <th>Total Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in summary %}
+                <tr>
+                  <td>
+                    <div class="rank-num {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
+                      {{ loop.index }}
+                    </div>
+                  </td>
+                  <td><b>{{ s.employee_name }}</b></td>
+                  <td style="font-size:18px;font-weight:1000;">{{ s.total_qty }}</td>
+                </tr>
+                {% endfor %}
+                {% if summary|length == 0 %}
+                <tr><td colspan="3" class="mini">Belum ada data.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT: Detail submit terbaru -->
+      <div class="main-card">
+        <div class="inner">
+
+          <div class="search-row">
+            <div class="sr-left">
+              <h2 class="title">Detail Submit</h2>
+              <p class="desc">Sampai 200 data terbaru.</p>
+            </div>
+            <div class="sr-right">
+              <label style="margin-top:0">Search</label>
+              <input id="detailSearch" type="text" placeholder="Cari karyawan, produk…" />
             </div>
           </div>
-          {% endfor %} {% if summary|length == 0 %}
-          <div class="muted">Belum ada data.</div>
-          {% endif %}
-        </div>
-      </div>
 
-      <!-- Detail submit -->
-      <div class="card">
-        <h2>Detail Submit Terbaru</h2>
-        <div class="muted">Menampilkan sampai 200 data terakhir.</div>
+          <div class="divider"></div>
 
-        <div class="table-wrap" style="margin-top: 10px">
-          <table>
-            <thead>
-              <tr>
-                <th style="min-width: 170px">Waktu</th>
-                <th style="min-width: 160px">Karyawan</th>
-                <th style="min-width: 160px">Produk</th>
-                <th style="min-width: 90px">Qty</th>
-                <th>Catatan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in rows %}
-              <tr>
-                <td class="mini">{{ r.created_at }}</td>
-                <td><b>{{ r.employee_name }}</b></td>
-                <td>{{ r.product_name or "-" }}</td>
-                <td><span class="badge">{{ r.qty }}</span></td>
-                <td class="mini">{{ r.note }}</td>
-              </tr>
-              {% endfor %} {% if rows|length == 0 %}
-              <tr>
-                <td colspan="5" class="muted">Belum ada submit penjualan.</td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="list-mobile" style="margin-top: 10px">
-          {% for r in rows %}
-          <div class="item">
-            <div
-              style="display: flex; justify-content: space-between; gap: 10px"
-            >
-              <div>
-                <div style="font-weight: 900">{{ r.employee_name }}</div>
-                <div class="mini">{{ r.product_name or "-" }}</div>
-                <div class="mini">{{ r.created_at }}</div>
+          <!-- Mobile list -->
+          <div class="list" id="detailList">
+            {% for r in rows %}
+            <div class="item d-row"
+              data-search="{{ (r.employee_name ~ ' ' ~ (r.product_name or '') ~ ' ' ~ (r.note or ''))|lower }}">
+              <div class="item-top">
+                <div>
+                  <p class="hname">{{ r.employee_name }}</p>
+                  <p class="hsub">{{ r.product_name or "-" }}</p>
+                  <p class="hsub">⏱ {{ r.created_at }}</p>
+                </div>
+                <span class="badge2">{{ r.qty }}</span>
               </div>
-              <div class="big">{{ r.qty }}</div>
+              {% if r.note %}
+              <div class="mini" style="margin-top:6px">Catatan: {{ r.note }}</div>
+              {% endif %}
             </div>
-            <div class="mini" style="margin-top: 8px">
-              Catatan: {{ r.note if r.note else "-" }}
-            </div>
+            {% endfor %}
+            {% if rows|length == 0 %}
+            <div class="mini">Belum ada submit penjualan.</div>
+            {% endif %}
           </div>
-          {% endfor %} {% if rows|length == 0 %}
-          <div class="muted">Belum ada submit penjualan.</div>
-          {% endif %}
+
+          <!-- Desktop table -->
+          <div class="tablewrap" id="detailTableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Karyawan</th>
+                  <th>Produk</th>
+                  <th>Qty</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="detailTable">
+                {% for r in rows %}
+                <tr class="d-row"
+                  data-search="{{ (r.employee_name ~ ' ' ~ (r.product_name or '') ~ ' ' ~ (r.note or ''))|lower }}">
+                  <td class="mini">{{ r.created_at }}</td>
+                  <td><b>{{ r.employee_name }}</b></td>
+                  <td>{{ r.product_name or "-" }}</td>
+                  <td><span class="badge2">{{ r.qty }}</span></td>
+                  <td class="note-cell mini">{{ r.note if r.note else "-" }}</td>
+                </tr>
+                {% endfor %}
+                {% if rows|length == 0 %}
+                <tr><td colspan="5" class="mini">Belum ada submit penjualan.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
         </div>
       </div>
-    </div>
+
+    </div><!-- /grid2 -->
   </div>
 </div>
 
 <script>
-  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
-  document.addEventListener(
-    "click",
-    (e) => {
-      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
-      if (!mid) return;
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    true,
-  );
+  // Search filter untuk detail submit
+  (function () {
+    const input = document.getElementById("detailSearch");
+    if (!input) return;
+    input.addEventListener("input", function () {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll(".d-row").forEach(function (el) {
+        const hay = el.getAttribute("data-search") || "";
+        el.style.display = !q || hay.includes(q) ? "" : "none";
+      });
+    });
+  })();
 </script>
 {% endblock %} {% block bottom_nav %}
 <style>
   .bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: fixed; left: 0; right: 0; bottom: 0;
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(246, 248, 252, 0.85);
-    backdrop-filter: blur(8px);
-    z-index: 99;
+    background: rgba(246,248,252,0.85);
+    backdrop-filter: blur(8px); z-index: 99;
   }
   .nav-bar {
-    max-width: 430px;
-    margin: 0 auto;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
-    padding: 10px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
+    max-width: 430px; margin: 0 auto; background: #fff;
+    border-radius: 18px; box-shadow: 0 18px 35px rgba(20,35,65,0.1);
+    padding: 10px; display: flex; justify-content: space-between; gap: 10px;
   }
   .nav-item {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 8px;
-    border-radius: 16px;
-    color: #9fb1d6;
-    font-weight: 800;
-    text-decoration: none;
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 8px; border-radius: 16px;
+    color: #9fb1d6; font-weight: 800; text-decoration: none;
   }
-  .nav-item.is-active {
-    background: #f2f5fb00;
-    border: 0px solid rgb(255, 255, 255);
-  }
-  .nav-ico {
-    width: 22px;
-    height: 22px;
-    display: inline-block;
-  }
-  .nav-ico svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .stroke {
-    stroke: currentColor;
-    fill: none;
-  }
-  .fill {
-    fill: currentColor;
-  }
-  @media (max-width: 360px) {
-    .nav-item span {
-      font-size: 12px;
-    }
-  }
+  .nav-item.is-active { background: #f2f5fb00; border: 0px solid #fff; }
+  .nav-ico { width: 22px; height: 22px; display: inline-block; }
+  .nav-ico svg { width: 100%; height: 100%; display: block; }
+  .stroke { stroke: currentColor; fill: none; }
+  .fill { fill: currentColor; }
 </style>
 
 <div class="bottom-nav" data-bottom-nav>
@@ -699,59 +472,20 @@
       </span>
       <span>Dashboard</span>
     </a>
-
-    <!-- TAB TENGAH KOSONG: sama persis admin_users -->
-    <button
-      class="nav-item is-active"
-      type="button"
-      aria-label="Tab tengah (kosong)"
-      onclick="
-        event.preventDefault();
-        event.stopPropagation();
-        return false;
-      "
-    >
+    <button class="nav-item is-active" type="button" aria-label="Tab tengah (kosong)"
+      onclick="event.preventDefault();event.stopPropagation();return false;">
       <span class="nav-ico" aria-hidden="true">
         <svg viewBox="0 0 24 24">
-          <path
-            class="stroke"
-            d="M4 8h12"
-            stroke-width="2.2"
-            stroke-linecap="round"
-          ></path>
-          <path
-            class="stroke"
-            d="M14.6 5.8L18 8l-3.4 2.2"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
-          <path
-            class="stroke"
-            d="M20 16H8"
-            stroke-width="2.2"
-            stroke-linecap="round"
-          ></path>
-          <path
-            class="stroke"
-            d="M9.4 13.8L6 16l3.4 2.2"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
+          <path class="stroke" d="M4 8h12" stroke-width="2.2" stroke-linecap="round"></path>
+          <path class="stroke" d="M14.6 5.8L18 8l-3.4 2.2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path class="stroke" d="M20 16H8" stroke-width="2.2" stroke-linecap="round"></path>
+          <path class="stroke" d="M9.4 13.8L6 16l3.4 2.2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
         </svg>
       </span>
       <span>Data</span>
     </button>
-
-    <a
-      class="nav-item"
-      href="#"
-      onclick="
-        document.querySelector('[data-toggle-more]')?.click();
-        return false;
-      "
-    >
+    <a class="nav-item" href="#"
+      onclick="document.querySelector('[data-toggle-more]')?.click();return false;">
       <span class="nav-ico" aria-hidden="true">
         <svg viewBox="0 0 24 24">
           <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
@@ -765,16 +499,10 @@
 </div>
 
 <script>
-  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
-  document.addEventListener(
-    "click",
-    (e) => {
-      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
-      if (!mid) return;
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    true,
-  );
+  document.addEventListener("click", function (e) {
+    const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+    if (!mid) return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
 </script>
 {% endblock %}
