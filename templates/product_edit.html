@@ -3,300 +3,1657 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Edit Produk</title>
+    <title>Edit Produk — UMGAP</title>
     <style>
-      :root {
-        --bg: #f6f8fc;
-        --card: rgba(255, 255, 255, 0.82);
-        --text: #0f172a;
-        --muted: #64748b;
-        --line: #e5e7eb;
-        --brand: #2563eb;
-        --brand2: #1d4ed8;
-        --bad: #dc2626;
-        --shadow: 0 12px 30px rgba(2, 6, 23, 0.08);
-        --r: 18px;
-      }
-      * {
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
-      }
-      body {
         margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+        --soft-in:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+        --radius: 22px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+        --green: #15803d;
+        --red: #dc2626;
+        --nav-h: 92px;
+      }
+
+      body {
         font-family:
           ui-sans-serif,
           system-ui,
           -apple-system,
           "Segoe UI",
-          Roboto,
-          "Helvetica Neue",
-          Arial;
+          sans-serif;
+        background: var(--bg);
         color: var(--text);
-        background:
-          radial-gradient(
-            900px 420px at 12% -10%,
-            rgba(37, 99, 235, 0.16) 0%,
-            transparent 60%
-          ),
-          radial-gradient(
-            700px 360px at 105% 0%,
-            rgba(245, 158, 11, 0.16) 0%,
-            transparent 55%
-          ),
-          var(--bg);
         min-height: 100vh;
+        padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+      }
+
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
+        padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
       }
       .wrap {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 18px 14px 60px;
+        width: 100%;
+        max-width: 480px;
       }
-      .top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 12px;
+      @media (min-width: 600px) {
+        .wrap {
+          max-width: 640px;
+        }
       }
-      .brand {
+      @media (min-width: 901px) {
+        .wrap {
+          max-width: 780px;
+        }
+      }
+
+      /* ── header ── */
+      .head-card {
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .head-top {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
       }
       .logo {
         width: 44px;
         height: 44px;
-        border-radius: 16px;
-        display: grid;
-        place-items: center;
-        background: linear-gradient(
-          180deg,
-          rgba(37, 99, 235, 0.98),
-          rgba(29, 78, 216, 0.98)
-        );
-        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
-        border: 1px solid rgba(37, 99, 235, 0.25);
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
         flex: 0 0 auto;
       }
-      .brandtext {
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .hdr-right {
         display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .brandtext .title {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 1000;
-        letter-spacing: 0.2px;
-        line-height: 1.1;
-      }
-      .brandtext .sub {
-        margin: 0;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.25;
-      }
-      .right {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .btn {
-        display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.75);
-        color: var(--text);
-        text-decoration: none;
-        font-weight: 900;
-        cursor: pointer;
-        transition:
-          transform 0.12s ease,
-          border-color 0.12s ease,
-          background 0.12s ease;
-        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.05);
+        margin-left: auto;
+      }
+      .userpill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f2f5fb;
+        border-radius: var(--pill);
+        padding: 7px 12px;
+        box-shadow: var(--soft-in);
         white-space: nowrap;
       }
-      .btn:hover {
+      @media (max-width: 380px) {
+        .userpill {
+          display: none;
+        }
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex: 0 0 auto;
+      }
+      .uname {
+        font-size: 13px;
+        color: #506381;
+        font-weight: 800;
+      }
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 14px;
+        background: #f3f6fc;
+        box-shadow:
+          0 10px 20px rgba(30, 60, 90, 0.16),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+        transition: transform 0.15s;
+      }
+      .action-btn:hover {
         transform: translateY(-1px);
-        border-color: #cbd5e1;
-        background: #fff;
       }
-      .btn.primary {
-        background: linear-gradient(
-          180deg,
-          rgba(37, 99, 235, 0.98),
-          rgba(29, 78, 216, 0.98)
-        );
-        border-color: rgba(37, 99, 235, 0.35);
-        color: #fff;
-        box-shadow: 0 18px 40px rgba(37, 99, 235, 0.22);
+      .action-btn svg {
+        width: 20px;
+        height: 20px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
-      .btn.primary:hover {
+      .rgb {
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
         background: linear-gradient(
-          180deg,
-          rgba(29, 78, 216, 0.98),
-          rgba(29, 78, 216, 0.98)
+          90deg,
+          #f00 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
         );
       }
 
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: var(--r);
-        padding: 14px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
+      /* ── breadcrumb pill ── */
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
       }
-      .card h2 {
-        margin: 0 0 8px;
-        font-size: 14px;
-        letter-spacing: 0.2px;
-        font-weight: 1000;
-      }
-      .muted {
-        margin: 0;
+      .bc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 800;
         color: var(--muted);
-        font-size: 12px;
-        line-height: 1.35;
+        text-decoration: none;
+        transition: box-shadow 0.15s;
+        white-space: nowrap;
+      }
+      .bc-link:hover {
+        box-shadow: var(--shadow-out);
+        color: var(--text);
+      }
+      .bc-sep {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .bc-cur {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(41, 83, 126, 0.22);
+      }
+
+      /* ── cards ── */
+      .main-card {
+        margin-top: 14px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 16px 14px 18px;
+      }
+      .inner {
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 18px 14px 16px;
+      }
+      .title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: #2a3b58;
+        letter-spacing: 0.2px;
+      }
+      .desc {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
       }
       .divider {
         height: 1px;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          var(--line),
-          transparent
-        );
-        margin: 12px 0;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 14px 0;
       }
 
-      label {
-        display: block;
-        color: var(--muted);
+      /* ── id badge ── */
+      .id-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 6px 12px;
+        border-radius: 12px;
+        background: rgba(47, 95, 143, 0.1);
+        color: var(--blue);
         font-size: 12px;
         font-weight: 900;
-        margin: 0 0 6px;
       }
-      input {
-        width: 100%;
-        padding: 11px 12px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
+
+      /* ── current values strip ── */
+      .current-strip {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .cur-item {
+        flex: 1 1 140px;
         background: #fff;
+        border-radius: 16px;
+        box-shadow: var(--shadow-out);
+        padding: 14px 16px;
+      }
+      .cur-lbl {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .cur-val {
+        font-size: 17px;
+        font-weight: 1000;
         color: var(--text);
+      }
+      .cur-val.price {
+        color: var(--green);
+      }
+
+      /* ── form ── */
+      label {
+        display: block;
+        margin: 0 0 7px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      .field {
+        margin-bottom: 16px;
+      }
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        border: none;
         outline: none;
-        font-size: 14px;
-        transition:
-          border-color 0.12s ease,
-          box-shadow 0.12s ease;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 13px 16px;
+        font-size: 15px;
+        color: var(--text);
+        -webkit-appearance: none;
+        appearance: none;
+        font-family: inherit;
+        transition: box-shadow 0.2s;
       }
       input:focus {
-        border-color: rgba(37, 99, 235, 0.55);
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+        box-shadow:
+          var(--soft-in),
+          0 0 0 3px rgba(47, 95, 143, 0.15);
       }
-      .row {
+      input::placeholder {
+        color: var(--muted);
+      }
+      .field-hint {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .field-hint b {
+        color: var(--blue);
+      }
+
+      .field-row {
         display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
       }
-      @media (min-width: 720px) {
-        .row {
-          grid-template-columns: 1fr 1fr;
+      @media (max-width: 480px) {
+        .field-row {
+          grid-template-columns: 1fr;
         }
       }
 
-      .error {
-        margin: 0;
-        padding: 10px 12px;
+      /* ── error ── */
+      .error-box {
+        background: rgba(220, 38, 38, 0.08);
+        border: 1px solid rgba(220, 38, 38, 0.22);
         border-radius: 14px;
-        border: 1px solid rgba(220, 38, 38, 0.25);
-        background: rgba(220, 38, 38, 0.06);
-        color: #b91c1c;
-        font-weight: 900;
+        padding: 11px 14px;
+        color: #991b1b;
         font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 16px;
+      }
+
+      /* ── action buttons ── */
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn-save {
+        height: 52px;
+        padding: 0 28px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        font-weight: 900;
+        font-size: 15px;
+        background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(41, 83, 126, 0.24);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+        font-family: inherit;
+      }
+      .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(41, 83, 126, 0.32);
+      }
+      .btn-cancel {
+        height: 52px;
+        padding: 0 22px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        font-weight: 800;
+        font-size: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        transition:
+          box-shadow 0.15s,
+          color 0.15s;
+        font-family: inherit;
+      }
+      .btn-cancel:hover {
+        box-shadow: var(--shadow-out);
+        color: var(--text);
+      }
+
+      /* ── info grid ── */
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+      @media (max-width: 480px) {
+        .info-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .info-item {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: var(--shadow-out);
+        padding: 12px 14px;
+      }
+      .info-lbl {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .info-val {
+        font-size: 14px;
+        font-weight: 1000;
+        color: var(--text);
+      }
+      .info-val.green {
+        color: var(--green);
+      }
+      .info-val.blue {
+        color: var(--blue);
+      }
+
+      .mini {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .fill {
+        fill: currentColor;
       }
     </style>
   </head>
-
   <body>
-    <div class="wrap">
-      <div class="top">
-        <div class="brand">
-          <div class="logo" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 20h16"
-                stroke="white"
-                stroke-width="2"
-                stroke-linecap="round"
+    <div class="screen">
+      <div class="wrap">
+        <!-- HEADER -->
+        <div class="head-card">
+          <div class="head-top">
+            <div class="logo">
+              <img
+                src="{{ url_for('static', filename='UMGAP (1).png') }}"
+                alt="UMGAP"
               />
-              <path
-                d="M7 16l9.5-9.5a2 2 0 0 1 2.8 2.8L9.8 19H7v-3z"
-                stroke="white"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            </div>
+            <div class="hdr-right">
+              <div class="userpill">
+                <span class="dot"></span>
+                <span class="uname"
+                  >{{ user_name or session.get("user_name","Admin") }}</span
+                >
+              </div>
+              <a href="/products" class="action-btn" aria-label="Kembali">
+                <svg viewBox="0 0 24 24">
+                  <path d="M19 12H5" />
+                  <path d="M12 5l-7 7 7 7" />
+                </svg>
+              </a>
+              <a
+                href="{{ url_for('logout') }}"
+                class="action-btn"
+                aria-label="Logout"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+                </svg>
+              </a>
+            </div>
           </div>
-          <div class="brandtext">
-            <p class="title">Edit Produk</p>
-            <p class="sub">ID #{{ product.id }}</p>
+          <div class="rgb"></div>
+        </div>
+
+        <!-- BREADCRUMB -->
+        <div class="breadcrumb">
+          <a class="bc-link" href="/products">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
+              <path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z" />
+              <path d="M20 7.4l-8 4.6-8-4.6" />
+            </svg>
+            Produk
+          </a>
+          <span class="bc-sep">›</span>
+          <div class="bc-cur">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
+              <path
+                d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+              />
+              <path d="M18.5 2.5a2 2 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit Produk
           </div>
         </div>
 
-        <div class="right">
-          <a class="btn" href="/products">⬅ Kembali</a>
-          <a class="btn" href="/logout">Logout</a>
+        <!-- INTRO CARD -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Edit Produk</h2>
+            <p class="desc">
+              Perbarui nama atau harga produk, lalu simpan perubahan.
+            </p>
+            <div class="id-badge">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M9 9h6M9 12h6M9 15h4" />
+              </svg>
+              ID Produk #{{ product.id }}
+            </div>
+          </div>
+        </div>
+
+        <!-- CURRENT VALUE STRIP -->
+        <div class="current-strip">
+          <div class="cur-item">
+            <div class="cur-lbl">Nama Saat Ini</div>
+            <div class="cur-val">{{ product.name }}</div>
+          </div>
+          <div class="cur-item">
+            <div class="cur-lbl">Harga Saat Ini</div>
+            <div class="cur-val price">
+              Rp {{ "{:,}".format(product.price).replace(",",".") }}
+            </div>
+          </div>
+        </div>
+
+        <!-- FORM CARD -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Ubah Data</h2>
+            <p class="desc">Isi field di bawah, lalu klik Simpan.</p>
+            <div class="divider"></div>
+
+            {% if error %}
+            <div class="error-box">⚠ {{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="/products/edit/{{ product.id }}">
+              <div class="field-row">
+                <div class="field">
+                  <label>Nama Produk</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value="{{ product.name }}"
+                    required
+                  />
+                  <div class="field-hint">
+                    Sebelumnya: <b>{{ product.name }}</b>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Harga (Rp)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    min="0"
+                    value="{{ product.price }}"
+                    required
+                  />
+                  <div class="field-hint">
+                    Sebelumnya:
+                    <b
+                      >Rp {{ "{:,}".format(product.price).replace(",",".") }}</b
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div class="actions">
+                <button class="btn-save" type="submit">
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  >
+                    <path
+                      d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                    />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Simpan Perubahan
+                </button>
+                <a class="btn-cancel" href="/products">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  >
+                    <path d="M18 6L6 18" />
+                    <path d="M6 6l12 12" />
+                  </svg>
+                  Batal
+                </a>
+              </div>
+            </form>
+
+            <!-- info grid -->
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-lbl">ID Produk</div>
+                <div class="info-val blue">#{{ product.id }}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-lbl">Nama</div>
+                <div
+                  class="info-val"
+                  style="
+                    font-size: 13px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  "
+                >
+                  {{ product.name }}
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="info-lbl">Harga</div>
+                <div class="info-val green">
+                  Rp {{ "{:,}".format(product.price).replace(",",".") }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="card">
-        <h2>Ubah Data</h2>
-        <p class="muted">Simpan untuk memperbarui produk.</p>
-        <div class="divider"></div>
+    <!-- BOTTOM NAV -->
+    <style>
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(246, 248, 252, 0.85);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 99;
+      }
+      .nav-bar {
+        max-width: 430px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .nav-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 6px;
+        border-radius: 16px;
+        color: #9fb1d6;
+        font-weight: 800;
+        text-decoration: none;
+        font-size: 13px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .nav-item.active {
+        color: #2f5f8f;
+        background: #f2f5fb;
+      }
+      .nav-ico {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+      }
+      .nav-ico svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      @media (max-width: 360px) {
+        .nav-item span {
+          display: none;
+        }
+      }
+    </style>
+    <div class="bottom-nav">
+      <div class="nav-bar" role="navigation">
+        <a class="nav-item" href="/">
+          <span class="nav-ico"
+            ><svg viewBox="0 0 24 24">
+              <rect
+                style="fill: currentColor"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect></svg
+          ></span>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item active" href="/products">
+          <span class="nav-ico"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z" />
+              <path d="M20 7.4l-8 4.6-8-4.6" />
+              <path d="M12 12v9.2" /></svg
+          ></span>
+          <span>Produk</span>
+        </a>
+        <a class="nav-item" href="/logout">
+          <span class="nav-ico"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M10 17l5-5-5-5" />
+              <path d="M15 12H3" />
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" /></svg
+          ></span>
+          <span>Logout</span>
+        </a>
+      </div>
+    </div>
+  </body>
+</html>
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Edit Produk — UMGAP</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-        {% if error %}
-        <p class="error">{{ error }}</p>
-        <div class="divider"></div>
-        {% endif %}
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+        --soft-in:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+        --radius: 22px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+        --green: #15803d;
+        --red: #dc2626;
+        --nav-h: 92px;
+      }
 
-        <form method="post" action="/products/edit/{{ product.id }}">
-          <div class="row">
-            <div>
-              <label>Nama</label>
-              <input
-                type="text"
-                name="name"
-                value="{{ product.name }}"
-                required
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+      }
+
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
+        padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+      }
+      .wrap {
+        width: 100%;
+        max-width: 480px;
+      }
+      @media (min-width: 600px) {
+        .wrap {
+          max-width: 640px;
+        }
+      }
+      @media (min-width: 901px) {
+        .wrap {
+          max-width: 780px;
+        }
+      }
+
+      /* ── header ── */
+      .head-card {
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
+      }
+      .head-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .hdr-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+      .userpill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f2f5fb;
+        border-radius: var(--pill);
+        padding: 7px 12px;
+        box-shadow: var(--soft-in);
+        white-space: nowrap;
+      }
+      @media (max-width: 380px) {
+        .userpill {
+          display: none;
+        }
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex: 0 0 auto;
+      }
+      .uname {
+        font-size: 13px;
+        color: #506381;
+        font-weight: 800;
+      }
+      .action-btn {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 14px;
+        background: #f3f6fc;
+        box-shadow:
+          0 10px 20px rgba(30, 60, 90, 0.16),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+        transition: transform 0.15s;
+      }
+      .action-btn:hover {
+        transform: translateY(-1px);
+      }
+      .action-btn svg {
+        width: 20px;
+        height: 20px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .rgb {
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
+        background: linear-gradient(
+          90deg,
+          #f00 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
+        );
+      }
+
+      /* ── breadcrumb pill ── */
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+      .bc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--muted);
+        text-decoration: none;
+        transition: box-shadow 0.15s;
+        white-space: nowrap;
+      }
+      .bc-link:hover {
+        box-shadow: var(--shadow-out);
+        color: var(--text);
+      }
+      .bc-sep {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .bc-cur {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(41, 83, 126, 0.22);
+      }
+
+      /* ── cards ── */
+      .main-card {
+        margin-top: 14px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 16px 14px 18px;
+      }
+      .inner {
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 18px 14px 16px;
+      }
+      .title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 1000;
+        color: #2a3b58;
+        letter-spacing: 0.2px;
+      }
+      .desc {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 14px 0;
+      }
+
+      /* ── id badge ── */
+      .id-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 6px 12px;
+        border-radius: 12px;
+        background: rgba(47, 95, 143, 0.1);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      /* ── current values strip ── */
+      .current-strip {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .cur-item {
+        flex: 1 1 140px;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: var(--shadow-out);
+        padding: 14px 16px;
+      }
+      .cur-lbl {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .cur-val {
+        font-size: 17px;
+        font-weight: 1000;
+        color: var(--text);
+      }
+      .cur-val.price {
+        color: var(--green);
+      }
+
+      /* ── form ── */
+      label {
+        display: block;
+        margin: 0 0 7px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      .field {
+        margin-bottom: 16px;
+      }
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        border: none;
+        outline: none;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 13px 16px;
+        font-size: 15px;
+        color: var(--text);
+        -webkit-appearance: none;
+        appearance: none;
+        font-family: inherit;
+        transition: box-shadow 0.2s;
+      }
+      input:focus {
+        box-shadow:
+          var(--soft-in),
+          0 0 0 3px rgba(47, 95, 143, 0.15);
+      }
+      input::placeholder {
+        color: var(--muted);
+      }
+      .field-hint {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .field-hint b {
+        color: var(--blue);
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 480px) {
+        .field-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ── error ── */
+      .error-box {
+        background: rgba(220, 38, 38, 0.08);
+        border: 1px solid rgba(220, 38, 38, 0.22);
+        border-radius: 14px;
+        padding: 11px 14px;
+        color: #991b1b;
+        font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 16px;
+      }
+
+      /* ── action buttons ── */
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn-save {
+        height: 52px;
+        padding: 0 28px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        font-weight: 900;
+        font-size: 15px;
+        background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(41, 83, 126, 0.24);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+        font-family: inherit;
+      }
+      .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(41, 83, 126, 0.32);
+      }
+      .btn-cancel {
+        height: 52px;
+        padding: 0 22px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        font-weight: 800;
+        font-size: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        transition:
+          box-shadow 0.15s,
+          color 0.15s;
+        font-family: inherit;
+      }
+      .btn-cancel:hover {
+        box-shadow: var(--shadow-out);
+        color: var(--text);
+      }
+
+      /* ── info grid ── */
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+      @media (max-width: 480px) {
+        .info-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .info-item {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: var(--shadow-out);
+        padding: 12px 14px;
+      }
+      .info-lbl {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .info-val {
+        font-size: 14px;
+        font-weight: 1000;
+        color: var(--text);
+      }
+      .info-val.green {
+        color: var(--green);
+      }
+      .info-val.blue {
+        color: var(--blue);
+      }
+
+      .mini {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .fill {
+        fill: currentColor;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="screen">
+      <div class="wrap">
+        <!-- HEADER -->
+        <div class="head-card">
+          <div class="head-top">
+            <div class="logo">
+              <img
+                src="{{ url_for('static', filename='UMGAP (1).png') }}"
+                alt="UMGAP"
               />
             </div>
-            <div>
-              <label>Harga</label>
-              <input
-                type="number"
-                name="price"
-                min="0"
-                value="{{ product.price }}"
-                required
-              />
+            <div class="hdr-right">
+              <div class="userpill">
+                <span class="dot"></span>
+                <span class="uname"
+                  >{{ user_name or session.get("user_name","Admin") }}</span
+                >
+              </div>
+              <a href="/products" class="action-btn" aria-label="Kembali">
+                <svg viewBox="0 0 24 24">
+                  <path d="M19 12H5" />
+                  <path d="M12 5l-7 7 7 7" />
+                </svg>
+              </a>
+              <a
+                href="{{ url_for('logout') }}"
+                class="action-btn"
+                aria-label="Logout"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+                </svg>
+              </a>
             </div>
           </div>
+          <div class="rgb"></div>
+        </div>
 
-          <div
-            style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap"
-          >
-            <button class="btn primary" type="submit">💾 Simpan</button>
-            <a class="btn" href="/products">Batal</a>
+        <!-- BREADCRUMB -->
+        <div class="breadcrumb">
+          <a class="bc-link" href="/products">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
+              <path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z" />
+              <path d="M20 7.4l-8 4.6-8-4.6" />
+            </svg>
+            Produk
+          </a>
+          <span class="bc-sep">›</span>
+          <div class="bc-cur">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            >
+              <path
+                d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+              />
+              <path d="M18.5 2.5a2 2 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit Produk
           </div>
-        </form>
+        </div>
+
+        <!-- INTRO CARD -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Edit Produk</h2>
+            <p class="desc">
+              Perbarui nama atau harga produk, lalu simpan perubahan.
+            </p>
+            <div class="id-badge">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M9 9h6M9 12h6M9 15h4" />
+              </svg>
+              ID Produk #{{ product.id }}
+            </div>
+          </div>
+        </div>
+
+        <!-- CURRENT VALUE STRIP -->
+        <div class="current-strip">
+          <div class="cur-item">
+            <div class="cur-lbl">Nama Saat Ini</div>
+            <div class="cur-val">{{ product.name }}</div>
+          </div>
+          <div class="cur-item">
+            <div class="cur-lbl">Harga Saat Ini</div>
+            <div class="cur-val price">
+              Rp {{ "{:,}".format(product.price).replace(",",".") }}
+            </div>
+          </div>
+        </div>
+
+        <!-- FORM CARD -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Ubah Data</h2>
+            <p class="desc">Isi field di bawah, lalu klik Simpan.</p>
+            <div class="divider"></div>
+
+            {% if error %}
+            <div class="error-box">⚠ {{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="/products/edit/{{ product.id }}">
+              <div class="field-row">
+                <div class="field">
+                  <label>Nama Produk</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value="{{ product.name }}"
+                    required
+                  />
+                  <div class="field-hint">
+                    Sebelumnya: <b>{{ product.name }}</b>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Harga (Rp)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    min="0"
+                    value="{{ product.price }}"
+                    required
+                  />
+                  <div class="field-hint">
+                    Sebelumnya:
+                    <b
+                      >Rp {{ "{:,}".format(product.price).replace(",",".") }}</b
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div class="actions">
+                <button class="btn-save" type="submit">
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  >
+                    <path
+                      d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                    />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Simpan Perubahan
+                </button>
+                <a class="btn-cancel" href="/products">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  >
+                    <path d="M18 6L6 18" />
+                    <path d="M6 6l12 12" />
+                  </svg>
+                  Batal
+                </a>
+              </div>
+            </form>
+
+            <!-- info grid -->
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-lbl">ID Produk</div>
+                <div class="info-val blue">#{{ product.id }}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-lbl">Nama</div>
+                <div
+                  class="info-val"
+                  style="
+                    font-size: 13px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  "
+                >
+                  {{ product.name }}
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="info-lbl">Harga</div>
+                <div class="info-val green">
+                  Rp {{ "{:,}".format(product.price).replace(",",".") }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <style>
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(246, 248, 252, 0.85);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 99;
+      }
+      .nav-bar {
+        max-width: 430px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .nav-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 6px;
+        border-radius: 16px;
+        color: #9fb1d6;
+        font-weight: 800;
+        text-decoration: none;
+        font-size: 13px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .nav-item.active {
+        color: #2f5f8f;
+        background: #f2f5fb;
+      }
+      .nav-ico {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+      }
+      .nav-ico svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      @media (max-width: 360px) {
+        .nav-item span {
+          display: none;
+        }
+      }
+    </style>
+    <div class="bottom-nav">
+      <div class="nav-bar" role="navigation">
+        <a class="nav-item" href="/">
+          <span class="nav-ico"
+            ><svg viewBox="0 0 24 24">
+              <rect
+                style="fill: currentColor"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                style="fill: currentColor"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect></svg
+          ></span>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item active" href="/products">
+          <span class="nav-ico"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z" />
+              <path d="M20 7.4l-8 4.6-8-4.6" />
+              <path d="M12 12v9.2" /></svg
+          ></span>
+          <span>Produk</span>
+        </a>
+        <a class="nav-item" href="/logout">
+          <span class="nav-ico"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M10 17l5-5-5-5" />
+              <path d="M15 12H3" />
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" /></svg
+          ></span>
+          <span>Logout</span>
+        </a>
       </div>
     </div>
   </body>
