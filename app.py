@@ -876,17 +876,20 @@ def admin_dashboard():
 def admin_users():
     admin_guard()
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary
-        FROM users u
-        LEFT JOIN payroll_settings p ON p.user_id=u.id
-        ORDER BY u.id DESC;
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary
+            FROM users u
+            LEFT JOIN payroll_settings p ON p.user_id=u.id
+            ORDER BY u.id DESC;
+        """)
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
     return render_template("admin_users.html", rows=rows, error=None)
+
 
 @app.route("/admin/users/create", methods=["POST"])
 def admin_users_create():
@@ -901,17 +904,33 @@ def admin_users_create():
         return redirect("/admin/users")
 
     pw_hash = generate_password_hash(password)
+
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO users (name, email, password_hash, role) VALUES (%s, %s, %s, %s) RETURNING id;",
-        (name, email, pw_hash, role))
-    uid = cur.fetchone()["id"]
-    cur.execute("INSERT INTO payroll_settings (user_id, daily_salary) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;",
-        (uid, daily_salary))
-    conn.commit()
-    cur.close()
-    conn.close()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO users (name, email, password_hash, role)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id;
+        """, (name, email, pw_hash, role))
+        row = cur.fetchone() or {}
+        uid = row.get("id")
+
+        if uid:
+            cur.execute("""
+                INSERT INTO payroll_settings (user_id, daily_salary)
+                VALUES (%s, %s)
+                ON CONFLICT (user_id)
+                DO UPDATE SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
+            """, (uid, daily_salary))
+
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/admin/users")
+
 
 @app.route("/admin/users/update/<int:uid>", methods=["POST"])
 def admin_users_update(uid):
@@ -924,31 +943,50 @@ def admin_users_update(uid):
 
     conn = get_conn()
     cur = conn.cursor()
+    try:
+        if new_password:
+            pw_hash = generate_password_hash(new_password)
+            cur.execute("""
+                UPDATE users
+                SET name=%s, email=%s, role=%s, password_hash=%s
+                WHERE id=%s;
+            """, (name, email, role, pw_hash, uid))
+        else:
+            cur.execute("""
+                UPDATE users
+                SET name=%s, email=%s, role=%s
+                WHERE id=%s;
+            """, (name, email, role, uid))
 
-    if new_password:
-        pw_hash = generate_password_hash(new_password)
-        cur.execute("UPDATE users SET name=%s, email=%s, role=%s, password_hash=%s WHERE id=%s;",
-            (name, email, role, pw_hash, uid))
-    else:
-        cur.execute("UPDATE users SET name=%s, email=%s, role=%s WHERE id=%s;", (name, email, role, uid))
+        cur.execute("""
+            INSERT INTO payroll_settings (user_id, daily_salary)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id)
+            DO UPDATE SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;
+        """, (uid, daily_salary))
 
-    cur.execute("INSERT INTO payroll_settings (user_id, daily_salary) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET daily_salary=EXCLUDED.daily_salary, updated_at=CURRENT_TIMESTAMP;",
-        (uid, daily_salary))
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/admin/users")
+
 
 @app.route("/admin/users/delete/<int:uid>", methods=["POST"])
 def admin_users_delete(uid):
     if uid == session.get("user_id"):
         return redirect("/admin/users")
+
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("DELETE FROM users WHERE id=%s;", (uid,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("DELETE FROM users WHERE id=%s;", (uid,))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/admin/users")
 
 @app.route("/admin/quick-attendance-links", methods=["GET","POST"])
