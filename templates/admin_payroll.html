@@ -1,258 +1,834 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 <style>
-  .header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .titlebox h2 {
-    margin: 0;
-    font-size: 18px;
-  }
-  .titlebox .muted {
-    margin-top: 6px;
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+    --nav-h: 92px;
   }
 
-  .chipbar {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 10px;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
-  .chip {
-    display: inline-flex;
+
+  body {
+    margin: 0;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    background: var(--bg);
+  }
+
+  /* ── screen / wrap ── */
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+  .wrap {
+    width: 100%;
+    max-width: min(100%, 480px);
+  }
+  @media (min-width: 600px) {
+    .wrap {
+      max-width: 720px;
+    }
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* ── header card ── */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .hdr-right {
+    display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #f8faff;
+    margin-left: auto;
+  }
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 7px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  @media (max-width: 380px) {
+    .userpill {
+      display: none;
+    }
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+  .uname {
     font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 14px;
+    background: #f3f6fc;
+    box-shadow:
+      0 10px 20px rgba(30, 60, 90, 0.16),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 999px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  }
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #f00 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ── generic card ── */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 14px 0;
+  }
+
+  /* ── form ── */
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
     color: var(--muted);
     font-weight: 800;
   }
-  .chip b {
+  input[type="month"] {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 13px 14px;
+    font-size: 15px;
     color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .btn-primary {
+    display: block;
+    width: 100%;
+    height: 50px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 15px;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(41, 83, 126, 0.22);
+    margin-top: 10px;
   }
 
-  .grid-payroll {
+  /* ── stat pills: 2-col on mobile, 4-col on tablet+ ── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  @media (min-width: 600px) {
+    .stat-row {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .stat-pill {
+    background: #f2f5fb;
+    border-radius: 18px;
+    box-shadow: var(--soft-in);
+    padding: 14px 10px;
+    text-align: center;
+  }
+  /* Total Dibayar spans both columns on mobile */
+  .stat-pill.wide {
+    grid-column: span 2;
+  }
+  @media (min-width: 600px) {
+    .stat-pill.wide {
+      grid-column: span 1;
+    }
+  }
+
+  .s-num {
+    font-size: 17px;
+    font-weight: 1000;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .s-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    margin-top: 3px;
+  }
+  .stat-pill.green .s-num {
+    color: #15803d;
+    font-size: 14px;
+  }
+  .stat-pill.blue .s-num {
+    color: #1e40af;
+  }
+  /* on tablet+ allow larger text for total */
+  @media (min-width: 600px) {
+    .stat-pill.green .s-num {
+      font-size: 15px;
+    }
+  }
+
+  /* ── two-column layout ── */
+  .grid2 {
     display: grid;
     grid-template-columns: 1fr;
     gap: 14px;
     margin-top: 14px;
   }
-  @media (min-width: 980px) {
-    .grid-payroll {
-      grid-template-columns: 0.9fr 1.1fr;
+  @media (min-width: 901px) {
+    .grid2 {
+      grid-template-columns: 260px 1fr;
       align-items: start;
     }
   }
 
-  .table-wrap {
-    width: 100%;
-    overflow: auto;
+  /* ── mobile payroll cards ── */
+  .plist {
+    display: grid;
+    gap: 10px;
+    margin-top: 4px;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th,
-  td {
-    padding: 12px 10px;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
-  }
-  th {
-    position: sticky;
-    top: 0;
+  .pitem {
     background: #fff;
-    z-index: 1;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 14px;
   }
-
-  .money {
-    font-weight: 1000;
-  }
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  /* Mobile cards */
-  .list-mobile {
-    display: none;
-  }
-  .item {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px;
-    background: #fff;
-    margin-top: 10px;
-  }
-  .item-top {
+  .pitem-top {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-    align-items: flex-start;
   }
-  .name {
+  .pinfo {
+    min-width: 0;
+    flex: 1;
+  }
+  .pname {
+    margin: 0;
     font-weight: 1000;
+    font-size: 15px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .paid {
+  .pdaily {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .ppaid {
+    font-size: 15px;
     font-weight: 1000;
+    color: #15803d;
+    flex: 0 0 auto;
+    text-align: right;
+    /* allow wrapping for long currency strings */
+    max-width: 48%;
+    word-break: break-word;
+    white-space: normal;
+    line-height: 1.3;
   }
-
-  .statsline {
+  .pstats {
     margin-top: 10px;
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .pill2 {
-    border: 1px solid var(--border);
-    background: #f8faff;
-    border-radius: 999px;
-    padding: 8px 10px;
+  .pstat {
+    background: #f2f5fb;
+    border-radius: 10px;
+    box-shadow: var(--soft-in);
+    padding: 6px 10px;
     font-size: 12px;
     color: var(--muted);
-    font-weight: 900;
+    font-weight: 800;
   }
-  .pill2 b {
+  .pstat b {
     color: var(--text);
   }
+  .pstat.hadir b {
+    color: #15803d;
+  }
+  .pstat.sakit b {
+    color: #d97706;
+  }
+  .pstat.cuti b {
+    color: #2563eb;
+  }
+  .pstat.absen b {
+    color: #dc2626;
+  }
+  .pformula {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    background: #f2f5fb;
+    border-radius: 10px;
+    padding: 6px 10px;
+    display: inline-block;
+  }
 
-  @media (max-width: 640px) {
-    input,
-    select {
-      padding: 14px;
-      font-size: 16px;
-    }
-    .table-wrap {
+  /* ── desktop table ── */
+  .tablewrap {
+    display: none;
+    overflow-x: auto;
+    margin: 4px -2px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 640px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.13);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    background: #f8faff;
+  }
+  .t-money {
+    font-weight: 1000;
+    color: #15803d;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .t-mini {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .tbadge {
+    display: inline-flex;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 900;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--text);
+  }
+  .tbadge.hadir {
+    background: rgba(21, 128, 61, 0.1);
+    color: #15803d;
+  }
+  .tbadge.sakit {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+  }
+  .tbadge.cuti {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+  }
+  .tbadge.absen {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+  }
+  .tfoot-total td {
+    font-weight: 1000;
+    background: #f8faff;
+    border-top: 2px solid rgba(125, 138, 166, 0.2);
+    border-bottom: none;
+  }
+
+  @media (min-width: 901px) {
+    .plist {
       display: none;
     }
-    .list-mobile {
+    .tablewrap {
       display: block;
+    }
+  }
+
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .fill {
+    fill: currentColor;
+  }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
+        <div class="hdr-right">
+          <div class="userpill">
+            <span class="dot"></span>
+            <span class="uname"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
+          </div>
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
+          </button>
+          <a
+            href="{{ url_for('logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- INTRO -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Payroll</h2>
+        <p class="desc">
+          Hitung gaji berdasarkan <b>gaji harian × jumlah hadir</b>.
+        </p>
+      </div>
+    </div>
+
+    <!-- STAT PILLS -->
+    {% set ns = namespace(total=0) %} {% for r in rows %}{% set ns.total =
+    ns.total + r.salary_paid %}{% endfor %}
+
+    <div class="stat-row">
+      <div class="stat-pill">
+        <div class="s-num">{{ month }}</div>
+        <div class="s-lbl">Bulan</div>
+      </div>
+      <div class="stat-pill blue">
+        <div class="s-num">{{ workdays }}</div>
+        <div class="s-lbl">Hari Kerja</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">{{ rows|length }}</div>
+        <div class="s-lbl">Karyawan</div>
+      </div>
+      <div class="stat-pill green wide">
+        <div class="s-num">
+          Rp {{ "{:,}".format(ns.total).replace(",",".") }}
+        </div>
+        <div class="s-lbl">Total Dibayar</div>
+      </div>
+    </div>
+
+    <!-- GRID -->
+    <div class="grid2">
+      <!-- Filter -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Filter Bulan</h2>
+          <p class="desc">Pilih bulan untuk melihat data payroll.</p>
+          <div class="divider"></div>
+          <form method="GET" action="/admin/payroll">
+            <label>Pilih Bulan</label>
+            <input type="month" name="month" value="{{ month }}" required />
+            <button class="btn-primary" type="submit">Tampilkan</button>
+          </form>
+          <p class="mini" style="margin-top: 10px; text-align: center">
+            Rumus: gaji_harian × jumlah_hadir
+          </p>
+        </div>
+      </div>
+
+      <!-- Data -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Daftar Payroll</h2>
+          <p class="desc">Rekap gaji karyawan bulan {{ month }}.</p>
+          <div class="divider"></div>
+
+          <!-- MOBILE cards -->
+          <div class="plist">
+            {% for r in rows %}
+            <div class="pitem">
+              <div class="pitem-top">
+                <div class="pinfo">
+                  <p class="pname">{{ r.name }}</p>
+                  <p class="pdaily">
+                    Rp {{ "{:,}".format(r.daily_salary).replace(",",".") }} /
+                    hari
+                  </p>
+                </div>
+                <div class="ppaid">
+                  Rp {{ "{:,}".format(r.salary_paid).replace(",",".") }}
+                </div>
+              </div>
+              <div class="pstats">
+                <div class="pstat hadir">Hadir <b>{{ r.days_present }}</b></div>
+                <div class="pstat sakit">Sakit <b>{{ r.days_sick }}</b></div>
+                <div class="pstat cuti">Cuti <b>{{ r.days_leave }}</b></div>
+                <div class="pstat absen">Absen <b>{{ r.days_absent }}</b></div>
+              </div>
+              <div class="pformula">
+                {{ "{:,}".format(r.daily_salary).replace(",",".") }} × {{
+                r.days_present }} hari
+              </div>
+            </div>
+            {% endfor %} {% if rows|length == 0 %}
+            <p class="mini">Belum ada data karyawan.</p>
+            {% endif %}
+          </div>
+
+          <!-- DESKTOP table -->
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Karyawan</th>
+                  <th>Gaji Harian</th>
+                  <th>Hadir</th>
+                  <th>Sakit</th>
+                  <th>Cuti</th>
+                  <th>Absen</th>
+                  <th>Total Dibayar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in rows %}
+                <tr>
+                  <td><b>{{ r.name }}</b></td>
+                  <td class="t-mini">
+                    Rp {{ "{:,}".format(r.daily_salary).replace(",",".") }}
+                  </td>
+                  <td>
+                    <span class="tbadge hadir">{{ r.days_present }}</span>
+                  </td>
+                  <td><span class="tbadge sakit">{{ r.days_sick }}</span></td>
+                  <td><span class="tbadge cuti">{{ r.days_leave }}</span></td>
+                  <td><span class="tbadge absen">{{ r.days_absent }}</span></td>
+                  <td class="t-money">
+                    Rp {{ "{:,}".format(r.salary_paid).replace(",",".") }}
+                  </td>
+                </tr>
+                {% endfor %} {% if rows|length == 0 %}
+                <tr>
+                  <td colspan="7" class="mini">Belum ada data karyawan.</td>
+                </tr>
+                {% endif %}
+              </tbody>
+              {% if rows|length > 0 %}
+              <tfoot>
+                <tr class="tfoot-total">
+                  <td colspan="6">Total Dibayar</td>
+                  <td class="t-money">
+                    Rp {{ "{:,}".format(ns.total).replace(",",".") }}
+                  </td>
+                </tr>
+              </tfoot>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+    font-size: 13px;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .nav-item.is-active {
+    background: transparent;
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+    flex: 0 0 22px;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+  @media (max-width: 360px) {
+    .nav-item span {
+      display: none;
     }
   }
 </style>
 
-<div class="card">
-  <div class="header">
-    <div class="titlebox">
-      <h2>Payroll</h2>
-      <div class="muted">
-        Hitung gaji berdasarkan <b>gaji harian</b> × jumlah hadir.
-      </div>
-
-      <div class="chipbar">
-        <div class="chip">📅 Bulan: <b>{{ month }}</b></div>
-        <div class="chip">
-          🗓️ Hari kerja (Senin–Sabtu): <b>{{ workdays }}</b>
-        </div>
-        <div class="chip">👥 Karyawan: <b>{{ rows|length }}</b></div>
-      </div>
-    </div>
-
-    <form method="GET" action="/admin/payroll" style="min-width: 240px">
-      <label>Pilih bulan</label>
-      <div class="row">
-        <div>
-          <input type="month" name="month" value="{{ month }}" required />
-        </div>
-        <div style="display: flex; align-items: end">
-          <button class="btn btn-primary" type="submit" style="width: 100%">
-            Tampilkan
-          </button>
-        </div>
-      </div>
-      <div class="mini" style="margin-top: 8px">
-        Rumus: gaji_harian × jumlah_hadir
-      </div>
-    </form>
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+    <button
+      class="nav-item is-active"
+      type="button"
+      aria-label="Tab tengah (kosong)"
+      onclick="
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path
+            class="stroke"
+            d="M4 8h12"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M14.6 5.8L18 8l-3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M20 16H8"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M9.4 13.8L6 16l3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </span>
+      <span>Data</span>
+    </button>
+    <a
+      class="nav-item"
+      href="#"
+      onclick="
+        document.querySelector('[data-toggle-more]')?.click();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
   </div>
 </div>
-
-<div class="grid-payroll">
-  <div class="card">
-    <h2>Ringkas</h2>
-    <div class="muted">Daftar payroll karyawan.</div>
-
-    <div class="list-mobile" style="margin-top: 10px">
-      {% for r in rows %}
-      <div class="item">
-        <div class="item-top">
-          <div>
-            <div class="name">{{ r.name }}</div>
-            <div class="mini">
-              Gaji harian: Rp {{ "{:,}".format(r.daily_salary).replace(",", ".")
-              }}
-            </div>
-          </div>
-          <div class="paid">
-            Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}
-          </div>
-        </div>
-
-        <div class="statsline">
-          <div class="pill2">Hadir <b>{{ r.days_present }}</b></div>
-          <div class="pill2">Sakit <b>{{ r.days_sick }}</b></div>
-          <div class="pill2">Cuti <b>{{ r.days_leave }}</b></div>
-          <div class="pill2">Absen <b>{{ r.days_absent }}</b></div>
-        </div>
-
-        <div class="mini" style="margin-top: 10px">
-          Rumus: {{ r.daily_salary }} × {{ r.days_present }}
-        </div>
-      </div>
-      {% endfor %} {% if rows|length == 0 %}
-      <div class="muted">Belum ada karyawan.</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="table-wrap" style="margin-top: 10px">
-      <table>
-        <thead>
-          <tr>
-            <th style="min-width: 220px">Karyawan</th>
-            <th style="min-width: 150px">Gaji Harian</th>
-            <th style="min-width: 90px">Hadir</th>
-            <th style="min-width: 90px">Sakit</th>
-            <th style="min-width: 90px">Cuti</th>
-            <th style="min-width: 90px">Absen</th>
-            <th style="min-width: 170px">Dibayar</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in rows %}
-          <tr>
-            <td><b>{{ r.name }}</b></td>
-            <td class="mini">
-              Rp {{ "{:,}".format(r.daily_salary).replace(",", ".") }}
-            </td>
-            <td>{{ r.days_present }}</td>
-            <td>{{ r.days_sick }}</td>
-            <td>{{ r.days_leave }}</td>
-            <td>{{ r.days_absent }}</td>
-            <td class="money">
-              Rp {{ "{:,}".format(r.salary_paid).replace(",", ".") }}
-            </td>
-          </tr>
-          {% endfor %} {% if rows|length == 0 %}
-          <tr>
-            <td colspan="7" class="muted">Belum ada karyawan.</td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+<script>
+  document.addEventListener(
+    "click",
+    function (e) {
+      var mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+</script>
 {% endblock %}
