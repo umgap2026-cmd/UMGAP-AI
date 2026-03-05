@@ -309,4 +309,158 @@
     {% endif %}
   </div>
 </div>
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .nav-item.is-active {
+    background: #f2f5fb00;
+    border: 0px solid rgb(255, 255, 255);
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+  @media (max-width: 360px) {
+    .nav-item span {
+      font-size: 12px;
+    }
+  }
+</style>
+
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+
+    <!-- TAB TENGAH KOSONG: sama persis admin_users -->
+    <button
+      class="nav-item is-active"
+      type="button"
+      aria-label="Tab tengah (kosong)"
+      onclick="
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path
+            class="stroke"
+            d="M4 8h12"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M14.6 5.8L18 8l-3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M20 16H8"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M9.4 13.8L6 16l3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </span>
+      <span>Data</span>
+    </button>
+
+    <a
+      class="nav-item"
+      href="#"
+      onclick="
+        document.querySelector('[data-toggle-more]')?.click();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
+  document.addEventListener(
+    "click",
+    (e) => {
+      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+</script>
+
 {% endblock %}
