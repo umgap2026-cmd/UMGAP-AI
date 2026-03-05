@@ -355,7 +355,7 @@
           <div class="plist">
             {% for p in products %}
             <div class="pitem p-row" data-search="{{ p.name|lower }}"
-              style="animation-delay:{{ loop.index0 * 40 }}ms">
+              >
               <div class="pitem-top">
                 <div style="min-width:0;flex:1;">
                   <div class="pitem-name">{{ p.name }}</div>
@@ -393,7 +393,7 @@
               <tbody>
                 {% for p in products %}
                 <tr class="p-row" data-search="{{ p.name|lower }}"
-                  style="animation-delay:{{ loop.index0 * 35 }}ms">
+                  >
                   <td>
                     <div class="t-name">{{ p.name }}</div>
                     <div class="t-sub">ID #{{ p.id }}</div>
