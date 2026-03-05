@@ -219,6 +219,25 @@
 
   .mini { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .fill { fill: currentColor; }
+
+  /* ===== More button leaderboard ===== */
+  .litem.hidden { display: none; }
+  .btn-more {
+    width: 100%; margin-top: 10px; height: 44px;
+    border: none; border-radius: 14px; cursor: pointer;
+    font-weight: 900; font-size: 13px;
+    background: #f2f5fb; box-shadow: var(--soft-in);
+    color: var(--muted); display: flex; align-items: center;
+    justify-content: center; gap: 6px; transition: color 0.2s;
+  }
+  .btn-more:hover { color: var(--text); }
+  .btn-more svg {
+    width: 16px; height: 16px; stroke: currentColor;
+    stroke-width: 2.5; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
+    transition: transform 0.3s;
+  }
+  .btn-more.expanded svg { transform: rotate(180deg); }
 </style>
 
 <div class="screen">
@@ -293,9 +312,9 @@
           <div class="divider"></div>
 
           <!-- Mobile Leaderboard -->
-          <div class="lboard">
+          <div class="lboard" id="lboardMobile">
             {% for s in summary %}
-            <div class="litem">
+            <div class="litem{% if loop.index > 5 %} hidden{% endif %}">
               <div class="rank-num {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
                 {{ loop.index }}
               </div>
@@ -310,6 +329,15 @@
             <div class="mini">Belum ada data.</div>
             {% endif %}
           </div>
+          {% if summary|length > 5 %}
+          <button class="btn-more" id="btnMoreMobile"
+            data-target="lboardMobile"
+            data-extra="{{ summary|length - 5 }}"
+            onclick="toggleLboard(this)">
+            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            <span>Lihat {{ summary|length - 5 }} lainnya</span>
+          </button>
+          {% endif %}
 
           <!-- Desktop Table Leaderboard -->
           <div class="lboard-tablewrap">
@@ -321,9 +349,9 @@
                   <th>Total Qty</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="lboardDesktop">
                 {% for s in summary %}
-                <tr>
+                <tr{% if loop.index > 5 %} class="hidden"{% endif %}>
                   <td>
                     <div class="rank-num {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
                       {{ loop.index }}
@@ -338,6 +366,15 @@
                 {% endif %}
               </tbody>
             </table>
+            {% if summary|length > 5 %}
+            <button class="btn-more" id="btnMoreDesktop"
+              data-target="lboardDesktop"
+              data-extra="{{ summary|length - 5 }}"
+              onclick="toggleLboard(this)">
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              <span>Lihat {{ summary|length - 5 }} lainnya</span>
+            </button>
+            {% endif %}
           </div>
 
         </div>
@@ -421,6 +458,31 @@
 </div>
 
 <script>
+  // Toggle leaderboard more/less
+  function toggleLboard(btn) {
+    var containerId = btn.getAttribute("data-target");
+    var extra = btn.getAttribute("data-extra");
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var isExpanded = btn.classList.contains("expanded");
+    var span = btn.querySelector("span");
+
+    if (isExpanded) {
+      var items = container.querySelectorAll(".litem, tr");
+      items.forEach(function(el, i) {
+        if (i >= 5) el.classList.add("hidden");
+      });
+      btn.classList.remove("expanded");
+      span.textContent = "Lihat " + extra + " lainnya";
+    } else {
+      container.querySelectorAll(".hidden").forEach(function(el) {
+        el.classList.remove("hidden");
+      });
+      btn.classList.add("expanded");
+      span.textContent = "Sembunyikan";
+    }
+  }
+
   // Search filter untuk detail submit
   (function () {
     const input = document.getElementById("detailSearch");
