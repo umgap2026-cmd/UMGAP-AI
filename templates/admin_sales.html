@@ -404,8 +404,7 @@
     margin-top: 6px;
   }
 </style>
-<style>
-  .head {
+<style>.head {
     padding: 12px 2px;
   }
   .title {
@@ -559,33 +558,22 @@
       padding: 14px;
       font-size: 16px;
     }
-  }
-</style>
+  }</style>
 <div class="screen">
   <div class="wrap">
     <div class="head-card">
       <div class="head-top">
         <div class="logo">
-          <img
-            src="{{ url_for('static', filename='UMGAP (1).png') }}"
-            alt="UMGAP"
-          />
+          <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" />
         </div>
 
         <div class="right">
           <div class="userpill" title="User">
             <span class="dot"></span>
-            <span class="name"
-              >{{ user_name or session.get("user_name","Admin") }}</span
-            >
+            <span class="name">{{ user_name or session.get("user_name","Admin") }}</span>
           </div>
 
-          <button
-            class="action-btn"
-            type="button"
-            data-toggle-more
-            aria-label="More menu"
-          >
+          <button class="action-btn" type="button" data-toggle-more aria-label="More menu">
             <span class="ico" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
@@ -605,159 +593,239 @@
     </div>
 
     <div class="card">
-      <div class="head">
-        <h2 class="title">Approval Penjualan</h2>
-        <p class="sub">
-          Pilih submit yang <b>PENDING</b>, lalu Approve atau Reject.
-        </p>
-      </div>
-    </div>
-
-    <!-- DESKTOP TABLE -->
-    <div class="card" style="margin-top: 16px">
-      <h2 style="margin: 0 0 10px">Daftar Submit</h2>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Karyawan</th>
-              <th>Produk</th>
-              <th>Qty</th>
-              <th>Status</th>
-              <th>Waktu</th>
-              <th>Catatan</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for r in rows %}
-            <tr>
-              <td><b>{{ r.employee_name }}</b></td>
-              <td>{{ r.product_name or "-" }}</td>
-              <td><b>{{ r.qty }}</b></td>
-              <td>
-                {% if r.status == 'APPROVED' %}
-                <span class="badge ok">APPROVED</span>
-                {% elif r.status == 'REJECTED' %}
-                <span class="badge bad">REJECTED</span>
-                {% else %}
-                <span class="badge">PENDING</span>
-                {% endif %}
-              </td>
-              <td class="time">{{ r.created_at }}</td>
-              <td class="note">{{ r.note or "-" }}</td>
-
-              <td class="act">
-                {% if r.status == 'PENDING' %}
-                <form method="POST" style="margin: 0">
-                  <div class="actbox">
-                    <input
-                      name="admin_note"
-                      placeholder="Catatan admin (opsional)"
-                    />
-                    <button
-                      class="btn btn-primary btn-small"
-                      type="submit"
-                      formaction="/admin/sales/approve/{{ r.id }}"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      class="btn btn-danger btn-small"
-                      type="submit"
-                      formaction="/admin/sales/reject/{{ r.id }}"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </form>
-                {% else %}
-                <div class="muted" style="font-size: 12px">
-                  Catatan admin: <b>{{ r.admin_note or "-" }}</b>
-                </div>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %} {% if rows|length == 0 %}
-            <tr>
-              <td colspan="7" class="muted">Belum ada submit.</td>
-            </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- MOBILE CARDS -->
-      <div class="list">
-        {% for r in rows %}
-        <div class="cardx">
-          <div class="top">
-            <div>
-              <p class="name">{{ r.employee_name }}</p>
-              <p class="mini">
-                {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
-              </p>
-              <p class="mini">⏱ {{ r.created_at }}</p>
-            </div>
-            <div>
-              {% if r.status == 'APPROVED' %}
-              <span class="badge ok">APPROVED</span>
-              {% elif r.status == 'REJECTED' %}
-              <span class="badge bad">REJECTED</span>
-              {% else %}
-              <span class="badge">PENDING</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="tags">
-            <span class="tag">📦 {{ r.product_name or "-" }}</span>
-            <span class="tag">🔢 {{ r.qty }}</span>
-          </div>
-
-          <div class="mini" style="margin-top: 10px">
-            Catatan: <b style="color: var(--text)">{{ r.note or "-" }}</b>
-          </div>
-
-          {% if r.status == 'PENDING' %}
-          <form method="POST" class="actm">
-            <div>
-              <label>Catatan admin (opsional)</label>
-              <input name="admin_note" placeholder="ok / data kurang jelas" />
-            </div>
-            <div class="row2">
-              <button
-                class="btn btn-primary btn-full"
-                type="submit"
-                formaction="/admin/sales/approve/{{ r.id }}"
-              >
-                Approve
-              </button>
-              <button
-                class="btn btn-danger btn-full"
-                type="submit"
-                formaction="/admin/sales/reject/{{ r.id }}"
-              >
-                Reject
-              </button>
-            </div>
-          </form>
-          {% else %}
-          <div class="mini" style="margin-top: 10px">
-            Catatan admin:
-            <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
-          </div>
-          {% endif %}
-        </div>
-        {% endfor %} {% if rows|length == 0 %}
-        <div class="muted">Belum ada submit.</div>
-        {% endif %}
-      </div>
-    </div>
+  <div class="head">
+    <h2 class="title">Approval Penjualan</h2>
+    <p class="sub">
+      Pilih submit yang <b>PENDING</b>, lalu Approve atau Reject.
+    </p>
   </div>
 </div>
+
+<!-- DESKTOP TABLE -->
+<div class="card" style="margin-top: 16px">
+  <h2 style="margin: 0 0 10px">Daftar Submit</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Karyawan</th>
+          <th>Produk</th>
+          <th>Qty</th>
+          <th>Status</th>
+          <th>Waktu</th>
+          <th>Catatan</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><b>{{ r.employee_name }}</b></td>
+          <td>{{ r.product_name or "-" }}</td>
+          <td><b>{{ r.qty }}</b></td>
+          <td>
+            {% if r.status == 'APPROVED' %}
+            <span class="badge ok">APPROVED</span>
+            {% elif r.status == 'REJECTED' %}
+            <span class="badge bad">REJECTED</span>
+            {% else %}
+            <span class="badge">PENDING</span>
+            {% endif %}
+          </td>
+          <td class="time">{{ r.created_at }}</td>
+          <td class="note">{{ r.note or "-" }}</td>
+
+          <td class="act">
+            {% if r.status == 'PENDING' %}
+            <form method="POST" style="margin: 0">
+              <div class="actbox">
+                <input
+                  name="admin_note"
+                  placeholder="Catatan admin (opsional)"
+                />
+                <button
+                  class="btn btn-primary btn-small"
+                  type="submit"
+                  formaction="/admin/sales/approve/{{ r.id }}"
+                >
+                  Approve
+                </button>
+                <button
+                  class="btn btn-danger btn-small"
+                  type="submit"
+                  formaction="/admin/sales/reject/{{ r.id }}"
+                >
+                  Reject
+                </button>
+              </div>
+            </form>
+            {% else %}
+            <div class="muted" style="font-size: 12px">
+              Catatan admin: <b>{{ r.admin_note or "-" }}</b>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %} {% if rows|length == 0 %}
+        <tr>
+          <td colspan="7" class="muted">Belum ada submit.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MOBILE CARDS -->
+  <div class="list">
+    {% for r in rows %}
+    <div class="cardx">
+      <div class="top">
+        <div>
+          <p class="name">{{ r.employee_name }}</p>
+          <p class="mini">
+            {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
+          </p>
+          <p class="mini">⏱ {{ r.created_at }}</p>
+        </div>
+        <div>
+          {% if r.status == 'APPROVED' %}
+          <span class="badge ok">APPROVED</span>
+          {% elif r.status == 'REJECTED' %}
+          <span class="badge bad">REJECTED</span>
+          {% else %}
+          <span class="badge">PENDING</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="tags">
+        <span class="tag">📦 {{ r.product_name or "-" }}</span>
+        <span class="tag">🔢 {{ r.qty }}</span>
+      </div>
+
+      <div class="mini" style="margin-top: 10px">
+        Catatan: <b style="color: var(--text)">{{ r.note or "-" }}</b>
+      </div>
+
+      {% if r.status == 'PENDING' %}
+      <form method="POST" class="actm">
+        <div>
+          <label>Catatan admin (opsional)</label>
+          <input name="admin_note" placeholder="ok / data kurang jelas" />
+        </div>
+        <div class="row2">
+          <button
+            class="btn btn-primary btn-full"
+            type="submit"
+            formaction="/admin/sales/approve/{{ r.id }}"
+          >
+            Approve
+          </button>
+          <button
+            class="btn btn-danger btn-full"
+            type="submit"
+            formaction="/admin/sales/reject/{{ r.id }}"
+          >
+            Reject
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div class="mini" style="margin-top: 10px">
+        Catatan admin:
+        <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %} {% if rows|length == 0 %}
+    <div class="muted">Belum ada submit.</div>
+    {% endif %}
+  </div>
+</div>
+
+
+  </div>
+</div>
+
+<script>
+  // jaminan tab tengah tidak melakukan navigasi (kalau ada handler global)
+  document.addEventListener(
+    "click",
+    (e) => {
+      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+</script>
+{% endblock %}
+
+{% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .nav-item.is-active {
+    background: #f2f5fb00;
+    border: 0px solid rgb(255, 255, 255);
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+  @media (max-width: 360px) {
+    .nav-item span {
+      font-size: 12px;
+    }
+  }
+</style>
 
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
