@@ -1,4 +1,409 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
+<style>
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+
+    --blue: #2f5f8f;
+    --primary: #2563eb;
+    --primary2: #1d4ed8;
+    --border: rgba(125, 138, 166, 0.22);
+
+    --bottom-nav-h: 92px;
+  }
+
+  /* penting: ruang bawah biar konten tidak ketutup nav fixed */
+  body {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* ===== Header Baru (SAMA seperti admin_users) ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+
+  .head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+  .userpill .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 7px;
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  }
+
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Card neumorphism ===== */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 12px 0;
+  }
+
+  /* ===== Form styling sama tone ===== */
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  textarea {
+    min-height: 92px;
+    resize: vertical;
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font-weight: 900;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 12px 20px rgba(41, 83, 126, 0.22);
+  }
+
+  /* ===== clock pill ===== */
+  .clock-wrap {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .clock-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+  }
+  .clock-pill .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .clock-pill .val {
+    font-size: 18px;
+    font-weight: 1000;
+    color: var(--text);
+    letter-spacing: 0.6px;
+  }
+
+  /* ===== Grid 2 card ===== */
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  @media (min-width: 980px) {
+    .grid2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  /* ===== Riwayat (ringkas + search) ===== */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .search-row .left {
+    flex: 1 1 220px;
+  }
+  .search-row .right {
+    flex: 1 1 220px;
+  }
+  #historySearch {
+    width: 100%;
+  }
+
+  .tablewrap {
+    display: none;
+    overflow: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 780px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  td.note {
+    white-space: normal;
+    max-width: 420px;
+    word-break: break-word;
+  }
+
+  .badge2 {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: #2a3b58;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .list {
+    display: grid;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .item {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .hname {
+    margin: 0;
+    font-weight: 1000;
+  }
+  .hsub {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: anywhere; /* kunci: memaksa wrap */
+    word-break: break-word; /* fallback */
+  }
+
+  /* khusus catatan panjang supaya rapi */
+  .note-preview {
+    margin-top: 10px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+
+    /* biar tidak kepanjangan di mobile */
+    display: -webkit-box;
+
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hmeta {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  @media (min-width: 901px) {
+    .list {
+      display: none;
+    }
+    .tablewrap {
+      display: block;
+    }
+  }
+
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+</style>
 <style>
   .grid2 {
     display: grid;
@@ -41,184 +446,169 @@
     }
   }
 </style>
+<div class="screen">
+  <div class="wrap">
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
 
-<div class="card">
-  <h2>Monitoring Penjualan Karyawan</h2>
-  <div class="muted">
-    Admin hanya memantau: total penjualan per karyawan dan detail submit
-    terbaru.
-  </div>
-</div>
+        <div class="right">
+          <div class="userpill" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
+          </div>
 
-<div class="grid2" style="margin-top: 14px">
-  <!-- Rekap per karyawan -->
-  <div class="card">
-    <h2>Rekap Total per Karyawan</h2>
-    <div class="muted">Urut dari paling banyak.</div>
+          <button
+            class="action-btn"
+            type="button"
+            data-toggle-more
+            aria-label="More menu"
+          >
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+                <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+                <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+              </svg>
+            </span>
+            <span>Menu</span>
+          </button>
+        </div>
+      </div>
 
-    <div class="table-wrap" style="margin-top: 10px">
-      <table>
-        <thead>
-          <tr>
-            <th>Karyawan</th>
-            <th style="min-width: 120px">Total Qty</th>
-          </tr>
-        </thead>
-        <tbody>
+      <div class="head-title">
+        <h1>Monitoring Penjualan</h1>
+        <p>Pantau total penjualan per karyawan dan detail submit terbaru.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Monitoring Penjualan Karyawan</h2>
+      <div class="muted">
+        Admin hanya memantau: total penjualan per karyawan dan detail submit
+        terbaru.
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top: 14px">
+      <!-- Rekap per karyawan -->
+      <div class="card">
+        <h2>Rekap Total per Karyawan</h2>
+        <div class="muted">Urut dari paling banyak.</div>
+
+        <div class="table-wrap" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th style="min-width: 120px">Total Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in summary %}
+              <tr>
+                <td><b>{{ s.employee_name }}</b></td>
+                <td class="big">{{ s.total_qty }}</td>
+              </tr>
+              {% endfor %} {% if summary|length == 0 %}
+              <tr>
+                <td colspan="2" class="muted">Belum ada data.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="list-mobile" style="margin-top: 10px">
           {% for s in summary %}
-          <tr>
-            <td><b>{{ s.employee_name }}</b></td>
-            <td class="big">{{ s.total_qty }}</td>
-          </tr>
+          <div class="item">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+                align-items: center;
+              "
+            >
+              <div>
+                <div style="font-weight: 900">{{ s.employee_name }}</div>
+                <div class="mini">Total penjualan</div>
+              </div>
+              <div class="big">{{ s.total_qty }}</div>
+            </div>
+          </div>
           {% endfor %} {% if summary|length == 0 %}
-          <tr>
-            <td colspan="2" class="muted">Belum ada data.</td>
-          </tr>
+          <div class="muted">Belum ada data.</div>
           {% endif %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="list-mobile" style="margin-top: 10px">
-      {% for s in summary %}
-      <div class="item">
-        <div
-          style="
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            align-items: center;
-          "
-        >
-          <div>
-            <div style="font-weight: 900">{{ s.employee_name }}</div>
-            <div class="mini">Total penjualan</div>
-          </div>
-          <div class="big">{{ s.total_qty }}</div>
         </div>
       </div>
-      {% endfor %} {% if summary|length == 0 %}
-      <div class="muted">Belum ada data.</div>
-      {% endif %}
-    </div>
-  </div>
 
-  <!-- Detail submit -->
-  <div class="card">
-    <h2>Detail Submit Terbaru</h2>
-    <div class="muted">Menampilkan sampai 200 data terakhir.</div>
+      <!-- Detail submit -->
+      <div class="card">
+        <h2>Detail Submit Terbaru</h2>
+        <div class="muted">Menampilkan sampai 200 data terakhir.</div>
 
-    <div class="table-wrap" style="margin-top: 10px">
-      <table>
-        <thead>
-          <tr>
-            <th style="min-width: 170px">Waktu</th>
-            <th style="min-width: 160px">Karyawan</th>
-            <th style="min-width: 160px">Produk</th>
-            <th style="min-width: 90px">Qty</th>
-            <th>Catatan</th>
-          </tr>
-        </thead>
-        <tbody>
+        <div class="table-wrap" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width: 170px">Waktu</th>
+                <th style="min-width: 160px">Karyawan</th>
+                <th style="min-width: 160px">Produk</th>
+                <th style="min-width: 90px">Qty</th>
+                <th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rows %}
+              <tr>
+                <td class="mini">{{ r.created_at }}</td>
+                <td><b>{{ r.employee_name }}</b></td>
+                <td>{{ r.product_name or "-" }}</td>
+                <td><span class="badge">{{ r.qty }}</span></td>
+                <td class="mini">{{ r.note }}</td>
+              </tr>
+              {% endfor %} {% if rows|length == 0 %}
+              <tr>
+                <td colspan="5" class="muted">Belum ada submit penjualan.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="list-mobile" style="margin-top: 10px">
           {% for r in rows %}
-          <tr>
-            <td class="mini">{{ r.created_at }}</td>
-            <td><b>{{ r.employee_name }}</b></td>
-            <td>{{ r.product_name or "-" }}</td>
-            <td><span class="badge">{{ r.qty }}</span></td>
-            <td class="mini">{{ r.note }}</td>
-          </tr>
-          {% endfor %} {% if rows|length == 0 %}
-          <tr>
-            <td colspan="5" class="muted">Belum ada submit penjualan.</td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="list-mobile" style="margin-top: 10px">
-      {% for r in rows %}
-      <div class="item">
-        <div style="display: flex; justify-content: space-between; gap: 10px">
-          <div>
-            <div style="font-weight: 900">{{ r.employee_name }}</div>
-            <div class="mini">{{ r.product_name or "-" }}</div>
-            <div class="mini">{{ r.created_at }}</div>
+          <div class="item">
+            <div
+              style="display: flex; justify-content: space-between; gap: 10px"
+            >
+              <div>
+                <div style="font-weight: 900">{{ r.employee_name }}</div>
+                <div class="mini">{{ r.product_name or "-" }}</div>
+                <div class="mini">{{ r.created_at }}</div>
+              </div>
+              <div class="big">{{ r.qty }}</div>
+            </div>
+            <div class="mini" style="margin-top: 8px">
+              Catatan: {{ r.note if r.note else "-" }}
+            </div>
           </div>
-          <div class="big">{{ r.qty }}</div>
-        </div>
-        <div class="mini" style="margin-top: 8px">
-          Catatan: {{ r.note if r.note else "-" }}
+          {% endfor %} {% if rows|length == 0 %}
+          <div class="muted">Belum ada submit penjualan.</div>
+          {% endif %}
         </div>
       </div>
-      {% endfor %} {% if rows|length == 0 %}
-      <div class="muted">Belum ada submit penjualan.</div>
-      {% endif %}
     </div>
   </div>
 </div>
-<style>
-  .bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(246, 248, 252, 0.85);
-    backdrop-filter: blur(8px);
-    z-index: 99;
-  }
-  .nav-bar {
-    max-width: 430px;
-    margin: 0 auto;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
-    padding: 10px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .nav-item {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 8px;
-    border-radius: 16px;
-    color: #9fb1d6;
-    font-weight: 800;
-    text-decoration: none;
-  }
-  .nav-item.is-active {
-    background: #f2f5fb00;
-    border: 0px solid rgb(255, 255, 255);
-  }
-  .nav-ico {
-    width: 22px;
-    height: 22px;
-    display: inline-block;
-  }
-  .nav-ico svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .stroke {
-    stroke: currentColor;
-    fill: none;
-  }
-  .fill {
-    fill: currentColor;
-  }
-  @media (max-width: 360px) {
-    .nav-item span {
-      font-size: 12px;
-    }
-  }
-</style>
 
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
@@ -311,5 +701,4 @@
     true,
   );
 </script>
-
 {% endblock %}
