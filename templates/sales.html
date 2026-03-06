@@ -108,7 +108,10 @@
             <td><b>{{ r.product_name or "-" }}</b></td>
             <td>{{ r.qty }}</td>
             <td><span class="badge">{{ r.status }}</span></td>
-            <td class="mini">{{ r.created_at }}</td>
+            <td class="mini">
+              {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+              r.created_at_wib else '-' }}
+            </td>
             <td class="mini">{{ r.note }}</td>
             <td class="mini">{{ r.admin_note }}</td>
           </tr>
@@ -128,7 +131,10 @@
           <div>
             <div style="font-weight: 900">{{ r.product_name or "-" }}</div>
             <div class="mini">Qty: <b>{{ r.qty }}</b></div>
-            <div class="mini">Waktu: {{ r.created_at }}</div>
+            <div class="mini">
+              Waktu: {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+              r.created_at_wib else '-' }}
+            </div>
           </div>
           <span class="badge">{{ r.status }}</span>
         </div>
