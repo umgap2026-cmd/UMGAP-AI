@@ -2,231 +2,354 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>UMGAP • Dashboard</title>
-
     <style>
-      :root {
-        --bg: #eef3fb;
-        --card: #f6f8fc;
-        --card2: #f4f7fd;
-        --shadow: 0 14px 40px rgba(26, 49, 92, 0.12);
-        --shadow2: 0 10px 30px rgba(26, 49, 92, 0.1);
-        --text: #0f1c2e;
-        --muted: #6b7a99;
-        --line: rgba(30, 60, 120, 0.12);
-
-        --blue: #2f5f8f;
-        --blue2: #6ea0d5;
-        --pill: rgba(255, 255, 255, 0.75);
-      }
-
-      * {
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
-      }
-      body {
         margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #f2f4f8;
+        --card: #f7f8fb;
+        --text: #1d2a44;
+        --muted: #7d8aa6;
+        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+        --shadow-in:
+          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+        --soft-in:
+          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+        --radius: 22px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+        --nav-h: 80px;
+      }
+
+      body {
         font-family:
+          ui-sans-serif,
           system-ui,
           -apple-system,
-          Segoe UI,
-          Roboto,
-          Arial,
+          "Segoe UI",
           sans-serif;
         background: var(--bg);
         color: var(--text);
-      }
-
-      .screen {
         min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 18px;
+        padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom));
       }
 
+      /* ── screen / wrap ── */
+      .screen {
+        min-height: 100svh;
+        display: flex;
+        justify-content: center;
+        padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+      }
       .wrap {
-        width: 420px;
-        max-width: 100%;
-        padding-bottom: 90px; /* space for bottom nav */
+        width: 100%;
+        max-width: 480px;
+      }
+      @media (min-width: 600px) {
+        .wrap {
+          max-width: 580px;
+        }
+      }
+      @media (min-width: 860px) {
+        .wrap {
+          max-width: 860px;
+        }
       }
 
+      /* ── header card ── */
       .head-card {
-        background: rgba(255, 255, 255, 0.65);
-        border: 1px solid var(--line);
-        border-radius: 26px;
-        padding: 14px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-        overflow: hidden;
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 12px;
       }
-
       .head-top {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 10px;
       }
-
       .logo {
-        width: 52px;
-        height: 52px;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid var(--line);
-        display: grid;
-        place-items: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         overflow: hidden;
+        flex: 0 0 auto;
       }
       .logo img {
         width: 100%;
         height: 100%;
         object-fit: contain;
       }
-
-      .right {
+      .hdr-right {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        margin-left: auto;
       }
 
       .hello {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border-radius: 999px;
-        background: var(--pill);
-        border: 1px solid var(--line);
-        box-shadow: 0 10px 20px rgba(26, 49, 92, 0.08);
-        max-width: 220px;
+        gap: 8px;
+        background: #f2f5fb;
+        border-radius: var(--pill);
+        padding: 7px 14px;
+        box-shadow: var(--soft-in);
         white-space: nowrap;
+        max-width: 200px;
+        overflow: hidden;
+      }
+      @media (max-width: 380px) {
+        .hello {
+          display: none;
+        }
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #21c55d;
+        flex: 0 0 auto;
+        box-shadow: 0 0 0 3px rgba(33, 197, 93, 0.2);
+      }
+      .uname {
+        font-size: 13px;
+        font-weight: 800;
+        color: #25456a;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #21c55d;
-        box-shadow: 0 0 0 6px rgba(33, 197, 93, 0.12);
-      }
-      .name {
-        font-weight: 900;
-        color: #25456a;
-      }
 
       .action-btn {
-        width: 44px;
-        height: 44px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.75);
-        display: grid;
-        place-items: center;
-        box-shadow: 0 10px 20px rgba(26, 49, 92, 0.08);
-        cursor: pointer;
         position: relative;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        border-radius: 14px;
+        background: #f3f6fc;
+        box-shadow:
+          0 10px 20px rgba(30, 60, 90, 0.16),
+          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+          inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
         text-decoration: none;
+        transition: transform 0.15s;
+      }
+      .action-btn:hover {
+        transform: translateY(-1px);
       }
       .action-btn svg {
-        width: 22px;
-        height: 22px;
-        stroke: #2f5f8f;
+        width: 20px;
+        height: 20px;
+        stroke: #7b93c7;
+        stroke-width: 2.2;
         fill: none;
-        stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
-
-      .badge {
+      .notif-badge {
         position: absolute;
-        top: -6px;
-        right: -6px;
-        min-width: 18px;
-        height: 18px;
-        padding: 0 6px;
-        border-radius: 999px;
-        background: #f59e0b;
-        color: white;
-        display: grid;
-        place-items: center;
-        font-size: 12px;
+        top: -5px;
+        right: -5px;
+        background: #ffd84d;
+        color: #1f2937;
+        font-size: 10px;
         font-weight: 900;
-        border: 2px solid rgba(255, 255, 255, 0.9);
-      }
-
-      .rgb {
-        margin-top: 12px;
-        height: 4px;
+        padding: 2px 6px;
         border-radius: 999px;
-        background: linear-gradient(90deg, #f59e0b, #60a5fa, #22c55e, #a78bfa);
-        opacity: 0.9;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+      }
+      .rgb {
+        height: 3px;
+        border-radius: 999px;
+        margin-top: 10px;
+        background: linear-gradient(
+          90deg,
+          #f00 0%,
+          #ff7a00 18%,
+          #ffd500 36%,
+          #00c853 58%,
+          #00b0ff 78%,
+          #8a2be2 100%
+        );
       }
 
+      /* ── section header ── */
+      .section-head {
+        margin-top: 18px;
+        padding: 0 4px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .section-head h2 {
+        font-size: 22px;
+        font-weight: 1000;
+        color: #1b3453;
+        line-height: 1.1;
+      }
+      .points-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .points-badge b {
+        color: var(--blue);
+        font-size: 16px;
+      }
+
+      /* ── main card / inner ── */
       .main-card {
-        margin-top: 14px;
+        margin-top: 12px;
         background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 28px;
-        box-shadow: var(--shadow2);
-        overflow: hidden;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 14px;
       }
-
       .inner {
-        padding: 18px 16px 16px;
+        border-radius: 20px;
+        background: #f3f5f9;
+        box-shadow: var(--shadow-in);
+        padding: 18px 14px 16px;
+      }
+      .card-title {
+        font-size: 15px;
+        font-weight: 1000;
+        color: #2a3b58;
+        margin-bottom: 4px;
+      }
+      .card-desc {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(125, 138, 166, 0.18);
+        border-radius: 999px;
+        margin: 14px 0;
       }
 
-      .grid {
+      /* ── feature grid ── */
+      .feat-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+      @media (min-width: 480px) {
+        .feat-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (min-width: 860px) {
+        .feat-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
       }
 
       .feature {
         text-decoration: none;
         color: inherit;
-        background: rgba(255, 255, 255, 0.55);
-        border: 1px solid var(--line);
-        border-radius: 26px;
-        padding: 18px 12px;
-        box-shadow: 0 12px 24px rgba(26, 49, 92, 0.08);
-        display: grid;
-        place-items: center;
-        gap: 10px;
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: var(--shadow-out);
+        padding: 20px 12px 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
         transition:
-          transform 0.12s ease,
-          box-shadow 0.12s ease;
+          transform 0.2s,
+          box-shadow 0.2s;
+        position: relative;
+        overflow: hidden;
+      }
+      .feature::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--feat-color, linear-gradient(90deg, #2f5f8f, #6ea0d5));
+        border-radius: 999px 999px 0 0;
       }
       .feature:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 16px 30px rgba(26, 49, 92, 0.12);
+        transform: translateY(-3px);
+        box-shadow: 0 26px 46px rgba(20, 35, 65, 0.13);
       }
 
-      .circle {
-        width: 86px;
-        height: 86px;
-        border-radius: 999px;
-        background: radial-gradient(
-          circle at 30% 30%,
-          rgba(255, 255, 255, 0.9),
-          rgba(210, 225, 248, 0.65)
-        );
-        border: 1px solid rgba(70, 110, 160, 0.18);
-        display: grid;
-        place-items: center;
-        box-shadow: inset 0 12px 22px rgba(255, 255, 255, 0.55);
-        font-size: 28px;
+      /* per-feature accent colors */
+      .feat-absensi {
+        --feat-color: linear-gradient(90deg, #3b82f6, #60a5fa);
+      }
+      .feat-konten {
+        --feat-color: linear-gradient(90deg, #f59e0b, #fbbf24);
+      }
+      .feat-caption {
+        --feat-color: linear-gradient(90deg, #8b5cf6, #a78bfa);
+      }
+      .feat-bantuan {
+        --feat-color: linear-gradient(90deg, #10b981, #34d399);
+      }
+      .feat-produk {
+        --feat-color: linear-gradient(90deg, #f97316, #fb923c);
+      }
+      .feat-penjualan {
+        --feat-color: linear-gradient(90deg, #06b6d4, #22d3ee);
       }
 
-      .label {
+      .feat-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: var(--pill);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+      }
+      .feat-label {
+        font-size: 13px;
         font-weight: 1000;
         color: #223a5a;
+        text-align: center;
       }
 
+      /* ── MORE section ── */
       .hidden-features {
-        margin-top: 14px;
         display: none;
-        animation: fadeUp 0.2s ease;
+        margin-top: 14px;
+        animation: fadeUp 0.25s ease;
       }
       .hidden-features.show {
         display: block;
@@ -235,7 +358,7 @@
       @keyframes fadeUp {
         from {
           opacity: 0;
-          transform: translateY(8px);
+          transform: translateY(10px);
         }
         to {
           opacity: 1;
@@ -243,177 +366,188 @@
         }
       }
 
+      /* ── More button ── */
       .more-wrap {
+        display: flex;
+        justify-content: center;
         margin-top: 16px;
-        display: grid;
-        place-items: center;
       }
       .more-btn {
-        width: 100%;
-        max-width: 260px;
-        height: 44px;
-        border-radius: 999px;
-        border: 1px solid rgba(47, 95, 143, 0.18);
-        background: rgba(255, 255, 255, 0.7);
-        color: #2f5f8f;
-        font-weight: 1000;
-        letter-spacing: 0.5px;
-        box-shadow: 0 12px 24px rgba(26, 49, 92, 0.1);
-        cursor: pointer;
-      }
-
-      .title {
-        margin: 0;
-        font-size: 22px;
-        font-weight: 1100;
-      }
-      .desc {
-        margin: 8px 0 0;
-        color: var(--muted);
-        line-height: 1.4;
-      }
-      .divider {
-        height: 1px;
-        background: rgba(30, 60, 120, 0.1);
-        margin: 14px 0;
-      }
-
-      .kpi {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
-      .k {
-        background: rgba(255, 255, 255, 0.65);
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        padding: 12px 12px;
-        box-shadow: 0 10px 22px rgba(26, 49, 92, 0.07);
-      }
-      .k .t {
-        margin: 0;
-        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 46px;
+        padding: 0 28px;
+        border: none;
+        border-radius: var(--pill);
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        color: var(--blue);
         font-weight: 900;
-        font-size: 12px;
-        letter-spacing: 0.2px;
+        font-size: 14px;
+        cursor: pointer;
+        transition:
+          box-shadow 0.2s,
+          color 0.2s;
+        font-family: inherit;
       }
-      .k .v {
-        margin: 6px 0 0;
-        font-size: 24px;
-        font-weight: 1100;
-        color: #1b3453;
+      .more-btn:hover {
+        box-shadow: var(--shadow-out);
+      }
+      .more-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        transition: transform 0.3s;
+      }
+      .more-btn.open svg {
+        transform: rotate(180deg);
       }
 
-      /* bottom nav */
+      /* ── coming soon card ── */
+      .coming-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 28px 20px;
+        text-align: center;
+      }
+      .coming-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 20px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+      }
+      .coming-title {
+        font-size: 16px;
+        font-weight: 1000;
+        color: #2a3b58;
+      }
+      .coming-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+        max-width: 260px;
+      }
+      .coming-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(245, 158, 11, 0.12);
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-size: 11px;
+        font-weight: 900;
+        color: #b45309;
+      }
+
+      /* ── bottom nav ── */
       .nav {
         position: fixed;
         left: 0;
         right: 0;
-        bottom: 16px;
-        display: grid;
-        place-items: center;
-        z-index: 50;
-        pointer-events: none;
-      }
-
-      .nav-bar {
-        pointer-events: auto;
-        width: 420px;
-        max-width: calc(100% - 36px);
-        background: rgba(255, 255, 255, 0.75);
-        border: 1px solid var(--line);
-        box-shadow: var(--shadow);
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(242, 244, 248, 0.85);
         backdrop-filter: blur(10px);
-        border-radius: 26px;
-        padding: 10px 12px;
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 50;
       }
-
-      .nav-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+      .nav-bar {
+        max-width: 430px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: var(--shadow-out);
+        padding: 8px;
+        display: flex;
         gap: 8px;
-        align-items: center;
       }
-
       .nav-item {
-        border: 0;
-        background: transparent;
-        padding: 10px 10px;
-        border-radius: 18px;
-        cursor: pointer;
-        display: inline-flex;
-        justify-content: center;
+        flex: 1;
+        display: flex;
         align-items: center;
-        gap: 10px;
-        color: #63779a;
-        font-weight: 900;
-        transition: background 0.12s ease;
-      }
-      .nav-item:hover {
-        background: rgba(47, 95, 143, 0.08);
+        justify-content: center;
+        gap: 7px;
+        padding: 10px 8px;
+        border-radius: 16px;
+        color: #9fb1d6;
+        font-weight: 800;
+        font-size: 13px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
       }
       .nav-item.active {
-        background: rgba(47, 95, 143, 0.12);
-        color: #2f5f8f;
+        background: #f2f5fb;
+        color: var(--blue);
+        box-shadow: var(--soft-in);
       }
-
       .nav-ico {
-        width: 26px;
-        height: 26px;
-        display: inline-block;
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
       }
       .nav-ico svg {
         width: 100%;
         height: 100%;
         display: block;
       }
-      .nav-ico .stroke {
-        stroke: #9fb1d6;
+      .stroke {
+        stroke: currentColor;
         fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
-      .nav-ico .fill {
-        fill: #9fb1d6;
+      .fill {
+        fill: currentColor;
       }
-      .nav-item.active .nav-ico .stroke {
-        stroke: #2f5f8f;
-      }
-      .nav-item.active .nav-ico .fill {
-        fill: #2f5f8f;
+      @media (max-width: 360px) {
+        .nav-item span {
+          display: none;
+        }
       }
     </style>
   </head>
-
   <body>
     <div class="screen">
       <div class="wrap">
-        <!-- HEADER (tanpa base.html) -->
+        <!-- ═══ HEADER ═══ -->
         <div class="head-card" id="dashboardTop">
           <div class="head-top">
             <div class="logo">
-              <img src="/static/UMGAP%20(1).png" alt="Logo" />
+              <img src="/static/UMGAP%20(1).png" alt="UMGAP" />
             </div>
-
-            <div class="right">
-              <div class="hello" title="User">
+            <div class="hdr-right">
+              <div class="hello">
                 <span class="dot"></span>
-                <span class="name">Hallo, {{ user_name }}</span>
+                <span class="uname">Hallo, {{ user_name }}</span>
               </div>
-
               <button
                 class="action-btn"
                 id="notifBtn"
-                aria-label="Notifikasi"
                 type="button"
+                aria-label="Notifikasi"
               >
                 <svg viewBox="0 0 24 24">
                   <rect x="3" y="5" width="18" height="14" rx="3"></rect>
                   <path d="M3 7l9 6 9-6"></path>
                 </svg>
-                <span class="badge" id="notifBadge"
+                <span class="notif-badge" id="notifBadge"
                   >{{ notif_count or 0 }}</span
                 >
               </button>
-
               <a href="/logout" class="action-btn" aria-label="Logout">
                 <svg viewBox="0 0 24 24">
                   <path d="M10 17l5-5-5-5"></path>
@@ -423,223 +557,198 @@
               </a>
             </div>
           </div>
-
           <div class="rgb"></div>
         </div>
 
-        <!-- MAIN (Dashboard) -->
-        <div style="margin-top: 14px; padding: 8px 6px 2px">
-          <div style="font-size: 22px; font-weight: 1100; color: #1b3453">
-            Dashboard
-          </div>
-          <div
-            style="
-              margin-top: 6px;
-              color: #6b7a99;
-              font-weight: 900;
-              font-size: 13px;
-            "
-          >
-            Poin Keaktifan:
-            <span style="color: #2f5f8f; font-weight: 1100">
-              {{ points_admin }}
-            </span>
+        <!-- ═══ SECTION HEADER ═══ -->
+        <div class="section-head">
+          <h2>Dashboard</h2>
+          <div class="points-badge">
+            ⚡ Poin Keaktifan
+            <b>{{ points_admin }}</b>
           </div>
         </div>
+
+        <!-- ═══ FEATURES ═══ -->
         <div class="main-card" id="dashboardSection">
           <div class="inner">
-            <div class="grid" id="featureGrid">
-              <a class="feature" href="/attendance">
-                <div class="circle">🗓️</div>
-                <div class="label">Absensi</div>
-              </a>
+            <div class="card-title">Menu Utama</div>
+            <div class="card-desc">Pilih fitur yang ingin kamu gunakan.</div>
+            <div class="divider"></div>
 
-              <!--
-
-              <a class="feature" href="/leave">
-                <div class="circle">🏖️</div>
-                <div class="label">Cuti</div>
+            <div class="feat-grid" id="featureGrid">
+              <a class="feature feat-absensi" href="/attendance">
+                <div class="feat-icon">🗓️</div>
+                <div class="feat-label">Absensi</div>
               </a>
-            -->
-              <a class="feature" href="/content">
-                <div class="circle">📆</div>
-                <div class="label">Kalender Konten</div>
+              <a class="feature feat-konten" href="/content">
+                <div class="feat-icon">📆</div>
+                <div class="feat-label">Kalender Konten</div>
               </a>
-              <a class="feature" href="/caption">
-                <div class="circle">✨</div>
-                <div class="label">AI caption</div>
+              <a class="feature feat-caption" href="/caption">
+                <div class="feat-icon">✨</div>
+                <div class="feat-label">AI Caption</div>
               </a>
-              <a class="feature" href="/help">
-                <div class="circle">❓</div>
-                <div class="label">Bantuan</div>
+              <a class="feature feat-bantuan" href="/help">
+                <div class="feat-icon">❓</div>
+                <div class="feat-label">Bantuan</div>
               </a>
             </div>
 
             <!-- MORE section -->
             <div class="hidden-features" id="moreSection">
-              <div class="grid">
-                <!--  -->
-                <a class="feature" href="/products">
-                  <div class="circle">📦</div>
-                  <div class="label">Produk</div>
+              <div class="divider" style="margin-top: 16px"></div>
+              <div class="card-title" style="margin-bottom: 12px">
+                Menu Lainnya
+              </div>
+              <div class="feat-grid">
+                <a class="feature feat-produk" href="/products">
+                  <div class="feat-icon">📦</div>
+                  <div class="feat-label">Produk</div>
                 </a>
-                <a class="feature" href="/sales">
-                  <div class="circle">🧾</div>
-                  <div class="label">Penjualan</div>
+                <a class="feature feat-penjualan" href="/sales">
+                  <div class="feat-icon">🧾</div>
+                  <div class="feat-label">Penjualan</div>
                 </a>
               </div>
             </div>
 
             <div class="more-wrap">
-              <button class="more-btn" id="moreBtn" type="button">MORE</button>
+              <button class="more-btn" id="moreBtn" type="button">
+                <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+                MORE
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- RINGKASAN -->
+        <!-- ═══ RINGKASAN (COMING SOON) ═══ -->
         <div class="main-card" id="summarySection">
           <div class="inner">
-            <p class="desc">COMING SOON</p>
-            <p class="desc">COMING SOON</p>
-            <p class="desc">COMING SOON</p>
-            <!--   <h2 class="title">Ringkasan</h2>
-            <p class="desc">Ringkasan aktivitas absensi kamu.</p>
-            <div class="divider"></div>
-
-            <div class="kpi">
-              <div class="k">
-                <p class="t">Jumlah absensi (7 hari terakhir)</p>
-                <p class="v">{{ attendance_total }}</p>
-<p class="t" style="margin-top:6px">
-  Hadir: {{ (attendance_7d|default({})).get('hadir',0) }} •
-  Sakit: {{ (attendance_7d|default({})).get('sakit',0) }} •
-  Cuti: {{ (attendance_7d|default({})).get('cuti',0) }} •
-  Absen: {{ (attendance_7d|default({})).get('absen',0) }}
-</p>
-
-                </p>
+            <div class="coming-card">
+              <div class="coming-icon">📊</div>
+              <div class="coming-title">Ringkasan Aktivitas</div>
+              <div class="coming-desc">
+                Pantau absensi, penjualan, dan aktivitas harianmu dalam satu
+                tampilan.
               </div>
-            </div>-->
+              <div class="coming-pill">🚧 &nbsp;Coming Soon</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Nav: Dashboard + More -->
+    <!-- ═══ BOTTOM NAV ═══ -->
     <div class="nav">
-      <div class="nav-bar">
-        <div class="nav-row">
-          <button class="nav-item active" type="button" data-nav="dashboard">
-            <span class="nav-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img" aria-label="Dashboard">
-                <rect
-                  class="stroke"
-                  x="3.5"
-                  y="3.5"
-                  width="7.5"
-                  height="7.5"
-                  rx="2"
-                  stroke-width="2"
-                ></rect>
-                <rect
-                  class="stroke"
-                  x="13"
-                  y="3.5"
-                  width="7.5"
-                  height="7.5"
-                  rx="2"
-                  stroke-width="2"
-                ></rect>
-                <rect
-                  class="stroke"
-                  x="3.5"
-                  y="13"
-                  width="7.5"
-                  height="7.5"
-                  rx="2"
-                  stroke-width="2"
-                ></rect>
-                <rect
-                  class="stroke"
-                  x="13"
-                  y="13"
-                  width="7.5"
-                  height="7.5"
-                  rx="2"
-                  stroke-width="2"
-                ></rect>
-              </svg>
-            </span>
-            <span>Dashboard</span>
-          </button>
-
-          <button class="nav-item" type="button" data-nav="more">
-            <span class="nav-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img" aria-label="More">
-                <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="12" cy="12" r="1.8"></circle>
-                <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
-              </svg>
-            </span>
-            <span>More</span>
-          </button>
-        </div>
+      <div class="nav-bar" role="navigation">
+        <button class="nav-item active" type="button" data-nav="dashboard">
+          <span class="nav-ico">
+            <svg viewBox="0 0 24 24">
+              <rect
+                class="fill"
+                x="3"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="3"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="3"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+              <rect
+                class="fill"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              ></rect>
+            </svg>
+          </span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" type="button" data-nav="more">
+          <span class="nav-ico">
+            <svg viewBox="0 0 24 24">
+              <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+              <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+              <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+            </svg>
+          </span>
+          <span>More</span>
+        </button>
       </div>
     </div>
 
     <script>
-      // NOTIF click -> /notifications
+      // Notif click → /notifications
       (function () {
-        const btn = document.getElementById("notifBtn");
-        if (!btn) return;
-        btn.addEventListener("click", function () {
-          window.location.href = "/notifications";
-        });
+        var btn = document.getElementById("notifBtn");
+        if (btn)
+          btn.addEventListener("click", function () {
+            window.location.href = "/notifications";
+          });
       })();
 
       // MORE toggle
       (function () {
-        const btn = document.getElementById("moreBtn");
-        const more = document.getElementById("moreSection");
+        var btn = document.getElementById("moreBtn");
+        var more = document.getElementById("moreSection");
         if (!btn || !more) return;
-
-        btn.addEventListener("click", () => {
-          const open = more.classList.toggle("show");
-          btn.textContent = open ? "LESS" : "MORE";
-          if (open) more.scrollIntoView({ behavior: "smooth", block: "start" });
+        btn.addEventListener("click", function () {
+          var open = more.classList.toggle("show");
+          btn.classList.toggle("open", open);
+          btn.innerHTML = open
+            ? '<svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg> LESS'
+            : '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg> MORE';
+          // re-apply svg style
+          btn.querySelector("svg").style.cssText =
+            "width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform .3s;";
+          if (open)
+            more.scrollIntoView({ behavior: "smooth", block: "nearest" });
         });
       })();
 
-      // bottom nav behavior (Dashboard / More)
+      // Bottom nav
       (function () {
-        const items = document.querySelectorAll(".nav-item");
-
+        var items = document.querySelectorAll(".nav-item");
         function setActive(key) {
-          items.forEach((b) => b.classList.remove("active"));
-          const btn = document.querySelector(
-            '.nav-item[data-nav="' + key + '"]',
-          );
+          items.forEach(function (b) {
+            b.classList.remove("active");
+          });
+          var btn = document.querySelector('.nav-item[data-nav="' + key + '"]');
           if (btn) btn.classList.add("active");
         }
-
         function go(key) {
           if (key === "dashboard") {
             document
               .getElementById("dashboardTop")
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
             setActive("dashboard");
-            return;
-          }
-          if (key === "more") {
+          } else if (key === "more") {
             document.getElementById("moreBtn")?.click();
             setActive("more");
-            return;
           }
         }
-
-        items.forEach((btn) =>
-          btn.addEventListener("click", () => go(btn.getAttribute("data-nav"))),
-        );
+        items.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            go(btn.getAttribute("data-nav"));
+          });
+        });
       })();
     </script>
   </body>
