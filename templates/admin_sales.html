@@ -571,7 +571,10 @@
                 <p class="hsub">
                   {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
                 </p>
-                <p class="hsub">⏱ {{ r.created_at }}</p>
+                <p class="hsub">
+                  ⏱ {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                  r.created_at_wib else '-' }}
+                </p>
               </div>
               <span
                 class="badge2 {% if r.status=='APPROVED' %}ok{% elif r.status=='REJECTED' %}bad{% else %}pend{% endif %}"
@@ -646,7 +649,10 @@
                     {{ r.status }}
                   </span>
                 </td>
-                <td class="mini">{{ r.created_at }}</td>
+                <td class="mini">
+                  {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                  r.created_at_wib else '-' }}
+                </td>
                 <td class="note-cell">{{ r.note or "-" }}</td>
                 <td class="tbl-action">
                   {% if r.status == 'PENDING' %}
