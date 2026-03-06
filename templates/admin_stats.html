@@ -1,33 +1,45 @@
 {% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 <style>
-  :root {
-    --bg: #f2f4f8;
-    --card: #f7f8fb;
-    --text: #1d2a44;
-    --muted: #7d8aa6;
-    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
-    --shadow-in:
-      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
-      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-    --soft-in:
-      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
-      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
-    --radius: 22px;
-    --pill: 999px;
-    --blue: #2f5f8f;
-    --nav-h: 92px;
-  }
   *,
   *::before,
   *::after {
     box-sizing: border-box;
-  }
-  body {
     margin: 0;
-    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
-    background: var(--bg);
+    padding: 0;
   }
 
+  :root {
+    --bg: #eef1f7;
+    --card: #f4f6fb;
+    --text: #1a2740;
+    --muted: #7d8aa6;
+    --shadow-out: 0 20px 42px rgba(18, 32, 62, 0.11);
+    --shadow-in:
+      inset 10px 10px 20px rgba(20, 40, 80, 0.13),
+      inset -10px -10px 20px rgba(255, 255, 255, 0.92);
+    --soft-in:
+      inset 6px 6px 12px rgba(20, 40, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+    --radius: 24px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+    --nav-h: 92px;
+  }
+
+  body {
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100svh;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+
+  /* ── screen / wrap ── */
   .screen {
     min-height: 100svh;
     display: flex;
@@ -36,25 +48,38 @@
   }
   .wrap {
     width: 100%;
-    max-width: min(100%, 480px);
+    max-width: 480px;
   }
   @media (min-width: 600px) {
     .wrap {
       max-width: 720px;
     }
   }
-  @media (min-width: 901px) {
+  @media (min-width: 960px) {
     .wrap {
-      max-width: 1100px;
+      max-width: 1120px;
     }
   }
 
-  /* HEADER (copy payroll) */
+  /* ════════════════════════════════
+     HEADER
+  ════════════════════════════════ */
   .head-card {
     background: #fff;
     border-radius: var(--radius);
     box-shadow: var(--shadow-out);
     padding: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .head-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
   }
   .head-top {
     display: flex;
@@ -62,11 +87,11 @@
     gap: 10px;
   }
   .logo {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     border-radius: 14px;
     background: #fff;
-    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    box-shadow: 0 10px 20px rgba(18, 32, 62, 0.13);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -94,40 +119,45 @@
     box-shadow: var(--soft-in);
     white-space: nowrap;
   }
-  @media (max-width: 380px) {
+  @media (max-width: 400px) {
     .userpill {
       display: none;
     }
   }
   .dot {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: #16a34a;
     flex: 0 0 auto;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
   }
   .uname {
     font-size: 13px;
-    color: #506381;
     font-weight: 800;
+    color: #25456a;
   }
   .action-btn {
     position: relative;
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
     border-radius: 14px;
     background: #f3f6fc;
     box-shadow:
-      0 10px 20px rgba(30, 60, 90, 0.16),
-      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-      inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+      0 10px 22px rgba(28, 55, 90, 0.16),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.92),
+      inset -4px -4px 10px rgba(28, 55, 90, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     border: none;
     text-decoration: none;
+    transition: transform 0.15s;
+  }
+  .action-btn:hover {
+    transform: translateY(-1px);
   }
   .action-btn svg {
     width: 20px;
@@ -165,9 +195,201 @@
     );
   }
 
-  /* CARDS */
-  .main-card {
+  /* ════════════════════════════════
+     HERO STRIP
+  ════════════════════════════════ */
+  .hero-strip {
     margin-top: 14px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2f5f8f 55%, #4f8fbf 100%);
+    border-radius: var(--radius);
+    box-shadow: 0 16px 40px rgba(30, 58, 95, 0.26);
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-strip::before {
+    content: "";
+    position: absolute;
+    right: -40px;
+    top: -40px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+  }
+  .hero-strip::after {
+    content: "";
+    position: absolute;
+    right: 80px;
+    bottom: -60px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    pointer-events: none;
+  }
+  .hero-left {
+    position: relative;
+    z-index: 1;
+  }
+  .hero-title {
+    font-size: 20px;
+    font-weight: 1000;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hero-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    flex: 0 0 40px;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+  }
+  .hero-sub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 5px;
+  }
+  .hero-badges {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .hbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    padding: 7px 13px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .hbadge svg {
+    width: 12px;
+    height: 12px;
+    stroke: rgba(255, 255, 255, 0.8);
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  @media (max-width: 420px) {
+    .hero-badges {
+      display: none;
+    }
+  }
+
+  /* ════════════════════════════════
+     KPI STAT PILLS — 8 pills
+  ════════════════════════════════ */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+  @media (min-width: 960px) {
+    .kpi-grid {
+      grid-template-columns: repeat(8, 1fr);
+    }
+  }
+
+  .kpi-pill {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: var(--shadow-out);
+    padding: 14px 8px 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
+    cursor: default;
+  }
+  .kpi-pill::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--kp, #d1d5db);
+    border-radius: 0;
+  }
+  .kpi-pill:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 26px 50px rgba(18, 32, 62, 0.14);
+  }
+  .kpi-ico {
+    font-size: 18px;
+    margin-bottom: 5px;
+    line-height: 1;
+  }
+  .kpi-num {
+    font-size: 20px;
+    font-weight: 1000;
+    line-height: 1.1;
+    color: var(--kp, var(--text));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .kpi-lbl {
+    font-size: 9px;
+    color: var(--muted);
+    font-weight: 900;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .kp-month {
+    --kp: #2f5f8f;
+  }
+  .kp-hadir {
+    --kp: #15803d;
+  }
+  .kp-telat {
+    --kp: #d97706;
+  }
+  .kp-absen {
+    --kp: #dc2626;
+  }
+  .kp-sakit {
+    --kp: #ea580c;
+  }
+  .kp-cuti {
+    --kp: #2563eb;
+  }
+  .kp-kar {
+    --kp: #7c3aed;
+  }
+  .kp-sales {
+    --kp: #0891b2;
+  }
+
+  /* ════════════════════════════════
+     MAIN CARDS
+  ════════════════════════════════ */
+  .main-card {
     background: var(--card);
     border-radius: var(--radius);
     box-shadow: var(--shadow-out);
@@ -179,18 +401,45 @@
     box-shadow: var(--shadow-in);
     padding: 18px 14px 16px;
   }
-  .title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 1000;
-    color: #2a3b58;
-    letter-spacing: 0.2px;
+  .sec-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
   }
-  .desc {
-    margin: 6px 0 0;
+  .sec-title {
+    font-size: 15px;
+    font-weight: 1000;
+    color: #1e3252;
+  }
+  .sec-desc {
+    font-size: 12px;
     color: var(--muted);
-    font-size: 13px;
-    line-height: 1.4;
+    margin-top: 2px;
+  }
+  .sec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: var(--shadow-out);
+    padding: 5px 11px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .sec-chip svg {
+    width: 11px;
+    height: 11px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
   }
   .divider {
     height: 1px;
@@ -198,175 +447,332 @@
     border-radius: 999px;
     margin: 14px 0;
   }
-  .mini {
-    font-size: 12px;
-    color: var(--muted);
-  }
 
-  /* FILTER */
-  label {
-    display: block;
-    margin: 10px 0 6px;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  input[type="month"],
-  input[type="text"] {
-    width: 100%;
-    border: none;
-    outline: none;
-    border-radius: 14px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    padding: 13px 14px;
-    font-size: 15px;
-    color: var(--text);
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  .btn-primary {
-    display: block;
-    width: 100%;
-    height: 50px;
-    border: none;
-    border-radius: 14px;
-    cursor: pointer;
-    font-weight: 900;
-    font-size: 15px;
-    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
-    color: #fff;
-    box-shadow: 0 10px 20px rgba(41, 83, 126, 0.22);
-    margin-top: 10px;
-  }
-
-  /* STAT PILLS */
-  .stat-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 14px;
-  }
-  @media (min-width: 600px) {
-    .stat-row {
-      grid-template-columns: repeat(4, 1fr);
-    }
-  }
-  .stat-pill {
-    background: #f2f5fb;
-    border-radius: 18px;
-    box-shadow: var(--soft-in);
-    padding: 14px 10px;
-    text-align: center;
-  }
-  .stat-pill.wide {
-    grid-column: span 2;
-  }
-  @media (min-width: 600px) {
-    .stat-pill.wide {
-      grid-column: span 1;
-    }
-  }
-  .s-num {
-    font-size: 17px;
-    font-weight: 1000;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .s-lbl {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 800;
-    margin-top: 3px;
-  }
-  .stat-pill.blue .s-num {
-    color: #1e40af;
-  }
-  .stat-pill.green .s-num {
-    color: #15803d;
-  }
-  .stat-pill.red .s-num {
-    color: #dc2626;
-  }
-  .stat-pill.orange .s-num {
-    color: #d97706;
-  }
-
-  /* GRID 2 */
-  .grid2 {
+  /* ════════════════════════════════
+     PAGE 3-COLUMN GRID
+  ════════════════════════════════ */
+  .page-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 14px;
     margin-top: 14px;
   }
-  @media (min-width: 901px) {
-    .grid2 {
-      grid-template-columns: 260px 1fr;
+  @media (min-width: 600px) {
+    .page-grid {
+      grid-template-columns: 220px 1fr;
+    }
+    .col-filter {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: start;
+    }
+    .col-chart {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .col-data {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+  @media (min-width: 960px) {
+    .page-grid {
+      grid-template-columns: 200px 380px 1fr;
       align-items: start;
+    }
+    .col-filter {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .col-chart {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .col-data {
+      grid-column: 3;
+      grid-row: 1;
     }
   }
 
-  /* MOBILE cards (like payroll) */
+  /* ════════════════════════════════
+     FILTER CARD
+  ════════════════════════════════ */
+  label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .field {
+    margin-bottom: 12px;
+  }
+  input[type="month"],
+  input[type="text"],
+  select {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 13px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 11px 13px;
+    font-size: 14px;
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    transition: box-shadow 0.2s;
+  }
+  input:focus,
+  select:focus {
+    box-shadow:
+      var(--soft-in),
+      0 0 0 3px rgba(47, 95, 143, 0.15);
+  }
+  input::placeholder {
+    color: var(--muted);
+  }
+
+  .btn-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 14px;
+    background: linear-gradient(180deg, #2f5f8f 0%, #254d75 100%);
+    color: #fff;
+    box-shadow: 0 10px 22px rgba(47, 95, 143, 0.24);
+    font-family: inherit;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+  }
+  .btn-submit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px rgba(47, 95, 143, 0.3);
+  }
+  .btn-submit svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+
+  /* tip pill */
+  .tip-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    line-height: 1.4;
+  }
+  .tip-pill span {
+    font-size: 16px;
+    flex: 0 0 auto;
+  }
+
+  /* ════════════════════════════════
+     CHART CARD
+  ════════════════════════════════ */
+  .chart-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 440px) {
+    .chart-controls {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .btn-dl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    height: 42px;
+    border: none;
+    border-radius: 13px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 12px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--blue);
+    font-family: inherit;
+    transition: box-shadow 0.15s;
+    margin-top: 10px;
+  }
+  .btn-dl:hover {
+    box-shadow: var(--shadow-out);
+  }
+  .btn-dl svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+
+  .chart-frame {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 14px 12px;
+    overflow: hidden;
+  }
+
+  /* metric tab pills */
+  .metric-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .mtab {
+    border: none;
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: inherit;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .mtab.active {
+    background: var(--mtc, var(--blue));
+    color: #fff;
+    box-shadow: 0 6px 14px rgba(47, 95, 143, 0.24);
+  }
+  .mtab[data-m="present_days"] {
+    --mtc: #15803d;
+  }
+  .mtab[data-m="late_days"] {
+    --mtc: #d97706;
+  }
+  .mtab[data-m="sick_days"] {
+    --mtc: #ea580c;
+  }
+  .mtab[data-m="leave_days"] {
+    --mtc: #2563eb;
+  }
+  .mtab[data-m="absent_days"] {
+    --mtc: #dc2626;
+  }
+  .mtab[data-m="sales_qty"] {
+    --mtc: #0891b2;
+  }
+
+  /* ════════════════════════════════
+     DATA CARD
+  ════════════════════════════════ */
+  .data-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .data-search {
+    flex: 1 1 180px;
+  }
+
+  /* mobile cards */
   .plist {
     display: grid;
     gap: 10px;
-    margin-top: 4px;
   }
   .pitem {
     background: #fff;
     border-radius: 18px;
     box-shadow: var(--shadow-out);
-    padding: 14px;
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
+  }
+  /* rank accent left strip */
+  .pitem::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #2f5f8f, #6ea0d5);
+    border-radius: 0 0 0 18px;
+  }
+  .pitem:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 26px 48px rgba(18, 32, 62, 0.13);
   }
   .pitem-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-  }
-  .pinfo {
-    min-width: 0;
-    flex: 1;
+    margin-bottom: 10px;
   }
   .pname {
-    margin: 0;
     font-weight: 1000;
-    font-size: 15px;
-    color: var(--text);
+    font-size: 14px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .psub {
-    margin: 4px 0 0;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
+    margin-top: 2px;
   }
   .ptotal {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 1000;
-    color: #1e40af;
+    color: #0891b2;
+    background: rgba(8, 145, 178, 0.09);
+    border-radius: 9px;
+    padding: 5px 10px;
     flex: 0 0 auto;
-    text-align: right;
-    max-width: 48%;
-    word-break: break-word;
-    white-space: normal;
-    line-height: 1.3;
+    white-space: nowrap;
   }
   .pstats {
-    margin-top: 10px;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
   }
   .pstat {
     background: #f2f5fb;
-    border-radius: 10px;
+    border-radius: 9px;
     box-shadow: var(--soft-in);
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
     color: var(--muted);
     font-weight: 800;
   }
@@ -379,29 +785,28 @@
   .pstat.telat b {
     color: #d97706;
   }
+  .pstat.sakit b {
+    color: #ea580c;
+  }
   .pstat.cuti b {
     color: #2563eb;
-  }
-  .pstat.sakit b {
-    color: #d97706;
   }
   .pstat.absen b {
     color: #dc2626;
   }
   .pstat.sales b {
-    color: #1e40af;
+    color: #0891b2;
   }
 
-  /* DESKTOP table */
+  /* desktop table */
   .tablewrap {
     display: none;
     overflow-x: auto;
-    margin: 4px -2px 0;
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 760px;
+    min-width: 640px;
     background: #fff;
     border-radius: 18px;
     box-shadow: var(--shadow-out);
@@ -409,27 +814,46 @@
   }
   th,
   td {
-    padding: 12px 14px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.13);
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.12);
     text-align: left;
     vertical-align: middle;
-    font-size: 14px;
+    font-size: 13px;
   }
   th {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 900;
     background: #f8faff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
+  tbody tr {
+    transition: background 0.12s;
+  }
+  tbody tr:hover {
+    background: #f5f7fc;
+  }
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .t-name {
+    font-weight: 1000;
+    font-size: 14px;
+  }
+  .t-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
   .tbadge {
     display: inline-flex;
-    padding: 4px 9px;
+    align-items: center;
+    padding: 4px 10px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 900;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: var(--text);
+    white-space: nowrap;
   }
   .tbadge.hadir {
     background: rgba(21, 128, 61, 0.1);
@@ -440,8 +864,8 @@
     color: #d97706;
   }
   .tbadge.sakit {
-    background: rgba(217, 119, 6, 0.1);
-    color: #d97706;
+    background: rgba(234, 88, 12, 0.1);
+    color: #ea580c;
   }
   .tbadge.cuti {
     background: rgba(37, 99, 235, 0.1);
@@ -452,15 +876,17 @@
     color: #dc2626;
   }
   .tbadge.sales {
-    background: rgba(30, 64, 175, 0.1);
-    color: #1e40af;
+    background: rgba(8, 145, 178, 0.1);
+    color: #0891b2;
   }
+
   .tfoot-total td {
     font-weight: 1000;
-    background: #f8faff;
-    border-top: 2px solid rgba(125, 138, 166, 0.2);
+    background: #f4f6fb;
+    border-top: 2px solid rgba(125, 138, 166, 0.18);
     border-bottom: none;
   }
+
   @media (min-width: 901px) {
     .plist {
       display: none;
@@ -469,11 +895,34 @@
       display: block;
     }
   }
+
+  /* empty state */
+  .empty-state {
+    text-align: center;
+    padding: 36px 20px;
+    color: var(--muted);
+  }
+  .empty-state svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.3;
+    margin-bottom: 10px;
+    display: block;
+    margin-inline: auto;
+  }
+  .empty-state p {
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
 </style>
 
 <div class="screen">
   <div class="wrap">
-    <!-- HEADER -->
+    <!-- ════ HEADER ════ -->
     <div class="head-card">
       <div class="head-top">
         <div class="logo">
@@ -489,7 +938,6 @@
               >{{ user_name or session.get("user_name","Admin") }}</span
             >
           </div>
-
           <button class="action-btn" type="button" aria-label="Pesan">
             <svg viewBox="0 0 24 24">
               <rect x="3" y="5" width="18" height="14" rx="3"></rect>
@@ -497,7 +945,6 @@
             </svg>
             <span class="notif-badge">{{ notif_count or 0 }}</span>
           </button>
-
           <a
             href="{{ url_for('logout') }}"
             class="action-btn"
@@ -514,107 +961,223 @@
       <div class="rgb"></div>
     </div>
 
-    <!-- INTRO -->
-    <div class="main-card">
-      <div class="inner">
-        <h2 class="title">Stats</h2>
-        <p class="desc">
-          Rekap performa karyawan (hadir, telat, sakit, cuti, absen) + sales
-          (qty) dalam 1 bulan.
-        </p>
+    <!-- ════ HERO ════ -->
+    <div class="hero-strip">
+      <div class="hero-left">
+        <div class="hero-title">
+          <div class="hero-ico">📈</div>
+          Statistik Karyawan
+        </div>
+        <div class="hero-sub">
+          Performa absensi &amp; penjualan · Bulan {{ month }}
+        </div>
+      </div>
+      <div class="hero-badges">
+        <div class="hbadge">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          {{ month }}
+        </div>
+        <div class="hbadge">
+          <svg viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          </svg>
+          {{ rows|length }} Karyawan
+        </div>
       </div>
     </div>
 
-    <!-- STAT PILLS (copy payroll style) -->
-    <div class="stat-row">
-      <div class="stat-pill">
-        <div class="s-num">{{ month }}</div>
-        <div class="s-lbl">Bulan</div>
+    <!-- ════ KPI PILLS ════ -->
+    <div class="kpi-grid">
+      <div class="kpi-pill kp-month">
+        <div class="kpi-ico">🗓️</div>
+        <div class="kpi-num" style="font-size: 13px">{{ month }}</div>
+        <div class="kpi-lbl">Bulan</div>
       </div>
-
-      <div class="stat-pill green">
-        <div class="s-num">{{ totals.present or 0 }}</div>
-        <div class="s-lbl">Total Hadir</div>
+      <div class="kpi-pill kp-hadir">
+        <div class="kpi-ico">✅</div>
+        <div class="kpi-num">{{ totals.present or 0 }}</div>
+        <div class="kpi-lbl">Hadir</div>
       </div>
-
-      <div class="stat-pill orange">
-        <div class="s-num">{{ totals.late or 0 }}</div>
-        <div class="s-lbl">Total Terlambat</div>
+      <div class="kpi-pill kp-telat">
+        <div class="kpi-ico">⏰</div>
+        <div class="kpi-num">{{ totals.late or 0 }}</div>
+        <div class="kpi-lbl">Terlambat</div>
       </div>
-
-      <div class="stat-pill red">
-        <div class="s-num">{{ totals.absent or 0 }}</div>
-        <div class="s-lbl">Total Absen</div>
+      <div class="kpi-pill kp-absen">
+        <div class="kpi-ico">❌</div>
+        <div class="kpi-num">{{ totals.absent or 0 }}</div>
+        <div class="kpi-lbl">Absen</div>
       </div>
-
-      <div class="stat-pill">
-        <div class="s-num">{{ totals.sick or 0 }}</div>
-        <div class="s-lbl">Total Sakit</div>
+      <div class="kpi-pill kp-sakit">
+        <div class="kpi-ico">🤒</div>
+        <div class="kpi-num">{{ totals.sick or 0 }}</div>
+        <div class="kpi-lbl">Sakit</div>
       </div>
-
-      <div class="stat-pill blue">
-        <div class="s-num">{{ totals.leave or 0 }}</div>
-        <div class="s-lbl">Total Cuti</div>
+      <div class="kpi-pill kp-cuti">
+        <div class="kpi-ico">🏖️</div>
+        <div class="kpi-num">{{ totals.leave or 0 }}</div>
+        <div class="kpi-lbl">Cuti</div>
       </div>
-
-      <div class="stat-pill">
-        <div class="s-num">{{ rows|length }}</div>
-        <div class="s-lbl">Karyawan</div>
+      <div class="kpi-pill kp-kar">
+        <div class="kpi-ico">👥</div>
+        <div class="kpi-num">{{ rows|length }}</div>
+        <div class="kpi-lbl">Karyawan</div>
       </div>
-
-      <div class="stat-pill blue wide">
-        <div class="s-num">{{ totals.sales or 0 }}</div>
-        <div class="s-lbl">Total Sales (Qty)</div>
+      <div class="kpi-pill kp-sales">
+        <div class="kpi-ico">🧾</div>
+        <div class="kpi-num">{{ totals.sales or 0 }}</div>
+        <div class="kpi-lbl">Sales Qty</div>
       </div>
     </div>
 
-    <!-- GRID -->
-    <div class="grid2">
-      <!-- Filter -->
-      <div class="main-card">
+    <!-- ════ 3-COLUMN GRID ════ -->
+    <div class="page-grid">
+      <!-- COL 1 · Filter -->
+      <div class="main-card col-filter">
         <div class="inner">
-          <h2 class="title">Filter Bulan</h2>
-          <p class="desc">Pilih bulan untuk melihat rekap stats.</p>
-          <div class="divider"></div>
+          <div class="sec-head">
+            <div>
+              <div class="sec-title">Filter</div>
+              <div class="sec-desc">Pilih bulan &amp; cari nama.</div>
+            </div>
+          </div>
 
           <form method="GET" action="/admin/stats">
-            <label>Pilih Bulan</label>
-            <input type="month" name="month" value="{{ month }}" required />
-            <button class="btn-primary" type="submit">Tampilkan</button>
+            <div class="field">
+              <label>Pilih Bulan</label>
+              <input type="month" name="month" value="{{ month }}" required />
+            </div>
+            <button class="btn-submit" type="submit">
+              <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Tampilkan
+            </button>
           </form>
 
           <div class="divider"></div>
 
-          <label>Cari Karyawan</label>
-          <input id="qName" type="text" placeholder="Cari nama karyawan..." />
+          <div class="field">
+            <label>Cari Karyawan</label>
+            <input id="qName" type="text" placeholder="Ketik nama…" />
+          </div>
 
-          <p class="mini" style="margin-top: 10px; text-align: center">
-            Tips: Desktop tampil tabel, Mobile tampil kartu.
-          </p>
+          <div class="tip-pill">
+            <span>💡</span>
+            <div>Desktop: tabel<br />Mobile: kartu</div>
+          </div>
         </div>
       </div>
 
-      <!-- Data -->
-      <div class="main-card">
+      <!-- COL 2 · Chart -->
+      <div class="main-card col-chart">
         <div class="inner">
-          <h2 class="title">Rekap per Karyawan</h2>
-          <p class="desc">
-            Tabel untuk desktop, kartu untuk mobile (selaras payroll).
-          </p>
-          <div class="divider"></div>
+          <div class="sec-head">
+            <div>
+              <div class="sec-title">Visualisasi</div>
+              <div class="sec-desc">Pilih metrik &amp; jenis chart.</div>
+            </div>
+            <div class="sec-chip">
+              <svg viewBox="0 0 24 24">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              Live
+            </div>
+          </div>
 
-          <!-- MOBILE cards -->
+          <!-- Metric quick tabs -->
+          <div class="metric-tabs" id="metricTabs">
+            <button class="mtab active" data-m="present_days" type="button">
+              Hadir
+            </button>
+            <button class="mtab" data-m="late_days" type="button">Telat</button>
+            <button class="mtab" data-m="sick_days" type="button">Sakit</button>
+            <button class="mtab" data-m="leave_days" type="button">Cuti</button>
+            <button class="mtab" data-m="absent_days" type="button">
+              Absen
+            </button>
+            <button class="mtab" data-m="sales_qty" type="button">Sales</button>
+          </div>
+
+          <div class="chart-controls">
+            <div class="field" style="margin-bottom: 0">
+              <label>Jenis Chart</label>
+              <select id="chartType">
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="radar">Radar</option>
+                <option value="pie">Pie</option>
+                <option value="doughnut">Doughnut</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom: 0">
+              <label>Metrik</label>
+              <select id="chartMetric">
+                <option value="present_days">Hadir</option>
+                <option value="late_days">Terlambat</option>
+                <option value="sick_days">Sakit</option>
+                <option value="leave_days">Cuti</option>
+                <option value="absent_days">Absen</option>
+                <option value="sales_qty">Sales (Qty)</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="button" id="downloadChartBtn" class="btn-dl">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download PNG
+          </button>
+
+          <div class="divider"></div>
+          <div class="chart-frame">
+            <canvas id="statsChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- COL 3 · Data -->
+      <div class="main-card col-data">
+        <div class="inner">
+          <div class="data-head">
+            <div>
+              <div class="sec-title">Rekap per Karyawan</div>
+              <div class="sec-desc">
+                {{ rows|length }} karyawan · {{ month }}
+              </div>
+            </div>
+            <div class="data-search">
+              <label>Cari</label>
+              <input
+                id="qName2"
+                type="text"
+                placeholder="Ketik nama karyawan…"
+              />
+            </div>
+          </div>
+          <div class="divider" style="margin-top: 0"></div>
+
+          <!-- MOBILE CARDS -->
           <div class="plist" id="listCards">
             {% for r in rows %}
             <div class="pitem" data-name="{{ (r.employee_name or '')|lower }}">
               <div class="pitem-top">
-                <div class="pinfo">
-                  <p class="pname">{{ r.employee_name }}</p>
-                  <p class="psub">Rekap bulan {{ month }}</p>
+                <div style="min-width: 0; flex: 1">
+                  <div class="pname">{{ r.employee_name }}</div>
+                  <div class="psub">Bulan {{ month }}</div>
                 </div>
-                <div class="ptotal">Sales: <b>{{ r.sales_qty or 0 }}</b></div>
+                <div class="ptotal">🧾 {{ r.sales_qty or 0 }}</div>
               </div>
-
               <div class="pstats">
                 <div class="pstat hadir">
                   Hadir <b>{{ r.present_days or 0 }}</b>
@@ -637,11 +1200,24 @@
               </div>
             </div>
             {% endfor %} {% if rows|length == 0 %}
-            <p class="mini">Belum ada data.</p>
+            <div class="empty-state">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6" />
+                <path d="M15 19V9a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v10" />
+                <path d="M21 19v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
+                <line x1="1" y1="19" x2="23" y2="19" />
+              </svg>
+              <p>Belum ada data untuk bulan ini.</p>
+            </div>
             {% endif %}
           </div>
 
-          <!-- DESKTOP table -->
+          <!-- DESKTOP TABLE -->
           <div class="tablewrap">
             <table id="tblStats">
               <thead>
@@ -652,13 +1228,16 @@
                   <th>Sakit</th>
                   <th>Cuti</th>
                   <th>Absen</th>
-                  <th>Sales (Qty)</th>
+                  <th>Sales Qty</th>
                 </tr>
               </thead>
               <tbody>
                 {% for r in rows %}
                 <tr data-name="{{ (r.employee_name or '')|lower }}">
-                  <td><b>{{ r.employee_name }}</b></td>
+                  <td>
+                    <div class="t-name">{{ r.employee_name }}</div>
+                    <div class="t-sub">{{ month }}</div>
+                  </td>
                   <td>
                     <span class="tbadge hadir">{{ r.present_days or 0 }}</span>
                   </td>
@@ -680,15 +1259,20 @@
                 </tr>
                 {% endfor %} {% if rows|length == 0 %}
                 <tr>
-                  <td colspan="7" class="mini">Belum ada data.</td>
+                  <td
+                    colspan="7"
+                    class="mini"
+                    style="text-align: center; padding: 28px"
+                  >
+                    Belum ada data.
+                  </td>
                 </tr>
                 {% endif %}
               </tbody>
-
               {% if rows|length > 0 %}
               <tfoot>
                 <tr class="tfoot-total">
-                  <td>Total</td>
+                  <td><b>Total</b></td>
                   <td>{{ totals.present or 0 }}</td>
                   <td>{{ totals.late or 0 }}</td>
                   <td>{{ totals.sick or 0 }}</td>
@@ -703,25 +1287,197 @@
         </div>
       </div>
     </div>
+    <!-- /page-grid -->
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script id="stats-chart-data" type="application/json">
+  {{ chart_data | tojson }}
+</script>
+
 <script>
   (function () {
-    const q = document.getElementById("qName");
-    if (!q) return;
-
-    function apply() {
-      const needle = (q.value || "").trim().toLowerCase();
-      document.querySelectorAll("[data-name]").forEach((el) => {
-        const name = el.getAttribute("data-name") || "";
-        el.style.display = !needle || name.includes(needle) ? "" : "none";
+    /* ── search (synced both inputs) ── */
+    function applySearch(v) {
+      var needle = (v || "").trim().toLowerCase();
+      document.querySelectorAll("[data-name]").forEach(function (el) {
+        el.style.display =
+          !needle || (el.getAttribute("data-name") || "").includes(needle)
+            ? ""
+            : "none";
       });
     }
-    q.addEventListener("input", apply);
-    apply();
+    var q1 = document.getElementById("qName");
+    var q2 = document.getElementById("qName2");
+    if (q1)
+      q1.addEventListener("input", function () {
+        applySearch(q1.value);
+        if (q2) q2.value = q1.value;
+      });
+    if (q2)
+      q2.addEventListener("input", function () {
+        applySearch(q2.value);
+        if (q1) q1.value = q2.value;
+      });
+
+    /* ── chart ── */
+    var ctEl = document.getElementById("chartType");
+    var cmEl = document.getElementById("chartMetric");
+    var dlBtn = document.getElementById("downloadChartBtn");
+    var cvs = document.getElementById("statsChart");
+    var jEl = document.getElementById("stats-chart-data");
+    if (!ctEl || !cmEl || !dlBtn || !cvs || !jEl) return;
+
+    var raw;
+    try {
+      raw = JSON.parse(jEl.textContent);
+    } catch (e) {
+      return;
+    }
+    var labels = raw.labels || [];
+
+    var metaMap = {
+      present_days: {
+        label: "Hadir",
+        data: raw.present_days || [],
+        bg: "rgba(21,128,61,0.70)",
+        br: "#15803d",
+      },
+      late_days: {
+        label: "Terlambat",
+        data: raw.late_days || [],
+        bg: "rgba(217,119,6,0.70)",
+        br: "#d97706",
+      },
+      sick_days: {
+        label: "Sakit",
+        data: raw.sick_days || [],
+        bg: "rgba(234,88,12,0.70)",
+        br: "#ea580c",
+      },
+      leave_days: {
+        label: "Cuti",
+        data: raw.leave_days || [],
+        bg: "rgba(37,99,235,0.70)",
+        br: "#2563eb",
+      },
+      absent_days: {
+        label: "Absen",
+        data: raw.absent_days || [],
+        bg: "rgba(220,38,38,0.70)",
+        br: "#dc2626",
+      },
+      sales_qty: {
+        label: "Sales (Qty)",
+        data: raw.sales_qty || [],
+        bg: "rgba(8,145,178,0.70)",
+        br: "#0891b2",
+      },
+    };
+
+    var inst = null;
+    function build() {
+      var m = metaMap[cmEl.value];
+      if (!m) return;
+      var t = ctEl.value;
+      if (inst) inst.destroy();
+      inst = new Chart(cvs, {
+        type: t,
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: m.label,
+              data: m.data,
+              backgroundColor: m.bg,
+              borderColor: m.br,
+              borderWidth: 2,
+              borderRadius: t === "bar" ? 6 : 0,
+              tension: 0.35,
+              fill: false,
+              pointBackgroundColor: m.br,
+              pointRadius: t === "line" ? 4 : 0,
+              pointHoverRadius: 6,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color: "#1a2740", font: { weight: "700", size: 12 } },
+            },
+            title: { display: false },
+            tooltip: {
+              backgroundColor: "#1e3252",
+              titleColor: "#fff",
+              bodyColor: "rgba(255,255,255,0.8)",
+              cornerRadius: 10,
+              padding: 10,
+            },
+          },
+          scales:
+            t === "pie" || t === "doughnut" || t === "radar"
+              ? {}
+              : {
+                  x: {
+                    ticks: {
+                      color: "#7d8aa6",
+                      font: { size: 11 },
+                      maxRotation: 40,
+                    },
+                    grid: { color: "rgba(125,138,166,0.10)" },
+                  },
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      color: "#7d8aa6",
+                      font: { size: 11 },
+                      precision: 0,
+                    },
+                    grid: { color: "rgba(125,138,166,0.10)" },
+                  },
+                },
+        },
+      });
+    }
+
+    ctEl.addEventListener("change", build);
+    cmEl.addEventListener("change", function () {
+      /* sync metric tabs */
+      document.querySelectorAll(".mtab").forEach(function (b) {
+        b.classList.toggle("active", b.dataset.m === cmEl.value);
+      });
+      build();
+    });
+
+    /* metric tab clicks */
+    document.querySelectorAll(".mtab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        cmEl.value = btn.dataset.m;
+        document.querySelectorAll(".mtab").forEach(function (b) {
+          b.classList.remove("active");
+        });
+        btn.classList.add("active");
+        build();
+      });
+    });
+
+    dlBtn.addEventListener("click", function () {
+      if (!inst) return;
+      var a = document.createElement("a");
+      a.href = inst.toBase64Image("image/png", 1);
+      a.download = "stats-" + cmEl.value + ".png";
+      a.click();
+    });
+
+    build();
   })();
 </script>
+
 {% endblock %} {% block bottom_nav %}
 <style>
   .bottom-nav {
@@ -730,9 +1486,9 @@
     right: 0;
     bottom: 0;
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(246, 248, 252, 0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(238, 241, 247, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     z-index: 99;
   }
   .nav-bar {
@@ -740,11 +1496,10 @@
     margin: 0 auto;
     background: #fff;
     border-radius: 18px;
-    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
-    padding: 10px;
+    box-shadow: 0 18px 35px rgba(18, 32, 62, 0.1);
+    padding: 8px;
     display: flex;
-    justify-content: space-between;
-    gap: 10px;
+    gap: 6px;
   }
   .nav-item {
     flex: 1;
@@ -753,23 +1508,28 @@
     justify-content: center;
     gap: 6px;
     padding: 10px 6px;
-    border-radius: 16px;
+    border-radius: 14px;
     color: #9fb1d6;
     font-weight: 800;
     text-decoration: none;
-    font-size: 13px;
+    font-size: 12px;
     border: none;
     background: none;
     cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
   }
   .nav-item.is-active {
-    background: transparent;
+    color: #2f5f8f;
+    background: #f2f5fb;
+    box-shadow:
+      inset 6px 6px 12px rgba(20, 40, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.94);
   }
   .nav-ico {
-    width: 22px;
-    height: 22px;
-    display: inline-block;
-    flex: 0 0 22px;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
   }
   .nav-ico svg {
     width: 100%;
@@ -793,7 +1553,7 @@
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
     <a class="nav-item" href="{{ url_for('dashboard') }}">
-      <span class="nav-ico" aria-hidden="true">
+      <span class="nav-ico">
         <svg viewBox="0 0 24 24">
           <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
           <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
@@ -803,50 +1563,51 @@
       </span>
       <span>Dashboard</span>
     </a>
-
     <button
       class="nav-item is-active"
       type="button"
-      aria-label="Tab tengah (kosong)"
       onclick="
         event.preventDefault();
         event.stopPropagation();
         return false;
       "
     >
-      <span class="nav-ico" aria-hidden="true">
+      <span class="nav-ico">
         <svg viewBox="0 0 24 24">
           <path
             class="stroke"
-            d="M4 8h12"
-            stroke-width="2.2"
-            stroke-linecap="round"
-          ></path>
-          <path
-            class="stroke"
-            d="M14.6 5.8L18 8l-3.4 2.2"
+            d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6"
             stroke-width="2.2"
             stroke-linecap="round"
             stroke-linejoin="round"
           ></path>
           <path
             class="stroke"
-            d="M20 16H8"
-            stroke-width="2.2"
-            stroke-linecap="round"
-          ></path>
-          <path
-            class="stroke"
-            d="M9.4 13.8L6 16l3.4 2.2"
+            d="M15 19V9a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v10"
             stroke-width="2.2"
             stroke-linecap="round"
             stroke-linejoin="round"
           ></path>
+          <path
+            class="stroke"
+            d="M21 19v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <line
+            class="stroke"
+            x1="1"
+            y1="19"
+            x2="23"
+            y2="19"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></line>
         </svg>
       </span>
-      <span>Data</span>
+      <span>Stats</span>
     </button>
-
     <a
       class="nav-item"
       href="#"
@@ -855,7 +1616,7 @@
         return false;
       "
     >
-      <span class="nav-ico" aria-hidden="true">
+      <span class="nav-ico">
         <svg viewBox="0 0 24 24">
           <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
           <circle class="fill" cx="12" cy="12" r="1.8"></circle>
