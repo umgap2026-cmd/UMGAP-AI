@@ -1597,6 +1597,7 @@ def sales_user():
                 s.status,
                 s.admin_note,
                 s.created_at,
+                (s.created_at + interval '7 hour') AS created_at_wib,
                 COALESCE(p.name, '-') AS product_name
             FROM sales_submissions s
             LEFT JOIN products p ON p.id = s.product_id
