@@ -513,7 +513,7 @@
 
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-    <a class="nav-item" href="{{ url_for('dashboard') }}">
+    <a class="nav-item" href="{{ url_for('admin_dashboard') }}">
       <span class="nav-ico" aria-hidden="true">
         <svg viewBox="0 0 24 24">
           <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
@@ -590,13 +590,6 @@
 </div>
 
 <script>
-   (function () {
-        const btn = document.getElementById("notifBtn");
-        if (!btn) return;
-        btn.addEventListener("click", () => {
-          window.location.href = "/admin/announcements";
-        });
-      })();
   document.addEventListener(
     "click",
     (e) => {
@@ -609,4 +602,3 @@
   );
 </script>
 {% endblock %}
-
