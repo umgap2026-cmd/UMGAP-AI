@@ -789,52 +789,42 @@ def reset_password():
 def dashboard():
     if not is_logged_in():
         return redirect("/login")
-    if session.get("role") == "admin":
-        return redirect("/admin/dashboard")
 
-    # unread khusus user
-    notif_count = get_unread_notifications(session["user_id"])
-
-    if os.getenv('RUN_SCHEMA_ON_REQUEST','').lower()=='true':
-        ensure_points_schema()
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        user_id = session.get("user_id")
 
-    cur.execute("SELECT COUNT(*) AS total FROM products WHERE user_id=%s;", (session["user_id"],))
-    total_products = (cur.fetchone() or {}).get("total", 0)
+        # ambil poin user
+        cur.execute("SELECT points_admin, name FROM users WHERE id=%s LIMIT 1;", (user_id,))
+        u = cur.fetchone() or {}
 
-    cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s;", (session["user_id"],))
-    total_contents = (cur.fetchone() or {}).get("total", 0)
+        # notifikasi / pengumuman yang belum dibaca user
+        cur.execute("""
+            SELECT a.id, a.title, a.message, a.created_at
+            FROM announcements a
+            LEFT JOIN announcement_reads ar
+              ON ar.announcement_id = a.id
+             AND ar.user_id = %s
+            WHERE a.is_active = TRUE
+              AND ar.id IS NULL
+            ORDER BY a.created_at DESC
+            LIMIT 20;
+        """, (user_id,))
+        announcements = cur.fetchall()
 
-    cur.execute("SELECT COUNT(*) AS total FROM content_plans WHERE user_id=%s AND is_done=TRUE;", (session["user_id"],))
-    total_done = (cur.fetchone() or {}).get("total", 0)
+        notif_count = len(announcements)
 
-    cur.execute("SELECT COALESCE(points_admin,0) AS points_admin FROM users WHERE id=%s LIMIT 1;", (session["user_id"],))
-    pr = cur.fetchone() or {"points_admin": 0}
-
-    cur.execute("""
-        SELECT
-            COALESCE(SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END),0) AS hadir,
-            COALESCE(SUM(CASE WHEN status='SICK' THEN 1 ELSE 0 END),0) AS sakit,
-            COALESCE(SUM(CASE WHEN status='LEAVE' THEN 1 ELSE 0 END),0) AS cuti,
-            COALESCE(SUM(CASE WHEN status='ABSENT' THEN 1 ELSE 0 END),0) AS absen
-        FROM attendance
-        WHERE user_id=%s AND work_date >= (CURRENT_DATE - INTERVAL '6 days') AND work_date <= CURRENT_DATE;
-    """, (session["user_id"],))
-    attendance_7d = cur.fetchone() or {"hadir": 0, "sakit": 0, "cuti": 0, "absen": 0}
-
-    cur.close()
-    conn.close()
+    finally:
+        cur.close()
+        conn.close()
 
     return render_template(
         "dashboard.html",
         user_name=session.get("user_name"),
-        notif_count=int(notif_count or 0),
-        total_products=int(total_products or 0),
-        total_contents=int(total_contents or 0),
-        total_done=int(total_done or 0),
-        points_admin=int(pr.get("points_admin") or 0),
-        attendance_7d=attendance_7d,
+        points_admin=(u.get("points_admin") or 0),
+        notif_count=notif_count,
+        announcements=announcements
     )
 # ---------- ADMIN ----------
 @app.route("/admin")
