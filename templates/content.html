@@ -782,6 +782,50 @@
     flex-wrap: wrap;
     margin-top: 5px;
   }
+  .pi-title {
+    font-size: 15px;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+
+  .pi-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    margin-bottom: 8px;
+  }
+
+  .pi-date {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+  }
+
+  .pi-note {
+    font-size: 13px;
+    color: var(--sub);
+    margin-top: 8px;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .plan-item {
+    align-items: flex-start;
+  }
+
+  .pi-left {
+    min-width: 0;
+    width: 100%;
+  }
   .pi-date {
     font-size: 11px;
     color: var(--muted);
@@ -1257,8 +1301,9 @@
           <div class="pi-body">
             <div class="pi-top">
               <div class="pi-left">
-                <div class="pi-title">
-                  {{ c.platform }}
+                <div class="pi-title">{{ c.content_type or 'Konten' }}</div>
+
+                <div class="pi-meta">
                   <span
                     class="pi-plat"
                     data-bg="{{ pcbg }}"
@@ -1266,19 +1311,9 @@
                   >
                     {% if c.platform == 'WhatsApp' %}💬 {% elif c.platform ==
                     'Instagram' %}📸 {% elif c.platform == 'TikTok' %}🎵 {% else
-                    %}📘{% endif %} {{ c.platform }}
+                    %}📘 {% endif %} {{ c.platform }}
                   </span>
-                </div>
-                <div class="pi-meta">
-                  <span class="pi-date">
-                    <svg viewBox="0 0 24 24">
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                    {{ c.plan_date }}
-                  </span>
+
                   <span
                     class="pi-type"
                     data-bg="{{ tcbg }}"
@@ -1286,11 +1321,11 @@
                   >
                     {% if c.content_type == 'Promo' %}🔥 {% elif c.content_type
                     == 'Edukasi' %}📚 {% elif c.content_type == 'Produk Baru'
-                    %}✨ {% elif c.content_type == 'Testimoni' %}⭐ {% else
-                    %}🔔{% endif %} {{ c.content_type }}
+                    %}✨ {% elif c.content_type == 'Testimoni' %}⭐ {% else %}🔔
+                    {% endif %} {{ c.content_type }}
                   </span>
-                  {% if not c.is_done %} {# overdue check — simple: show dot if
-                  date is in past #}
+
+                  {% if not c.is_done %}
                   <span
                     class="overdue-dot"
                     id="od-{{ c.id }}"
@@ -1299,17 +1334,27 @@
                   ></span>
                   {% endif %}
                 </div>
-                {% if c.notes %}
-                <div class="pi-note">{{ c.notes }}</div>
-                {% endif %}
+
+                <div class="pi-date">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {{ c.plan_date }}
+                </div>
+
+                <div class="pi-note">
+                  {{ c.notes if c.notes else 'Belum ada catatan.' }}
+                </div>
               </div>
 
               <!-- Date badge -->
-              {% set dp = c.plan_date|string %}
+              {% set dp = c.plan_date|string %} {% set parts = dp.split('-') %}
               <div class="pi-date-badge" data-bg="{{ pcbg }}">
                 <div class="pdb-day" data-color="{{ pctxt }}">
-                  {% set parts = dp.split('-') %} {% if parts|length >= 3 %}{{
-                  parts[2] }}{% else %}—{% endif %}
+                  {% if parts|length >= 3 %}{{ parts[2] }}{% else %}—{% endif %}
                 </div>
                 <div class="pdb-mon" data-color="{{ pctxt }}">
                   {% if parts|length >= 2 %} {% set m = parts[1]|int %} {{
@@ -1341,6 +1386,7 @@
                 Batalkan
               </a>
               {% endif %}
+
               <a
                 class="pact pact-delete"
                 href="/content/delete/{{ c.id }}"
@@ -1400,7 +1446,7 @@
 
 <script>
   (function () {
-    /* ── Set today's date as default ── */
+    /* default tanggal hari ini */
     var dateEl = document.getElementById("planDate");
     if (dateEl && !dateEl.value) {
       var t = new Date();
@@ -1410,28 +1456,52 @@
       dateEl.value = y + "-" + m + "-" + d;
     }
 
-    /* ── Mark overdue items ── */
+    /* apply dynamic colors */
+    document.querySelectorAll(".plan-item[data-pc]").forEach(function (el) {
+      el.style.setProperty("--pc", el.dataset.pc || "");
+      el.style.setProperty("--pc-bg", el.dataset.pcbg || "");
+      el.style.setProperty("--pc-text", el.dataset.pctxt || "");
+    });
+
+    document.querySelectorAll(".pi-check[data-pc]").forEach(function (el) {
+      el.style.setProperty("--pc", el.dataset.pc || "");
+    });
+
+    document.querySelectorAll("[data-bg]").forEach(function (el) {
+      el.style.background = el.dataset.bg || "";
+    });
+
+    document.querySelectorAll("[data-color]").forEach(function (el) {
+      el.style.color = el.dataset.color || "";
+    });
+
+    /* overdue */
     var today = new Date();
     today.setHours(0, 0, 0, 0);
+
     document.querySelectorAll(".plan-item:not(.done)").forEach(function (item) {
       var dateMeta = item.querySelector(".pi-date");
       if (!dateMeta) return;
+
       var txt = dateMeta.textContent.trim();
       var parts = txt.split("-");
       if (parts.length < 3) return;
-      var d = new Date(
+
+      var dd = new Date(
         parseInt(parts[0], 10),
         parseInt(parts[1], 10) - 1,
         parseInt(parts[2], 10),
       );
-      if (d < today) {
+
+      if (dd < today) {
         var dot = item.querySelector(".overdue-dot");
         if (dot) dot.style.display = "inline-block";
       }
     });
 
-    /* ── Filter tabs ── */
+    /* filter tabs */
     var activeF = "all";
+
     function applyFilter() {
       var items = document.querySelectorAll(".plan-item");
       items.forEach(function (el) {
@@ -1466,7 +1536,7 @@
 
     applyFilter();
 
-    /* ── Entrance animation for plan items ── */
+    /* entrance animation */
     var items = document.querySelectorAll(".plan-item");
     items.forEach(function (el, i) {
       el.style.opacity = "0";
@@ -1487,23 +1557,5 @@
       );
     });
   })();
-  /* ── Apply dynamic colors from data attributes ── */
-  document.querySelectorAll(".plan-item[data-pc]").forEach(function (el) {
-    el.style.setProperty("--pc", el.dataset.pc || "");
-    el.style.setProperty("--pc-bg", el.dataset.pcbg || "");
-    el.style.setProperty("--pc-text", el.dataset.pctxt || "");
-  });
-
-  document.querySelectorAll(".pi-check[data-pc]").forEach(function (el) {
-    el.style.setProperty("--pc", el.dataset.pc || "");
-  });
-
-  document.querySelectorAll("[data-bg]").forEach(function (el) {
-    el.style.background = el.dataset.bg || "";
-  });
-
-  document.querySelectorAll("[data-color]").forEach(function (el) {
-    el.style.color = el.dataset.color || "";
-  });
 </script>
 {% endblock %}
