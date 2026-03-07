@@ -1,762 +1,1509 @@
-{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
-
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
 <style>
-  :root {
-    --bg: #f2f4f8;
-    --card: #f7f8fb;
-    --text: #1d2a44;
-    --muted: #7d8aa6;
-
-    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
-    --shadow-in:
-      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
-      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-    --soft-in:
-      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
-      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
-
-    --radius: 22px;
-    --pill: 999px;
-    --blue: #2f5f8f;
+  @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap");
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
 
-  * {
-    box-sizing: border-box;
+  :root {
+    --bg: #f4f3f8;
+    --surface: #faf9fe;
+    --white: #ffffff;
+    --text: #18182a;
+    --sub: #5a5870;
+    --muted: #9b99b8;
+    --border: rgba(154, 152, 184, 0.14);
+
+    --v1: #7c5cfc;
+    --v2: #a78bfa;
+    --vs: rgba(124, 92, 252, 0.1);
+    --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+
+    /* platform colors */
+    --wa: #25d366;
+    --ig: #e1306c;
+    --tt: #010101;
+    --fb: #1877f2;
+    /* content type colors */
+    --pr: #f97316;
+    --ed: #3b82f6;
+    --pb: #8b5cf6;
+    --te: #06d6a0;
+    --re: #f43f5e;
+
+    --sh1: 0 2px 10px rgba(24, 24, 42, 0.06), 0 5px 20px rgba(24, 24, 42, 0.05);
+    --sh2:
+      0 10px 32px rgba(124, 92, 252, 0.2), 0 2px 8px rgba(24, 24, 42, 0.07);
+    --neu:
+      inset 4px 4px 8px rgba(24, 24, 42, 0.065),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.88);
+
+    --r: 22px;
+    --rpill: 999px;
+    --navh: 78px;
+    --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
   body {
+    font-family: var(--font);
     background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(var(--navh) + 20px + env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(
+        ellipse 60% 40% at 10% 0%,
+        rgba(124, 92, 252, 0.06) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 50% 35% at 88% 88%,
+        rgba(255, 107, 107, 0.05) 0%,
+        transparent 55%
+      );
   }
 
   .screen {
-    min-height: 100svh;
     display: flex;
     justify-content: center;
-    padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    min-height: 100dvh;
   }
   .wrap {
     width: 100%;
-    max-width: 430px;
+    max-width: 448px;
+  }
+  @media (min-width: 600px) {
+    .wrap {
+      max-width: 576px;
+    }
   }
 
-  /* ===== Header Card (mirip attendance) ===== */
-  .head-card {
-    background: #fff;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    padding: 12px;
-  }
-  .head-top {
+  /* ══════════════════════════════
+     HEADER
+  ══════════════════════════════ */
+  .hdr {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
   }
-  .logo {
+  .hdr::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: linear-gradient(
+      90deg,
+      #7c5cfc,
+      #ff6b6b,
+      #ffb347,
+      #06d6a0,
+      #38bdf8
+    );
+  }
+  .hdr-logo {
     width: 44px;
     height: 44px;
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 13px;
+    flex: 0 0 44px;
     overflow: hidden;
-    flex: 0 0 auto;
+    background: var(--white);
+    box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
   }
-  .logo img {
+  .hdr-logo img {
     width: 100%;
     height: 100%;
     object-fit: contain;
   }
-
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-left: auto;
+  .hdr-info {
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px;
   }
-
-  .hello {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f2f5fb;
-    border-radius: var(--pill);
-    padding: 8px 12px;
-    box-shadow: var(--soft-in);
+  .hdr-app {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .hdr-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #16a34a;
-    flex: 0 0 auto;
-  }
-  .hello .name {
-    font-size: 13px;
-    color: #506381;
-    font-weight: 800;
-  }
-
-  .action-btn {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 16px;
-    background: #f3f6fc;
-    box-shadow:
-      0 12px 22px rgba(30, 60, 90, 0.18),
-      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+  .hbtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--neu);
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
     border: none;
+    cursor: pointer;
     text-decoration: none;
+    transition: transform 0.15s;
+    flex: 0 0 40px;
   }
-  .action-btn svg {
-    width: 22px;
-    height: 22px;
-    stroke: #7b93c7;
-    stroke-width: 2.2;
+  .hbtn:hover {
+    transform: translateY(-1px);
+  }
+  .hbtn svg {
+    width: 17px;
+    height: 17px;
+    stroke: var(--sub);
     fill: none;
+    stroke-width: 2.2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
-  .rgb {
-    height: 3px;
-    border-radius: 999px;
-    margin-top: 10px;
-    background: linear-gradient(
-      90deg,
-      #ff0000 0%,
-      #ff7a00 18%,
-      #ffd500 36%,
-      #00c853 58%,
-      #00b0ff 78%,
-      #8a2be2 100%
-    );
+  /* ══════════════════════════════
+     PAGE HERO STRIP
+  ══════════════════════════════ */
+  .hero {
+    margin-top: 13px;
+    border-radius: 26px;
+    padding: 20px 22px 18px;
+    background: var(--vg);
+    box-shadow: 0 14px 40px rgba(124, 92, 252, 0.28);
+    position: relative;
+    overflow: hidden;
   }
-
-  /* ===== Sections ===== */
-  .card {
-    margin-top: 14px;
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    padding: 16px 14px 18px;
+  .hero::before {
+    content: "";
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    pointer-events: none;
   }
-  .inner {
-    border-radius: 20px;
-    background: #f3f5f9;
-    box-shadow: var(--shadow-in);
-    padding: 18px 14px 16px;
+  .hero-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
   }
-
-  .title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 1000;
-    color: #2a3b58;
-    letter-spacing: 0.2px;
+  .hero-ico {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    flex: 0 0 46px;
+    background: rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
   }
-  .desc {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.35;
+  .hero-txt .hero-title {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
   }
-  .divider {
-    height: 1px;
-    background: rgba(125, 138, 166, 0.18);
-    border-radius: 999px;
-    margin: 12px 0;
-  }
-
-  label {
-    display: block;
-    margin: 10px 0 6px;
+  .hero-txt .hero-sub {
     font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 3px;
+    font-weight: 500;
   }
-  input,
-  select,
-  textarea {
+  .hero-stats {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    position: relative;
+    z-index: 1;
+  }
+  .hs {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 14px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .hs-num {
+    font-size: 22px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+  .hs-lbl {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 700;
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ══════════════════════════════
+     ADD FORM CARD — Reminder style
+  ══════════════════════════════ */
+  .add-card {
+    margin-top: 13px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+  }
+  .add-header {
+    padding: 16px 18px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .add-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .add-header-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--vs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex: 0 0 34px;
+  }
+  .add-header-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .add-header-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .add-body {
+    padding: 16px 18px 18px;
+  }
+
+  /* date picker strip */
+  .date-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .date-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+  }
+  .date-input-wrap {
+    position: relative;
+  }
+  .date-input-wrap svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    stroke: var(--v1);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  input[type="date"] {
     width: 100%;
     border: none;
     outline: none;
-    border-radius: 14px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    padding: 12px 12px;
-    font-size: 14px;
-    color: var(--text);
-  }
-  textarea {
-    min-height: 90px;
-    resize: vertical;
-  }
-
-  .mini {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
-    font-weight: 800;
-  }
-
-  .btn-primary {
-    width: 100%;
-    height: 52px;
-    border: none;
-    border-radius: 16px;
-    margin-top: 12px;
+    border-radius: 13px;
+    background: var(--vs);
+    padding: 13px 14px 13px 40px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--v1);
+    font-family: var(--font);
+    -webkit-appearance: none;
+    appearance: none;
     cursor: pointer;
-    font-weight: 1000;
-    color: #fff;
-    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-    box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
   }
 
-  .kpi {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .k {
-    padding: 12px 12px;
-    border-radius: 16px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    border: 1px solid rgba(125, 138, 166, 0.18);
-  }
-  .k .t {
-    margin: 0;
+  /* platform pills */
+  .field-label {
+    font-size: 10px;
+    font-weight: 800;
     color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 8px;
   }
-  .k .v {
-    margin: 6px 0 0;
-    font-size: 18px;
-    font-weight: 1000;
-    color: #2a3b58;
+  .platform-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
   }
-
-  .badge {
+  .plat-opt {
+    position: relative;
+  }
+  .plat-opt input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .plat-opt label {
     display: inline-flex;
     align-items: center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: #2a3b58;
-    font-size: 12px;
-    font-weight: 1000;
-    border: 1px solid rgba(125, 138, 166, 0.18);
+    gap: 6px;
+    cursor: pointer;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    border-radius: var(--rpill);
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sub);
+    transition: all 0.15s;
+    margin: 0;
     white-space: nowrap;
+    border: 2px solid transparent;
   }
-  .badge-ok {
-    background: #ecfdf5;
-    border-color: #bbf7d0;
-    color: #166534;
+  .plat-opt label .pi {
+    font-size: 16px;
   }
-  .badge-warn {
-    background: #fffbeb;
-    border-color: #fde68a;
-    color: #92400e;
+  .plat-opt input[type="radio"]:checked + label {
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  }
+  .plat-opt.p-wa input:checked + label {
+    background: #25d366;
+  }
+  .plat-opt.p-ig input:checked + label {
+    background: linear-gradient(
+      135deg,
+      #f09433,
+      #e6683c,
+      #dc2743,
+      #cc2366,
+      #bc1888
+    );
+  }
+  .plat-opt.p-tt input:checked + label {
+    background: #010101;
+  }
+  .plat-opt.p-fb input:checked + label {
+    background: #1877f2;
   }
 
-  /* Riwayat: desktop table vs mobile cards */
-  .table-wrap {
-    width: 100%;
-    overflow: auto;
-    margin-top: 10px;
+  /* content type grid */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
+  @media (min-width: 480px) {
+    .type-grid {
+      grid-template-columns: repeat(5, 1fr);
+    }
   }
-  th,
-  td {
-    padding: 12px 10px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
+  .type-opt {
+    position: relative;
+  }
+  .type-opt input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .type-opt label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    border-radius: 14px;
+    padding: 11px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--sub);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin: 0;
+    text-align: center;
+    line-height: 1.2;
+    border: 2px solid transparent;
+  }
+  .type-opt label .ti {
+    font-size: 20px;
+  }
+  .type-opt input:checked + label {
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .type-opt.tp input:checked + label {
+    background: linear-gradient(135deg, #f97316, #fb923c);
+  }
+  .type-opt.te input:checked + label {
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  }
+  .type-opt.tb input:checked + label {
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+  }
+  .type-opt.tt input:checked + label {
+    background: linear-gradient(135deg, #06d6a0, #34d399);
+  }
+  .type-opt.tr input:checked + label {
+    background: linear-gradient(135deg, #f43f5e, #fb7185);
+  }
+
+  /* notes field */
+  .notes-wrap {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .notes-wrap textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    padding: 13px 14px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: var(--font);
+    resize: none;
+    min-height: 80px;
+    transition: box-shadow 0.2s;
+  }
+  .notes-wrap textarea:focus {
+    box-shadow:
+      var(--neu),
+      0 0 0 3px rgba(124, 92, 252, 0.15);
+  }
+  .notes-wrap textarea::placeholder {
+    color: var(--muted);
     font-size: 13px;
   }
-  th {
-    position: sticky;
-    top: 0;
-    background: #f3f5f9;
-    z-index: 1;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
+
+  /* submit btn */
+  .btn-add {
+    width: 100%;
+    height: 54px;
+    border: none;
+    border-radius: 16px;
+    background: var(--vg);
+    color: #fff;
+    font-weight: 800;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: var(--font);
+    letter-spacing: 0.2px;
+    box-shadow: 0 10px 26px rgba(124, 92, 252, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
   }
-  td.muted {
-    color: var(--muted);
-    white-space: normal;
+  .btn-add:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(124, 92, 252, 0.38);
+  }
+  .btn-add:active {
+    transform: scale(0.98);
+  }
+  .btn-add svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
   }
 
-  .list-mobile {
+  /* error */
+  .err-box {
+    margin-bottom: 14px;
+    padding: 11px 14px;
+    border-radius: 14px;
+    background: rgba(244, 63, 94, 0.08);
+    border: 1px solid rgba(244, 63, 94, 0.22);
+    color: #9f1239;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* ══════════════════════════════
+     REMINDER-STYLE PLAN LIST
+  ══════════════════════════════ */
+  .plans-card {
+    margin-top: 13px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+  }
+  .plans-header {
+    padding: 16px 18px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .ph-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ph-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 179, 71, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex: 0 0 34px;
+  }
+  .ph-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .ph-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* filter tabs */
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .filter-bar::-webkit-scrollbar {
     display: none;
-    margin-top: 10px;
   }
-  .item {
-    background: #fff;
+  .ftab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    border-radius: var(--rpill);
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+    white-space: nowrap;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    color: var(--sub);
+    transition: all 0.15s;
+  }
+  .ftab.on {
+    background: var(--vg);
+    color: #fff;
+    box-shadow: 0 6px 14px rgba(124, 92, 252, 0.24);
+  }
+  .ftab-cnt {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 800;
+    margin-left: 1px;
+  }
+
+  /* plan items */
+  .plan-list {
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .plan-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--surface);
     border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    padding: 12px;
-    margin-top: 10px;
+    padding: 14px 14px;
+    transition:
+      transform 0.18s,
+      box-shadow 0.18s;
+    position: relative;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
   }
-  .item-top {
+  .plan-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--sh2);
+  }
+  .plan-item.done {
+    opacity: 0.55;
+  }
+  .plan-item.done .pi-title {
+    text-decoration: line-through;
+  }
+
+  /* left accent strip */
+  .plan-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--pc, var(--v1));
+    border-radius: 4px 0 0 4px;
+  }
+
+  /* circle check */
+  .pi-check {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex: 0 0 26px;
+    border: 2.5px solid var(--pc, var(--v1));
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    margin-top: 1px;
+  }
+  .pi-check:hover {
+    background: var(--vs);
+  }
+  .pi-check svg {
+    width: 12px;
+    height: 12px;
+    stroke: var(--pc, var(--v1));
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    display: none;
+  }
+  .plan-item.done .pi-check {
+    background: var(--pc, var(--v1));
+    border-color: var(--pc, var(--v1));
+  }
+  .plan-item.done .pi-check svg {
+    display: block;
+    stroke: #fff;
+  }
+
+  .pi-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .pi-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
-  }
-  .item-top .date {
-    font-weight: 1000;
-    font-size: 14px;
-    color: #2a3b58;
-  }
-  .item-note {
-    margin-top: 10px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-  .btn-mini {
-    border: none;
-    cursor: pointer;
-    border-radius: 14px;
-    padding: 10px 12px;
-    font-weight: 900;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: #2f5f8f;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
     gap: 8px;
   }
-  .btn-danger {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-    box-shadow: none;
+  .pi-left {
+    min-width: 0;
+  }
+  .pi-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pi-plat {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--pc-text, var(--v1));
+    background: var(--pc-bg, var(--vs));
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+  .pi-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+  }
+  .pi-date {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pi-date svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .pi-type {
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .pi-note {
+    font-size: 12px;
+    color: var(--sub);
+    margin-top: 7px;
+    line-height: 1.5;
+    word-break: break-word;
   }
 
-  .error {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 14px;
-    border: 1px solid rgba(220, 38, 38, 0.25);
-    background: rgba(220, 38, 38, 0.06);
-    color: #b91c1c;
+  /* right side — date badge */
+  .pi-date-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--pc-bg, var(--vs));
+    border-radius: 12px;
+    padding: 6px 10px;
+    text-align: center;
+    min-width: 44px;
+    flex: 0 0 auto;
+  }
+  .pdb-day {
+    font-size: 18px;
     font-weight: 900;
-    font-size: 13px;
+    color: var(--pc-text, var(--v1));
+    line-height: 1;
+  }
+  .pdb-mon {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--pc-text, var(--v1));
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-top: 1px;
   }
 
-  @media (max-width: 640px) {
-    input,
-    select,
-    textarea {
-      padding: 14px;
-      font-size: 16px;
-    }
-    .table-wrap {
-      display: none;
-    }
-    .list-mobile {
-      display: block;
-    }
+  /* action buttons row */
+  .pi-actions {
+    display: flex;
+    gap: 7px;
+    margin-top: 10px;
+    flex-wrap: wrap;
   }
-  /* ===== BOTTOM NAV (mirip dashboard/attendance) ===== */
+  .pact {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    border-radius: 10px;
+    padding: 7px 13px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: var(--font);
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .pact-done {
+    background: rgba(124, 92, 252, 0.1);
+    color: var(--v1);
+  }
+  .pact-undo {
+    background: rgba(154, 152, 184, 0.1);
+    color: var(--sub);
+  }
+  .pact-delete {
+    background: rgba(244, 63, 94, 0.08);
+    color: #e11d48;
+  }
+  .pact:hover {
+    filter: brightness(0.95);
+    transform: translateY(-1px);
+  }
+  .pact svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+
+  /* overdue indicator */
+  .overdue-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f43f5e;
+    flex: 0 0 7px;
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.2);
+  }
+
+  /* empty state */
+  .empty-state {
+    padding: 36px 20px;
+    text-align: center;
+  }
+  .empty-ico {
+    font-size: 44px;
+    margin-bottom: 10px;
+  }
+  .empty-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .empty-sub {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+    margin-top: 4px;
+  }
+
+  /* ══════════════════════════════
+     BOTTOM NAV — violet user theme
+  ══════════════════════════════ */
   .bottom-nav {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 16px;
-    display: grid;
-    place-items: center;
-    z-index: 50;
-    pointer-events: none;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(244, 243, 248, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 60;
   }
-
   .nav-bar {
-    pointer-events: auto;
-    width: 430px;
-    max-width: calc(100% - 28px);
-    background: rgba(255, 255, 255, 0.75);
-    border: 1px solid rgba(125, 138, 166, 0.18);
-    box-shadow: var(--shadow-out);
-    backdrop-filter: blur(10px);
-    border-radius: 26px;
-    padding: 10px 12px;
+    max-width: 448px;
+    margin: 0 auto;
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: var(--sh1);
+    padding: 7px;
+    display: flex;
+    gap: 5px;
   }
-
-  .nav-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    align-items: center;
-  }
-
   .nav-item {
-    text-decoration: none;
-    border: 0;
-    background: transparent;
-    padding: 10px 10px;
-    border-radius: 18px;
-    cursor: pointer;
-    display: inline-flex;
-    justify-content: center;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
-    color: #63779a;
-    font-weight: 900;
-    transition: background 0.12s ease;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
+    border-radius: 14px;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: var(--font);
+    text-decoration: none;
+    transition: all 0.16s;
   }
-
-  .nav-item:hover {
-    background: rgba(47, 95, 143, 0.08);
-  }
-
   .nav-item.active {
-    background: rgba(47, 95, 143, 0.12);
-    color: var(--blue);
+    background: var(--vs);
+    color: var(--v1);
   }
-
-  .nav-ico {
-    width: 26px;
-    height: 26px;
-    display: inline-block;
+  .ni {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 21px;
   }
-
-  .nav-ico svg {
+  .ni svg {
     width: 100%;
     height: 100%;
     display: block;
   }
-
-  .nav-ico .stroke {
-    stroke: #9fb1d6;
+  .nf {
+    fill: currentColor;
+  }
+  .ns {
+    stroke: currentColor;
     fill: none;
-    stroke-width: 2;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-
-  .nav-ico .fill {
-    fill: #9fb1d6;
-  }
-
-  .nav-item.active .nav-ico .stroke {
-    stroke: var(--blue);
-  }
-
-  .nav-item.active .nav-ico .fill {
-    fill: var(--blue);
+  @media (max-width: 360px) {
+    .nav-item span {
+      display: none;
+    }
   }
 </style>
 
 <div class="screen">
   <div class="wrap">
-    <!-- HEADER -->
-    <div class="head-card" id="top">
-      <div class="head-top">
-        <div class="logo">
-          <img
-            src="{{ url_for('static', filename='UMGAP (1).png') }}"
-            alt="Logo"
-          />
-        </div>
-
-        <div class="right">
-          <div class="hello" title="User">
-            <span class="dot"></span>
-            <span class="name"
-              >Hallo, {{ session.get("user_name","User") }}</span
-            >
-          </div>
-
-          <a href="/logout" class="action-btn" aria-label="Logout">
-            <svg viewBox="0 0 24 24">
-              <path d="M10 17l5-5-5-5"></path>
-              <path d="M15 12H3"></path>
-              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
-            </svg>
-          </a>
+    <!-- ══ HEADER ══ -->
+    <div class="hdr">
+      <div class="hdr-logo">
+        <img
+          src="{{ url_for('static', filename='UMGAP (1).png') }}"
+          alt="UMGAP"
+        />
+      </div>
+      <div class="hdr-info">
+        <div class="hdr-app">UMGAP</div>
+        <div class="hdr-name">
+          Halo, {{ session.get("user_name","User") }} 👋
         </div>
       </div>
-      <div class="rgb"></div>
+      <a href="/logout" class="hbtn" aria-label="Logout">
+        <svg viewBox="0 0 24 24">
+          <path d="M10 17l5-5-5-5" />
+          <path d="M15 12H3" />
+          <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" />
+        </svg>
+      </a>
     </div>
 
-    <!-- FORM TAMBAH -->
-    <div class="card">
-      <div class="inner">
-        <h2 class="title">Kalender Konten</h2>
-        <p class="desc">
-          Tambah rencana posting. Setelah posting, klik “Selesai”.
-        </p>
+    <!-- ══ HERO STRIP ══ -->
+    <div class="hero">
+      <div class="hero-top">
+        <div class="hero-ico">📆</div>
+        <div class="hero-txt">
+          <div class="hero-title">Kalender Konten</div>
+          <div class="hero-sub">Rencanakan posting, tandai selesai</div>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="hs">
+          <div class="hs-num">{{ plans|length }}</div>
+          <div class="hs-lbl">Total</div>
+        </div>
+        <div class="hs">
+          <div class="hs-num">
+            {{ (plans|selectattr("is_done","equalto",False)|list)|length }}
+          </div>
+          <div class="hs-lbl">Belum</div>
+        </div>
+        <div class="hs">
+          <div class="hs-num">
+            {{ (plans|selectattr("is_done")|list)|length }}
+          </div>
+          <div class="hs-lbl">Selesai ✅</div>
+        </div>
+      </div>
+    </div>
 
-        <div class="divider"></div>
-
+    <!-- ══ ADD FORM CARD ══ -->
+    <div class="add-card">
+      <div class="add-header">
+        <div class="add-header-left">
+          <div class="add-header-ico">➕</div>
+          <div>
+            <div class="add-header-title">Tambah Rencana</div>
+            <div class="add-header-sub">
+              Pilih tanggal, platform, dan jenis konten
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="add-body">
         {% if error %}
-        <p class="error">{{ error }}</p>
-        <div class="divider"></div>
+        <div class="err-box">⚠️ {{ error }}</div>
         {% endif %}
 
         <form method="post" action="/content/add">
-          <label>Tanggal</label>
-          <input type="date" name="plan_date" required />
-
-          <label>Platform</label>
-          <select name="platform" required>
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Instagram">Instagram</option>
-            <option value="TikTok">TikTok</option>
-            <option value="Facebook">Facebook</option>
-          </select>
-
-          <label>Jenis Konten</label>
-          <select name="content_type" required>
-            <option value="Promo">Promo</option>
-            <option value="Edukasi">Edukasi</option>
-            <option value="Produk Baru">Produk Baru</option>
-            <option value="Testimoni">Testimoni</option>
-            <option value="Reminder">Reminder</option>
-          </select>
-
-          <label>Catatan (opsional)</label>
-          <textarea
-            name="notes"
-            placeholder="Contoh: Diskon 10%, jam 19.00, ajak chat WA"
-          ></textarea>
-
-          <button class="btn-primary" type="submit">➕ Tambah Rencana</button>
-
-          <div class="kpi">
-            <div class="k">
-              <p class="t">Total Rencana</p>
-              <p class="v">{{ plans|length }}</p>
-            </div>
-            <div class="k">
-              <p class="t">Selesai</p>
-              <p class="v">{{ (plans|selectattr("is_done")|list)|length }}</p>
+          <!-- Date -->
+          <div class="date-strip">
+            <div class="date-label">📅 Tanggal Posting</div>
+            <div class="date-input-wrap">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <input type="date" name="plan_date" id="planDate" required />
             </div>
           </div>
 
-          <p class="mini" style="margin-top: 10px">
-            Tip: isi catatan singkat saja (diskon, jam posting, call-to-action).
-          </p>
+          <!-- Platform -->
+          <div class="field-label">📱 Platform</div>
+          <div class="platform-pills">
+            <div class="plat-opt p-wa">
+              <input
+                type="radio"
+                name="platform"
+                id="pw-wa"
+                value="WhatsApp"
+                checked
+              />
+              <label for="pw-wa"><span class="pi">💬</span> WhatsApp</label>
+            </div>
+            <div class="plat-opt p-ig">
+              <input
+                type="radio"
+                name="platform"
+                id="pw-ig"
+                value="Instagram"
+              />
+              <label for="pw-ig"><span class="pi">📸</span> Instagram</label>
+            </div>
+            <div class="plat-opt p-tt">
+              <input type="radio" name="platform" id="pw-tt" value="TikTok" />
+              <label for="pw-tt"><span class="pi">🎵</span> TikTok</label>
+            </div>
+            <div class="plat-opt p-fb">
+              <input type="radio" name="platform" id="pw-fb" value="Facebook" />
+              <label for="pw-fb"><span class="pi">📘</span> Facebook</label>
+            </div>
+          </div>
+
+          <!-- Content Type -->
+          <div class="field-label">🎨 Jenis Konten</div>
+          <div class="type-grid">
+            <div class="type-opt tp">
+              <input
+                type="radio"
+                name="content_type"
+                id="ct-pr"
+                value="Promo"
+                checked
+              />
+              <label for="ct-pr"><span class="ti">🔥</span>Promo</label>
+            </div>
+            <div class="type-opt te">
+              <input
+                type="radio"
+                name="content_type"
+                id="ct-ed"
+                value="Edukasi"
+              />
+              <label for="ct-ed"><span class="ti">📚</span>Edukasi</label>
+            </div>
+            <div class="type-opt tb">
+              <input
+                type="radio"
+                name="content_type"
+                id="ct-pb"
+                value="Produk Baru"
+              />
+              <label for="ct-pb"><span class="ti">✨</span>Produk Baru</label>
+            </div>
+            <div class="type-opt tt">
+              <input
+                type="radio"
+                name="content_type"
+                id="ct-te"
+                value="Testimoni"
+              />
+              <label for="ct-te"><span class="ti">⭐</span>Testimoni</label>
+            </div>
+            <div class="type-opt tr">
+              <input
+                type="radio"
+                name="content_type"
+                id="ct-re"
+                value="Reminder"
+              />
+              <label for="ct-re"><span class="ti">🔔</span>Reminder</label>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="field-label">📝 Catatan (Opsional)</div>
+          <div class="notes-wrap">
+            <textarea
+              name="notes"
+              placeholder="Contoh: Diskon 10%, jam 19.00, ajak chat WA…"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <button class="btn-add" type="submit">
+            <svg viewBox="0 0 24 24">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Tambah ke Kalender
+          </button>
         </form>
       </div>
     </div>
 
-    <!-- RIWAYAT -->
-    <div class="card">
-      <div class="inner">
-        <h2 class="title">Rencana Konten</h2>
-        <p class="desc">Desktop: tabel • Mobile: kartu</p>
-
-        <!-- Desktop table -->
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style="min-width: 110px">Tanggal</th>
-                <th style="min-width: 120px">Platform</th>
-                <th style="min-width: 120px">Jenis</th>
-                <th>Catatan</th>
-                <th style="min-width: 110px">Status</th>
-                <th style="min-width: 160px">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in plans %}
-              <tr>
-                <td>{{ c.plan_date }}</td>
-                <td><span class="badge">{{ c.platform }}</span></td>
-                <td><span class="badge">{{ c.content_type }}</span></td>
-                <td class="muted">{{ c.notes or "-" }}</td>
-                <td>
-                  {% if c.is_done %}
-                  <span class="badge badge-ok">SELESAI</span>
-                  {% else %}
-                  <span class="badge badge-warn">BELUM</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if not c.is_done %}
-                  <a class="btn-mini" href="/content/done/{{ c.id }}"
-                    >✔ Selesai</a
-                  >
-                  {% else %}
-                  <a class="btn-mini" href="/content/undo/{{ c.id }}"
-                    >↩ Batalkan</a
-                  >
-                  {% endif %}
-                  <a
-                    class="btn-mini btn-danger"
-                    href="/content/delete/{{ c.id }}"
-                    onclick="return confirm('Hapus rencana konten ini?');"
-                    >🗑 Hapus</a
-                  >
-                </td>
-              </tr>
-              {% endfor %} {% if plans|length == 0 %}
-              <tr>
-                <td colspan="6" class="muted">Belum ada rencana konten.</td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Mobile cards -->
-        <div class="list-mobile">
-          {% for c in plans %}
-          <div class="item">
-            <div class="item-top">
-              <div>
-                <div class="date">{{ c.plan_date }}</div>
-                <div class="mini" style="margin-top: 6px">
-                  <b>{{ c.platform }}</b> • {{ c.content_type }}
-                </div>
-              </div>
-              <div
-                style="
-                  display: flex;
-                  flex-direction: column;
-                  align-items: flex-end;
-                  gap: 8px;
-                "
-              >
-                {% if c.is_done %}
-                <span class="badge badge-ok">SELESAI</span>
-                {% else %}
-                <span class="badge badge-warn">BELUM</span>
-                {% endif %}
-                <span class="badge">ID #{{ c.id }}</span>
-              </div>
-            </div>
-
-            <div class="item-note">{{ c.notes or "-" }}</div>
-
-            <div class="btn-row">
-              {% if not c.is_done %}
-              <a class="btn-mini" href="/content/done/{{ c.id }}">✔ Selesai</a>
-              {% else %}
-              <a class="btn-mini" href="/content/undo/{{ c.id }}">↩ Batalkan</a>
-              {% endif %}
-              <a
-                class="btn-mini btn-danger"
-                href="/content/delete/{{ c.id }}"
-                onclick="return confirm('Hapus rencana konten ini?');"
-                >🗑 Hapus</a
-              >
-            </div>
+    <!-- ══ PLANS LIST ══ -->
+    <div class="plans-card">
+      <div class="plans-header">
+        <div class="ph-left">
+          <div class="ph-ico">📋</div>
+          <div>
+            <div class="ph-title">Rencana Konten</div>
+            <div class="ph-sub">Tap lingkaran ✓ untuk tandai selesai</div>
           </div>
-          {% endfor %} {% if plans|length == 0 %}
-          <div class="mini">Belum ada rencana konten.</div>
-          {% endif %}
         </div>
       </div>
-    </div>
-  </div>
-  <!-- BOTTOM NAV -->
-  <div class="bottom-nav">
-    <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-      <div class="nav-row">
-        <a class="nav-item" href="/dashboard">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <rect
-                class="fill"
-                x="3"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="3"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-            </svg>
-          </span>
-          <span>Dashboard</span>
-        </a>
 
-        <a class="nav-item active" href="/content">
-          <span class="nav-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <rect
-                class="stroke"
-                x="4"
-                y="5"
-                width="16"
-                height="15"
-                rx="2.5"
-              ></rect>
-              <path class="stroke" d="M8 3v4"></path>
-              <path class="stroke" d="M16 3v4"></path>
-              <path class="stroke" d="M4 10h16"></path>
-              <path class="stroke" d="M8 14h3"></path>
-              <path class="stroke" d="M8 17h6"></path>
-            </svg>
-          </span>
-          <span>Konten</span>
-        </a>
+      <!-- Filter tabs -->
+      <div class="filter-bar">
+        <button class="ftab on" data-f="all" type="button">
+          Semua <span class="ftab-cnt" id="cnt-all">{{ plans|length }}</span>
+        </button>
+        <button class="ftab" data-f="pending" type="button">
+          🕐 Belum
+          <span class="ftab-cnt" id="cnt-pending"
+            >{{ (plans|selectattr("is_done","equalto",False)|list)|length
+            }}</span
+          >
+        </button>
+        <button class="ftab" data-f="done" type="button">
+          ✅ Selesai
+          <span class="ftab-cnt" id="cnt-done"
+            >{{ (plans|selectattr("is_done")|list)|length }}</span
+          >
+        </button>
+      </div>
+
+      <div class="plan-list" id="planList">
+        {% for c in plans %} {% set months =
+        ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des']
+        %} {% set pd = c.plan_date|string %} {# Determine color vars per
+        platform #} {% if c.platform == 'WhatsApp' %} {% set pc = '#25D366' %}
+        {% set pcbg = 'rgba(37,211,102,.10)' %} {% set pctxt = '#15803d' %} {%
+        elif c.platform == 'Instagram' %} {% set pc = '#E1306C' %} {% set pcbg =
+        'rgba(225,48,108,.10)' %} {% set pctxt = '#9d174d' %} {% elif c.platform
+        == 'TikTok' %} {% set pc = '#555' %} {% set pcbg = 'rgba(85,85,85,.10)'
+        %} {% set pctxt = '#374151' %} {% elif c.platform == 'Facebook' %} {%
+        set pc = '#1877F2' %} {% set pcbg = 'rgba(24,119,242,.10)' %} {% set
+        pctxt = '#1e40af' %} {% else %} {% set pc = '#7c5cfc' %} {% set pcbg =
+        'rgba(124,92,252,.10)' %} {% set pctxt = '#5b21b6' %} {% endif %} {#
+        Content type color #} {% if c.content_type == 'Promo' %} {% set tc =
+        '#f97316' %} {% set tcbg = 'rgba(249,115,22,.10)' %} {% elif
+        c.content_type == 'Edukasi' %} {% set tc = '#3b82f6' %} {% set tcbg =
+        'rgba(59,130,246,.10)' %} {% elif c.content_type == 'Produk Baru' %} {%
+        set tc = '#8b5cf6' %} {% set tcbg = 'rgba(139,92,246,.10)' %} {% elif
+        c.content_type == 'Testimoni' %} {% set tc = '#06d6a0' %} {% set tcbg =
+        'rgba(6,214,160,.10)' %} {% else %} {% set tc = '#f43f5e' %} {% set tcbg
+        = 'rgba(244,63,94,.10)' %} {% endif %}
+
+        <div
+          class="plan-item {% if c.is_done %}done{% endif %}"
+          data-done="{{ 'done' if c.is_done else 'pending' }}"
+          data-pc="{{ pc }}"
+          data-pcbg="{{ pcbg }}"
+          data-pctxt="{{ pctxt }}"
+        >
+          <!-- Check circle -->
+          <a
+            class="pi-check"
+            href="{{ '/content/undo/' if c.is_done else '/content/done/' }}{{ c.id }}"
+            title="{{ 'Batalkan' if c.is_done else 'Tandai selesai' }}"
+            data-pc="{{ pc }}"
+          >
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+          </a>
+
+          <div class="pi-body">
+            <div class="pi-top">
+              <div class="pi-left">
+                <div class="pi-title">
+                  {{ c.platform }}
+                  <span
+                    class="pi-plat"
+                    data-bg="{{ pcbg }}"
+                    data-color="{{ pctxt }}"
+                  >
+                    {% if c.platform == 'WhatsApp' %}💬 {% elif c.platform ==
+                    'Instagram' %}📸 {% elif c.platform == 'TikTok' %}🎵 {% else
+                    %}📘{% endif %} {{ c.platform }}
+                  </span>
+                </div>
+                <div class="pi-meta">
+                  <span class="pi-date">
+                    <svg viewBox="0 0 24 24">
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    {{ c.plan_date }}
+                  </span>
+                  <span
+                    class="pi-type"
+                    data-bg="{{ tcbg }}"
+                    data-color="{{ tc }}"
+                  >
+                    {% if c.content_type == 'Promo' %}🔥 {% elif c.content_type
+                    == 'Edukasi' %}📚 {% elif c.content_type == 'Produk Baru'
+                    %}✨ {% elif c.content_type == 'Testimoni' %}⭐ {% else
+                    %}🔔{% endif %} {{ c.content_type }}
+                  </span>
+                  {% if not c.is_done %} {# overdue check — simple: show dot if
+                  date is in past #}
+                  <span
+                    class="overdue-dot"
+                    id="od-{{ c.id }}"
+                    style="display: none"
+                    title="Tanggal sudah lewat!"
+                  ></span>
+                  {% endif %}
+                </div>
+                {% if c.notes %}
+                <div class="pi-note">{{ c.notes }}</div>
+                {% endif %}
+              </div>
+
+              <!-- Date badge -->
+              {% set dp = c.plan_date|string %}
+              <div class="pi-date-badge" data-bg="{{ pcbg }}">
+                <div class="pdb-day" data-color="{{ pctxt }}">
+                  {% set parts = dp.split('-') %} {% if parts|length >= 3 %}{{
+                  parts[2] }}{% else %}—{% endif %}
+                </div>
+                <div class="pdb-mon" data-color="{{ pctxt }}">
+                  {% if parts|length >= 2 %} {% set m = parts[1]|int %} {{
+                  ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][m]
+                  }} {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="pi-actions">
+              {% if not c.is_done %}
+              <a
+                class="pact pact-done"
+                href="/content/done/{{ c.id }}"
+                title="Tandai selesai"
+              >
+                <svg viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Selesai
+              </a>
+              {% else %}
+              <a class="pact pact-undo" href="/content/undo/{{ c.id }}">
+                <svg viewBox="0 0 24 24">
+                  <polyline points="9 14 4 9 9 4" />
+                  <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                </svg>
+                Batalkan
+              </a>
+              {% endif %}
+              <a
+                class="pact pact-delete"
+                href="/content/delete/{{ c.id }}"
+                onclick="return confirm('Hapus rencana konten ini?');"
+              >
+                <svg viewBox="0 0 24 24">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+                Hapus
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %} {% if plans|length == 0 %}
+        <div class="empty-state">
+          <div class="empty-ico">📭</div>
+          <div class="empty-title">Belum ada rencana konten</div>
+          <div class="empty-sub">Tambah rencana pertamamu di atas ↑</div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
 
-{% endblock %}
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="/dashboard">
+      <span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="13" y="13" width="8" height="8" rx="1.6" /></svg
+      ></span>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-item active" href="/content">
+      <span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="ns" x="4" y="5" width="16" height="15" rx="2.5" />
+          <path class="ns" d="M8 3v4" />
+          <path class="ns" d="M16 3v4" />
+          <path class="ns" d="M4 10h16" />
+          <path class="ns" d="M9 15h3" />
+          <path class="ns" d="M9 18h6" /></svg
+      ></span>
+      <span>Konten</span>
+    </a>
+  </div>
+</div>
+
 <script>
   (function () {
-    const path = window.location.pathname;
-    document.querySelectorAll(".nav-item").forEach((a) => {
-      const href = a.getAttribute("href") || "";
-      if (href === path) a.classList.add("active");
-      else a.classList.remove("active");
+    /* ── Set today's date as default ── */
+    var dateEl = document.getElementById("planDate");
+    if (dateEl && !dateEl.value) {
+      var t = new Date();
+      var y = t.getFullYear();
+      var m = String(t.getMonth() + 1).padStart(2, "0");
+      var d = String(t.getDate()).padStart(2, "0");
+      dateEl.value = y + "-" + m + "-" + d;
+    }
+
+    /* ── Mark overdue items ── */
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    document.querySelectorAll(".plan-item:not(.done)").forEach(function (item) {
+      var dateMeta = item.querySelector(".pi-date");
+      if (!dateMeta) return;
+      var txt = dateMeta.textContent.trim();
+      var parts = txt.split("-");
+      if (parts.length < 3) return;
+      var d = new Date(
+        parseInt(parts[0], 10),
+        parseInt(parts[1], 10) - 1,
+        parseInt(parts[2], 10),
+      );
+      if (d < today) {
+        var dot = item.querySelector(".overdue-dot");
+        if (dot) dot.style.display = "inline-block";
+      }
+    });
+
+    /* ── Filter tabs ── */
+    var activeF = "all";
+    function applyFilter() {
+      var items = document.querySelectorAll(".plan-item");
+      items.forEach(function (el) {
+        var status = el.dataset.done;
+        var show = activeF === "all" || status === activeF;
+        el.style.display = show ? "" : "none";
+      });
+
+      var all = document.querySelectorAll(".plan-item").length;
+      var pending = document.querySelectorAll(
+        '.plan-item[data-done="pending"]',
+      ).length;
+      var done = document.querySelectorAll(
+        '.plan-item[data-done="done"]',
+      ).length;
+
+      document.getElementById("cnt-all").textContent = all;
+      document.getElementById("cnt-pending").textContent = pending;
+      document.getElementById("cnt-done").textContent = done;
+    }
+
+    document.querySelectorAll(".ftab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        document.querySelectorAll(".ftab").forEach(function (b) {
+          b.classList.remove("on");
+        });
+        btn.classList.add("on");
+        activeF = btn.dataset.f;
+        applyFilter();
+      });
+    });
+
+    applyFilter();
+
+    /* ── Entrance animation for plan items ── */
+    var items = document.querySelectorAll(".plan-item");
+    items.forEach(function (el, i) {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(10px)";
+      el.style.transition =
+        "opacity .35s ease " +
+        i * 40 +
+        "ms, transform .35s ease " +
+        i * 40 +
+        "ms";
+
+      setTimeout(
+        function () {
+          el.style.opacity = "";
+          el.style.transform = "";
+        },
+        60 + i * 40,
+      );
     });
   })();
+  /* ── Apply dynamic colors from data attributes ── */
+  document.querySelectorAll(".plan-item[data-pc]").forEach(function (el) {
+    el.style.setProperty("--pc", el.dataset.pc || "");
+    el.style.setProperty("--pc-bg", el.dataset.pcbg || "");
+    el.style.setProperty("--pc-text", el.dataset.pctxt || "");
+  });
+
+  document.querySelectorAll(".pi-check[data-pc]").forEach(function (el) {
+    el.style.setProperty("--pc", el.dataset.pc || "");
+  });
+
+  document.querySelectorAll("[data-bg]").forEach(function (el) {
+    el.style.background = el.dataset.bg || "";
+  });
+
+  document.querySelectorAll("[data-color]").forEach(function (el) {
+    el.style.color = el.dataset.color || "";
+  });
 </script>
+{% endblock %}
