@@ -168,6 +168,15 @@ def _now_wib_naive_from_form():
         now_wib_aware = datetime.now(ZoneInfo("Asia/Jakarta"))
     return now_wib_aware.replace(tzinfo=None)
 
+def _utc_naive_to_wib_naive(dt):
+    """
+    DB kamu sekarang banyak menyimpan timestamp naive yang tampil seperti UTC.
+    Fungsi ini geser +7 jam agar sinkron ke WIB.
+    """
+    if not dt:
+        return None
+    return dt + timedelta(hours=7)
+
 def _parse_date(s):
     if not s:
         return None
@@ -1060,7 +1069,6 @@ def admin_attendance_approval():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # tampilkan pending: untuk quick (name_input ada) & untuk login (user_id/work_date/arrival_type/note ada)
         cur.execute("""
             SELECT
                 id,
@@ -1069,8 +1077,13 @@ def admin_attendance_approval():
                 work_date,
                 arrival_type,
                 note,
-                device_id, latitude, longitude, accuracy, photo_path,
-                created_at
+                device_id,
+                latitude,
+                longitude,
+                accuracy,
+                photo_path,
+                created_at,
+                (created_at + interval '7 hour') AS created_at_wib
             FROM attendance_pending
             WHERE status='PENDING'
             ORDER BY created_at DESC
@@ -1078,13 +1091,22 @@ def admin_attendance_approval():
         """)
         pendings = cur.fetchall()
 
-        cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+        cur.execute("""
+            SELECT id, name, email
+            FROM users
+            WHERE role='employee'
+            ORDER BY name ASC;
+        """)
         employees = cur.fetchall()
     finally:
         cur.close()
         conn.close()
 
-    return render_template("admin_attendance_approval.html", pendings=pendings, employees=employees)
+    return render_template(
+        "admin_attendance_approval.html",
+        pendings=pendings,
+        employees=employees
+    )
 
 
 @app.route("/admin/attendance-approval/approve", methods=["POST"])
@@ -1094,7 +1116,7 @@ def admin_attendance_approve():
         return deny
 
     pending_id = request.form.get("pending_id")
-    user_id_form = request.form.get("user_id")  # dropdown (untuk quick)
+    user_id_form = request.form.get("user_id")
     if not pending_id:
         return redirect("/admin/attendance-approval")
 
@@ -1103,37 +1125,38 @@ def admin_attendance_approve():
     try:
         cur.execute("""
             SELECT
-                id, name_input,
-                user_id, work_date, arrival_type, note,
-                device_id, latitude, longitude, accuracy, photo_path,
-                created_at
+                id,
+                name_input,
+                user_id,
+                work_date,
+                arrival_type,
+                note,
+                device_id,
+                latitude,
+                longitude,
+                accuracy,
+                photo_path,
+                created_at,
+                (created_at + interval '7 hour') AS created_at_wib
             FROM attendance_pending
             WHERE id=%s AND status='PENDING'
             LIMIT 1;
         """, (int(pending_id),))
         p = cur.fetchone()
+
         if not p:
             return redirect("/admin/attendance-approval")
 
-        # Tentukan user_id target:
-        # - Jika pending berasal dari user login: p.user_id sudah ada
-        # - Jika quick: ambil dari dropdown user_id_form
         target_user_id = p.get("user_id") or (int(user_id_form) if user_id_form else None)
         if not target_user_id:
             return redirect("/admin/attendance-approval")
 
-        # tanggal kerja:
-        # - Jika pending punya work_date: pakai itu
-        # - Jika quick: pakai created_at date
-        work_date = p.get("work_date") or p["created_at"].date()
-        checkin_at = p["created_at"]
+        created_at_wib = p.get("created_at_wib") or _utc_naive_to_wib_naive(p.get("created_at"))
+        work_date = p.get("work_date") or (created_at_wib.date() if created_at_wib else date.today())
+        checkin_at = created_at_wib
 
-        # arrival_type:
-        # - user login: bisa ONTIME/LATE/SICK/LEAVE/ABSENT
-        # - quick: default ONTIME
         arrival_type = (p.get("arrival_type") or "ONTIME").strip().upper()
 
-        # status mapping
         if arrival_type in ("ONTIME", "LATE"):
             status = "PRESENT"
         elif arrival_type == "SICK":
@@ -1146,15 +1169,11 @@ def admin_attendance_approve():
             status = "PRESENT"
             arrival_type = "ONTIME"
 
-        # map_url
         latv = p.get("latitude")
         lngv = p.get("longitude")
         map_url = f"https://www.google.com/maps?q={latv},{lngv}" if (latv is not None and lngv is not None) else None
-
-        # NOTE BERSIH: hanya catatan user (tanpa metadata panjang)
         clean_note = (p.get("note") or "").strip()
 
-        # set pending approved
         cur.execute("""
             UPDATE attendance_pending
             SET status='APPROVED',
@@ -1164,7 +1183,6 @@ def admin_attendance_approve():
             WHERE id=%s;
         """, (int(target_user_id), session.get("user_id"), int(pending_id)))
 
-        # masukkan ke attendance utama (BUKTI disimpan di kolom khusus)
         cur.execute("""
             INSERT INTO attendance
                 (user_id, work_date, status, arrival_type, note, checkin_at,
@@ -1292,15 +1310,17 @@ def attendance_add():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         # masukkan ke pending (menunggu admin)
+        submit_at = _now_wib_naive_from_form()
+
         cur.execute("""
             INSERT INTO attendance_pending
                 (user_id, work_date, arrival_type, note,
-                 name_input, device_id, latitude, longitude, accuracy, photo_path,
-                 ip_address, status)
+                name_input, device_id, latitude, longitude, accuracy, photo_path,
+                ip_address, status, created_at)
             VALUES
                 (%s,%s,%s,%s,
-                 %s,%s,%s,%s,%s,%s,
-                 %s,'PENDING')
+                %s,%s,%s,%s,%s,%s,
+                %s,'PENDING', %s)
         """, (
             session.get("user_id"),
             work_date,
@@ -1312,7 +1332,8 @@ def attendance_add():
             lng_f,
             acc_f,
             photo_path,
-            _public_ip()
+            _public_ip(),
+            submit_at
         ))
         conn.commit()
     finally:
@@ -1437,13 +1458,24 @@ def quick_attendance_submit(token):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        submit_at = _now_wib_naive_from_form()
+
         cur.execute("""
             INSERT INTO attendance_pending
-              (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status)
+            (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at)
             VALUES
-              (%s, %s, %s, %s, %s, %s, %s, 'PENDING')
+            (%s, %s, %s, %s, %s, %s, %s, 'PENDING', %s)
             RETURNING id;
-        """, (name_input, device_id, lat_f, lng_f, acc_f, photo_path, _public_ip()))
+        """, (
+            name_input,
+            device_id,
+            lat_f,
+            lng_f,
+            acc_f,
+            photo_path,
+            _public_ip(),
+            submit_at
+        ))
         row = cur.fetchone() or {}
         conn.commit()
         pending_id = row.get("id")
