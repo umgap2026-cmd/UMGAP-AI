@@ -1973,17 +1973,60 @@ def init_content():
     conn.close()
     return "OK: tabel content_plans siap."
 
-@app.route("/content")
+@app.route("/content", methods=["GET", "POST"])
 def content():
     if not is_logged_in():
         return redirect("/login")
+
+    user_id = session.get("user_id")
+
+    if request.method == "POST":
+        plan_date = (request.form.get("plan_date") or "").strip()
+        platform = (request.form.get("platform") or "").strip()
+        content_type = (request.form.get("content_type") or "").strip()
+        notes = (request.form.get("notes") or "").strip()
+
+        if plan_date and platform and content_type:
+            conn = get_conn()
+            cur = conn.cursor()
+            try:
+                cur.execute("""
+                    INSERT INTO content_plans (user_id, plan_date, platform, content_type, notes, is_done)
+                    VALUES (%s, %s, %s, %s, %s, FALSE);
+                """, (user_id, plan_date, platform, content_type, notes))
+                conn.commit()
+            finally:
+                cur.close()
+                conn.close()
+
+        return redirect("/content")
+
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT id, plan_date, platform, content_type, notes, is_done FROM content_plans WHERE user_id=%s ORDER BY plan_date DESC, id DESC;", (session["user_id"],))
-    plans = cur.fetchall()
-    cur.close()
-    conn.close()
-    return render_template("content.html", plans=plans, error=None)
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                id,
+                user_id,
+                plan_date,
+                platform,
+                content_type,
+                notes,
+                is_done,
+                created_at
+            FROM content_plans
+            WHERE user_id = %s
+            ORDER BY
+                is_done ASC,
+                plan_date ASC,
+                id DESC;
+        """, (user_id,))
+        plans = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template("content.html", plans=plans)
 
 @app.route("/content/add", methods=["POST"])
 def content_add():
@@ -2008,36 +2051,61 @@ def content_add():
 def content_done(cid):
     if not is_logged_in():
         return redirect("/login")
+
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE content_plans SET is_done=TRUE WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("""
+            UPDATE content_plans
+            SET is_done = TRUE
+            WHERE id = %s AND user_id = %s;
+        """, (cid, session.get("user_id")))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/content")
+
 
 @app.route("/content/undo/<int:cid>")
 def content_undo(cid):
     if not is_logged_in():
         return redirect("/login")
+
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE content_plans SET is_done=FALSE WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("""
+            UPDATE content_plans
+            SET is_done = FALSE
+            WHERE id = %s AND user_id = %s;
+        """, (cid, session.get("user_id")))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/content")
+
 
 @app.route("/content/delete/<int:cid>")
 def content_delete(cid):
     if not is_logged_in():
         return redirect("/login")
+
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("DELETE FROM content_plans WHERE id=%s AND user_id=%s;", (cid, session["user_id"]))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("""
+            DELETE FROM content_plans
+            WHERE id = %s AND user_id = %s;
+        """, (cid, session.get("user_id")))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect("/content")
 
 # ---------- CAPTION ----------
