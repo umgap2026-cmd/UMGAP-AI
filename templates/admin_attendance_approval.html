@@ -924,7 +924,10 @@
                   <span class="pid-badge">#{{ p.id }}</span>
                 </div>
                 <div class="pmeta">
-                  <span class="pmeta-chip">🕒 {{ p.created_at }}</span>
+                  <span class="pmeta-chip">
+                    🕒 {{ p.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                    p.created_at_wib else '-' }}
+                  </span>
                   {% if p.device_id %}
                   <span class="pmeta-chip"
                     >📱 {{ (p.device_id or '')[:14] }}{% if p.device_id|length >
@@ -1063,7 +1066,8 @@
                 </td>
                 <td>
                   <div class="t-sub" style="font-size: 12px">
-                    {{ p.created_at }}
+                    {{ p.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                    p.created_at_wib else '-' }}
                   </div>
                 </td>
                 <td>
