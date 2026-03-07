@@ -2,8 +2,17 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
     <title>UMGAP • Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <style>
       *,
       *::before,
@@ -14,50 +23,81 @@
       }
 
       :root {
-        --bg: #f2f4f8;
-        --card: #f7f8fb;
-        --text: #1d2a44;
-        --muted: #7d8aa6;
-        --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
-        --shadow-in:
-          inset 10px 10px 18px rgba(25, 45, 80, 0.12),
-          inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-        --soft-in:
-          inset 6px 6px 12px rgba(25, 45, 80, 0.1),
-          inset -6px -6px 12px rgba(255, 255, 255, 0.92);
-        --radius: 22px;
-        --pill: 999px;
-        --blue: #2f5f8f;
-        --nav-h: 80px;
+        /* ── User palette: warm coral → violet. Beda dari admin yang navy/cold ── */
+        --bg: #f4f3f8;
+        --surface: #faf9fe;
+        --white: #ffffff;
+        --text: #18182a;
+        --sub: #5a5870;
+        --muted: #9b99b8;
+        --border: rgba(154, 152, 184, 0.14);
+
+        --v1: #7c5cfc; /* violet primary */
+        --v2: #9b7afe; /* violet light */
+        --coral: #ff6b6b;
+        --amber: #ffb347;
+        --green: #06d6a0;
+        --sky: #38bdf8;
+
+        --vs: rgba(124, 92, 252, 0.1); /* violet subtle */
+        --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+
+        --sh1:
+          0 2px 10px rgba(24, 24, 42, 0.06), 0 6px 24px rgba(24, 24, 42, 0.05);
+        --sh2:
+          0 8px 30px rgba(124, 92, 252, 0.18), 0 2px 8px rgba(24, 24, 42, 0.07);
+        --neu:
+          inset 4px 4px 8px rgba(24, 24, 42, 0.065),
+          inset -4px -4px 8px rgba(255, 255, 255, 0.88);
+
+        --r: 22px;
+        --rpill: 999px;
+        --navh: 78px;
+        --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
       }
 
+      html {
+        -webkit-tap-highlight-color: transparent;
+      }
       body {
-        font-family:
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          sans-serif;
+        font-family: var(--font);
         background: var(--bg);
         color: var(--text);
-        min-height: 100vh;
-        padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom));
+        min-height: 100dvh;
+        padding-bottom: calc(var(--navh) + 20px + env(safe-area-inset-bottom));
+        /* subtle grain texture */
+        background-image:
+          radial-gradient(
+            ellipse 70% 50% at 10% 0%,
+            rgba(124, 92, 252, 0.06) 0%,
+            transparent 65%
+          ),
+          radial-gradient(
+            ellipse 55% 40% at 90% 90%,
+            rgba(255, 107, 107, 0.05) 0%,
+            transparent 60%
+          );
       }
 
-      /* ── screen / wrap ── */
+      /* ════════════════════════════════
+       LAYOUT
+    ════════════════════════════════ */
       .screen {
-        min-height: 100svh;
         display: flex;
         justify-content: center;
-        padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+        min-height: 100dvh;
       }
       .wrap {
         width: 100%;
-        max-width: 480px;
+        max-width: 448px;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
       }
       @media (min-width: 600px) {
         .wrap {
-          max-width: 580px;
+          max-width: 576px;
         }
       }
       @media (min-width: 860px) {
@@ -66,203 +106,332 @@
         }
       }
 
-      /* ── header card ── */
-      .head-card {
-        background: #fff;
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-out);
-        padding: 12px;
-      }
-      .head-top {
+      /* ════════════════════════════════
+       HEADER
+    ════════════════════════════════ */
+      .hdr {
         display: flex;
         align-items: center;
         gap: 10px;
-      }
-      .logo {
-        width: 46px;
-        height: 46px;
-        border-radius: 14px;
-        background: #fff;
-        box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        background: var(--white);
+        border-radius: var(--r);
+        box-shadow: var(--sh1);
+        padding: 10px 12px;
+        position: relative;
         overflow: hidden;
-        flex: 0 0 auto;
       }
-      .logo img {
+      /* rainbow underline */
+      .hdr::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2.5px;
+        background: linear-gradient(
+          90deg,
+          #7c5cfc,
+          #ff6b6b,
+          #ffb347,
+          #06d6a0,
+          #38bdf8
+        );
+      }
+      .hdr-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        flex: 0 0 44px;
+        overflow: hidden;
+        background: var(--white);
+        box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
+      }
+      .hdr-logo img {
         width: 100%;
         height: 100%;
         object-fit: contain;
       }
-      .hdr-right {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-left: auto;
+      .hdr-info {
+        flex: 1;
+        min-width: 0;
+        padding: 0 8px;
       }
-
-      .hello {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: #f2f5fb;
-        border-radius: var(--pill);
-        padding: 7px 14px;
-        box-shadow: var(--soft-in);
-        white-space: nowrap;
-        max-width: 200px;
-        overflow: hidden;
+      .hdr-app {
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
       }
-      @media (max-width: 380px) {
-        .hello {
-          display: none;
-        }
-      }
-      .dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: #21c55d;
-        flex: 0 0 auto;
-        box-shadow: 0 0 0 3px rgba(33, 197, 93, 0.2);
-      }
-      .uname {
-        font-size: 13px;
+      .hdr-name {
+        font-size: 14px;
         font-weight: 800;
-        color: #25456a;
+        color: var(--text);
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hdr-acts {
+        display: flex;
+        gap: 7px;
+        align-items: center;
       }
 
-      .action-btn {
+      .hbtn {
         position: relative;
         width: 40px;
         height: 40px;
-        flex: 0 0 40px;
-        border-radius: 14px;
-        background: #f3f6fc;
-        box-shadow:
-          0 10px 20px rgba(30, 60, 90, 0.16),
-          inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-          inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+        border-radius: 13px;
+        background: var(--surface);
+        box-shadow: var(--neu);
         display: flex;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
         border: none;
+        cursor: pointer;
         text-decoration: none;
+        color: inherit;
         transition: transform 0.15s;
       }
-      .action-btn:hover {
+      .hbtn:hover {
         transform: translateY(-1px);
       }
-      .action-btn svg {
-        width: 20px;
-        height: 20px;
-        stroke: #7b93c7;
-        stroke-width: 2.2;
+      .hbtn svg {
+        width: 17px;
+        height: 17px;
+        stroke: var(--sub);
         fill: none;
+        stroke-width: 2.2;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
-      .notif-badge {
+      .ndot {
         position: absolute;
-        top: -5px;
-        right: -5px;
-        background: #ffd84d;
-        color: #1f2937;
-        font-size: 10px;
-        font-weight: 900;
-        padding: 2px 6px;
+        top: -3px;
+        right: -3px;
+        min-width: 16px;
+        background: var(--coral);
+        color: #fff;
+        font-size: 9px;
+        font-weight: 800;
+        padding: 1px 4px;
         border-radius: 999px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(255, 107, 107, 0.5);
       }
-      .rgb {
-        height: 3px;
+
+      /* ════════════════════════════════
+       WELCOME HERO CARD
+    ════════════════════════════════ */
+      .hero {
+        margin-top: 13px;
+        border-radius: 26px;
+        padding: 24px 22px 20px;
+        background: var(--vg);
+        box-shadow:
+          0 16px 44px rgba(124, 92, 252, 0.28),
+          0 2px 8px rgba(124, 92, 252, 0.15);
+        position: relative;
+        overflow: hidden;
+      }
+      /* decorative blobs */
+      .hero::before {
+        content: "";
+        position: absolute;
+        right: -28px;
+        top: -28px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+        pointer-events: none;
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        left: -20px;
+        bottom: -25px;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        pointer-events: none;
+      }
+      .hero-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        position: relative;
+        z-index: 1;
+      }
+      .hero-left {
+        min-width: 0;
+      }
+      .hero-tag {
+        font-size: 10px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.9px;
+      }
+      .hero-name {
+        font-size: 28px;
+        font-weight: 900;
+        color: #fff;
+        margin-top: 4px;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 210px;
+      }
+      .hero-sub {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 6px;
+        font-weight: 500;
+      }
+      .hero-pts {
+        text-align: right;
+        flex: 0 0 auto;
+      }
+      .hp-lbl {
+        font-size: 9px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+      }
+      .hp-num {
+        font-size: 36px;
+        font-weight: 900;
+        color: #fff;
+        line-height: 1;
+        letter-spacing: -1px;
+      }
+      .hp-unit {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 600;
+      }
+
+      /* progress */
+      .hero-prog {
+        margin-top: 20px;
+        position: relative;
+        z-index: 1;
+      }
+      .prog-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .prog-lbl {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.55);
+        font-weight: 600;
+      }
+      .prog-pct {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 800;
+      }
+      .prog-track {
+        height: 7px;
         border-radius: 999px;
-        margin-top: 10px;
+        background: rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+      .prog-fill {
+        height: 100%;
+        border-radius: 999px;
         background: linear-gradient(
           90deg,
-          #f00 0%,
-          #ff7a00 18%,
-          #ffd500 36%,
-          #00c853 58%,
-          #00b0ff 78%,
-          #8a2be2 100%
+          #fff 0%,
+          rgba(255, 255, 255, 0.65) 100%
         );
+        width: 0%;
+        transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
-      /* ── section header ── */
-      .section-head {
-        margin-top: 18px;
-        padding: 0 4px;
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
+      /* ════════════════════════════════
+       QUICK STATS ROW
+    ════════════════════════════════ */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 10px;
+        margin-top: 13px;
       }
-      .section-head h2 {
-        font-size: 22px;
-        font-weight: 1000;
-        color: #1b3453;
-        line-height: 1.1;
+      .stat {
+        background: var(--white);
+        border-radius: 18px;
+        box-shadow: var(--sh1);
+        padding: 14px 8px 12px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.18s;
       }
-      .points-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
-        border-radius: 12px;
-        padding: 8px 14px;
-        font-size: 12px;
-        color: var(--muted);
-        font-weight: 800;
-        white-space: nowrap;
+      .stat:hover {
+        transform: translateY(-2px);
       }
-      .points-badge b {
-        color: var(--blue);
-        font-size: 16px;
+      .stat::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--sc, #ccc);
+        border-radius: 3px 3px 0 0;
       }
-
-      /* ── main card / inner ── */
-      .main-card {
-        margin-top: 12px;
-        background: var(--card);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-out);
-        padding: 14px;
+      .sc-violet {
+        --sc: var(--v1);
       }
-      .inner {
-        border-radius: 20px;
-        background: #f3f5f9;
-        box-shadow: var(--shadow-in);
-        padding: 18px 14px 16px;
+      .sc-coral {
+        --sc: var(--coral);
       }
-      .card-title {
-        font-size: 15px;
-        font-weight: 1000;
-        color: #2a3b58;
+      .sc-green {
+        --sc: var(--green);
+      }
+      .stat-ico {
+        font-size: 18px;
+        line-height: 1;
         margin-bottom: 4px;
       }
-      .card-desc {
-        font-size: 12px;
-        color: var(--muted);
-        line-height: 1.4;
+      .stat-num {
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--sc, var(--text));
+        line-height: 1.1;
       }
-      .divider {
-        height: 1px;
-        background: rgba(125, 138, 166, 0.18);
-        border-radius: 999px;
-        margin: 14px 0;
+      .stat-lbl {
+        font-size: 9px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
       }
 
-      /* ── feature grid ── */
+      /* ════════════════════════════════
+       MENU SECTION
+    ════════════════════════════════ */
+      .sec-ttl {
+        margin: 20px 0 11px 2px;
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
       .feat-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
+        gap: 11px;
       }
       @media (min-width: 480px) {
         .feat-grid {
@@ -275,128 +444,127 @@
         }
       }
 
-      .feature {
+      .feat {
         text-decoration: none;
         color: inherit;
-        background: #fff;
+        background: var(--white);
         border-radius: 20px;
-        box-shadow: var(--shadow-out);
-        padding: 20px 12px 16px;
+        box-shadow: var(--sh1);
+        padding: 22px 10px 16px;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 12px;
-        transition:
-          transform 0.2s,
-          box-shadow 0.2s;
         position: relative;
         overflow: hidden;
+        transition:
+          transform 0.22s,
+          box-shadow 0.22s;
+        /* entrance state */
+        opacity: 0;
+        transform: translateY(14px);
       }
-      .feature::before {
+      .feat.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .feat::before {
         content: "";
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
         height: 3px;
-        background: var(--feat-color, linear-gradient(90deg, #2f5f8f, #6ea0d5));
-        border-radius: 999px 999px 0 0;
+        background: var(--fc, var(--v1));
       }
-      .feature:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 26px 46px rgba(20, 35, 65, 0.13);
+      .feat:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--sh2);
       }
-
-      /* per-feature accent colors */
-      .feat-absensi {
-        --feat-color: linear-gradient(90deg, #3b82f6, #60a5fa);
-      }
-      .feat-konten {
-        --feat-color: linear-gradient(90deg, #f59e0b, #fbbf24);
-      }
-      .feat-caption {
-        --feat-color: linear-gradient(90deg, #8b5cf6, #a78bfa);
-      }
-      .feat-bantuan {
-        --feat-color: linear-gradient(90deg, #10b981, #34d399);
-      }
-      .feat-produk {
-        --feat-color: linear-gradient(90deg, #f97316, #fb923c);
-      }
-      .feat-penjualan {
-        --feat-color: linear-gradient(90deg, #06b6d4, #22d3ee);
+      .feat:active {
+        transform: scale(0.97);
       }
 
-      .feat-icon {
-        width: 72px;
-        height: 72px;
-        border-radius: var(--pill);
+      .feat-ico {
+        width: 62px;
+        height: 62px;
+        border-radius: 19px;
+        background: var(--fi, var(--vs));
+        box-shadow: var(--neu);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 30px;
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
+        font-size: 27px;
+        line-height: 1;
       }
-      .feat-label {
+      .feat-lbl {
         font-size: 13px;
-        font-weight: 1000;
-        color: #223a5a;
+        font-weight: 800;
+        color: var(--text);
         text-align: center;
+        line-height: 1.3;
       }
 
-      /* ── MORE section ── */
-      .hidden-features {
-        display: none;
-        margin-top: 14px;
-        animation: fadeUp 0.25s ease;
-      }
-      .hidden-features.show {
-        display: block;
-      }
+      /* accent colors per feature */
+      .f-a {
+        --fc: #4f8ef7;
+        --fi: rgba(79, 142, 247, 0.08);
+      } /* absensi — blue  */
+      .f-k {
+        --fc: #f59e0b;
+        --fi: rgba(245, 158, 11, 0.08);
+      } /* konten  — amber */
+      .f-c {
+        --fc: #7c5cfc;
+        --fi: rgba(124, 92, 252, 0.09);
+      } /* caption — violet*/
+      .f-b {
+        --fc: #06d6a0;
+        --fi: rgba(6, 214, 160, 0.08);
+      } /* bantuan — green */
+      .f-p {
+        --fc: #fb923c;
+        --fi: rgba(251, 146, 60, 0.08);
+      } /* produk  — orange*/
+      .f-j {
+        --fc: #22d3ee;
+        --fi: rgba(34, 211, 238, 0.08);
+      } /* jual    — cyan  */
 
-      @keyframes fadeUp {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      /* ── More button ── */
+      /* ════════════════════════════════
+       MORE TOGGLE
+    ════════════════════════════════ */
       .more-wrap {
         display: flex;
         justify-content: center;
-        margin-top: 16px;
+        margin-top: 14px;
       }
       .more-btn {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        height: 46px;
-        padding: 0 28px;
+        background: var(--white);
+        box-shadow: var(--sh1);
+        color: var(--v1);
+        font-weight: 800;
+        font-size: 13px;
         border: none;
-        border-radius: var(--pill);
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
-        color: var(--blue);
-        font-weight: 900;
-        font-size: 14px;
+        border-radius: var(--rpill);
+        padding: 10px 26px;
         cursor: pointer;
+        font-family: var(--font);
+        letter-spacing: 0.2px;
         transition:
           box-shadow 0.2s,
-          color 0.2s;
-        font-family: inherit;
+          transform 0.15s;
       }
       .more-btn:hover {
-        box-shadow: var(--shadow-out);
+        box-shadow: var(--sh2);
+        transform: translateY(-1px);
       }
       .more-btn svg {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         stroke: currentColor;
         fill: none;
         stroke-width: 2.5;
@@ -407,110 +575,133 @@
         transform: rotate(180deg);
       }
 
-      /* ── coming soon card ── */
-      .coming-card {
+      .more-sec {
+        display: none;
+      }
+      .more-sec.show {
+        display: block;
+        animation: fadeUp 0.25s ease;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ════════════════════════════════
+       COMING SOON
+    ════════════════════════════════ */
+      .coming {
+        margin-top: 13px;
+        background: var(--white);
+        border-radius: var(--r);
+        box-shadow: var(--sh1);
+        padding: 30px 20px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 10px;
-        padding: 28px 20px;
         text-align: center;
+        gap: 10px;
       }
-      .coming-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 20px;
-        background: #f2f5fb;
-        box-shadow: var(--soft-in);
+      .cs-ico {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: var(--neu);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 28px;
+        font-size: 26px;
       }
-      .coming-title {
+      .cs-title {
         font-size: 16px;
-        font-weight: 1000;
-        color: #2a3b58;
+        font-weight: 800;
+        color: var(--text);
       }
-      .coming-desc {
+      .cs-desc {
         font-size: 13px;
-        color: var(--muted);
-        line-height: 1.5;
-        max-width: 260px;
+        color: var(--sub);
+        line-height: 1.55;
+        max-width: 240px;
+        font-weight: 500;
       }
-      .coming-pill {
+      .cs-pill {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        background: rgba(245, 158, 11, 0.12);
+        gap: 5px;
+        background: rgba(255, 179, 71, 0.12);
+        color: #b45309;
         border-radius: 999px;
         padding: 6px 14px;
         font-size: 11px;
-        font-weight: 900;
-        color: #b45309;
+        font-weight: 800;
       }
 
-      /* ── bottom nav ── */
+      /* ════════════════════════════════
+       BOTTOM NAV — user (violet active)
+    ════════════════════════════════ */
       .nav {
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
         padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-        background: rgba(242, 244, 248, 0.85);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        z-index: 50;
+        background: rgba(244, 243, 248, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        z-index: 60;
       }
       .nav-bar {
-        max-width: 430px;
+        max-width: 448px;
         margin: 0 auto;
-        background: #fff;
+        background: var(--white);
         border-radius: 20px;
-        box-shadow: var(--shadow-out);
-        padding: 8px;
+        box-shadow: var(--sh1);
+        padding: 7px;
         display: flex;
-        gap: 8px;
+        gap: 5px;
       }
       .nav-item {
         flex: 1;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 7px;
-        padding: 10px 8px;
-        border-radius: 16px;
-        color: #9fb1d6;
-        font-weight: 800;
-        font-size: 13px;
+        gap: 4px;
+        padding: 8px 6px;
+        border-radius: 14px;
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 10px;
+        letter-spacing: 0.1px;
         border: none;
         background: none;
         cursor: pointer;
-        font-family: inherit;
-        transition: all 0.15s;
+        font-family: var(--font);
+        text-decoration: none;
+        transition: all 0.16s;
       }
       .nav-item.active {
-        background: #f2f5fb;
-        color: var(--blue);
-        box-shadow: var(--soft-in);
+        background: var(--vs);
+        color: var(--v1);
       }
-      .nav-ico {
-        width: 22px;
-        height: 22px;
-        flex: 0 0 22px;
+      .ni {
+        width: 21px;
+        height: 21px;
+        flex: 0 0 21px;
       }
-      .nav-ico svg {
+      .ni svg {
         width: 100%;
         height: 100%;
         display: block;
       }
-      .stroke {
-        stroke: currentColor;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-      .fill {
+      .nf {
         fill: currentColor;
       }
       @media (max-width: 360px) {
@@ -524,229 +715,239 @@
     <div class="screen">
       <div class="wrap">
         <!-- ═══ HEADER ═══ -->
-        <div class="head-card" id="dashboardTop">
-          <div class="head-top">
-            <div class="logo">
-              <img src="/static/UMGAP%20(1).png" alt="UMGAP" />
-            </div>
-            <div class="hdr-right">
-              <div class="hello">
-                <span class="dot"></span>
-                <span class="uname">Hallo, {{ user_name }}</span>
-              </div>
-              <button
-                class="action-btn"
-                id="notifBtn"
-                type="button"
-                aria-label="Notifikasi"
-              >
-                <svg viewBox="0 0 24 24">
-                  <rect x="3" y="5" width="18" height="14" rx="3"></rect>
-                  <path d="M3 7l9 6 9-6"></path>
-                </svg>
-                <span class="notif-badge" id="notifBadge"
-                  >{{ notif_count or 0 }}</span
-                >
-              </button>
-              <a href="/logout" class="action-btn" aria-label="Logout">
-                <svg viewBox="0 0 24 24">
-                  <path d="M10 17l5-5-5-5"></path>
-                  <path d="M15 12H3"></path>
-                  <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
-                </svg>
-              </a>
-            </div>
+        <div class="hdr" id="top">
+          <div class="hdr-logo">
+            <img src="/static/UMGAP%20(1).png" alt="UMGAP" />
           </div>
-          <div class="rgb"></div>
-        </div>
-
-        <!-- ═══ SECTION HEADER ═══ -->
-        <div class="section-head">
-          <h2>Dashboard</h2>
-          <div class="points-badge">
-            ⚡ Poin Keaktifan
-            <b>{{ points_admin }}</b>
+          <div class="hdr-info">
+            <div class="hdr-app">UMGAP</div>
+            <div class="hdr-name">Halo, {{ user_name }} 👋</div>
+          </div>
+          <div class="hdr-acts">
+            <button class="hbtn" id="notifBtn" aria-label="Notifikasi">
+              <svg viewBox="0 0 24 24">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {% if notif_count and notif_count > 0 %}<span class="ndot"
+                >{{ notif_count }}</span
+              >{% endif %}
+            </button>
+            <a href="/logout" class="hbtn" aria-label="Logout">
+              <svg viewBox="0 0 24 24">
+                <path d="M10 17l5-5-5-5" />
+                <path d="M15 12H3" />
+                <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" />
+              </svg>
+            </a>
           </div>
         </div>
 
-        <!-- ═══ FEATURES ═══ -->
-        <div class="main-card" id="dashboardSection">
-          <div class="inner">
-            <div class="card-title">Menu Utama</div>
-            <div class="card-desc">Pilih fitur yang ingin kamu gunakan.</div>
-            <div class="divider"></div>
-
-            <div class="feat-grid" id="featureGrid">
-              <a class="feature feat-absensi" href="/attendance">
-                <div class="feat-icon">🗓️</div>
-                <div class="feat-label">Absensi</div>
-              </a>
-              <a class="feature feat-konten" href="/content">
-                <div class="feat-icon">📆</div>
-                <div class="feat-label">Kalender Konten</div>
-              </a>
-              <a class="feature feat-caption" href="/caption">
-                <div class="feat-icon">✨</div>
-                <div class="feat-label">AI Caption</div>
-              </a>
-              <a class="feature feat-bantuan" href="/help">
-                <div class="feat-icon">❓</div>
-                <div class="feat-label">Bantuan</div>
-              </a>
+        <!-- ═══ WELCOME HERO ═══ -->
+        <div class="hero">
+          <div class="hero-top">
+            <div class="hero-left">
+              <div class="hero-tag">Selamat datang kembali</div>
+              <div class="hero-name">{{ user_name }}</div>
+              <div class="hero-sub">Semangat kerja hari ini! 💪</div>
             </div>
-
-            <!-- MORE section -->
-            <div class="hidden-features" id="moreSection">
-              <div class="divider" style="margin-top: 16px"></div>
-              <div class="card-title" style="margin-bottom: 12px">
-                Menu Lainnya
-              </div>
-              <div class="feat-grid">
-                <a class="feature feat-produk" href="/products">
-                  <div class="feat-icon">📦</div>
-                  <div class="feat-label">Produk</div>
-                </a>
-                <a class="feature feat-penjualan" href="/sales">
-                  <div class="feat-icon">🧾</div>
-                  <div class="feat-label">Penjualan</div>
-                </a>
-              </div>
+            <div class="hero-pts">
+              <div class="hp-lbl">Poin</div>
+              <div class="hp-num">{{ points_admin or 0 }}</div>
+              <div class="hp-unit">Keaktifan</div>
             </div>
-
-            <div class="more-wrap">
-              <button class="more-btn" id="moreBtn" type="button">
-                <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-                MORE
-              </button>
+          </div>
+          <div class="hero-prog">
+            <div class="prog-row">
+              <span class="prog-lbl">⚡ Level Keaktifan</span>
+              <span class="prog-pct" id="progPct">0%</span>
+            </div>
+            <div class="prog-track">
+              <div class="prog-fill" id="progFill"></div>
             </div>
           </div>
         </div>
 
-        <!-- ═══ RINGKASAN (COMING SOON) ═══ -->
-        <div class="main-card" id="summarySection">
-          <div class="inner">
-            <div class="coming-card">
-              <div class="coming-icon">📊</div>
-              <div class="coming-title">Ringkasan Aktivitas</div>
-              <div class="coming-desc">
-                Pantau absensi, penjualan, dan aktivitas harianmu dalam satu
-                tampilan.
-              </div>
-              <div class="coming-pill">🚧 &nbsp;Coming Soon</div>
-            </div>
+        <!-- ═══ QUICK STATS ═══ -->
+        <div class="stats">
+          <div class="stat sc-violet">
+            <div class="stat-ico">⚡</div>
+            <div class="stat-num">{{ points_admin or 0 }}</div>
+            <div class="stat-lbl">Poin</div>
           </div>
+          <div class="stat sc-coral">
+            <div class="stat-ico">📅</div>
+            <div class="stat-num" id="statDay">—</div>
+            <div class="stat-lbl">Hari Ini</div>
+          </div>
+          <div class="stat sc-green">
+            <div class="stat-ico">✅</div>
+            <div class="stat-num" id="statDate">—</div>
+            <div class="stat-lbl">Tanggal</div>
+          </div>
+        </div>
+
+        <!-- ═══ MENU UTAMA ═══ -->
+        <div class="sec-ttl">Menu Utama</div>
+        <div class="feat-grid" id="grid1">
+          <a class="feat f-a" href="/attendance">
+            <div class="feat-ico">🗓️</div>
+            <div class="feat-lbl">Absensi</div>
+          </a>
+          <a class="feat f-k" href="/content">
+            <div class="feat-ico">📆</div>
+            <div class="feat-lbl">Kalender Konten</div>
+          </a>
+          <a class="feat f-c" href="/caption">
+            <div class="feat-ico">✨</div>
+            <div class="feat-lbl">AI Caption</div>
+          </a>
+          <a class="feat f-b" href="/help">
+            <div class="feat-ico">❓</div>
+            <div class="feat-lbl">Bantuan</div>
+          </a>
+        </div>
+
+        <!-- MORE toggle -->
+        <div class="more-wrap">
+          <button class="more-btn" id="moreBtn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+            Lihat Semua Menu
+          </button>
+        </div>
+
+        <div class="more-sec" id="moreSec">
+          <div class="sec-ttl" style="margin-top: 16px">Menu Lainnya</div>
+          <div class="feat-grid">
+            <a class="feat f-p visible" href="/products">
+              <div class="feat-ico">📦</div>
+              <div class="feat-lbl">Produk</div>
+            </a>
+            <a class="feat f-j visible" href="/sales">
+              <div class="feat-ico">🧾</div>
+              <div class="feat-lbl">Penjualan</div>
+            </a>
+          </div>
+        </div>
+
+        <!-- ═══ COMING SOON ═══ -->
+        <div class="coming">
+          <div class="cs-ico">📊</div>
+          <div class="cs-title">Ringkasan Aktivitas</div>
+          <div class="cs-desc">
+            Pantau absensi, penjualan, dan aktivitas harianmu dalam satu
+            tampilan.
+          </div>
+          <div class="cs-pill">🚧 Coming Soon</div>
         </div>
       </div>
     </div>
 
     <!-- ═══ BOTTOM NAV ═══ -->
-    <div class="nav">
-      <div class="nav-bar" role="navigation">
-        <button class="nav-item active" type="button" data-nav="dashboard">
-          <span class="nav-ico">
-            <svg viewBox="0 0 24 24">
+    <nav class="nav">
+      <div class="nav-bar">
+        <button class="nav-item active" type="button" data-n="top">
+          <span class="ni"
+            ><svg viewBox="0 0 24 24">
+              <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
+              <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
+              <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
               <rect
-                class="fill"
-                x="3"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="13"
-                y="3"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
-                x="3"
-                y="13"
-                width="8"
-                height="8"
-                rx="1.6"
-              ></rect>
-              <rect
-                class="fill"
+                class="nf"
                 x="13"
                 y="13"
                 width="8"
                 height="8"
                 rx="1.6"
-              ></rect>
-            </svg>
-          </span>
+              /></svg
+          ></span>
           <span>Dashboard</span>
         </button>
-        <button class="nav-item" type="button" data-nav="more">
-          <span class="nav-ico">
-            <svg viewBox="0 0 24 24">
-              <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
-              <circle class="fill" cx="12" cy="12" r="1.8"></circle>
-              <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
-            </svg>
-          </span>
+        <button class="nav-item" type="button" data-n="more">
+          <span class="ni"
+            ><svg viewBox="0 0 24 24">
+              <circle class="nf" cx="6.5" cy="12" r="1.8" />
+              <circle class="nf" cx="12" cy="12" r="1.8" />
+              <circle class="nf" cx="17.5" cy="12" r="1.8" /></svg
+          ></span>
           <span>More</span>
         </button>
       </div>
-    </div>
+    </nav>
 
     <script>
-      // Notif click → /notifications
       (function () {
-        var btn = document.getElementById("notifBtn");
-        if (btn)
-          btn.addEventListener("click", function () {
+        /* ── Date ── */
+        var d = new Date();
+        var days = [
+          "Minggu",
+          "Senin",
+          "Selasa",
+          "Rabu",
+          "Kamis",
+          "Jumat",
+          "Sabtu",
+        ];
+        document.getElementById("statDay").textContent = days[d.getDay()];
+        document.getElementById("statDate").textContent = d.getDate();
+
+        /* ── Progress bar ── */
+        var pts = parseInt("{{ points_admin or 0 }}") || 0;
+        var pct = Math.min(Math.round(pts * 0.5), 100);
+        setTimeout(function () {
+          document.getElementById("progFill").style.width = pct + "%";
+          document.getElementById("progPct").textContent = pct + "%";
+        }, 350);
+
+        /* ── Notif ── */
+        var nb = document.getElementById("notifBtn");
+        if (nb)
+          nb.onclick = function () {
             window.location.href = "/notifications";
-          });
-      })();
+          };
 
-      // MORE toggle
-      (function () {
-        var btn = document.getElementById("moreBtn");
-        var more = document.getElementById("moreSection");
-        if (!btn || !more) return;
-        btn.addEventListener("click", function () {
-          var open = more.classList.toggle("show");
-          btn.classList.toggle("open", open);
-          btn.innerHTML = open
-            ? '<svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg> LESS'
-            : '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg> MORE';
-          // re-apply svg style
-          btn.querySelector("svg").style.cssText =
-            "width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform .3s;";
-          if (open)
-            more.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        /* ── Feature card entrance (stagger) ── */
+        document.querySelectorAll("#grid1 .feat").forEach(function (el, i) {
+          el.style.transition =
+            "opacity .4s ease " +
+            (100 + i * 60) +
+            "ms, transform .4s ease " +
+            (100 + i * 60) +
+            "ms";
+          setTimeout(
+            function () {
+              el.classList.add("visible");
+            },
+            100 + i * 60,
+          );
         });
-      })();
 
-      // Bottom nav
-      (function () {
-        var items = document.querySelectorAll(".nav-item");
-        function setActive(key) {
-          items.forEach(function (b) {
-            b.classList.remove("active");
-          });
-          var btn = document.querySelector('.nav-item[data-nav="' + key + '"]');
-          if (btn) btn.classList.add("active");
-        }
-        function go(key) {
-          if (key === "dashboard") {
-            document
-              .getElementById("dashboardTop")
-              ?.scrollIntoView({ behavior: "smooth", block: "start" });
-            setActive("dashboard");
-          } else if (key === "more") {
-            document.getElementById("moreBtn")?.click();
-            setActive("more");
-          }
-        }
-        items.forEach(function (btn) {
+        /* ── More toggle ── */
+        var mBtn = document.getElementById("moreBtn");
+        var mSec = document.getElementById("moreSec");
+        mBtn.addEventListener("click", function () {
+          var open = mSec.classList.toggle("show");
+          mBtn.classList.toggle("open", open);
+          mBtn.innerHTML = open
+            ? '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transform:rotate(180deg)"><path d="M6 9l6 6 6-6"/></svg> Sembunyikan'
+            : '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;"><path d="M6 9l6 6 6-6"/></svg> Lihat Semua Menu';
+          if (open)
+            mSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+
+        /* ── Bottom nav ── */
+        document.querySelectorAll(".nav-item").forEach(function (btn) {
           btn.addEventListener("click", function () {
-            go(btn.getAttribute("data-nav"));
+            document.querySelectorAll(".nav-item").forEach(function (b) {
+              b.classList.remove("active");
+            });
+            btn.classList.add("active");
+            var k = btn.dataset.n;
+            if (k === "top")
+              document
+                .getElementById("top")
+                .scrollIntoView({ behavior: "smooth" });
+            else if (k === "more") mBtn.click();
           });
         });
       })();
