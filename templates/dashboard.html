@@ -593,6 +593,21 @@
         }
       }
 
+      /* notif badge pop */
+      @keyframes bellPop {
+        0%   { transform: scale(1) rotate(0deg); }
+        20%  { transform: scale(1.3) rotate(-12deg); }
+        40%  { transform: scale(1.2) rotate(10deg); }
+        60%  { transform: scale(1.15) rotate(-6deg); }
+        80%  { transform: scale(1.05) rotate(3deg); }
+        100% { transform: scale(1) rotate(0deg); }
+      }
+      @keyframes badgePulse {
+        0%,100% { transform: scale(1); box-shadow: 0 2px 6px rgba(255,107,107,.5); }
+        50%      { transform: scale(1.15); box-shadow: 0 4px 12px rgba(255,107,107,.7); }
+      }
+      .ndot { animation: badgePulse 2s ease infinite 1s; }
+
       /* ════════════════════════════════
        COMING SOON
     ════════════════════════════════ */
@@ -710,154 +725,202 @@
         }
       }
 
-      /* ═══ NOTIFICATION POPUP ═══ */
-      .notif-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(24, 24, 42, 0.28);
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s ease;
-        z-index: 120;
-      }
+      /* ═══════════════════════════════════════
+         NOTIFICATION POPUP — Premium Animated
+      ═══════════════════════════════════════ */
 
+      /* backdrop */
+      .notif-overlay {
+        position: fixed; inset: 0; z-index: 120;
+        background: rgba(18, 18, 36, 0.40);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.35s cubic-bezier(.4,0,.2,1);
+      }
+      .notif-overlay.open { opacity: 1; pointer-events: auto; }
+
+      /* bottom sheet */
       .notif-sheet {
         position: fixed;
-        left: 50%;
-        bottom: 18px;
-        transform: translateX(-50%) translateY(18px);
-        width: calc(100% - 22px);
-        max-width: 430px;
-        max-height: min(72dvh, 620px);
-        background: rgba(255, 255, 255, 0.96);
-        border-radius: 24px;
-        box-shadow:
-          0 24px 50px rgba(24, 24, 42, 0.18),
-          0 8px 24px rgba(24, 24, 42, 0.08);
-        overflow: hidden;
-        opacity: 0;
-        pointer-events: none;
-        transition:
-          opacity 0.22s ease,
-          transform 0.22s ease;
-        z-index: 121;
-      }
-
-      .notif-overlay.open {
-        opacity: 1;
-        pointer-events: auto;
-      }
-
-      .notif-sheet.open {
-        opacity: 1;
-        pointer-events: auto;
-        transform: translateX(-50%) translateY(0);
-      }
-
-      .notif-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 16px 16px 12px;
-        border-bottom: 1px solid rgba(154, 152, 184, 0.14);
+        left: 50%; bottom: 0;
+        transform: translateX(-50%) translateY(100%);
+        width: min(100%, 460px);
+        max-height: min(85dvh, 660px);
         background: #fff;
+        border-radius: 28px 28px 0 0;
+        box-shadow: 0 -8px 40px rgba(18,18,36,.18), 0 -2px 12px rgba(18,18,36,.08);
+        overflow: hidden;
+        display: flex; flex-direction: column;
+        pointer-events: none; z-index: 121;
+        transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+        will-change: transform;
+      }
+      .notif-sheet.open {
+        transform: translateX(-50%) translateY(0);
+        pointer-events: auto;
       }
 
-      .notif-title {
+      /* drag handle */
+      .notif-handle {
+        width: 36px; height: 4px; border-radius: 999px;
+        background: rgba(154,152,184,.28);
+        margin: 10px auto 0;
+        flex: 0 0 auto;
+        cursor: grab;
+      }
+
+      /* glass header */
+      .notif-head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 18px 14px;
+        border-bottom: 1px solid rgba(154,152,184,.12);
+        background: rgba(255,255,255,.95);
+        backdrop-filter: blur(10px);
+        flex: 0 0 auto;
+        position: sticky; top: 0; z-index: 2;
+      }
+      .notif-head-icon {
+        width: 40px; height: 40px; border-radius: 13px; flex: 0 0 40px;
+        background: linear-gradient(135deg,#7c5cfc,#a78bfa);
+        display: flex; align-items: center; justify-content: center;
         font-size: 18px;
-        font-weight: 900;
-        color: var(--text);
+        box-shadow: 0 6px 16px rgba(124,92,252,.30);
       }
-
+      .notif-head-text { flex: 1; min-width: 0; }
+      .notif-title {
+        font-size: 17px; font-weight: 900; color: var(--text); line-height: 1;
+      }
       .notif-sub {
-        margin-top: 4px;
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--muted);
+        font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 3px;
+        display: flex; align-items: center; gap: 5px;
       }
+      .notif-sub-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--coral); display: inline-block;
+        box-shadow: 0 0 0 3px rgba(255,107,107,.20);
+        animation: pulseDot 2s ease infinite;
+      }
+      @keyframes pulseDot {
+        0%,100% { box-shadow: 0 0 0 3px rgba(255,107,107,.20); }
+        50%      { box-shadow: 0 0 0 6px rgba(255,107,107,.08); }
+      }
+      .notif-sub-dot.none { background: var(--green); box-shadow: 0 0 0 3px rgba(6,214,160,.20); animation: none; }
 
       .notif-close {
-        width: 36px;
-        height: 36px;
-        border: none;
-        border-radius: 12px;
+        width: 36px; height: 36px; border: none; border-radius: 12px; flex: 0 0 36px;
         background: var(--surface);
-        box-shadow: var(--neu);
-        cursor: pointer;
-        font-size: 15px;
-        font-weight: 900;
-        color: var(--sub);
+        box-shadow: inset 3px 3px 6px rgba(24,24,42,.07), inset -3px -3px 6px rgba(255,255,255,.9);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: transform .15s;
       }
+      .notif-close:hover { transform: scale(1.08); }
+      .notif-close svg { width: 14px; height: 14px; stroke: var(--sub); fill: none; stroke-width: 2.5; stroke-linecap: round; }
 
+      /* mark all read button */
+      .notif-read-all {
+        display: flex; align-items: center; justify-content: center;
+        padding: 10px 18px;
+        flex: 0 0 auto;
+        border-bottom: 1px solid rgba(154,152,184,.10);
+      }
+      .notif-read-all button {
+        border: none; background: none; font-family: var(--font);
+        font-size: 12px; font-weight: 800; color: var(--v1);
+        cursor: pointer; padding: 6px 14px; border-radius: 999px;
+        background: var(--vs); transition: background .15s;
+      }
+      .notif-read-all button:hover { background: rgba(124,92,252,.18); }
+
+      /* scrollable list */
       .notif-list {
-        padding: 12px;
-        overflow-y: auto;
-        max-height: calc(min(72dvh, 620px) - 72px);
-        display: grid;
-        gap: 10px;
+        flex: 1; overflow-y: auto; padding: 14px 14px 24px;
+        display: flex; flex-direction: column; gap: 10px;
+        overscroll-behavior: contain;
+        scrollbar-width: thin; scrollbar-color: rgba(154,152,184,.2) transparent;
       }
+      .notif-list::-webkit-scrollbar { width: 4px; }
+      .notif-list::-webkit-scrollbar-thumb { background: rgba(154,152,184,.25); border-radius: 999px; }
 
+      /* individual card */
       .notif-card {
         background: var(--surface);
         border-radius: 18px;
-        box-shadow: var(--neu);
-        padding: 14px;
+        border: 1.5px solid rgba(154,152,184,.10);
+        padding: 14px 14px 12px;
+        position: relative; overflow: hidden;
+        /* entrance: start hidden, JS will animate in */
+        opacity: 0;
+        transform: translateY(16px) scale(.97);
+        transition: opacity .38s ease, transform .38s cubic-bezier(.4,0,.2,1), box-shadow .2s;
       }
+      .notif-card.visible {
+        opacity: 1; transform: translateY(0) scale(1);
+      }
+      .notif-card:hover { box-shadow: var(--sh2); }
 
+      /* unread shimmer stripe */
+      .notif-card.unread::before {
+        content: '';
+        position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+        background: linear-gradient(180deg, #7c5cfc, #a78bfa);
+        border-radius: 3px 0 0 3px;
+      }
+      .notif-card.unread { background: #fff; border-color: rgba(124,92,252,.14); }
+
+      /* category icon chip */
       .notif-card-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: flex-start;
+        display: flex; align-items: flex-start; gap: 11px;
       }
-
+      .notif-card-ico {
+        width: 38px; height: 38px; border-radius: 12px; flex: 0 0 38px;
+        display: flex; align-items: center; justify-content: center; font-size: 17px;
+        background: var(--vs);
+      }
+      .notif-card-body { flex: 1; min-width: 0; }
       .notif-card-title {
-        font-size: 14px;
-        font-weight: 900;
-        color: var(--text);
-        line-height: 1.3;
+        font-size: 14px; font-weight: 800; color: var(--text); line-height: 1.35;
       }
-
       .notif-time {
-        flex: 0 0 auto;
-        font-size: 11px;
-        color: var(--muted);
-        font-weight: 700;
-        text-align: right;
+        font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 3px;
+        display: flex; align-items: center; gap: 4px;
       }
-
+      .notif-time svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
       .notif-msg {
-        margin-top: 8px;
-        font-size: 13px;
-        color: var(--sub);
-        line-height: 1.5;
+        margin-top: 8px; font-size: 13px; color: var(--sub); line-height: 1.55; font-weight: 500;
+        padding-top: 8px; border-top: 1px solid rgba(154,152,184,.10);
       }
 
+      /* action row */
       .notif-actions {
-        margin-top: 12px;
-        display: flex;
-        justify-content: flex-end;
+        margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px;
       }
-
       .notif-read-btn {
-        text-decoration: none;
-        border-radius: 12px;
-        padding: 8px 12px;
-        font-size: 12px;
-        font-weight: 900;
-        background: rgba(124, 92, 252, 0.1);
-        color: var(--v1);
+        text-decoration: none; border: none; background: none;
+        border-radius: 10px; padding: 7px 13px;
+        font-size: 11px; font-weight: 800; font-family: var(--font);
+        background: rgba(124,92,252,.10); color: var(--v1); cursor: pointer;
+        display: inline-flex; align-items: center; gap: 5px;
+        transition: background .15s, transform .12s;
       }
+      .notif-read-btn:hover { background: rgba(124,92,252,.18); transform: translateY(-1px); }
+      .notif-read-btn svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
 
+      /* empty state */
       .notif-empty {
-        text-align: center;
-        color: var(--muted);
-        font-weight: 800;
-        padding: 24px 10px;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 40px 20px; gap: 10px; text-align: center;
       }
+      .notif-empty-ico {
+        width: 64px; height: 64px; border-radius: 20px; font-size: 28px;
+        background: var(--surface);
+        box-shadow: inset 4px 4px 8px rgba(24,24,42,.06), inset -4px -4px 8px rgba(255,255,255,.9);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 4px;
+      }
+      .notif-empty-title { font-size: 16px; font-weight: 800; color: var(--text); }
+      .notif-empty-sub   { font-size: 13px; color: var(--muted); font-weight: 500; }
+
     </style>
   </head>
   <body>
@@ -1023,49 +1086,74 @@
         </button>
       </div>
     </nav>
-    <!-- ═══ NOTIFICATION POPUP ═══ -->
+    <!-- ═══ NOTIFICATION POPUP — Premium ═══ -->
     <div class="notif-overlay" id="notifOverlay"></div>
 
-    <div class="notif-sheet" id="notifSheet" aria-hidden="true">
+    <div class="notif-sheet" id="notifSheet" role="dialog" aria-modal="true" aria-hidden="true">
+      <!-- drag handle -->
+      <div class="notif-handle" id="notifHandle"></div>
+
+      <!-- glass header -->
       <div class="notif-head">
-        <div>
+        <div class="notif-head-icon">🔔</div>
+        <div class="notif-head-text">
           <div class="notif-title">Notifikasi</div>
           <div class="notif-sub">
-            {{ announcements|length if announcements else 0 }} notifikasi belum
-            dibaca
+            {% set nc = announcements|length if announcements else 0 %}
+            {% if nc > 0 %}
+            <span class="notif-sub-dot"></span>
+            {{ nc }} belum dibaca
+            {% else %}
+            <span class="notif-sub-dot none"></span>
+            Semua sudah dibaca
+            {% endif %}
           </div>
         </div>
-        <button
-          type="button"
-          class="notif-close"
-          id="notifClose"
-          aria-label="Tutup"
-        >
-          ✕
+        <button type="button" class="notif-close" id="notifClose" aria-label="Tutup">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
 
-      <div class="notif-list">
-        {% if announcements and announcements|length > 0 %} {% for a in
-        announcements %}
-        <div class="notif-card">
-          <div class="notif-card-top">
-            <div class="notif-card-title">{{ a.title }}</div>
-            <div class="notif-time">{{ a.created_at }}</div>
+      {% if announcements and announcements|length > 0 %}
+      <div class="notif-read-all">
+        <button type="button" onclick="window.location.href='/notifications/read-all'">✓ Tandai semua dibaca</button>
+      </div>
+      {% endif %}
+
+      <div class="notif-list" id="notifList">
+        {% if announcements and announcements|length > 0 %}
+          {% for a in announcements %}
+          <div class="notif-card unread" data-id="{{ a.id }}">
+            <div class="notif-card-top">
+              <div class="notif-card-ico">📢</div>
+              <div class="notif-card-body">
+                <div class="notif-card-title">{{ a.title }}</div>
+                <div class="notif-time">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {{ a.created_at }}
+                </div>
+              </div>
+            </div>
+            <div class="notif-msg">{{ a.message }}</div>
+            <div class="notif-actions">
+              <a class="notif-read-btn" href="/notifications/read/{{ a.id }}">
+                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                Tandai dibaca
+              </a>
+            </div>
           </div>
-          <div class="notif-msg">{{ a.message }}</div>
-          <div class="notif-actions">
-            <a class="notif-read-btn" href="/notifications/read/{{ a.id }}"
-              >Tandai dibaca</a
-            >
+          {% endfor %}
+        {% else %}
+          <div class="notif-empty">
+            <div class="notif-empty-ico">✅</div>
+            <div class="notif-empty-title">Semua beres!</div>
+            <div class="notif-empty-sub">Tidak ada notifikasi baru.</div>
           </div>
-        </div>
-        {% endfor %} {% else %}
-        <div class="notif-empty">Belum ada notifikasi.</div>
         {% endif %}
       </div>
     </div>
-    <script>
+
+        <script>
       (function () {
         /* ── Date ── */
         var d = new Date();
@@ -1089,48 +1177,94 @@
           document.getElementById("progPct").textContent = pct + "%";
         }, 350);
 
-        /* ── Notif ── */
-        /* ── Notif popup ── */
-        var nb = document.getElementById("notifBtn");
-        var notifOverlay = document.getElementById("notifOverlay");
-        var notifSheet = document.getElementById("notifSheet");
-        var notifClose = document.getElementById("notifClose");
+        /* ══ NOTIFICATION POPUP — Premium ══ */
+        (function () {
+          var nb          = document.getElementById('notifBtn');
+          var overlay     = document.getElementById('notifOverlay');
+          var sheet       = document.getElementById('notifSheet');
+          var closeBtn    = document.getElementById('notifClose');
+          var handle      = document.getElementById('notifHandle');
+          var cards       = document.querySelectorAll('.notif-card');
 
-        function openNotif() {
-          if (!notifOverlay || !notifSheet) return;
-          notifOverlay.classList.add("open");
-          notifSheet.classList.add("open");
-          notifSheet.setAttribute("aria-hidden", "false");
-          document.body.style.overflow = "hidden";
-        }
+          if (!sheet) return;
 
-        function closeNotif() {
-          if (!notifOverlay || !notifSheet) return;
-          notifOverlay.classList.remove("open");
-          notifSheet.classList.remove("open");
-          notifSheet.setAttribute("aria-hidden", "true");
-          document.body.style.overflow = "";
-        }
+          /* ── open / close ── */
+          function openNotif() {
+            overlay.classList.add('open');
+            sheet.classList.add('open');
+            sheet.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            /* stagger cards in */
+            cards.forEach(function (c, i) {
+              c.style.transitionDelay = (i * 65) + 'ms';
+              setTimeout(function () { c.classList.add('visible'); }, 60 + i * 65);
+            });
+          }
 
-        if (nb) {
-          nb.addEventListener("click", function () {
-            openNotif();
-          });
-        }
+          function closeNotif() {
+            /* reverse: cards slide out fast */
+            var arr = Array.from(cards).reverse();
+            arr.forEach(function (c, i) {
+              c.style.transitionDelay = (i * 30) + 'ms';
+              c.classList.remove('visible');
+            });
+            setTimeout(function () {
+              overlay.classList.remove('open');
+              sheet.classList.remove('open');
+              sheet.setAttribute('aria-hidden', 'true');
+              document.body.style.overflow = '';
+              /* reset delays */
+              cards.forEach(function (c) { c.style.transitionDelay = '0ms'; });
+            }, 180);
+          }
 
-        if (notifClose) {
-          notifClose.addEventListener("click", closeNotif);
-        }
+          if (nb)       nb.addEventListener('click', openNotif);
+          if (closeBtn) closeBtn.addEventListener('click', closeNotif);
+          if (overlay)  overlay.addEventListener('click', closeNotif);
+          document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNotif(); });
 
-        if (notifOverlay) {
-          notifOverlay.addEventListener("click", closeNotif);
-        }
+          /* ── drag-to-dismiss (touch) ── */
+          var startY = 0, currentY = 0, dragging = false;
+          function onDragStart(e) {
+            startY = (e.touches ? e.touches[0].clientY : e.clientY);
+            dragging = true;
+            sheet.style.transition = 'none';
+          }
+          function onDragMove(e) {
+            if (!dragging) return;
+            currentY = (e.touches ? e.touches[0].clientY : e.clientY);
+            var dy = Math.max(0, currentY - startY);
+            sheet.style.transform = 'translateX(-50%) translateY(' + dy + 'px)';
+          }
+          function onDragEnd() {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transition = '';
+            var dy = Math.max(0, currentY - startY);
+            if (dy > 120) {
+              closeNotif();
+              setTimeout(function () { sheet.style.transform = ''; }, 400);
+            } else {
+              sheet.style.transform = 'translateX(-50%) translateY(0)';
+            }
+          }
+          if (handle) {
+            handle.addEventListener('touchstart', onDragStart, { passive: true });
+            handle.addEventListener('mousedown',  onDragStart);
+          }
+          window.addEventListener('touchmove', onDragMove, { passive: true });
+          window.addEventListener('mousemove', onDragMove);
+          window.addEventListener('touchend', onDragEnd);
+          window.addEventListener('mouseup',  onDragEnd);
 
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") closeNotif();
-        });
+          /* ── bell icon pulse when has notifs ── */
+          var ndot = document.querySelector('.ndot');
+          if (ndot) {
+            ndot.style.animation = 'bellPop .5s cubic-bezier(.36,.07,.19,.97) both';
+          }
+        })();
 
-        /* ── Feature card entrance (stagger) ── */
+                /* ── Feature card entrance (stagger) ── */
         document.querySelectorAll("#grid1 .feat").forEach(function (el, i) {
           el.style.transition =
             "opacity .4s ease " +
