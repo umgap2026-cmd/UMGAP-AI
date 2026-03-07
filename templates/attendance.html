@@ -1,796 +1,733 @@
-{% extends "base.html" %} {# Hilangkan topbar dari base supaya tampilannya mirip
-admin #} {% block topbar %}{% endblock %} {% block content %}
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --bg: #f2f4f8;
-    --card: #f7f8fb;
-    --text: #1d2a44;
-    --muted: #7d8aa6;
+    --bg:      #f4f3f8;
+    --surface: #faf9fe;
+    --white:   #ffffff;
+    --text:    #18182a;
+    --sub:     #5a5870;
+    --muted:   #9b99b8;
+    --border:  rgba(154,152,184,.14);
 
-    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
-    --shadow-in:
-      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
-      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
-    --soft-in:
-      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
-      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+    --v1:    #7c5cfc;
+    --v2:    #a78bfa;
+    --vs:    rgba(124,92,252,.10);
+    --vg:    linear-gradient(135deg,#7c5cfc 0%,#a78bfa 60%,#c4b5fd 100%);
 
-    --radius: 22px;
-    --pill: 999px;
-    --blue: #2f5f8f;
+    --green:  #06d6a0; --green-s: rgba(6,214,160,.10);
+    --amber:  #f59e0b; --amber-s: rgba(245,158,11,.10);
+    --red:    #f43f5e; --red-s:   rgba(244,63,94,.10);
+    --blue:   #3b82f6; --blue-s:  rgba(59,130,246,.10);
+    --sky:    #06b6d4; --sky-s:   rgba(6,182,212,.10);
+
+    --sh1: 0 2px 10px rgba(24,24,42,.06), 0 5px 20px rgba(24,24,42,.05);
+    --sh2: 0 10px 32px rgba(124,92,252,.20), 0 2px 8px rgba(24,24,42,.07);
+    --neu: inset 4px 4px 8px rgba(24,24,42,.065), inset -4px -4px 8px rgba(255,255,255,.88);
+
+    --r: 22px; --rpill: 999px;
+    --navh: 78px;
+    --font: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   }
 
-  * {
-    box-sizing: border-box;
-  }
-
+  html { -webkit-tap-highlight-color: transparent; }
   body {
-    background: var(--bg);
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    padding-bottom: calc(var(--navh) + 20px + env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(ellipse 60% 40% at 10% 0%,  rgba(124,92,252,.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 35% at 88% 88%, rgba(6,214,160,.05) 0%, transparent 55%);
   }
 
-  .screen {
-    min-height: 100svh;
-    display: flex;
-    justify-content: center;
-    padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+  .screen { display:flex; justify-content:center; padding:14px 14px calc(14px + env(safe-area-inset-bottom)); min-height:100dvh; }
+  .wrap   { width:100%; max-width:448px; }
+  @media(min-width:600px){ .wrap { max-width:560px; } }
+
+  /* ══════════ HEADER ══════════ */
+  .hdr {
+    display:flex; align-items:center; gap:10px;
+    background:var(--white); border-radius:var(--r); box-shadow:var(--sh1);
+    padding:10px 12px; position:relative; overflow:hidden;
   }
-  .wrap {
-    width: 100%;
-    max-width: 430px;
+  .hdr::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2.5px; background:linear-gradient(90deg,#7c5cfc,#ff6b6b,#ffb347,#06d6a0,#38bdf8); }
+  .hdr-logo { width:44px; height:44px; border-radius:13px; flex:0 0 44px; overflow:hidden; background:var(--white); box-shadow:0 3px 12px rgba(124,92,252,.18); }
+  .hdr-logo img { width:100%; height:100%; object-fit:contain; }
+  .hdr-info { flex:1; min-width:0; padding:0 8px; }
+  .hdr-app  { font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .hdr-name { font-size:14px; font-weight:800; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hbtn { width:40px; height:40px; border-radius:13px; background:var(--surface); box-shadow:var(--neu); display:flex; align-items:center; justify-content:center; border:none; cursor:pointer; text-decoration:none; transition:transform .15s; flex:0 0 40px; }
+  .hbtn:hover { transform:translateY(-1px); }
+  .hbtn svg { width:17px; height:17px; stroke:var(--sub); fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ══════════ HERO CLOCK CARD ══════════ */
+  .clock-hero {
+    margin-top:13px; border-radius:26px; padding:22px 22px 20px;
+    background:var(--vg);
+    box-shadow:0 16px 44px rgba(124,92,252,.28);
+    position:relative; overflow:hidden;
+  }
+  .clock-hero::before { content:''; position:absolute; right:-24px; top:-24px; width:150px; height:150px; border-radius:50%; background:rgba(255,255,255,.07); pointer-events:none; }
+  .clock-hero::after  { content:''; position:absolute; left:-18px; bottom:-22px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.05); pointer-events:none; }
+
+  .ch-top { display:flex; align-items:flex-start; justify-content:space-between; position:relative; z-index:1; }
+  .ch-left .ch-label { font-size:10px; font-weight:700; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:.9px; }
+  .ch-time  { font-size:44px; font-weight:900; color:#fff; line-height:1; letter-spacing:-2px; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .ch-date  { font-size:13px; color:rgba(255,255,255,.65); margin-top:5px; font-weight:600; }
+  .ch-tz    { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.15); border-radius:999px; padding:4px 10px; font-size:10px; font-weight:700; color:rgba(255,255,255,.80); margin-top:8px; }
+
+  /* live dot */
+  .ch-live { display:flex; align-items:center; gap:6px; position:relative; z-index:1; }
+  .live-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(6,214,160,.25); animation:livePulse 2s ease infinite; }
+  @keyframes livePulse { 0%,100%{box-shadow:0 0 0 3px rgba(6,214,160,.25)} 50%{box-shadow:0 0 0 7px rgba(6,214,160,.08)} }
+  .live-txt { font-size:10px; font-weight:700; color:rgba(255,255,255,.60); text-transform:uppercase; letter-spacing:.6px; }
+
+  /* ══════════ ARRIVAL TYPE SELECTOR ══════════ */
+  .type-card {
+    margin-top:13px; background:var(--white); border-radius:var(--r); box-shadow:var(--sh1); overflow:hidden;
+  }
+  .tc-header { padding:16px 18px 14px; border-bottom:1px solid var(--border); }
+  .tc-h-row  { display:flex; align-items:center; gap:10px; }
+  .tc-ico    { width:34px; height:34px; border-radius:10px; background:var(--vs); display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 34px; }
+  .tc-title  { font-size:16px; font-weight:800; color:var(--text); }
+  .tc-sub    { font-size:11px; color:var(--muted); font-weight:500; margin-top:2px; }
+  .tc-body   { padding:16px 18px 18px; }
+
+  /* Big arrival type buttons — easy to tap for any user */
+  .type-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .type-btn  { position:relative; }
+  .type-btn input[type="radio"] { position:absolute; opacity:0; width:0; height:0; }
+  .type-btn label {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:7px; padding:16px 8px 14px;
+    background:var(--surface); box-shadow:var(--neu);
+    border-radius:18px; cursor:pointer; text-align:center;
+    border:2px solid transparent; transition:all .18s;
+    font-family:var(--font);
+  }
+  .type-btn label .t-ico { font-size:26px; line-height:1; }
+  .type-btn label .t-lbl { font-size:13px; font-weight:800; color:var(--sub); }
+  .type-btn label .t-sub { font-size:10px; color:var(--muted); font-weight:600; }
+  .type-btn input:checked + label { border-color:var(--tc,var(--v1)); background:var(--white); box-shadow:0 8px 24px rgba(0,0,0,.10); }
+  .type-btn input:checked + label .t-lbl { color:var(--tc,var(--v1)); }
+  /* selected check badge */
+  .type-btn input:checked + label::after { content:'✓'; position:absolute; top:8px; right:10px; width:18px; height:18px; border-radius:50%; background:var(--tc,var(--v1)); color:#fff; font-size:10px; font-weight:900; display:flex; align-items:center; justify-content:center; line-height:18px; text-align:center; }
+
+  .tb-ontime  { --tc:var(--green); }
+  .tb-late    { --tc:var(--amber); }
+  .tb-sick    { --tc:var(--blue);  }
+  .tb-leave   { --tc:var(--sky);   }
+  .tb-absent  { --tc:var(--red);   }
+
+  /* note textarea */
+  .field-wrap { margin-top:14px; }
+  .field-lbl  { font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.7px; margin-bottom:7px; }
+  .note-input {
+    width:100%; border:none; outline:none; border-radius:13px;
+    background:var(--surface); box-shadow:var(--neu);
+    padding:13px 14px; font-size:14px; color:var(--text);
+    font-family:var(--font); resize:none; min-height:78px;
+    transition:box-shadow .2s;
+  }
+  .note-input:focus { box-shadow:var(--neu), 0 0 0 3px rgba(124,92,252,.15); }
+  .note-input::placeholder { color:var(--muted); font-size:13px; }
+
+  /* ══════════ GPS CARD ══════════ */
+  .gps-card {
+    margin-top:13px; background:var(--white); border-radius:var(--r); box-shadow:var(--sh1); overflow:hidden;
+  }
+  .gps-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .gps-ico    { width:34px; height:34px; border-radius:10px; background:rgba(6,214,160,.12); display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 34px; }
+  .gps-title  { font-size:15px; font-weight:800; color:var(--text); }
+  .gps-sub    { font-size:11px; color:var(--muted); font-weight:500; }
+  .gps-body   { padding:14px 18px 16px; display:flex; flex-direction:column; gap:12px; }
+
+  /* GPS status pill */
+  .gps-status-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .gps-pill {
+    display:inline-flex; align-items:center; gap:7px;
+    border-radius:999px; padding:8px 14px;
+    font-size:12px; font-weight:700;
+    background:var(--surface); box-shadow:var(--neu); color:var(--muted);
+    transition:all .3s;
+  }
+  .gps-pill.ok    { background:var(--green-s); color:#065f46; box-shadow:none; }
+  .gps-pill.err   { background:var(--red-s);   color:#9f1239; box-shadow:none; }
+  .gps-pill.loading { background:var(--amber-s); color:#92400e; box-shadow:none; }
+  .gps-dot { width:7px; height:7px; border-radius:50%; background:currentColor; flex:0 0 7px; }
+  .gps-dot.spin { animation:gpsSpin 1s linear infinite; }
+  @keyframes gpsSpin { to{transform:rotate(360deg)} }
+
+  /* GPS coords display */
+  .gps-coords {
+    display:none; background:var(--surface); border-radius:13px; padding:12px 14px;
+    font-size:12px; color:var(--sub); font-weight:600; line-height:1.6;
+  }
+  .gps-coords.show { display:block; animation:fadeUp .3s ease; }
+  .gps-coord-row { display:flex; align-items:center; gap:8px; }
+  .gps-coord-row + .gps-coord-row { margin-top:4px; }
+  .gps-coord-row svg { width:13px; height:13px; stroke:var(--green); fill:none; stroke-width:2.2; stroke-linecap:round; flex:0 0 13px; }
+
+  /* GPS button */
+  .btn-gps {
+    width:100%; height:50px; border:none; border-radius:14px;
+    background:rgba(6,214,160,.12); color:#065f46;
+    font-weight:800; font-size:14px; cursor:pointer; font-family:var(--font);
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    transition:all .2s;
+  }
+  .btn-gps:hover { background:rgba(6,214,160,.20); transform:translateY(-1px); }
+  .btn-gps.done  { background:var(--green-s); color:#065f46; }
+  .btn-gps svg   { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.4; stroke-linecap:round; }
+
+  /* device pill */
+  .device-pill { display:inline-flex; align-items:center; gap:6px; background:var(--surface); box-shadow:var(--neu); border-radius:999px; padding:6px 12px; font-size:11px; color:var(--muted); font-weight:600; }
+
+  /* ══════════ SELFIE CARD ══════════ */
+  .selfie-card { margin-top:13px; background:var(--white); border-radius:var(--r); box-shadow:var(--sh1); overflow:hidden; }
+  .selfie-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .selfie-ico    { width:34px; height:34px; border-radius:10px; background:rgba(124,92,252,.10); display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 34px; }
+  .selfie-title  { font-size:15px; font-weight:800; color:var(--text); }
+  .selfie-sub    { font-size:11px; color:var(--muted); font-weight:500; }
+  .selfie-body   { padding:14px 18px 16px; }
+
+  /* selfie upload zone */
+  .selfie-zone {
+    position:relative; border-radius:16px; overflow:hidden;
+    background:var(--surface); box-shadow:var(--neu);
+    min-height:120px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:8px;
+    cursor:pointer; transition:all .2s;
+    border:2px dashed rgba(124,92,252,.20);
+  }
+  .selfie-zone:hover { border-color:var(--v1); background:rgba(124,92,252,.04); }
+  .selfie-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .sz-ico  { font-size:30px; }
+  .sz-lbl  { font-size:13px; font-weight:700; color:var(--sub); }
+  .sz-hint { font-size:11px; color:var(--muted); font-weight:500; }
+  .selfie-preview { display:none; width:100%; border-radius:16px; overflow:hidden; position:relative; }
+  .selfie-preview img { width:100%; display:block; max-height:240px; object-fit:cover; }
+  .selfie-preview .sp-remove {
+    position:absolute; top:8px; right:8px; width:30px; height:30px;
+    border-radius:50%; background:rgba(0,0,0,.55); border:none; cursor:pointer;
+    color:#fff; font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center;
   }
 
-  /* ===== Header Card (mirip admin) ===== */
-  .head-card {
-    background: #fff;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    padding: 12px;
+  /* ══════════ SUBMIT BUTTON ══════════ */
+  .btn-submit {
+    width:100%; height:58px; border:none; border-radius:18px;
+    background:var(--vg); color:#fff; font-weight:900; font-size:16px;
+    cursor:pointer; font-family:var(--font); letter-spacing:.2px;
+    box-shadow:0 12px 30px rgba(124,92,252,.32);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    transition:transform .15s, box-shadow .15s;
+    margin-top:16px;
   }
-  .head-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    flex: 0 0 auto;
-  }
-  .logo img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
+  .btn-submit:hover { transform:translateY(-2px); box-shadow:0 16px 36px rgba(124,92,252,.40); }
+  .btn-submit:active { transform:scale(.98); }
+  .btn-submit svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:2.4; stroke-linecap:round; }
 
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-left: auto;
-  }
+  /* submit hint */
+  .submit-hint { margin-top:10px; display:flex; align-items:center; gap:6px; justify-content:center; font-size:11px; color:var(--muted); font-weight:600; }
+  .submit-hint svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; }
 
-  .hello {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f2f5fb;
-    border-radius: var(--pill);
-    padding: 8px 12px;
-    box-shadow: var(--soft-in);
-    white-space: nowrap;
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #16a34a;
-    flex: 0 0 auto;
-  }
-  .hello .name {
-    font-size: 13px;
-    color: #506381;
-    font-weight: 800;
-  }
+  /* ══════════ HISTORY CARD ══════════ */
+  .hist-card { margin-top:13px; background:var(--white); border-radius:var(--r); box-shadow:var(--sh1); overflow:hidden; }
+  .hist-header { padding:16px 18px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .hh-left { display:flex; align-items:center; gap:10px; }
+  .hh-ico  { width:34px; height:34px; border-radius:10px; background:rgba(245,158,11,.12); display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 34px; }
+  .hh-title { font-size:16px; font-weight:800; color:var(--text); }
+  .hh-sub   { font-size:11px; color:var(--muted); font-weight:500; }
 
-  .action-btn {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 16px;
-    background: #f3f6fc;
-    box-shadow:
-      0 12px 22px rgba(30, 60, 90, 0.18),
-      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
-      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border: none;
-    text-decoration: none;
-  }
-  .action-btn svg {
-    width: 22px;
-    height: 22px;
-    stroke: #7b93c7;
-    stroke-width: 2.2;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
+  /* filter tabs */
+  .filter-bar { display:flex; gap:6px; padding:12px 16px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; }
+  .filter-bar::-webkit-scrollbar { display:none; }
+  .ftab { display:inline-flex; align-items:center; gap:5px; border:none; border-radius:var(--rpill); padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--font); white-space:nowrap; background:var(--surface); box-shadow:var(--neu); color:var(--sub); transition:all .15s; }
+  .ftab.on { background:var(--vg); color:#fff; box-shadow:0 6px 14px rgba(124,92,252,.24); }
 
-  .rgb {
-    height: 3px;
-    border-radius: 999px;
-    margin-top: 10px;
-    background: linear-gradient(
-      90deg,
-      #ff0000 0%,
-      #ff7a00 18%,
-      #ffd500 36%,
-      #00c853 58%,
-      #00b0ff 78%,
-      #8a2be2 100%
-    );
-  }
+  /* timeline list */
+  .hist-list { padding:14px 14px 16px; display:flex; flex-direction:column; gap:10px; }
 
-  /* ===== Sections ===== */
-  .card {
-    margin-top: 14px;
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    padding: 16px 14px 18px;
+  .hist-item {
+    display:flex; align-items:flex-start; gap:12px;
+    background:var(--surface); border-radius:18px; padding:14px 14px;
+    border:1.5px solid var(--border); position:relative; overflow:hidden;
+    transition:transform .18s, box-shadow .18s;
+    opacity:0; transform:translateY(10px);
   }
-  .inner {
-    border-radius: 20px;
-    background: #f3f5f9;
-    box-shadow: var(--shadow-in);
-    padding: 18px 14px 16px;
-  }
+  .hist-item.in { opacity:1; transform:translateY(0); transition:opacity .35s ease, transform .35s ease; }
+  .hist-item:hover { transform:translateY(-1px); box-shadow:var(--sh2); }
 
-  .title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 1000;
-    color: #2a3b58;
-    letter-spacing: 0.2px;
-  }
-  .desc {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.35;
-  }
-  .divider {
-    height: 1px;
-    background: rgba(125, 138, 166, 0.18);
-    border-radius: 999px;
-    margin: 12px 0;
-  }
+  /* left accent */
+  .hist-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--hc,var(--v1)); border-radius:4px 0 0 4px; }
 
-  /* Live clock */
-  .clock {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 14px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    margin-top: 12px;
+  /* date badge */
+  .hi-date {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--hc-bg, var(--vs)); border-radius:13px; padding:8px 10px; min-width:46px; flex:0 0 46px; text-align:center;
   }
-  .clock .left {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .clock .label {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  .clock .time {
-    font-size: 22px;
-    font-weight: 1000;
-    letter-spacing: 0.3px;
-    color: #2a3b58;
-  }
-  .clock .date {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 800;
-  }
+  .hid-day { font-size:20px; font-weight:900; color:var(--hc-txt, var(--v1)); line-height:1; }
+  .hid-mon { font-size:9px;  font-weight:700; color:var(--hc-txt, var(--v1)); opacity:.7; text-transform:uppercase; letter-spacing:.4px; margin-top:1px; }
 
-  label {
-    display: block;
-    margin: 10px 0 6px;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-  input,
-  select,
-  textarea {
-    width: 100%;
-    border: none;
-    outline: none;
-    border-radius: 14px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    padding: 12px 12px;
-    font-size: 14px;
-    color: var(--text);
-  }
-  textarea {
-    min-height: 90px;
-    resize: vertical;
-  }
+  .hi-body  { flex:1; min-width:0; }
+  .hi-top   { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .hi-type  { font-size:14px; font-weight:800; color:var(--hc, var(--v1)); display:flex; align-items:center; gap:6px; }
+  .hi-type-ico { font-size:16px; }
 
-  .mini {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
-    font-weight: 800;
-  }
+  .hi-meta  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:5px; }
+  .hi-time  { font-size:11px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:4px; }
+  .hi-time svg { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; }
 
-  .btn-primary {
-    width: 100%;
-    height: 52px;
-    border: none;
-    border-radius: 16px;
-    margin-top: 12px;
-    cursor: pointer;
-    font-weight: 1000;
-    color: #fff;
-    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-    box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
-  }
+  /* status badge */
+  .hi-badge { font-size:10px; font-weight:800; border-radius:999px; padding:3px 9px; }
+  .hb-approved { background:var(--green-s); color:#065f46; }
+  .hb-pending  { background:var(--amber-s); color:#92400e; }
+  .hb-rejected { background:var(--red-s);   color:#9f1239; }
+  .hb-default  { background:var(--vs);      color:var(--sub); }
 
-  /* Riwayat: desktop table vs mobile cards */
-  .table-wrap {
-    width: 100%;
-    overflow: auto;
-    margin-top: 10px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th,
-  td {
-    padding: 12px 10px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.18);
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
-    font-size: 13px;
-  }
-  th {
-    position: sticky;
-    top: 0;
-    background: #f3f5f9;
-    z-index: 1;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
-  }
-  td.muted {
-    color: var(--muted);
-    white-space: normal;
-  }
+  .hi-note { font-size:12px; color:var(--sub); margin-top:7px; line-height:1.5; word-break:break-word; padding-top:7px; border-top:1px solid var(--border); }
 
-  .list-mobile {
-    display: none;
-    margin-top: 10px;
+  /* empty */
+  .hist-empty { padding:36px 20px; text-align:center; }
+  .he-ico   { font-size:40px; margin-bottom:8px; }
+  .he-title { font-size:15px; font-weight:800; color:var(--text); }
+  .he-sub   { font-size:13px; color:var(--muted); font-weight:500; margin-top:4px; }
+
+  /* ══════════ BOTTOM NAV ══════════ */
+  .bottom-nav {
+    position:fixed; left:0; right:0; bottom:0;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(244,243,248,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:60;
   }
-  .item {
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    padding: 12px;
-    margin-top: 10px;
-  }
-  .item-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .item-top .date {
-    font-weight: 1000;
-    font-size: 14px;
-    color: #2a3b58;
-  }
-  .item-note {
-    margin-top: 10px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.4;
-  }
+  .nav-bar { max-width:448px; margin:0 auto; background:var(--white); border-radius:20px; box-shadow:var(--sh1); padding:7px; display:flex; gap:5px; }
+  .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 6px; border-radius:14px; color:var(--muted); font-weight:700; font-size:10px; border:none; background:none; cursor:pointer; font-family:var(--font); text-decoration:none; transition:all .16s; }
+  .nav-item.active { background:var(--vs); color:var(--v1); }
+  .ni { width:21px; height:21px; flex:0 0 21px; }
+  .ni svg { width:100%; height:100%; display:block; }
+  .nf { fill:currentColor; }
+  .ns { stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  @media(max-width:360px){ .nav-item span { display:none; } }
 
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: #2a3b58;
-    font-size: 12px;
-    font-weight: 1000;
-    border: 1px solid rgba(125, 138, 166, 0.18);
-  }
-  .badge-ok {
-    background: #ecfdf5;
-    border-color: #bbf7d0;
-    color: #166534;
-  }
-  .badge-warn {
-    background: #fffbeb;
-    border-color: #fde68a;
-    color: #92400e;
-  }
-  .badge-bad {
-    background: #fef2f2;
-    border-color: #fecaca;
-    color: #991b1b;
-  }
-  .badge-info {
-    background: #eff6ff;
-    border-color: #bfdbfe;
-    color: #1e3a8a;
-  }
-
-  /* ===== BOTTOM NAV (mirip dashboard/attendance) ===== */
-.bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 16px;
-  display: grid;
-  place-items: center;
-  z-index: 50;
-  pointer-events: none;
-}
-
-.nav-bar {
-  pointer-events: auto;
-  width: 430px;
-  max-width: calc(100% - 28px);
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(125, 138, 166, 0.18);
-  box-shadow: var(--shadow-out);
-  backdrop-filter: blur(10px);
-  border-radius: 26px;
-  padding: 10px 12px;
-}
-
-.nav-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.nav-item {
-  text-decoration: none;
-  border: 0;
-  background: transparent;
-  padding: 10px 10px;
-  border-radius: 18px;
-  cursor: pointer;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  color: #63779a;
-  font-weight: 900;
-  transition: background 0.12s ease;
-}
-
-.nav-item:hover {
-  background: rgba(47, 95, 143, 0.08);
-}
-
-.nav-item.active {
-  background: rgba(47, 95, 143, 0.12);
-  color: var(--blue);
-}
-
-.nav-ico {
-  width: 26px;
-  height: 26px;
-  display: inline-block;
-}
-
-.nav-ico svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.nav-ico .stroke {
-  stroke: #9fb1d6;
-  fill: none;
-  stroke-width: 2;
-}
-
-.nav-ico .fill {
-  fill: #9fb1d6;
-}
-
-.nav-item.active .nav-ico .stroke {
-  stroke: var(--blue);
-}
-
-.nav-item.active .nav-ico .fill {
-  fill: var(--blue);
-}
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 </style>
 
 <div class="screen">
-  <div class="wrap">
-    <!-- HEADER -->
-    <div class="head-card" id="top">
-      <div class="head-top">
-        <div class="logo">
-          <img
-            src="{{ url_for('static', filename='UMGAP (1).png') }}"
-            alt="Logo"
-          />
-        </div>
+<div class="wrap">
 
-        <div class="right">
-          <div class="hello" title="User">
-            <span class="dot"></span>
-            <span class="name"
-              >Hallo, {{ session.get("user_name","User") }}</span
-            >
-          </div>
-
-          <a href="/logout" class="action-btn" aria-label="Logout">
-            <svg viewBox="0 0 24 24">
-              <path d="M10 17l5-5-5-5"></path>
-              <path d="M15 12H3"></path>
-              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
-            </svg>
-          </a>
-        </div>
-      </div>
-      <div class="rgb"></div>
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-logo">
+      <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP"/>
     </div>
+    <div class="hdr-info">
+      <div class="hdr-app">UMGAP</div>
+      <div class="hdr-name">Halo, {{ session.get("user_name","User") }} 👋</div>
+    </div>
+    <a href="/logout" class="hbtn" aria-label="Logout">
+      <svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"/></svg>
+    </a>
+  </div>
 
-    <!-- FORM ABSENSI -->
-    <div class="card">
-      <div class="inner">
-        <h2 class="title">Absensi Hari Ini</h2>
-        <p class="desc">
-          Tanggal & jam otomatis. Kamu cukup pilih tipe kedatangan dan isi
-          alasan.
-        </p>
-
-        <div class="clock" aria-live="polite">
-          <div class="left">
-            <div class="label">Waktu sekarang</div>
-            <div class="time" id="liveTime">--:--:--</div>
-            <div class="date" id="liveDate">---</div>
-          </div>
-          <div class="mini">Asia/Jakarta</div>
-        </div>
-
-        <form method="POST" action="/attendance/add" style="margin-top: 12px" enctype="multipart/form-data" id="attForm">
-          <input type="hidden" name="client_ts" id="clientTs" value="" />
-
-          <input type="hidden" name="device_id" id="device_id" />
-          <input type="hidden" name="latitude" id="latitude" />
-          <input type="hidden" name="longitude" id="longitude" />
-          <input type="hidden" name="accuracy" id="accuracy" />
-
-          <label>Tipe kedatangan</label>
-          <select name="arrival_type" required>
-            <option value="ONTIME" selected>Hadir (Tepat waktu)</option>
-            <option value="LATE">Terlambat</option>
-            <option value="SICK">Sakit</option>
-            <option value="LEAVE">Cuti</option>
-            <option value="ABSENT">Tidak hadir</option>
-          </select>
-          <div class="mini">
-            Jika submit lagi hari yang sama, data akan otomatis diperbarui.
-          </div>
-
-          <label>Alasan / catatan</label>
-          <textarea
-            name="note"
-            placeholder="Contoh: macet, sakit, izin keluarga..."
-          ></textarea>
-
-          <div class="divider"></div>
-
-          <!-- LOKASI -->
-          <div>
-            <div class="clock" style="margin-top: 10px">
-              <div class="left">
-                <div class="label">Lokasi</div>
-                <div class="mini" id="locHint">aktifkan GPS</div>
-              </div>
-              <div class="mini" id="locStatus">belum</div>
-            </div>
-
-            <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap">
-              <button class="btn-primary" type="button" id="btnLoc" style="width:auto; padding:12px 14px; height:auto">
-                📍 Ambil Lokasi
-              </button>
-              <div class="mini" style="align-self:center" id="devicePill">📱 -</div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- SELFIE -->
-          <div>
-            <label>Selfie (opsional dulu)</label>
-            <input type="file" name="selfie" id="selfie" accept="image/*" capture="user" />
-
-            <div class="item" id="previewBox" style="display:none; margin-top:10px; padding:0; overflow:hidden">
-              <img id="previewImg" alt="preview" style="width:100%; display:block">
-            </div>
-
-            <div class="mini" style="margin-top:8px">
-              Tip: kalau selfie wajib nanti, kita bisa aktifkan validasinya.
-            </div>
-          </div>
-
-          <button class="btn-primary" type="submit">Submit Absensi</button>
-        </form>
+  <!-- HERO CLOCK -->
+  <div class="clock-hero">
+    <div class="ch-top">
+      <div class="ch-left">
+        <div class="ch-label">Waktu Sekarang</div>
+        <div class="ch-time" id="liveTime">--:--:--</div>
+        <div class="ch-date" id="liveDate">---</div>
+        <div class="ch-tz">🌏 WIB · Asia/Jakarta</div>
+      </div>
+      <div class="ch-live">
+        <div class="live-dot"></div>
+        <div class="live-txt">Live</div>
       </div>
     </div>
+  </div>
 
-    <!-- RIWAYAT -->
-    <div class="card">
-      <div class="inner">
-        <h2 class="title">Riwayat Absensi</h2>
-        <p class="desc">Desktop: tabel • Mobile: kartu</p>
+  <!-- FORM -->
+  <form method="POST" action="/attendance/add" enctype="multipart/form-data" id="attForm">
+    <input type="hidden" name="client_ts"  id="clientTs"/>
+    <input type="hidden" name="device_id"  id="device_id"/>
+    <input type="hidden" name="latitude"   id="latitude"/>
+    <input type="hidden" name="longitude"  id="longitude"/>
+    <input type="hidden" name="accuracy"   id="accuracy"/>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style="min-width: 120px">Tanggal</th>
-                <th style="min-width: 110px">Jam</th>
-                <th style="min-width: 130px">Tipe</th>
-                <th style="min-width: 110px">Status</th>
-                <th>Catatan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in rows %}
-              <tr>
-                <td>{{ r.work_date }}</td>
-                <td>
-                  {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M:%S") }}{%
-                  else %}-{% endif %}
-                </td>
-                <td>
-                  {% set t = (r.arrival_type or '') %} {% if t == 'ONTIME'
-                  %}<span class="badge badge-ok">ONTIME</span> {% elif t ==
-                  'LATE' %}<span class="badge badge-warn">LATE</span> {% elif t
-                  == 'SICK' %}<span class="badge badge-info">SICK</span> {% elif
-                  t == 'LEAVE' %}<span class="badge badge-info">LEAVE</span> {%
-                  elif t == 'ABSENT' %}<span class="badge badge-bad"
-                    >ABSENT</span
-                  >
-                  {% else %}<span class="badge">{{ r.arrival_type }}</span>{%
-                  endif %}
-                </td>
-                <td class="muted">{{ r.status }}</td>
-                <td class="muted">{{ r.note }}</td>
-              </tr>
-              {% endfor %} {% if rows|length == 0 %}
-              <tr>
-                <td colspan="5" class="muted">Belum ada absensi.</td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
+    <!-- ARRIVAL TYPE -->
+    <div class="type-card">
+      <div class="tc-header">
+        <div class="tc-h-row">
+          <div class="tc-ico">🎯</div>
+          <div>
+            <div class="tc-title">Tipe Kehadiran</div>
+            <div class="tc-sub">Pilih satu — tap yang sesuai kondisimu hari ini</div>
+          </div>
         </div>
-
-        <div class="list-mobile">
-          {% for r in rows %} {% set t = (r.arrival_type or '') %}
-          <div class="item">
-            <div class="item-top">
+      </div>
+      <div class="tc-body">
+        <div class="type-grid">
+          <div class="type-btn tb-ontime">
+            <input type="radio" name="arrival_type" id="at-on" value="ONTIME" checked/>
+            <label for="at-on">
+              <span class="t-ico">✅</span>
+              <span class="t-lbl">Hadir</span>
+              <span class="t-sub">Tepat waktu</span>
+            </label>
+          </div>
+          <div class="type-btn tb-late">
+            <input type="radio" name="arrival_type" id="at-lt" value="LATE"/>
+            <label for="at-lt">
+              <span class="t-ico">⏰</span>
+              <span class="t-lbl">Terlambat</span>
+              <span class="t-sub">Lewat jam masuk</span>
+            </label>
+          </div>
+          <div class="type-btn tb-sick">
+            <input type="radio" name="arrival_type" id="at-sk" value="SICK"/>
+            <label for="at-sk">
+              <span class="t-ico">🤒</span>
+              <span class="t-lbl">Sakit</span>
+              <span class="t-sub">Tidak sehat</span>
+            </label>
+          </div>
+          <div class="type-btn tb-leave">
+            <input type="radio" name="arrival_type" id="at-lv" value="LEAVE"/>
+            <label for="at-lv">
+              <span class="t-ico">📋</span>
+              <span class="t-lbl">Cuti / Izin</span>
+              <span class="t-sub">Sudah diajukan</span>
+            </label>
+          </div>
+          <div class="type-btn tb-absent" style="grid-column:1/-1;">
+            <input type="radio" name="arrival_type" id="at-ab" value="ABSENT"/>
+            <label for="at-ab" style="flex-direction:row; padding:13px 16px; justify-content:flex-start; gap:12px; text-align:left;">
+              <span class="t-ico">❌</span>
               <div>
-                <div class="date">{{ r.work_date }}</div>
-                <div class="mini" style="margin-top: 6px">
-                  {% if r.checkin_at %}Jam:
-                  <b>{{ r.checkin_at.strftime("%H:%M:%S") }}</b>
-                  {% else %}Jam: -{% endif %}
-                </div>
+                <div class="t-lbl">Tidak Hadir</div>
+                <div class="t-sub">Tanpa keterangan</div>
               </div>
-              <div
-                style="
-                  display: flex;
-                  flex-direction: column;
-                  align-items: flex-end;
-                  gap: 8px;
-                "
-              >
-                {% if t == 'ONTIME' %}<span class="badge badge-ok">ONTIME</span>
-                {% elif t == 'LATE' %}<span class="badge badge-warn">LATE</span>
-                {% elif t == 'SICK' %}<span class="badge badge-info">SICK</span>
-                {% elif t == 'LEAVE' %}<span class="badge badge-info"
-                  >LEAVE</span
-                >
-                {% elif t == 'ABSENT' %}<span class="badge badge-bad"
-                  >ABSENT</span
-                >
-                {% else %}<span class="badge">{{ r.arrival_type }}</span>{%
-                endif %}
-                <div class="mini">Status: <b>{{ r.status }}</b></div>
-              </div>
-            </div>
-
-            <div class="item-note">
-              {% if r.note and r.note|length > 0 %}{{ r.note }}{% else
-              %}Catatan: -{% endif %}
-            </div>
+            </label>
           </div>
-          {% endfor %} {% if rows|length == 0 %}
-          <div class="mini">Belum ada absensi.</div>
+        </div>
+
+        <!-- Note -->
+        <div class="field-wrap">
+          <div class="field-lbl">📝 Alasan / Catatan (Opsional)</div>
+          <textarea class="note-input" name="note" placeholder="Contoh: macet, sakit, izin keluarga, dll…" rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- GPS CARD -->
+    <div class="gps-card">
+      <div class="gps-header">
+        <div class="gps-ico">📍</div>
+        <div>
+          <div class="gps-title">Lokasi GPS</div>
+          <div class="gps-sub">Tap tombol untuk deteksi posisimu</div>
+        </div>
+      </div>
+      <div class="gps-body">
+        <div class="gps-status-row">
+          <div class="gps-pill" id="gpsPill">
+            <span class="gps-dot"></span>
+            <span id="gpsText">Belum diambil</span>
+          </div>
+          <div class="device-pill" id="devicePill">📱 —</div>
+        </div>
+
+        <div class="gps-coords" id="gpsCoords">
+          <div class="gps-coord-row">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4.42-3.58-8-8-8z"/></svg>
+            <span id="gpsLatLng">—</span>
+          </div>
+          <div class="gps-coord-row">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            <span id="gpsAcc">Akurasi: —</span>
+          </div>
+        </div>
+
+        <button type="button" class="btn-gps" id="btnLoc">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4.42-3.58-8-8-8z"/></svg>
+          Ambil Lokasi Sekarang
+        </button>
+      </div>
+    </div>
+
+    <!-- SELFIE CARD -->
+    <div class="selfie-card">
+      <div class="selfie-header">
+        <div class="selfie-ico">🤳</div>
+        <div>
+          <div class="selfie-title">Foto Selfie</div>
+          <div class="selfie-sub">Opsional — ambil foto sebagai bukti kehadiran</div>
+        </div>
+      </div>
+      <div class="selfie-body">
+        <div class="selfie-preview" id="selfiePreview">
+          <img id="previewImg" alt="Selfie preview"/>
+          <button type="button" class="sp-remove" id="selfieRemove">✕</button>
+        </div>
+        <div class="selfie-zone" id="selfieZone">
+          <input type="file" name="selfie" id="selfie" accept="image/*" capture="user"/>
+          <div class="sz-ico">📷</div>
+          <div class="sz-lbl">Tap untuk ambil / pilih foto</div>
+          <div class="sz-hint">Kamera atau galeri • JPG/PNG</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUBMIT -->
+    <button class="btn-submit" type="submit">
+      <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+      Submit Absensi
+    </button>
+    <div class="submit-hint">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Submit ulang hari yang sama akan memperbarui data
+    </div>
+
+  </form>
+
+  <!-- RIWAYAT -->
+  <div class="hist-card">
+    <div class="hist-header">
+      <div class="hh-left">
+        <div class="hh-ico">📅</div>
+        <div>
+          <div class="hh-title">Riwayat Absensi</div>
+          <div class="hh-sub">{{ rows|length }} data tercatat</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <button class="ftab on" data-f="all"    type="button">Semua</button>
+      <button class="ftab"    data-f="ONTIME" type="button">✅ Hadir</button>
+      <button class="ftab"    data-f="LATE"   type="button">⏰ Terlambat</button>
+      <button class="ftab"    data-f="SICK"   type="button">🤒 Sakit</button>
+      <button class="ftab"    data-f="LEAVE"  type="button">📋 Cuti</button>
+      <button class="ftab"    data-f="ABSENT" type="button">❌ Absen</button>
+    </div>
+
+    <div class="hist-list" id="histList">
+      {% for r in rows %}
+      {% set t = (r.arrival_type or '') %}
+      {% set dp = r.work_date|string %}
+      {% set parts = dp.split('-') %}
+
+      {# per-type color vars #}
+      {% if t == 'ONTIME' %}
+        {% set hc='#06d6a0' %} {% set hcbg='rgba(6,214,160,.10)'  %} {% set hctxt='#065f46' %} {% set hico='✅' %} {% set hlbl='Hadir' %}
+      {% elif t == 'LATE' %}
+        {% set hc='#f59e0b' %} {% set hcbg='rgba(245,158,11,.10)' %} {% set hctxt='#92400e' %} {% set hico='⏰' %} {% set hlbl='Terlambat' %}
+      {% elif t == 'SICK' %}
+        {% set hc='#3b82f6' %} {% set hcbg='rgba(59,130,246,.10)' %} {% set hctxt='#1e3a8a' %} {% set hico='🤒' %} {% set hlbl='Sakit' %}
+      {% elif t == 'LEAVE' %}
+        {% set hc='#06b6d4' %} {% set hcbg='rgba(6,182,212,.10)'  %} {% set hctxt='#164e63' %} {% set hico='📋' %} {% set hlbl='Cuti/Izin' %}
+      {% elif t == 'ABSENT' %}
+        {% set hc='#f43f5e' %} {% set hcbg='rgba(244,63,94,.10)'  %} {% set hctxt='#9f1239' %} {% set hico='❌' %} {% set hlbl='Tidak Hadir' %}
+      {% else %}
+        {% set hc='#7c5cfc' %} {% set hcbg='rgba(124,92,252,.10)' %} {% set hctxt='#5b21b6' %} {% set hico='📌' %} {% set hlbl=t %}
+      {% endif %}
+
+      {# status badge class #}
+      {% set st = (r.status or '')|lower %}
+      {% if 'approve' in st or 'hadir' in st %}
+        {% set sbadge='hb-approved' %} {% set slbl='✓ Disetujui' %}
+      {% elif 'pending' in st or 'menunggu' in st %}
+        {% set sbadge='hb-pending'  %} {% set slbl='⏳ Menunggu' %}
+      {% elif 'reject' in st or 'tolak' in st %}
+        {% set sbadge='hb-rejected' %} {% set slbl='✕ Ditolak' %}
+      {% else %}
+        {% set sbadge='hb-default'  %} {% set slbl=r.status or '—' %}
+      {% endif %}
+
+      <div class="hist-item" data-type="{{ t }}"
+           style="--hc:{{ hc }};--hc-bg:{{ hcbg }};--hc-txt:{{ hctxt }};">
+        <!-- date badge -->
+        <div class="hi-date">
+          <div class="hid-day">{% if parts|length>=3 %}{{ parts[2] }}{% else %}—{% endif %}</div>
+          <div class="hid-mon">{% if parts|length>=2 %}{% set m=parts[1]|int %}{{ ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][m] }}{% endif %}</div>
+        </div>
+        <!-- body -->
+        <div class="hi-body">
+          <div class="hi-top">
+            <div class="hi-type">
+              <span class="hi-type-ico">{{ hico }}</span>
+              {{ hlbl }}
+            </div>
+            <span class="hi-badge {{ sbadge }}">{{ slbl }}</span>
+          </div>
+          <div class="hi-meta">
+            <span class="hi-time">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M") }}{% else %}—{% endif %}
+            </span>
+          </div>
+          {% if r.note %}
+          <div class="hi-note">{{ r.note }}</div>
           {% endif %}
         </div>
       </div>
-    </div>
+      {% endfor %}
 
-    <!-- BOTTOM NAV -->
-<div class="bottom-nav">
-  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-    <div class="nav-row">
-      <a class="nav-item" href="/dashboard">
-        <span class="nav-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
-            <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
-            <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
-            <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
-          </svg>
-        </span>
-        <span>Dashboard</span>
-      </a>
-
-      <a class="nav-item active" href="/content">
-        <span class="nav-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <rect class="stroke" x="4" y="5" width="16" height="15" rx="2.5"></rect>
-            <path class="stroke" d="M8 3v4"></path>
-            <path class="stroke" d="M16 3v4"></path>
-            <path class="stroke" d="M4 10h16"></path>
-            <path class="stroke" d="M8 14h3"></path>
-            <path class="stroke" d="M8 17h6"></path>
-          </svg>
-        </span>
-        <span>Absensi</span>
-      </a>
+      {% if rows|length == 0 %}
+      <div class="hist-empty">
+        <div class="he-ico">🗓️</div>
+        <div class="he-title">Belum ada riwayat</div>
+        <div class="he-sub">Absensi pertamamu akan muncul di sini.</div>
+      </div>
+      {% endif %}
     </div>
   </div>
-</div>
-        
 
-        
-        </a>
-      </div>
-    </div>
+</div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-bar" role="navigation">
+    <a class="nav-item" href="/dashboard">
+      <span class="ni"><svg viewBox="0 0 24 24"><rect class="nf" x="3" y="3" width="8" height="8" rx="1.6"/><rect class="nf" x="13" y="3" width="8" height="8" rx="1.6"/><rect class="nf" x="3" y="13" width="8" height="8" rx="1.6"/><rect class="nf" x="13" y="13" width="8" height="8" rx="1.6"/></svg></span>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-item active" href="/attendance">
+      <span class="ni"><svg viewBox="0 0 24 24"><rect class="ns" x="3" y="4" width="18" height="18" rx="2.5"/><line class="ns" x1="16" y1="2" x2="16" y2="6"/><line class="ns" x1="8" y1="2" x2="8" y2="6"/><line class="ns" x1="3" y1="10" x2="21" y2="10"/><polyline class="ns" points="9 16 11 18 15 14"/></svg></span>
+      <span>Absensi</span>
+    </a>
   </div>
 </div>
 
 <script>
-  // ===== LIVE CLOCK (WIB) + kirim client_ts =====
-  const tz = "Asia/Jakarta";
-  const fmtTime = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const fmtDate = new Intl.DateTimeFormat("id-ID", {
-    timeZone: tz,
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  function tick() {
-    const now = new Date();
-    const tEl = document.getElementById("liveTime");
-    const dEl = document.getElementById("liveDate");
-    if (tEl) tEl.textContent = fmtTime.format(now);
-    if (dEl) dEl.textContent = fmtDate.format(now);
-
-    const ts = document.getElementById("clientTs");
-    if (ts) ts.value = String(now.getTime());
+(function(){
+  /* ── Live clock WIB ── */
+  var tz = 'Asia/Jakarta';
+  var fmtT = new Intl.DateTimeFormat('id-ID',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var fmtD = new Intl.DateTimeFormat('id-ID',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  function tick(){
+    var now = new Date();
+    var tEl = document.getElementById('liveTime');
+    var dEl = document.getElementById('liveDate');
+    var ts  = document.getElementById('clientTs');
+    if(tEl) tEl.textContent = fmtT.format(now);
+    if(dEl) dEl.textContent = fmtD.format(now);
+    if(ts)  ts.value = String(now.getTime());
   }
-  tick();
-  setInterval(tick, 1000);
-   // Device ID
-  (function initDeviceId() {
-    let id = localStorage.getItem("umgap_device_id");
-    if (!id) {
-      id =
-        (crypto?.randomUUID && crypto.randomUUID()) ||
-        "dev_" + Math.random().toString(16).slice(2) + Date.now();
-      localStorage.setItem("umgap_device_id", id);
+  tick(); setInterval(tick,1000);
+
+  /* ── Device ID ── */
+  (function(){
+    var id = null;
+    try { id = localStorage.getItem('umgap_device_id'); } catch(e){}
+    if(!id){
+      id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'dev_' + Math.random().toString(16).slice(2) + Date.now();
+      try { localStorage.setItem('umgap_device_id', id); } catch(e){}
     }
-    const inp = document.getElementById("device_id");
-    const pill = document.getElementById("devicePill");
-    if (inp) inp.value = id;
-    if (pill) pill.textContent = "📱 " + id.slice(0, 8) + "…";
+    var inp  = document.getElementById('device_id');
+    var pill = document.getElementById('devicePill');
+    if(inp)  inp.value       = id;
+    if(pill) pill.textContent = '📱 ' + id.slice(0,8) + '…';
   })();
 
-  // Lokasi
-  const btnLoc = document.getElementById("btnLoc");
-  const locStatus = document.getElementById("locStatus");
-  const locHint = document.getElementById("locHint");
+  /* ── GPS ── */
+  var btnLoc   = document.getElementById('btnLoc');
+  var gpsPill  = document.getElementById('gpsPill');
+  var gpsText  = document.getElementById('gpsText');
+  var gpsDot   = gpsPill ? gpsPill.querySelector('.gps-dot') : null;
+  var gpsCoords= document.getElementById('gpsCoords');
+  var gpsLatLng= document.getElementById('gpsLatLng');
+  var gpsAcc   = document.getElementById('gpsAcc');
 
-  if (btnLoc) {
-    btnLoc.addEventListener("click", () => {
-      if (locStatus) locStatus.textContent = "ambil…";
-      if (locHint) locHint.textContent = "mohon tunggu…";
+  function setGpsState(state, txt){
+    if(!gpsPill) return;
+    gpsPill.className = 'gps-pill ' + state;
+    if(gpsText) gpsText.textContent = txt;
+    if(gpsDot)  gpsDot.className = 'gps-dot' + (state==='loading' ? ' spin' : '');
+  }
 
-      if (!navigator.geolocation) {
-        if (locStatus) locStatus.textContent = "gagal";
-        if (locHint) locHint.textContent = "tidak didukung";
-        return;
-      }
-
+  if(btnLoc){
+    btnLoc.addEventListener('click', function(){
+      if(!navigator.geolocation){ setGpsState('err','GPS tidak didukung'); return; }
+      setGpsState('loading','Mengambil lokasi…');
+      btnLoc.disabled = true;
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const acc = pos.coords.accuracy;
-
-          document.getElementById("latitude").value = lat;
-          document.getElementById("longitude").value = lng;
-          document.getElementById("accuracy").value = acc;
-
-          if (locStatus) locStatus.textContent = "ok";
-          if (locHint) locHint.textContent =
-            `${lat.toFixed(4)}, ${lng.toFixed(4)} (±${Math.round(acc)}m)`;
+        function(pos){
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          var acc = pos.coords.accuracy;
+          document.getElementById('latitude').value  = lat;
+          document.getElementById('longitude').value = lng;
+          document.getElementById('accuracy').value  = acc;
+          setGpsState('ok','Lokasi berhasil ✓');
+          if(gpsLatLng) gpsLatLng.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+          if(gpsAcc)    gpsAcc.textContent    = 'Akurasi ±' + Math.round(acc) + ' meter';
+          if(gpsCoords) gpsCoords.classList.add('show');
+          btnLoc.classList.add('done');
+          btnLoc.innerHTML = '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round"><polyline points="20 6 9 17 4 12"/></svg> Lokasi Tersimpan';
+          btnLoc.disabled = false;
         },
-        (err) => {
-          console.log(err);
-          if (locStatus) locStatus.textContent = "gagal";
-          if (locHint) locHint.textContent = "izinkan lokasi";
+        function(err){
+          setGpsState('err','Gagal — izinkan GPS');
+          btnLoc.disabled = false;
         },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
       );
     });
   }
 
-  // Selfie preview
-  const selfie = document.getElementById("selfie");
-  const previewBox = document.getElementById("previewBox");
-  const previewImg = document.getElementById("previewImg");
+  /* ── Selfie preview ── */
+  var selfieInput  = document.getElementById('selfie');
+  var selfieZone   = document.getElementById('selfieZone');
+  var selfiePreview= document.getElementById('selfiePreview');
+  var previewImg   = document.getElementById('previewImg');
+  var selfieRemove = document.getElementById('selfieRemove');
 
-  if (selfie) {
-    selfie.addEventListener("change", () => {
-      const file = selfie.files && selfie.files[0];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      if (previewImg) previewImg.src = url;
-      if (previewBox) previewBox.style.display = "block";
+  if(selfieInput){
+    selfieInput.addEventListener('change', function(){
+      var file = selfieInput.files && selfieInput.files[0];
+      if(!file) return;
+      var url = URL.createObjectURL(file);
+      previewImg.src = url;
+      selfiePreview.style.display = 'block';
+      selfieZone.style.display    = 'none';
     });
   }
+  if(selfieRemove){
+    selfieRemove.addEventListener('click', function(){
+      selfieInput.value = '';
+      previewImg.src = '';
+      selfiePreview.style.display = 'none';
+      selfieZone.style.display    = '';
+    });
+  }
+
+  /* ── Filter tabs ── */
+  var activeF = 'all';
+  function applyFilter(){
+    document.querySelectorAll('.hist-item').forEach(function(el){
+      var t = el.dataset.type;
+      el.style.display = (activeF === 'all' || t === activeF) ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.ftab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.ftab').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+      activeF = btn.dataset.f;
+      applyFilter();
+    });
+  });
+
+  /* ── History entrance animation ── */
+  document.querySelectorAll('.hist-item').forEach(function(el, i){
+    el.style.transitionDelay = (i * 45) + 'ms';
+    setTimeout(function(){ el.classList.add('in'); }, 80 + i * 45);
+  });
+
+})();
 </script>
 {% endblock %}
