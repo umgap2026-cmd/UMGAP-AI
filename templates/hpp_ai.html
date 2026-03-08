@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI HPP • UMGAP</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f6fb;
+        margin: 0;
+        padding: 20px;
+        color: #1f2a44;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #fff;
+        border-radius: 18px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0 0 12px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 12px;
+        border: 1px solid #d9deea;
+        padding: 12px;
+        font-size: 14px;
+      }
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr 1fr;
+      }
+      .btn {
+        background: #2f66f3;
+        color: #fff;
+        border: none;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-secondary {
+        background: #eef2ff;
+        color: #2f66f3;
+        border: none;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .muted {
+        color: #6b7895;
+        font-size: 13px;
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      .table th,
+      .table td {
+        border-bottom: 1px solid #e8ecf5;
+        text-align: left;
+        padding: 10px 6px;
+        font-size: 14px;
+      }
+      .pill {
+        display: inline-block;
+        background: #eef2ff;
+        color: #5b64d8;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .result-box {
+        background: #f7f9ff;
+        border: 1px solid #dde5ff;
+        border-radius: 14px;
+        padding: 14px;
+        margin-top: 10px;
+      }
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>AI Penghitung HPP</h1>
+        <div class="muted">
+          Hitung HPP otomatis dan biarkan AI mengecek apakah input kamu sudah
+          cukup spesifik.
+        </div>
+      </div>
+
+      <form method="post">
+        <div class="card">
+          <h2>Informasi Produk</h2>
+          <label>Nama Produk</label>
+          <input
+            type="text"
+            name="product_name"
+            value="{{ form_data.product_name }}"
+            placeholder="Contoh: Es Teh, Nasi Goreng, Bakso"
+          />
+        </div>
+
+        <div class="card">
+          <h2>Bahan yang Dibeli</h2>
+          <div class="muted">
+            Masukkan data bahan dalam format JSON sederhana.
+          </div>
+          <label>Daftar Bahan (JSON)</label>
+          <textarea
+            name="materials_json"
+            placeholder='[{"name":"Gula pasir","unit":"1 kg","cost":18000},{"name":"Teh celup","unit":"1 box","cost":12000}]'
+          >
+{{ form_data.materials_json }}</textarea
+          >
+          <div class="muted" style="margin-top: 8px">
+            Contoh: [{"name":"Gula pasir","unit":"1
+            kg","cost":18000},{"name":"Teh celup","unit":"1 box","cost":12000}]
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Biaya Operasional</h2>
+          <div class="grid">
+            <div>
+              <label>Biaya Tenaga Kerja per Unit (Rp)</label>
+              <input
+                type="number"
+                name="labor_cost"
+                value="{{ form_data.labor_cost }}"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label>Biaya Overhead per Unit (Rp)</label>
+              <input
+                type="number"
+                name="overhead_cost"
+                value="{{ form_data.overhead_cost }}"
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Jumlah Produk yang Dihasilkan</h2>
+          <label>Jumlah Produk (Unit)</label>
+          <input
+            type="number"
+            name="output_qty"
+            value="{{ form_data.output_qty }}"
+            placeholder="Contoh: 100"
+          />
+        </div>
+
+        <div class="grid">
+          <button class="btn" type="submit">Hitung HPP</button>
+          <a href="/dashboard" style="text-decoration: none"
+            ><button class="btn-secondary" type="button">Kembali</button></a
+          >
+        </div>
+      </form>
+
+      {% if result %}
+      <div class="card">
+        <h2>Hasil Perhitungan</h2>
+        <div class="pill">{{ result.product_name or 'Produk' }}</div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Bahan</th>
+              <th>Satuan</th>
+              <th>Biaya</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in result.materials %}
+            <tr>
+              <td>{{ m.name }}</td>
+              <td>{{ m.unit }}</td>
+              <td>Rp {{ "{:,}".format(m.cost).replace(",", ".") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="result-box">
+          <p>
+            <strong>Total Pembelian Bahan:</strong> Rp {{
+            "{:,}".format(result.total_material_cost).replace(",", ".") }}
+          </p>
+          <p>
+            <strong>Biaya Tenaga Kerja:</strong> Rp {{
+            "{:,}".format(result.labor_cost).replace(",", ".") }}
+          </p>
+          <p>
+            <strong>Biaya Overhead:</strong> Rp {{
+            "{:,}".format(result.overhead_cost).replace(",", ".") }}
+          </p>
+          <p>
+            <strong>Total Biaya Produksi:</strong> Rp {{
+            "{:,}".format(result.total_cost).replace(",", ".") }}
+          </p>
+          <p><strong>Jumlah Produk Jadi:</strong> {{ result.output_qty }}</p>
+          <p>
+            <strong>HPP per Unit:</strong> Rp {{
+            "{:,}".format(result.hpp_per_unit).replace(",", ".") }}
+          </p>
+        </div>
+      </div>
+      {% endif %} {% if ai_notes %}
+      <div class="card">
+        <h2>Analisis AI</h2>
+        <div class="result-box" style="white-space: pre-wrap">
+          {{ ai_notes }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </body>
+</html>
