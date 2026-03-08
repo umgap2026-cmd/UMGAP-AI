@@ -2148,7 +2148,110 @@ def caption():
 
     return render_template("caption.html", caption=caption_text, form=form)
 
-#-----AI HPP-----
+# ==================== AI PENGHITUNG HPP (v2 — matang) ====================
+
+import json as _json
+
+def _parse_materials(materials_raw):
+    """Parse & validasi list bahan. Return (list[dict], total_material_cost)."""
+    if isinstance(materials_raw, str):
+        try:
+            materials_raw = _json.loads(materials_raw)
+        except Exception:
+            materials_raw = []
+    if not isinstance(materials_raw, list):
+        materials_raw = []
+
+    rows = []
+    total = 0
+    for m in materials_raw:
+        name = str(m.get("name") or "").strip()
+        unit = str(m.get("unit") or "").strip()
+        try:
+            cost = int(m.get("cost") or 0)
+        except Exception:
+            cost = 0
+        if cost < 0:
+            cost = 0
+        total += cost
+        rows.append({"name": name, "unit": unit, "cost": cost})
+    return rows, total
+
+
+def _hpp_calculate(product_name, materials_raw, labor_cost_raw, overhead_cost_raw, output_qty_raw):
+    """Hitung HPP. Kembalikan dict result lengkap."""
+    try:
+        labor_cost = max(0, int(labor_cost_raw or 0))
+    except Exception:
+        labor_cost = 0
+    try:
+        overhead_cost = max(0, int(overhead_cost_raw or 0))
+    except Exception:
+        overhead_cost = 0
+    try:
+        output_qty = max(1, int(output_qty_raw or 1))
+    except Exception:
+        output_qty = 1
+
+    material_rows, total_material_cost = _parse_materials(materials_raw)
+    total_cost = total_material_cost + labor_cost + overhead_cost
+    hpp_per_unit = round(total_cost / output_qty) if output_qty > 0 else 0
+
+    # Saran harga jual (margin 20%, 40%, 60%)
+    price_suggestions = {
+        "safe":   round(hpp_per_unit * 1.20),
+        "normal": round(hpp_per_unit * 1.40),
+        "ideal":  round(hpp_per_unit * 1.60),
+    }
+
+    return {
+        "product_name":        product_name,
+        "materials":           material_rows,
+        "total_material_cost": total_material_cost,
+        "labor_cost":          labor_cost,
+        "overhead_cost":       overhead_cost,
+        "output_qty":          output_qty,
+        "total_cost":          total_cost,
+        "hpp_per_unit":        hpp_per_unit,
+        "price_suggestions":   price_suggestions,
+    }
+
+
+def _hpp_ai_prompt(data):
+    """Bangun prompt AI review HPP yang kaya konteks."""
+    mat_lines = "\n".join(
+        ("  - " + m["name"] + " (" + (m["unit"] or "-") + "): Rp " + str(m["cost"]))
+        for m in data["materials"]
+    ) or "  (tidak ada bahan yang diinput)"
+
+    return f"""Kamu adalah konsultan keuangan UMKM Indonesia yang ahli dalam menghitung HPP (Harga Pokok Produksi).
+
+Data HPP yang disubmit user:
+Produk: "{data['product_name']}"
+Bahan baku:
+{mat_lines}
+Biaya tenaga kerja (per batch): Rp {data['labor_cost']:,}
+Biaya overhead (per batch): Rp {data['overhead_cost']:,}
+Jumlah produk jadi: {data['output_qty']} unit
+Total biaya produksi: Rp {data['total_cost']:,}
+HPP per unit: Rp {data['hpp_per_unit']:,}
+
+Tugasmu:
+1. Analisis kelengkapan dan keakuratan input.
+2. Sebutkan biaya yang mungkin terlewat (contoh: kemasan, ongkir bahan, penyusutan alat, biaya air/listrik, dsb.).
+3. Evaluasi apakah HPP per unit terlihat realistis untuk jenis produk tersebut.
+4. Berikan saran harga jual yang optimal beserta alasannya.
+5. Jika ada potensi efisiensi biaya, sebutkan.
+
+Format jawaban WAJIB:
+- Analisis: [2-3 kalimat evaluasi keseluruhan]
+- Yang kurang spesifik: [list poin dengan bullet]
+- Biaya yang mungkin terlewat: [list poin]
+- Saran: [rekomendasi konkret, termasuk range harga jual dan alasannya]
+
+Jawab dalam Bahasa Indonesia yang ramah dan mudah dipahami pelaku UMKM. Maksimal 350 kata.""".replace(",", ",")
+
+
 @app.route("/hpp-ai", methods=["GET", "POST"])
 def hpp_ai_page():
     if not is_logged_in():
@@ -2158,118 +2261,45 @@ def hpp_ai_page():
     ai_notes = None
     form_data = {
         "product_name": "",
-        "labor_cost": "",
-        "overhead_cost": "",
-        "output_qty": "",
+        "labor_cost":   "",
+        "overhead_cost":"",
+        "output_qty":   "",
         "materials_json": "[]",
     }
 
     if request.method == "POST":
-        product_name = (request.form.get("product_name") or "").strip()
-        labor_cost_raw = (request.form.get("labor_cost") or "0").strip()
-        overhead_cost_raw = (request.form.get("overhead_cost") or "0").strip()
-        output_qty_raw = (request.form.get("output_qty") or "0").strip()
-        materials_json = (request.form.get("materials_json") or "[]").strip()
+        product_name   = (request.form.get("product_name")   or "").strip()
+        labor_cost_raw = (request.form.get("labor_cost")      or "0").strip()
+        overhead_raw   = (request.form.get("overhead_cost")   or "0").strip()
+        qty_raw        = (request.form.get("output_qty")      or "1").strip()
+        mats_json      = (request.form.get("materials_json")  or "[]").strip()
 
         form_data = {
-            "product_name": product_name,
-            "labor_cost": labor_cost_raw,
-            "overhead_cost": overhead_cost_raw,
-            "output_qty": output_qty_raw,
-            "materials_json": materials_json,
+            "product_name":  product_name,
+            "labor_cost":    labor_cost_raw,
+            "overhead_cost": overhead_raw,
+            "output_qty":    qty_raw,
+            "materials_json": mats_json,
         }
 
-        try:
-            labor_cost = int(labor_cost_raw or "0")
-        except:
-            labor_cost = 0
+        if not product_name:
+            return render_template("hpp_ai.html", result=None, ai_notes=None,
+                                   form_data=form_data, error="Nama produk wajib diisi.")
 
-        try:
-            overhead_cost = int(overhead_cost_raw or "0")
-        except:
-            overhead_cost = 0
+        result = _hpp_calculate(product_name, mats_json, labor_cost_raw, overhead_raw, qty_raw)
 
-        try:
-            output_qty = int(output_qty_raw or "0")
-        except:
-            output_qty = 0
-
-        try:
-            import json
-            materials = json.loads(materials_json)
-            if not isinstance(materials, list):
-                materials = []
-        except:
-            materials = []
-
-        total_material_cost = 0
-        material_rows = []
-
-        for m in materials:
-            name = str(m.get("name") or "").strip()
-            unit = str(m.get("unit") or "").strip()
-            cost_raw = m.get("cost")
-
-            try:
-                cost = int(cost_raw or 0)
-            except:
-                cost = 0
-
-            total_material_cost += cost
-            material_rows.append({
-                "name": name,
-                "unit": unit,
-                "cost": cost
-            })
-
-        total_cost = total_material_cost + labor_cost + overhead_cost
-        hpp_per_unit = int(total_cost / output_qty) if output_qty > 0 else 0
-
-        result = {
-            "product_name": product_name,
-            "materials": material_rows,
-            "total_material_cost": total_material_cost,
-            "labor_cost": labor_cost,
-            "overhead_cost": overhead_cost,
-            "output_qty": output_qty,
-            "total_cost": total_cost,
-            "hpp_per_unit": hpp_per_unit,
-        }
-
-        # AI assist
         if oa_client:
             try:
-                prompt = f"""
-Kamu adalah AI penghitung HPP untuk UMKM Indonesia.
-
-Tugas:
-1. Review input HPP berikut.
-2. Cari apakah ada data yang kurang spesifik / kurang realistis.
-3. Beri saran perbaikan.
-4. Jangan hitung ulang angka, fokus pada evaluasi input dan saran bisnis singkat.
-
-Data:
-- Nama produk: {product_name}
-- Biaya tenaga kerja per unit: {labor_cost}
-- Biaya overhead per unit: {overhead_cost}
-- Jumlah produk jadi: {output_qty}
-- Bahan: {material_rows}
-
-Jawab singkat dalam Bahasa Indonesia.
-Format:
-- Analisis:
-- Yang kurang spesifik:
-- Saran:
-"""
+                prompt = _hpp_ai_prompt(result)
                 resp = oa_client.chat.completions.create(
                     model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.4,
-                    max_tokens=350,
+                    temperature=0.35,
+                    max_tokens=500,
                 )
                 ai_notes = (resp.choices[0].message.content or "").strip()
-            except Exception:
-                ai_notes = "AI belum bisa memberi evaluasi saat ini, tapi hasil hitung HPP tetap sudah dibuat."
+            except Exception as ex:
+                ai_notes = f"AI tidak tersedia saat ini ({type(ex).__name__}). Hasil HPP tetap valid."
 
     return render_template(
         "hpp_ai.html",
@@ -2278,49 +2308,71 @@ Format:
         form_data=form_data,
     )
 
-@app.route("/api/hpp-ai-review", methods=["POST"])
-def api_hpp_ai_review():
+
+@app.route("/api/hpp-calculate", methods=["POST"])
+def api_hpp_calculate():
+    """Pure server-side HPP calculation — no AI, fast, untuk validasi JS."""
     if not is_logged_in():
         return jsonify({"ok": False, "error": "Silakan login dulu."}), 401
 
     data = request.get_json(silent=True) or {}
-    product_name = (data.get("product_name") or "").strip()
-    labor_cost = int(data.get("labor_cost") or 0)
-    overhead_cost = int(data.get("overhead_cost") or 0)
-    output_qty = int(data.get("output_qty") or 0)
-    materials = data.get("materials") or []
+    try:
+        result = _hpp_calculate(
+            product_name   = (data.get("product_name") or "").strip(),
+            materials_raw  = data.get("materials") or [],
+            labor_cost_raw = data.get("labor_cost") or 0,
+            overhead_cost_raw = data.get("overhead_cost") or 0,
+            output_qty_raw = data.get("output_qty") or 1,
+        )
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
+
+@app.route("/api/hpp-ai-review", methods=["POST"])
+def api_hpp_ai_review():
+    """AI review endpoint — dipanggil async dari frontend setelah kalkulasi."""
+    if not is_logged_in():
+        return jsonify({"ok": False, "error": "Silakan login dulu."}), 401
+
+    data = request.get_json(silent=True) or {}
+    product_name  = (data.get("product_name") or "").strip()
+    materials     = data.get("materials") or []
+    labor_cost    = int(data.get("labor_cost")    or 0)
+    overhead_cost = int(data.get("overhead_cost") or 0)
+    output_qty    = max(1, int(data.get("output_qty") or 1))
+    total_cost    = int(data.get("total_cost")    or 0)
+    hpp_per_unit  = int(data.get("hpp_per_unit")  or 0)
+
+    if not product_name:
+        return jsonify({"ok": False, "error": "Nama produk wajib diisi."}), 400
     if not oa_client:
-        return jsonify({"ok": False, "error": "AI belum dikonfigurasi."}), 500
+        return jsonify({"ok": False, "error": "AI belum dikonfigurasi (OPENAI_API_KEY missing)."}), 500
+
+    calc_data = {
+        "product_name": product_name,
+        "materials":    [{"name": str(m.get("name","")).strip(),
+                          "unit": str(m.get("unit","")).strip(),
+                          "cost": int(m.get("cost") or 0)} for m in materials],
+        "labor_cost":   labor_cost,
+        "overhead_cost":overhead_cost,
+        "output_qty":   output_qty,
+        "total_cost":   total_cost or (sum(int(m.get("cost",0)) for m in materials) + labor_cost + overhead_cost),
+        "hpp_per_unit": hpp_per_unit,
+    }
 
     try:
-        prompt = f"""
-Kamu adalah AI penghitung HPP untuk UMKM Indonesia.
-
-Review input berikut:
-- Nama produk: {product_name}
-- Biaya tenaga kerja per unit: {labor_cost}
-- Biaya overhead per unit: {overhead_cost}
-- Jumlah produk jadi: {output_qty}
-- Bahan: {materials}
-
-Tugas:
-1. Sebutkan bagian yang kurang spesifik.
-2. Sebutkan kemungkinan biaya yang belum masuk.
-3. Berikan saran singkat agar HPP lebih akurat.
-
-Jawab ringkas, jelas, Bahasa Indonesia.
-"""
+        prompt = _hpp_ai_prompt(calc_data)
         resp = oa_client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_tokens=350,
+            temperature=0.35,
+            max_tokens=500,
         )
-        text = (resp.choices[0].message.content or "").strip()
-        return jsonify({"ok": True, "review": text})
+        review = (resp.choices[0].message.content or "").strip()
+        return jsonify({"ok": True, "review": review})
     except Exception as e:
-        return jsonify({"ok": False, "error": f"Gagal memproses AI: {str(e)}"}), 500
+        return jsonify({"ok": False, "error": f"AI gagal: {type(e).__name__}: {str(e)}"}), 500
 
 #-----NOTIFICATION-------
 @app.route("/notifications")
