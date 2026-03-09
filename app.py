@@ -3448,16 +3448,10 @@ def invoice_list_ports(invoice_id):
 # ==================== HARGA BELI SCRAP ====================
 
 def ensure_buy_prices_schema():
-    """
-    Buat/migrasi tabel buy_prices secara aman.
-    - CREATE TABLE IF NOT EXISTS
-    - ADD COLUMN IF NOT EXISTS pakai SAVEPOINT (bukan conn.rollback)
-    - TIDAK auto-seed — seed hanya lewat /init-buy-prices (admin)
-    """
+    """Buat tabel harga beli scrap material untuk landing page."""
     conn = get_conn()
     cur  = conn.cursor()
     try:
-        # 1. Buat tabel jika belum ada
         cur.execute("""
             CREATE TABLE IF NOT EXISTS buy_prices (
                 id         SERIAL PRIMARY KEY,
@@ -3472,8 +3466,7 @@ def ensure_buy_prices_schema():
                 created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-
-        # 2. Migrasi aman pakai SAVEPOINT — tidak abort seluruh transaksi
+        # safe migration: add columns if not exist (idempotent)
         for col_sql in [
             "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS note TEXT;",
             "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
@@ -3482,12 +3475,104 @@ def ensure_buy_prices_schema():
             "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;",
         ]:
             try:
-                cur.execute("SAVEPOINT sp_col;")
                 cur.execute(col_sql)
-                cur.execute("RELEASE SAVEPOINT sp_col;")
             except Exception:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_col;")
-
+                conn.rollback()
+        cur.execute("SELECT COUNT(*) AS n FROM buy_prices;")
+        if cur.fetchone()[0] == 0:
+            defaults = [
+                ("Tembaga", "TM", "kg", 205, 10),
+                ("Tembaga", "TS / TS Halus", "kg", 202, 11),
+                ("Tembaga", "BC", "kg", 198.5, 12),
+                ("Tembaga", "Telkom / TB Pipa", "kg", 197.5, 13),
+                ("Tembaga", "TB / TB Bakar", "kg", 189, 14),
+                ("Tembaga", "TB Putih Lidi", "kg", 189, 15),
+                ("Tembaga", "TB Putih", "kg", 184, 16),
+                ("Tembaga", "DD", "kg", 182, 17),
+                ("Tembaga", "Gram TB", "kg", 150, 18),
+                ("Tembaga", "Gram TB Lembut", "kg", 140, 19),
+                ("Tembaga", "Jarum TB Putih", "kg", 147.5, 20),
+                ("Tembaga", "Jarum TB Hitam", "kg", 150.5, 21),
+                ("Tembaga", "RD TB", "kg", 165, 22),
+                ("Tembaga", "TB Kotak", "kg", 122, 23),
+                ("Tembaga", "TB Bakau Super", "kg", 90, 24),
+                ("Kuningan", "Bron", "kg", 169, 30),
+                ("Kuningan", "Bron Putih", "kg", 164, 31),
+                ("Kuningan", "Plat KN", "kg", 125, 32),
+                ("Kuningan", "Patrum Bersih", "kg", 128, 33),
+                ("Kuningan", "KN Kasar", "kg", 122, 34),
+                ("Kuningan", "KN Rosok / KN Puler", "kg", 119, 35),
+                ("Kuningan", "KN Kipas", "kg", 121, 36),
+                ("Kuningan", "KN Rambut", "kg", 120, 37),
+                ("Kuningan", "KN Gelang", "kg", 107, 38),
+                ("Kuningan", "AISI", "kg", 123, 39),
+                ("Kuningan", "AISI Kawul", "kg", 120, 40),
+                ("Kuningan", "RD KN", "kg", 115, 41),
+                ("Kuningan", "RD KN Lepas", "kg", 110, 42),
+                ("Kuningan", "KN Totok", "kg", 115, 43),
+                ("Kuningan", "KN Paten", "kg", 103, 44),
+                ("Kuningan", "KN Tanjek", "kg", 103, 45),
+                ("Kuningan", "Gram ME", "kg", 118, 46),
+                ("Kuningan", "Gram Merah Lembut", "kg", 113, 47),
+                ("Kuningan", "Gram KN As", "kg", 106, 48),
+                ("Kuningan", "Gram Kemprotok", "kg", 108, 49),
+                ("Kuningan", "Gram KN Kawul", "kg", 103, 50),
+                ("Kuningan", "Gram Juwana", "kg", 100, 51),
+                ("Kuningan", "Awon KN", "kg", 77, 52),
+                ("Aluminium", "AK", "kg", 50, 60),
+                ("Aluminium", "AK Bakar", "kg", 49, 61),
+                ("Aluminium", "Kusen", "kg", 47.5, 62),
+                ("Aluminium", "Siku", "kg", 43, 63),
+                ("Aluminium", "Siku Cat", "kg", 42, 64),
+                ("Aluminium", "Plat Koran", "kg", 48, 65),
+                ("Aluminium", "Plat KPU", "kg", 43.5, 66),
+                ("Aluminium", "Plat A", "kg", 42.5, 67),
+                ("Aluminium", "Pelek Mobil", "kg", 44, 68),
+                ("Aluminium", "Pelek Mobil Krom", "kg", 43.5, 69),
+                ("Aluminium", "Seker", "kg", 40, 70),
+                ("Aluminium", "Blok", "kg", 39.5, 71),
+                ("Aluminium", "Blok 2", "kg", 36, 72),
+                ("Aluminium", "Blok Parabola", "kg", 32.5, 73),
+                ("Aluminium", "Kampas B", "kg", 35.5, 74),
+                ("Aluminium", "Kampas K", "kg", 27.5, 75),
+                ("Aluminium", "Plat B", "kg", 38, 76),
+                ("Aluminium", "Plat Nomor", "kg", 39.5, 77),
+                ("Aluminium", "Plat Lembutan", "kg", 31, 78),
+                ("Aluminium", "Plat Jeruk", "kg", 34.5, 79),
+                ("Aluminium", "Parfum B", "kg", 39.5, 80),
+                ("Aluminium", "Parfum Kotor", "kg", 18.5, 81),
+                ("Aluminium", "Nium Dinamo", "kg", 31.5, 82),
+                ("Aluminium", "RD N Utuh", "kg", 34, 83),
+                ("Aluminium", "RD N Lepas", "kg", 31, 84),
+                ("Aluminium", "Panci LPK", "kg", 37.5, 85),
+                ("Aluminium", "PC", "kg", 37, 86),
+                ("Aluminium", "PC Silitan Bersih", "kg", 33, 87),
+                ("Aluminium", "Kaleng", "kg", 36, 88),
+                ("Aluminium", "Wajan", "kg", 31, 89),
+                ("Aluminium", "Elemen", "kg", 25.5, 90),
+                ("Aluminium", "Kerey", "kg", 24, 91),
+                ("Aluminium", "Gram Nium", "kg", 19.5, 92),
+                ("Aluminium", "Gram Nium Kemprotok", "kg", 21, 93),
+                ("Aluminium", "Lelehan Nium", "kg", 16, 94),
+                ("Aluminium", "Ring", "kg", 21.5, 95),
+                ("Aluminium", "Tutup", "kg", 15, 96),
+                ("Aluminium", "Nium Api", "kg", 15, 97),
+                ("Aluminium", "Foil", "kg", 11, 98),
+                ("Stainless", "Monel", "kg", 15.5, 110),
+                ("Stainless", "Monel Cat", "kg", 15, 111),
+                ("Stainless", "India", "kg", 6, 112),
+                ("Timah & Aki", "Timah KPL", "kg", 29, 120),
+                ("Timah & Aki", "Nium KPL", "kg", 25, 121),
+                ("Timah & Aki", "Budeng", "kg", 30, 122),
+                ("Timah & Aki", "Lakson", "kg", 32, 123),
+                ("Timah & Aki", "Lakson RBS", "kg", 15.5, 124),
+                ("Timah & Aki", "Aki Bersih Bebas Air", "kg", 16.4, 125),
+            ]
+            for mat, grade, unit, price, sort in defaults:
+                cur.execute("""
+                    INSERT INTO buy_prices (material, grade, unit, price, sort_order)
+                    VALUES (%s,%s,%s,%s,%s);
+                """, (mat, grade, unit, price, sort))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -3562,15 +3647,26 @@ def admin_buy_prices():
             SELECT id, material, grade, unit, price, note, is_active, sort_order, updated_at
             FROM buy_prices ORDER BY sort_order ASC, id ASC;
         """)
-        rows = cur.fetchall()
+        raw_rows = cur.fetchall()
     finally:
         cur.close()
         conn.close()
-    for r in rows:
-        if r["updated_at"]:
-            r["updated_at_str"] = r["updated_at"].strftime("%d/%m/%Y %H:%M")
-        else:
-            r["updated_at_str"] = "-"
+
+    # Konversi ke plain dict agar bisa di-serialize JSON di template
+    # RealDictRow mengandung Decimal dan datetime yang tidak bisa tojson langsung
+    rows = []
+    for r in raw_rows:
+        rows.append({
+            "id":         int(r["id"]),
+            "material":   str(r["material"] or ""),
+            "grade":      str(r["grade"] or ""),
+            "unit":       str(r["unit"] or "kg"),
+            "price":      float(r["price"]) if r["price"] is not None else 0.0,
+            "note":       str(r["note"] or ""),
+            "is_active":  bool(r["is_active"]) if r["is_active"] is not None else True,
+            "sort_order": int(r["sort_order"]) if r["sort_order"] is not None else 0,
+            "updated_at_str": r["updated_at"].strftime("%d/%m/%Y %H:%M") if r["updated_at"] else "-",
+        })
     return render_template("admin_buy_prices.html", rows=rows)
 
 
@@ -3647,130 +3743,20 @@ def admin_buy_prices_save():
 # ── Force init endpoint (admin only, satu kali pakai) ──
 @app.route("/init-buy-prices")
 def init_buy_prices_route():
-    """
-    RESET + SEED tabel buy_prices dengan data lengkap.
-    ⚠️  Ini akan HAPUS semua data lama dan isi ulang dari awal.
-    Akses: https://umgap-ai.onrender.com/init-buy-prices (login admin dulu)
-    """
+    """Force buat tabel buy_prices dan seed data. Akses sekali saat deploy."""
     deny = admin_required()
     if deny:
         return deny
     try:
-        ensure_buy_prices_schema()  # pastikan tabel & kolom ada
+        ensure_buy_prices_schema()
         conn2 = get_conn()
         cur2  = conn2.cursor()
-
-        # Hapus semua data lama, reset sequence
-        cur2.execute("TRUNCATE TABLE buy_prices RESTART IDENTITY;")
-
-        # Insert 86 item lengkap
-        seed = [
-            # ── Tembaga ──
-            ("Tembaga","TM","kg",205,10),
-            ("Tembaga","TS / TS Halus","kg",202,11),
-            ("Tembaga","BC","kg",198.5,12),
-            ("Tembaga","Telkom / TB Pipa","kg",197.5,13),
-            ("Tembaga","TB / TB Bakar","kg",189,14),
-            ("Tembaga","TB Putih Lidi","kg",189,15),
-            ("Tembaga","TB Putih","kg",184,16),
-            ("Tembaga","DD","kg",182,17),
-            ("Tembaga","Gram TB","kg",150,18),
-            ("Tembaga","Gram TB Lembut","kg",140,19),
-            ("Tembaga","Jarum TB Putih","kg",147.5,20),
-            ("Tembaga","Jarum TB Hitam","kg",150.5,21),
-            ("Tembaga","RD TB","kg",165,22),
-            ("Tembaga","TB Kotak","kg",122,23),
-            ("Tembaga","TB Bakau Super","kg",90,24),
-            # ── Kuningan ──
-            ("Kuningan","Bron","kg",169,30),
-            ("Kuningan","Bron Putih","kg",164,31),
-            ("Kuningan","Plat KN","kg",125,32),
-            ("Kuningan","Patrum Bersih","kg",128,33),
-            ("Kuningan","KN Kasar","kg",122,34),
-            ("Kuningan","KN Rosok / KN Puler","kg",119,35),
-            ("Kuningan","KN Kipas","kg",121,36),
-            ("Kuningan","KN Rambut","kg",120,37),
-            ("Kuningan","KN Gelang","kg",107,38),
-            ("Kuningan","AISI","kg",123,39),
-            ("Kuningan","AISI Kawul","kg",120,40),
-            ("Kuningan","RD KN","kg",115,41),
-            ("Kuningan","RD KN Lepas","kg",110,42),
-            ("Kuningan","KN Totok","kg",115,43),
-            ("Kuningan","KN Paten","kg",103,44),
-            ("Kuningan","KN Tanjek","kg",103,45),
-            ("Kuningan","Gram ME","kg",118,46),
-            ("Kuningan","Gram Merah Lembut","kg",113,47),
-            ("Kuningan","Gram KN As","kg",106,48),
-            ("Kuningan","Gram Kemprotok","kg",108,49),
-            ("Kuningan","Gram KN Kawul","kg",103,50),
-            ("Kuningan","Gram Juwana","kg",100,51),
-            ("Kuningan","Awon KN","kg",77,52),
-            # ── Aluminium ──
-            ("Aluminium","AK","kg",50,60),
-            ("Aluminium","AK Bakar","kg",49,61),
-            ("Aluminium","Kusen","kg",47.5,62),
-            ("Aluminium","Siku","kg",43,63),
-            ("Aluminium","Siku Cat","kg",42,64),
-            ("Aluminium","Plat Koran","kg",48,65),
-            ("Aluminium","Plat KPU","kg",43.5,66),
-            ("Aluminium","Plat A","kg",42.5,67),
-            ("Aluminium","Pelek Mobil","kg",44,68),
-            ("Aluminium","Pelek Mobil Krom","kg",43.5,69),
-            ("Aluminium","Seker","kg",40,70),
-            ("Aluminium","Blok","kg",39.5,71),
-            ("Aluminium","Blok 2","kg",36,72),
-            ("Aluminium","Blok Parabola","kg",32.5,73),
-            ("Aluminium","Kampas B","kg",35.5,74),
-            ("Aluminium","Kampas K","kg",27.5,75),
-            ("Aluminium","Plat B","kg",38,76),
-            ("Aluminium","Plat Nomor","kg",39.5,77),
-            ("Aluminium","Plat Lembutan","kg",31,78),
-            ("Aluminium","Plat Jeruk","kg",34.5,79),
-            ("Aluminium","Parfum B","kg",39.5,80),
-            ("Aluminium","Parfum Kotor","kg",18.5,81),
-            ("Aluminium","Nium Dinamo","kg",31.5,82),
-            ("Aluminium","RD N Utuh","kg",34,83),
-            ("Aluminium","RD N Lepas","kg",31,84),
-            ("Aluminium","Panci LPK","kg",37.5,85),
-            ("Aluminium","PC","kg",37,86),
-            ("Aluminium","PC Silitan Bersih","kg",33,87),
-            ("Aluminium","Kaleng","kg",36,88),
-            ("Aluminium","Wajan","kg",31,89),
-            ("Aluminium","Elemen","kg",25.5,90),
-            ("Aluminium","Kerey","kg",24,91),
-            ("Aluminium","Gram Nium","kg",19.5,92),
-            ("Aluminium","Gram Nium Kemprotok","kg",21,93),
-            ("Aluminium","Lelehan Nium","kg",16,94),
-            ("Aluminium","Ring","kg",21.5,95),
-            ("Aluminium","Tutup","kg",15,96),
-            ("Aluminium","Nium Api","kg",15,97),
-            ("Aluminium","Foil","kg",11,98),
-            # ── Stainless ──
-            ("Stainless","Monel","kg",15.5,110),
-            ("Stainless","Monel Cat","kg",15,111),
-            ("Stainless","India","kg",6,112),
-            # ── Timah & Aki ──
-            ("Timah & Aki","Timah KPL","kg",29,120),
-            ("Timah & Aki","Nium KPL","kg",25,121),
-            ("Timah & Aki","Budeng","kg",30,122),
-            ("Timah & Aki","Lakson","kg",32,123),
-            ("Timah & Aki","Lakson RBS","kg",15.5,124),
-            ("Timah & Aki","Aki Bersih Bebas Air","kg",16.4,125),
-        ]
-        for mat, grade, unit, price, sort in seed:
-            cur2.execute("""
-                INSERT INTO buy_prices (material, grade, unit, price, sort_order)
-                VALUES (%s,%s,%s,%s,%s);
-            """, (mat, grade, unit, price, sort))
-
-        conn2.commit()
         cur2.execute("SELECT COUNT(*) FROM buy_prices;")
         n = cur2.fetchone()[0]
-        cur2.close()
-        conn2.close()
-        return f"✅ BERHASIL: buy_prices di-reset dan diisi {n} item. Silakan cek /admin/buy-prices"
+        cur2.close(); conn2.close()
+        return f"OK: buy_prices siap. Total rows: {n}"
     except Exception as e:
-        return f"❌ ERROR: {e}", 500
+        return f"ERROR: {e}", 500
 
 
 # ==================== RUN ====================
