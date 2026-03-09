@@ -1,298 +1,1117 @@
 {% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{
-    --bg:#f4f3f8;--surface:#faf9fe;--white:#fff;--text:#18182a;
-    --sub:#5a5870;--muted:#9b99b8;--border:rgba(154,152,184,.14);
-    --v1:#7c5cfc;--v2:#a78bfa;--vs:rgba(124,92,252,.10);
-    --vg:linear-gradient(135deg,#7c5cfc 0%,#a78bfa 60%,#c4b5fd 100%);
-    --green:#06d6a0;--green-s:rgba(6,214,160,.10);
-    --amber:#f59e0b;--amber-s:rgba(245,158,11,.12);
-    --red:#f43f5e;--red-s:rgba(244,63,94,.10);
-    --sh1:0 2px 10px rgba(24,24,42,.06),0 5px 20px rgba(24,24,42,.05);
-    --sh2:0 10px 32px rgba(124,92,252,.20),0 2px 8px rgba(24,24,42,.07);
-    --neu:inset 4px 4px 8px rgba(24,24,42,.065),inset -4px -4px 8px rgba(255,255,255,.88);
-    --r:22px;--navh:78px;--font:'DM Sans',ui-sans-serif,system-ui,sans-serif;
-    --mono:'IBM Plex Mono',ui-monospace,monospace;
-    --paper-w:80mm; /* set by JS on load */
+  @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap");
+  @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap");
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
-  html{-webkit-tap-highlight-color:transparent}
-  body{font-family:var(--font);background:var(--bg);color:var(--text);padding-bottom:calc(var(--navh)+20px+env(safe-area-inset-bottom));background-image:radial-gradient(ellipse 60% 40% at 10% 0%,rgba(124,92,252,.06) 0%,transparent 60%),radial-gradient(ellipse 50% 35% at 88% 88%,rgba(6,214,160,.05) 0%,transparent 55%)}
-  .screen{display:flex;justify-content:center;padding:14px 14px calc(14px + env(safe-area-inset-bottom));min-height:100dvh}
-  .wrap{width:100%;max-width:520px}
+  :root {
+    --bg: #f4f3f8;
+    --surface: #faf9fe;
+    --white: #fff;
+    --text: #18182a;
+    --sub: #5a5870;
+    --muted: #9b99b8;
+    --border: rgba(154, 152, 184, 0.14);
+    --v1: #7c5cfc;
+    --v2: #a78bfa;
+    --vs: rgba(124, 92, 252, 0.1);
+    --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+    --green: #06d6a0;
+    --green-s: rgba(6, 214, 160, 0.1);
+    --amber: #f59e0b;
+    --amber-s: rgba(245, 158, 11, 0.12);
+    --red: #f43f5e;
+    --red-s: rgba(244, 63, 94, 0.1);
+    --sh1: 0 2px 10px rgba(24, 24, 42, 0.06), 0 5px 20px rgba(24, 24, 42, 0.05);
+    --sh2:
+      0 10px 32px rgba(124, 92, 252, 0.2), 0 2px 8px rgba(24, 24, 42, 0.07);
+    --neu:
+      inset 4px 4px 8px rgba(24, 24, 42, 0.065),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.88);
+    --r: 22px;
+    --navh: 78px;
+    --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --paper-w: 80mm; /* set by JS */
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(var(--navh)+20px+env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(
+        ellipse 60% 40% at 10% 0%,
+        rgba(124, 92, 252, 0.06) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 50% 35% at 88% 88%,
+        rgba(6, 214, 160, 0.05) 0%,
+        transparent 55%
+      );
+  }
+  .screen {
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    min-height: 100dvh;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 520px;
+  }
 
   /* HEADER */
-  .hdr{display:flex;align-items:center;gap:10px;background:var(--white);border-radius:var(--r);box-shadow:var(--sh1);padding:10px 12px;position:relative;overflow:hidden}
-  .hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#7c5cfc,#ff6b6b,#ffb347,#06d6a0,#38bdf8)}
-  .hdr-logo{width:44px;height:44px;border-radius:13px;flex:0 0 44px;overflow:hidden;box-shadow:0 3px 12px rgba(124,92,252,.18);background:#fff}
-  .hdr-logo img{width:100%;height:100%;object-fit:contain}
-  .hdr-info{flex:1;min-width:0;padding:0 8px}
-  .hdr-app{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-  .hdr-name{font-size:14px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hbtn{width:40px;height:40px;border-radius:13px;background:var(--surface);box-shadow:var(--neu);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;text-decoration:none;transition:transform .15s;flex:0 0 40px}
-  .hbtn:hover{transform:translateY(-1px)}
-  .hbtn svg{width:17px;height:17px;stroke:var(--sub);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .hdr {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hdr::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: linear-gradient(
+      90deg,
+      #7c5cfc,
+      #ff6b6b,
+      #ffb347,
+      #06d6a0,
+      #38bdf8
+    );
+  }
+  .hdr-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    flex: 0 0 44px;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
+    background: #fff;
+  }
+  .hdr-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .hdr-info {
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px;
+  }
+  .hdr-app {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .hdr-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hbtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.15s;
+    flex: 0 0 40px;
+  }
+  .hbtn:hover {
+    transform: translateY(-1px);
+  }
+  .hbtn svg {
+    width: 17px;
+    height: 17px;
+    stroke: var(--sub);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 
   /* PRINT ACTION CARD */
-  .print-card{margin-top:13px;background:var(--white);border-radius:var(--r);box-shadow:var(--sh1);overflow:hidden}
-  .pc-hero{background:var(--vg);padding:18px 20px 16px;position:relative;overflow:hidden}
-  .pc-hero::before{content:'';position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.07)}
-  .pc-tag{font-size:9px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.9px}
-  .pc-no{font-size:13px;font-weight:900;color:#fff;margin-top:4px;font-family:var(--mono)}
-  .pc-meta{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;position:relative;z-index:1}
-  .pc-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border-radius:999px;padding:5px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.90)}
-  .pc-body{padding:16px 18px 18px}
+  .print-card {
+    margin-top: 13px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+  }
+  .pc-hero {
+    background: var(--vg);
+    padding: 18px 20px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pc-hero::before {
+    content: "";
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .pc-tag {
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+  }
+  .pc-no {
+    font-size: 13px;
+    font-weight: 900;
+    color: #fff;
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .pc-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+  .pc-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .pc-body {
+    padding: 16px 18px 18px;
+  }
 
-  /* BLUETOOTH STATUS */
-  .bt-status{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--amber-s);border:1.5px solid rgba(245,158,11,.2);margin-bottom:14px;transition:all .3s}
-  .bt-status.connected{background:var(--green-s);border-color:rgba(6,214,160,.25)}
-  .bt-status.error{background:var(--red-s);border-color:rgba(244,63,94,.2)}
-  .bt-dot{width:10px;height:10px;border-radius:50%;background:var(--amber);flex:0 0 10px;transition:background .3s}
-  .bt-status.connected .bt-dot{background:var(--green);animation:btPulse 1.8s ease infinite}
-  .bt-status.error .bt-dot{background:var(--red);animation:none}
-  @keyframes btPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
-  .bt-info{flex:1;min-width:0}
-  .bt-label{font-size:13px;font-weight:800;color:var(--text)}
-  .bt-sub{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
-  .bt-status.connected .bt-label{color:#065f46}
-  .bt-status.error .bt-label{color:#9f1239}
+  /* STATUS BAR */
+  .st-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    margin-bottom: 12px;
+    transition: all 0.3s;
+    min-height: 46px;
+  }
+  .st-bar.ok {
+    background: var(--green-s);
+    box-shadow: none;
+    border: 1.5px solid rgba(6, 214, 160, 0.25);
+  }
+  .st-bar.err {
+    background: var(--red-s);
+    box-shadow: none;
+    border: 1.5px solid rgba(244, 63, 94, 0.2);
+  }
+  .st-bar.loading {
+    background: var(--amber-s);
+    box-shadow: none;
+    border: 1.5px solid rgba(245, 158, 11, 0.2);
+  }
+  .st-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex: 0 0 9px;
+    transition: background 0.3s;
+  }
+  .st-bar.ok .st-dot {
+    background: var(--green);
+    animation: stPulse 1.8s ease infinite;
+  }
+  .st-bar.err .st-dot {
+    background: var(--red);
+  }
+  .st-bar.loading .st-dot {
+    background: var(--amber);
+    animation: stPulse 0.8s ease infinite;
+  }
+  @keyframes stPulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .st-txt {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sub);
+  }
+  .st-bar.ok .st-txt {
+    color: #065f46;
+  }
+  .st-bar.err .st-txt {
+    color: #9f1239;
+  }
+  .st-bar.loading .st-txt {
+    color: #92400e;
+  }
 
   /* SIZE PILLS */
-  .size-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-  .sz-btn{position:relative}
-  .sz-btn input[type="radio"]{position:absolute;opacity:0;width:0;height:0}
-  .sz-btn label{display:flex;align-items:center;justify-content:center;padding:10px 14px;background:var(--surface);box-shadow:var(--neu);border-radius:13px;cursor:pointer;border:2px solid transparent;font-family:var(--font);font-size:13px;font-weight:800;color:var(--sub);transition:all .18s}
-  .sz-btn input:checked + label{border-color:var(--green);color:#065f46;background:#fff;box-shadow:0 6px 18px rgba(6,214,160,.18)}
+  .size-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .sz-btn {
+    position: relative;
+  }
+  .sz-btn input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .sz-btn label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    border-radius: 13px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--sub);
+    transition: all 0.18s;
+  }
+  .sz-btn input:checked + label {
+    border-color: var(--green);
+    color: #065f46;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(6, 214, 160, 0.18);
+  }
 
   /* ACTION BUTTONS */
-  .btn-bt{
-    width:100%;height:54px;border:none;border-radius:16px;
-    background:linear-gradient(135deg,#0ea5e9,#06d6a0);color:#fff;font-weight:900;font-size:15px;
-    cursor:pointer;font-family:var(--font);
-    box-shadow:0 10px 28px rgba(6,214,160,.28);
-    display:flex;align-items:center;justify-content:center;gap:10px;
-    transition:transform .15s,box-shadow .15s;margin-bottom:10px
+  .btn-win {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #2563eb, #7c5cfc);
+    color: #fff;
+    font-weight: 900;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+    box-shadow: 0 10px 28px rgba(124, 92, 252, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+    margin-bottom: 9px;
   }
-  .btn-bt:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(6,214,160,.36)}
-  .btn-bt:disabled{opacity:.55;pointer-events:none}
-  .btn-browser{
-    width:100%;height:48px;border:none;border-radius:14px;
-    background:var(--surface);box-shadow:var(--neu);color:var(--sub);font-weight:800;font-size:14px;
-    cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s;margin-bottom:10px
+  .btn-win:hover {
+    transform: translateY(-2px);
   }
-  .btn-browser:hover{transform:translateY(-1px)}
-  .btn-new{
-    width:100%;height:48px;border:none;border-radius:14px;
-    background:var(--vs);color:var(--v1);font-weight:800;font-size:14px;
-    cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px;
-    text-decoration:none;transition:transform .15s;margin-bottom:10px
+  .btn-win:disabled {
+    opacity: 0.55;
+    pointer-events: none;
   }
-  .btn-new:hover{transform:translateY(-1px)}
-  .btn-back{
-    width:100%;height:44px;border:none;border-radius:13px;
-    background:transparent;color:var(--muted);font-weight:700;font-size:13px;
-    cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;transition:opacity .15s
+  .btn-android {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #16a34a, #06d6a0);
+    color: #fff;
+    font-weight: 900;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+    box-shadow: 0 10px 28px rgba(6, 214, 160, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    transition: transform 0.15s;
+    margin-bottom: 9px;
+    text-decoration: none;
   }
-  .btn-back:hover{opacity:.7}
+  .btn-android:hover {
+    transform: translateY(-2px);
+  }
+  .com-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 9px;
+    align-items: center;
+  }
+  .com-sel {
+    flex: 1;
+    border: none;
+    outline: none;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .com-sel:focus {
+    box-shadow:
+      var(--neu),
+      0 0 0 3px rgba(124, 92, 252, 0.15);
+  }
+  .com-refresh {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s;
+    flex: 0 0 40px;
+  }
+  .com-refresh:hover {
+    transform: rotate(45deg);
+  }
+  .com-refresh svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--sub);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .sec-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0 10px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .sec-divider::before,
+  .sec-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .btn-browser {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    color: var(--sub);
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.15s;
+    margin-bottom: 10px;
+  }
+  .btn-browser:hover {
+    transform: translateY(-1px);
+  }
+  .btn-new {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    background: var(--vs);
+    color: var(--v1);
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: transform 0.15s;
+    margin-bottom: 10px;
+  }
+  .btn-new:hover {
+    transform: translateY(-1px);
+  }
+  .btn-back {
+    width: 100%;
+    height: 44px;
+    border: none;
+    border-radius: 13px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .btn-back:hover {
+    opacity: 0.7;
+  }
 
-  /* BT NOT SUPPORTED */
-  .bt-warn{display:none;background:var(--amber-s);border-radius:14px;padding:12px 14px;font-size:12px;color:#92400e;font-weight:600;line-height:1.5;border:1.5px solid rgba(245,158,11,.2);margin-bottom:14px}
+  /* INFO BOX */
+  .info-box {
+    display: none;
+    background: var(--amber-s);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #92400e;
+    font-weight: 600;
+    line-height: 1.6;
+    border: 1.5px solid rgba(245, 158, 11, 0.2);
+    margin-bottom: 12px;
+  }
 
   /* PREVIEW PAPER */
-  .preview-wrap{margin-top:13px;background:var(--white);border-radius:var(--r);box-shadow:var(--sh1);overflow:hidden}
-  .pw-head{display:flex;align-items:center;gap:10px;padding:13px 18px 12px;border-bottom:1px solid var(--border)}
-  .pw-ico{width:32px;height:32px;border-radius:9px;background:rgba(245,158,11,.12);display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 32px}
-  .pw-title{font-size:14px;font-weight:800;color:var(--text)}
-  .pw-sub{font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
-  .pw-body{padding:16px 18px 20px;display:flex;justify-content:center}
+  .preview-wrap {
+    margin-top: 13px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+  }
+  .pw-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pw-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: rgba(245, 158, 11, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex: 0 0 32px;
+  }
+  .pw-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .pw-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+  .pw-body {
+    padding: 16px 18px 20px;
+    display: flex;
+    justify-content: center;
+  }
 
   /* THERMAL RECEIPT PAPER */
-  .paper{
-    font-family:var(--mono);font-size:12px;color:#111;background:#fff;
-    padding:14px 12px;border-radius:6px;
-    width:var(--paper-w);
-    box-shadow:0 4px 24px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.08);
-    position:relative;
+  .paper {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #111;
+    background: #fff;
+    padding: 14px 12px;
+    border-radius: 6px;
+    width: var(--paper-w);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.12),
+      0 1px 4px rgba(0, 0, 0, 0.08);
+    position: relative;
   }
-  .paper::before,.paper::after{
-    content:'';display:block;height:8px;
-    background:repeating-linear-gradient(90deg,#fff 0px,#fff 4px,#e5e7eb 4px,#e5e7eb 5px);
-    margin:-14px -12px 10px;
+  .paper::before,
+  .paper::after {
+    content: "";
+    display: block;
+    height: 8px;
+    background: repeating-linear-gradient(
+      90deg,
+      #fff 0px,
+      #fff 4px,
+      #e5e7eb 4px,
+      #e5e7eb 5px
+    );
+    margin: -14px -12px 10px;
   }
-  .paper::after{margin:10px -12px -14px;transform:rotate(180deg)}
-  .receipt-logo{text-align:center;margin-bottom:8px}
-  .receipt-logo img{height:36px;object-fit:contain;filter:grayscale(100%) contrast(1.4)}
-  .r-center{text-align:center}
-  .r-bold{font-weight:700}
-  .r-title{font-size:14px;font-weight:700;text-align:center;margin-bottom:2px}
-  .r-sub{font-size:11px;text-align:center;color:#555;margin-bottom:6px}
-  .r-dash{border:none;border-top:1px dashed #999;margin:7px 0}
-  .r-row{display:flex;justify-content:space-between;gap:4px;margin:2px 0;font-size:11px}
-  .r-row .lft{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .r-row .rgt{text-align:right;white-space:nowrap}
-  .r-item-name{font-size:11px;font-weight:700;margin-top:5px;margin-bottom:1px}
-  .r-item-detail{display:flex;justify-content:space-between;font-size:10px;color:#444;margin-bottom:3px}
-  .r-total{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin:3px 0}
-  .r-footer{text-align:center;font-size:11px;margin-top:8px;color:#555}
-  .r-notes{font-size:10px;color:#444;margin-top:4px;font-style:italic}
-  .r-inv{font-family:var(--mono);font-size:9px;text-align:center;color:#888;margin-top:6px;word-break:break-all}
+  .paper::after {
+    margin: 10px -12px -14px;
+    transform: rotate(180deg);
+  }
+  .receipt-logo {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .receipt-logo img {
+    height: 36px;
+    object-fit: contain;
+    filter: grayscale(100%) contrast(1.4);
+  }
+  .r-center {
+    text-align: center;
+  }
+  .r-bold {
+    font-weight: 700;
+  }
+  .r-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 2px;
+  }
+  .r-sub {
+    font-size: 11px;
+    text-align: center;
+    color: #555;
+    margin-bottom: 6px;
+  }
+  .r-dash {
+    border: none;
+    border-top: 1px dashed #999;
+    margin: 7px 0;
+  }
+  .r-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin: 2px 0;
+    font-size: 11px;
+  }
+  .r-row .lft {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .r-row .rgt {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .r-item-name {
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 5px;
+    margin-bottom: 1px;
+  }
+  .r-item-detail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #444;
+    margin-bottom: 3px;
+  }
+  .r-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 3px 0;
+  }
+  .r-footer {
+    text-align: center;
+    font-size: 11px;
+    margin-top: 8px;
+    color: #555;
+  }
+  .r-notes {
+    font-size: 10px;
+    color: #444;
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .r-inv {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-align: center;
+    color: #888;
+    margin-top: 6px;
+    word-break: break-all;
+  }
 
   /* BOTTOM NAV */
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:rgba(244,243,248,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:60}
-  .nav-bar{max-width:448px;margin:0 auto;background:var(--white);border-radius:20px;box-shadow:var(--sh1);padding:7px;display:flex;gap:5px}
-  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 6px;border-radius:14px;color:var(--muted);font-weight:700;font-size:10px;border:none;background:none;cursor:pointer;font-family:var(--font);text-decoration:none;transition:all .16s}
-  .nav-item.active{background:var(--vs);color:var(--v1)}
-  .ni{width:21px;height:21px;flex:0 0 21px}
-  .ni svg{width:100%;height:100%;display:block}
-  .nf{fill:currentColor}.ns{stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(244, 243, 248, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 60;
+  }
+  .nav-bar {
+    max-width: 448px;
+    margin: 0 auto;
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: var(--sh1);
+    padding: 7px;
+    display: flex;
+    gap: 5px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
+    border-radius: 14px;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: var(--font);
+    text-decoration: none;
+    transition: all 0.16s;
+  }
+  .nav-item.active {
+    background: var(--vs);
+    color: var(--v1);
+  }
+  .ni {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 21px;
+  }
+  .ni svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .nf {
+    fill: currentColor;
+  }
+  .ns {
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 
   /* PRINT STYLES */
-  @media print{
-    @page{size:var(--paper-w) auto;margin:0}
-    body{background:#fff;padding:0}
-    .hdr,.print-card,.pw-head,.bottom-nav,.pw-body > *:not(.paper){display:none}
-    .screen,.wrap,.preview-wrap,.pw-body{display:block;padding:0;margin:0;max-width:none;box-shadow:none;background:#fff;border-radius:0}
-    .paper{box-shadow:none;width:100%;border-radius:0}
-    .paper::before,.paper::after{display:none}
+  @media print {
+    @page {
+      size: var(--paper-w) auto;
+      margin: 0;
+    }
+    body {
+      background: #fff;
+      padding: 0;
+    }
+    .hdr,
+    .print-card,
+    .pw-head,
+    .bottom-nav,
+    .pw-body > *:not(.paper) {
+      display: none;
+    }
+    .screen,
+    .wrap,
+    .preview-wrap,
+    .pw-body {
+      display: block;
+      padding: 0;
+      margin: 0;
+      max-width: none;
+      box-shadow: none;
+      background: #fff;
+      border-radius: 0;
+    }
+    .paper {
+      box-shadow: none;
+      width: 100%;
+      border-radius: 0;
+    }
+    .paper::before,
+    .paper::after {
+      display: none;
+    }
   }
 </style>
 
-<div class="screen"><div class="wrap">
-
-  <!-- HEADER -->
-  <div class="hdr">
-    <div class="hdr-logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP"/></div>
-    <div class="hdr-info">
-      <div class="hdr-app">UMGAP · Nota</div>
-      <div class="hdr-name">{{ invoice.invoice_no }}</div>
-    </div>
-    <a href="{{ '/admin/invoice/new' if session.get('role') == 'admin' else '/invoice/new' }}" class="hbtn">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
-    </a>
-  </div>
-
-  <!-- PRINT ACTIONS CARD -->
-  <div class="print-card">
-    <div class="pc-hero">
-      <div class="pc-tag">Nota Penjualan</div>
-      <div class="pc-no">{{ invoice.invoice_no }}</div>
-      <div class="pc-meta" style="position:relative;z-index:1">
-        <span class="pc-pill">{{ invoice.customer_name or 'Tanpa nama' }}</span>
-        <span class="pc-pill">{{ invoice.payment_method }}</span>
-        <span class="pc-pill">Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</span>
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="hdr">
+      <div class="hdr-logo">
+        <img
+          src="{{ url_for('static', filename='UMGAP (1).png') }}"
+          alt="UMGAP"
+        />
       </div>
-    </div>
-
-    <div class="pc-body">
-      <!-- Bluetooth Status -->
-      <div class="bt-status" id="btStatus">
-        <div class="bt-dot" id="btDot"></div>
-        <div class="bt-info">
-          <div class="bt-label" id="btLabel">Bluetooth belum terhubung</div>
-          <div class="bt-sub" id="btSub">Tap tombol di bawah untuk konek ke printer thermal</div>
-        </div>
+      <div class="hdr-info">
+        <div class="hdr-app">UMGAP · Nota</div>
+        <div class="hdr-name">{{ invoice.invoice_no }}</div>
       </div>
-
-      <!-- BT Not Supported Warning -->
-      <div class="bt-warn" id="btWarn">
-        ⚠️ Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome/Edge di Android, atau gunakan Print Browser di bawah.
-      </div>
-
-      <!-- Paper Size -->
-      <div style="margin-bottom:14px">
-        <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Ukuran Kertas</div>
-        <div class="size-row" id="sizeRow">
-          <div class="sz-btn"><input type="radio" name="sz" id="sz-58" value="58"/><label for="sz-58">🖨️ 58mm</label></div>
-          <div class="sz-btn"><input type="radio" name="sz" id="sz-80" value="80" {{ 'checked' if invoice.print_size != '58mm' else '' }}/><label for="sz-80">🖨️ 80mm</label></div>
-        </div>
-
-      </div>
-
-      <!-- Bluetooth Print Button -->
-      <button class="btn-bt" id="btnBtPrint" onclick="btPrint()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/><circle cx="18" cy="11" r="1" fill="currentColor"/></svg>
-        Cetak via Bluetooth
-      </button>
-
-      <!-- Browser Print -->
-      <button class="btn-browser" onclick="window.print()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        Print Browser (Alternatif)
-      </button>
-
-      <!-- New Invoice -->
-      <a class="btn-new" href="{{ '/admin/invoice/new' if session.get('role') == 'admin' else '/invoice/new' }}">
-        + Buat Nota Baru
-      </a>
-
-      <!-- Back to dashboard -->
-      <a class="btn-back" href="{{ '/admin/dashboard' if session.get('role') == 'admin' else '/dashboard' }}">
-        ← Kembali ke Dashboard
+      <a
+        href="{{ '/admin/invoice/new' if session.get('role') == 'admin' else '/invoice/new' }}"
+        class="hbtn"
+      >
+        <svg viewBox="0 0 24 24">
+          <path d="M19 12H5" />
+          <path d="M12 5l-7 7 7 7" />
+        </svg>
       </a>
     </div>
-  </div>
 
-  <!-- RECEIPT PREVIEW -->
-  <div class="preview-wrap">
-    <div class="pw-head">
-      <div class="pw-ico">🧾</div>
-      <div>
-        <div class="pw-title">Preview Nota</div>
-        <div class="pw-sub">Tampilan sesuai kertas thermal yang dipilih</div>
+    <!-- PRINT ACTIONS CARD -->
+    <div class="print-card">
+      <div class="pc-hero">
+        <div class="pc-tag">Nota Penjualan</div>
+        <div class="pc-no">{{ invoice.invoice_no }}</div>
+        <div class="pc-meta" style="position: relative; z-index: 1">
+          <span class="pc-pill"
+            >{{ invoice.customer_name or 'Tanpa nama' }}</span
+          >
+          <span class="pc-pill">{{ invoice.payment_method }}</span>
+          <span class="pc-pill"
+            >Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</span
+          >
+        </div>
+      </div>
+
+      <div class="pc-body">
+        <!-- STATUS BAR -->
+        <div class="st-bar" id="stBar">
+          <div class="st-dot" id="stDot"></div>
+          <div class="st-txt" id="stTxt">Pilih metode cetak di bawah</div>
+        </div>
+
+        <!-- INFO BOX (for warnings) -->
+        <div class="info-box" id="infoBox"></div>
+
+        <!-- UKURAN KERTAS -->
+        <div style="margin-bottom: 13px">
+          <div
+            style="
+              font-size: 10px;
+              font-weight: 800;
+              color: var(--muted);
+              text-transform: uppercase;
+              letter-spacing: 0.7px;
+              margin-bottom: 8px;
+            "
+          >
+            Ukuran Kertas
+          </div>
+          <div class="size-row" id="sizeRow">
+            <div class="sz-btn">
+              <input type="radio" name="sz" id="sz-58" value="58" /><label
+                for="sz-58"
+                >🖨️ 58mm</label
+              >
+            </div>
+            <div class="sz-btn">
+              <input type="radio" name="sz" id="sz-80" value="80" /><label
+                for="sz-80"
+                >🖨️ 80mm</label
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- ── WINDOWS SECTION ── -->
+        <div class="sec-divider">🖥️ Windows / Laptop</div>
+
+        <!-- COM PORT selector -->
+        <div class="com-row">
+          <select class="com-sel" id="comSel">
+            <option value="">— Pilih COM Port Printer —</option>
+          </select>
+          <button class="com-refresh" id="btnRefreshPorts" title="Refresh port">
+            <svg viewBox="0 0 24 24">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path
+                d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <button class="btn-win" id="btnWinPrint">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="4" height="18" rx="1" />
+            <rect x="10" y="3" width="4" height="18" rx="1" />
+            <rect x="17" y="8" width="4" height="13" rx="1" />
+          </svg>
+          Cetak via COM Port (Windows)
+        </button>
+
+        <!-- ── ANDROID SECTION ── -->
+        <div class="sec-divider">📱 Android / HP</div>
+
+        <a class="btn-android" id="btnAndroid" href="#" target="_blank">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 9V2h12v7" />
+            <path
+              d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+            />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          Cetak via RawBT (Android)
+        </a>
+
+        <div
+          id="rawbtHint"
+          style="
+            display: none;
+            font-size: 11px;
+            color: var(--muted);
+            text-align: center;
+            margin-top: -4px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            line-height: 1.5;
+          "
+        >
+          Butuh app <strong>RawBT</strong> di Android.<br />
+          <a
+            href="https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter"
+            target="_blank"
+            style="color: var(--v1)"
+            >Download di Play Store →</a
+          >
+        </div>
+
+        <!-- ── FALLBACK ── -->
+        <div class="sec-divider">Alternatif</div>
+
+        <button class="btn-browser" onclick="window.print()">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 9V2h12v7" />
+            <path
+              d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+            />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          Print Browser (Ctrl+P)
+        </button>
+
+        <!-- New Invoice + Back -->
+        <a
+          class="btn-new"
+          href="{{ '/admin/invoice/new' if session.get('role') == 'admin' else '/invoice/new' }}"
+          >+ Buat Nota Baru</a
+        >
+        <a
+          class="btn-back"
+          href="{{ '/admin/dashboard' if session.get('role') == 'admin' else '/dashboard' }}"
+          >← Kembali ke Dashboard</a
+        >
       </div>
     </div>
-    <div class="pw-body">
-      <div class="paper" id="receiptPaper">
-        <div class="receipt-logo">
-          <img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP"/>
+
+    <!-- RECEIPT PREVIEW -->
+    <div class="preview-wrap">
+      <div class="pw-head">
+        <div class="pw-ico">🧾</div>
+        <div>
+          <div class="pw-title">Preview Nota</div>
+          <div class="pw-sub">Tampilan sesuai kertas thermal yang dipilih</div>
         </div>
-        <div class="r-title">UMGAP</div>
-        <div class="r-sub">Nota Penjualan</div>
-        <hr class="r-dash"/>
-        <div class="r-row"><span class="lft">No</span><span class="rgt r-bold">{{ invoice.invoice_no }}</span></div>
-        <div class="r-row"><span class="lft">Tanggal</span><span class="rgt">{{ invoice.created_at.strftime('%d/%m/%Y %H:%M') if invoice.created_at else '-' }}</span></div>
-        <div class="r-row"><span class="lft">Customer</span><span class="rgt">{{ invoice.customer_name or '-' }}</span></div>
-        <div class="r-row"><span class="lft">Kasir</span><span class="rgt">{{ invoice.created_by_name or '-' }}</span></div>
-        <div class="r-row"><span class="lft">Bayar</span><span class="rgt">{{ invoice.payment_method }}</span></div>
-        <hr class="r-dash"/>
-        {% for item in items %}
-        <div class="r-item-name">{{ item.product_name }}</div>
-        <div class="r-item-detail">
-          <span>{{ item.qty }} x Rp {{ "{:,}".format(item.price).replace(",",".") }}</span>
-          <span>Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</span>
+      </div>
+      <div class="pw-body">
+        <div class="paper" id="receiptPaper">
+          <div class="receipt-logo">
+            <img
+              src="{{ url_for('static', filename='UMGAP (1).png') }}"
+              alt="UMGAP"
+            />
+          </div>
+          <div class="r-title">UMGAP</div>
+          <div class="r-sub">Nota Penjualan</div>
+          <hr class="r-dash" />
+          <div class="r-row">
+            <span class="lft">No</span
+            ><span class="rgt r-bold">{{ invoice.invoice_no }}</span>
+          </div>
+          <div class="r-row">
+            <span class="lft">Tanggal</span
+            ><span class="rgt"
+              >{{ invoice.created_at.strftime('%d/%m/%Y %H:%M') if
+              invoice.created_at else '-' }}</span
+            >
+          </div>
+          <div class="r-row">
+            <span class="lft">Customer</span
+            ><span class="rgt">{{ invoice.customer_name or '-' }}</span>
+          </div>
+          <div class="r-row">
+            <span class="lft">Kasir</span
+            ><span class="rgt">{{ invoice.created_by_name or '-' }}</span>
+          </div>
+          <div class="r-row">
+            <span class="lft">Bayar</span
+            ><span class="rgt">{{ invoice.payment_method }}</span>
+          </div>
+          <hr class="r-dash" />
+          {% for item in items %}
+          <div class="r-item-name">{{ item.product_name }}</div>
+          <div class="r-item-detail">
+            <span
+              >{{ item.qty }} x Rp {{ "{:,}".format(item.price).replace(",",".")
+              }}</span
+            >
+            <span>Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</span>
+          </div>
+          {% endfor %}
+          <hr class="r-dash" />
+          <div class="r-total">
+            <span>TOTAL</span
+            ><span
+              >Rp {{ "{:,}".format(invoice.grand_total).replace(",",".")
+              }}</span
+            >
+          </div>
+          <hr class="r-dash" />
+          {% if invoice.notes %}
+          <div class="r-notes">{{ invoice.notes }}</div>
+          <hr class="r-dash" />
+          {% endif %}
+          <div class="r-footer">Terima kasih sudah berbelanja!</div>
+          <div class="r-inv">{{ invoice.invoice_no }}</div>
         </div>
-        {% endfor %}
-        <hr class="r-dash"/>
-        <div class="r-total"><span>TOTAL</span><span>Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</span></div>
-        <hr class="r-dash"/>
-        {% if invoice.notes %}
-        <div class="r-notes">{{ invoice.notes }}</div>
-        <hr class="r-dash"/>
-        {% endif %}
-        <div class="r-footer">Terima kasih sudah berbelanja!</div>
-        <div class="r-inv">{{ invoice.invoice_no }}</div>
       </div>
     </div>
   </div>
-
-</div></div>
+</div>
 
 <!-- BOTTOM NAV -->
-<div class="bottom-nav"><div class="nav-bar">
-  <a class="nav-item" href="{{ '/admin/dashboard' if session.get('role') == 'admin' else '/dashboard' }}">
-    <span class="ni"><svg viewBox="0 0 24 24"><rect class="nf" x="3" y="3" width="8" height="8" rx="1.6"/><rect class="nf" x="13" y="3" width="8" height="8" rx="1.6"/><rect class="nf" x="3" y="13" width="8" height="8" rx="1.6"/><rect class="nf" x="13" y="13" width="8" height="8" rx="1.6"/></svg></span>
-    <span>Dashboard</span>
-  </a>
-  <a class="nav-item active" href="#">
-    <span class="ni"><svg viewBox="0 0 24 24"><rect class="ns" x="3" y="3" width="18" height="18" rx="2.5"/><path class="ns" d="M8 10h8M8 14h5"/></svg></span>
-    <span>Nota</span>
-  </a>
-</div></div>
+<div class="bottom-nav">
+  <div class="nav-bar">
+    <a
+      class="nav-item"
+      href="{{ '/admin/dashboard' if session.get('role') == 'admin' else '/dashboard' }}"
+    >
+      <span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="13" y="13" width="8" height="8" rx="1.6" /></svg
+      ></span>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-item active" href="#">
+      <span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="ns" x="3" y="3" width="18" height="18" rx="2.5" />
+          <path class="ns" d="M8 10h8M8 14h5" /></svg
+      ></span>
+      <span>Nota</span>
+    </a>
+  </div>
+</div>
 
-<!-- DATA BRIDGE: semua nilai Jinja di sini, dibaca JS via dataset -->
-<div id="invData" style="display:none"
+<!-- DATA BRIDGE: semua nilai Jinja di sini, JS baca via dataset -->
+<div
+  id="invData"
+  style="display: none"
+  data-id="{{ invoice.id }}"
   data-no="{{ invoice.invoice_no }}"
   data-date="{{ invoice.created_at.strftime('%d/%m/%Y %H:%M') if invoice.created_at else '-' }}"
   data-customer="{{ invoice.customer_name or '-' }}"
@@ -305,294 +1124,184 @@
 ></div>
 
 <script>
-/* ═══════════════════════════════════════════════
-   UMGAP · Web Bluetooth ESC/POS Thermal Printer
-   ═══════════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════════
+   UMGAP · Thermal Print Hub
+   ZJ-5809 II · Windows COM Port · Android RawBT
+   ═══════════════════════════════════════════════════ */
 
-// ─── INVOICE DATA (baca dari hidden div, script 100% bersih dari Jinja) ───
-var _d  = document.getElementById('invData').dataset;
-var INV = {
-  no:       _d.no,
-  date:     _d.date,
-  customer: _d.customer,
-  kasir:    _d.kasir,
-  method:   _d.method,
-  grand:    parseInt(_d.grand, 10) || 0,
-  notes:    _d.notes,
-  items:    JSON.parse(_d.items || '[]')
-};
+  // ─── Read invoice data from hidden div (no Jinja in JS) ───
+  var _d = document.getElementById("invData").dataset;
+  var INV_ID = parseInt(_d.id, 10);
+  var INV_PAPERW = _d.paperw || "80mm";
 
-// ─── ESC/POS CONSTANTS ───
-var ESC=0x1B,GS=0x1D;
-var CMD={
-  INIT:    [ESC,0x40],
-  LF:      [0x0A],
-  CUT:     [GS,0x56,0x41,0x00],          // full cut
-  CUT_HALF:[GS,0x56,0x42,0x20],          // partial cut
-  BOLD_ON: [ESC,0x45,0x01],
-  BOLD_OFF:[ESC,0x45,0x00],
-  ALIGN_L: [ESC,0x61,0x00],
-  ALIGN_C: [ESC,0x61,0x01],
-  ALIGN_R: [ESC,0x61,0x02],
-  FONT_NORMAL:[ESC,0x21,0x00],
-  FONT_DOUBLE_H:[ESC,0x21,0x10],         // double height
-  FONT_BIG:[ESC,0x21,0x30],             // double width+height
-  CODEPAGE:[ESC,0x74,0x00],             // PC437
-};
+  // ─── Paper size init ───
+  (function () {
+    document.documentElement.style.setProperty("--paper-w", INV_PAPERW);
+    var r = document.getElementById(INV_PAPERW === "58mm" ? "sz-58" : "sz-80");
+    if (r) r.checked = true;
+  })();
 
-function enc(str){
-  // Simple ASCII encoder; handles basic Latin
-  var bytes=[];
-  for(var i=0;i<str.length;i++){
-    var c=str.charCodeAt(i);
-    bytes.push(c<128?c:0x3F); // '?' for non-ASCII
-  }
-  return bytes;
-}
-
-function pad(str,len,right){
-  str=String(str||'');
-  if(str.length>=len) return str.substring(0,len);
-  var sp=Array(len-str.length+1).join(' ');
-  return right ? sp+str : str+sp;
-}
-
-function rp(n){
-  n=Math.round(Number(n||0));
-  return 'Rp '+n.toLocaleString('id-ID');
-}
-
-function getPaperWidth(){
-  var r=document.querySelector('input[name="sz"]:checked');
-  return r ? parseInt(r.value) : 80;
-}
-
-function getLineWidth(){
-  return getPaperWidth()===58 ? 32 : 48;
-}
-
-function buildESCPOS(){
-  var W=getLineWidth();
-  var bytes=[];
-  function b(arr){for(var i=0;i<arr.length;i++)bytes.push(arr[i])}
-  function t(str){b(enc(str))}
-  function lf(n){for(var i=0;i<(n||1);i++)b(CMD.LF)}
-  function dash(){t(Array(W+1).join('-'));lf()}
-  function row2(left,right){
-    // left-align text, right-align value, fill with spaces
-    left=String(left||'');right=String(right||'');
-    var gap=W-left.length-right.length;
-    if(gap<1)gap=1;
-    t(left+Array(gap+1).join(' ')+right);lf();
-  }
-
-  b(CMD.INIT);
-  b(CMD.CODEPAGE);
-
-  // ─── HEADER ───
-  b(CMD.ALIGN_C);
-  b(CMD.FONT_BIG);b(CMD.BOLD_ON);
-  t('UMGAP');lf();
-  b(CMD.FONT_NORMAL);b(CMD.BOLD_OFF);
-  t('Nota Penjualan');lf();
-  dash();
-
-  // ─── INFO ───
-  b(CMD.ALIGN_L);
-  row2('No',INV.no.substring(0,W-3));
-  row2('Tanggal',INV.date);
-  row2('Customer',(INV.customer||'-').substring(0,W-10));
-  row2('Kasir',(INV.kasir||'-').substring(0,W-6));
-  row2('Bayar',INV.method);
-  dash();
-
-  // ─── ITEMS ───
-  for(var i=0;i<INV.items.length;i++){
-    var item=INV.items[i];
-    b(CMD.BOLD_ON);
-    t(item.name.substring(0,W));lf();
-    b(CMD.BOLD_OFF);
-    row2('  '+item.qty+' x '+rp(item.price), rp(item.sub));
-  }
-  dash();
-
-  // ─── TOTAL ───
-  b(CMD.FONT_DOUBLE_H);b(CMD.BOLD_ON);b(CMD.ALIGN_R);
-  t('TOTAL : '+rp(INV.grand));lf();
-  b(CMD.FONT_NORMAL);b(CMD.BOLD_OFF);b(CMD.ALIGN_L);
-  dash();
-
-  // ─── NOTES ───
-  if(INV.notes){
-    t('Catatan: '+INV.notes.substring(0,W-9));lf();
-    dash();
-  }
-
-  // ─── FOOTER ───
-  b(CMD.ALIGN_C);
-  t('Terima kasih sudah berbelanja!');lf();
-  lf(3);
-
-  // ─── CUT ───
-  b(CMD.CUT_HALF);
-
-  return new Uint8Array(bytes);
-}
-
-// ─── WEB BLUETOOTH ───
-var btDevice=null, btChar=null;
-
-// Most BT thermal printers use this SPP-over-BLE service/char:
-var BT_SERVICES=[
-  '000018f0-0000-1000-8000-00805f9b34fb', // common generic SPP
-  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Issc UART
-  '0000ff00-0000-1000-8000-00805f9b34fb', // alternative
-];
-var BT_CHARS=[
-  '00002af1-0000-1000-8000-00805f9b34fb',
-  '49535343-1e4d-4bd9-ba61-23c647249616',
-  '0000ff02-0000-1000-8000-00805f9b34fb',
-];
-
-function setStatus(state,label,sub){
-  var st=document.getElementById('btStatus');
-  var lb=document.getElementById('btLabel');
-  var sb=document.getElementById('btSub');
-  st.className='bt-status '+(state||'');
-  lb.textContent=label||'';
-  if(sb && sub!==undefined) sb.textContent=sub;
-}
-
-async function connectBT(){
-  if(!navigator.bluetooth){
-    document.getElementById('btWarn').style.display='block';
-    setStatus('error','Web Bluetooth tidak didukung','Gunakan Chrome/Edge di Android');
-    return null;
-  }
-  try{
-    setStatus('','Mencari printer…','Pastikan printer Bluetooth menyala');
-    var filters=[];
-    // Allow any BLE device that might be a printer
-    var dev=await navigator.bluetooth.requestDevice({
-      acceptAllDevices:true,
-      optionalServices:BT_SERVICES
+  // ─── Paper size toggle ───
+  document.querySelectorAll('input[name="sz"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      document.documentElement.style.setProperty("--paper-w", r.value + "mm");
     });
-    setStatus('','Menghubungkan ke '+dev.name+'…','Mohon tunggu sebentar');
-    var server=await dev.gatt.connect();
-    btDevice=dev;
-
-    // Try each known service/char combo
-    for(var si=0;si<BT_SERVICES.length;si++){
-      try{
-        var svc=await server.getPrimaryService(BT_SERVICES[si]);
-        for(var ci=0;ci<BT_CHARS.length;ci++){
-          try{
-            var ch=await svc.getCharacteristic(BT_CHARS[ci]);
-            if(ch){
-              btChar=ch;
-              setStatus('connected','Terhubung: '+dev.name,'Siap mencetak');
-              return ch;
-            }
-          }catch(e2){}
-        }
-      }catch(e1){}
-    }
-
-    // Fallback: scan all services
-    setStatus('','Mendeteksi layanan printer…','');
-    try{
-      var svcs=await server.getPrimaryServices();
-      for(var s=0;s<svcs.length;s++){
-        try{
-          var chars=await svcs[s].getCharacteristics();
-          for(var c=0;c<chars.length;c++){
-            var prop=chars[c].properties;
-            if(prop.write||prop.writeWithoutResponse){
-              btChar=chars[c];
-              setStatus('connected','Terhubung: '+dev.name,'Layanan ditemukan otomatis');
-              return chars[c];
-            }
-          }
-        }catch(e){}
-      }
-    }catch(e){}
-
-    setStatus('error','Tidak ada layanan print ditemukan','Coba printer lain atau Print Browser');
-    return null;
-  }catch(err){
-    if(err.name==='NotFoundError'||err.name==='NotAllowedError'){
-      setStatus('','Koneksi dibatalkan','');
-    } else {
-      setStatus('error','Gagal konek: '+err.message,'Pastikan printer menyala & Bluetooth aktif');
-    }
-    return null;
-  }
-}
-
-async function writeChunk(char,data){
-  var CHUNK=512;
-  for(var i=0;i<data.length;i+=CHUNK){
-    var chunk=data.slice(i,i+CHUNK);
-    try{
-      if(char.properties.writeWithoutResponse){
-        await char.writeValueWithoutResponse(chunk);
-      } else {
-        await char.writeValue(chunk);
-      }
-      // Small delay between chunks
-      await new Promise(function(r){setTimeout(r,30)});
-    }catch(e){
-      throw new Error('Gagal tulis chunk '+i+': '+e.message);
-    }
-  }
-}
-
-async function btPrint(){
-  var btn=document.getElementById('btnBtPrint');
-  btn.disabled=true;
-  btn.textContent='⏳ Mencetak…';
-
-  try{
-    var ch=btChar;
-    if(!ch || !btDevice || !btDevice.gatt.connected){
-      ch=await connectBT();
-    }
-    if(!ch){ btn.disabled=false; btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/><circle cx="18" cy="11" r="1" fill="currentColor"/></svg>Cetak via Bluetooth'; return; }
-
-    setStatus('connected','Mengirim data ke printer…','');
-    var data=buildESCPOS();
-    await writeChunk(ch,data);
-    setStatus('connected','✓ Berhasil dicetak!','Nota sudah keluar dari printer');
-    btn.textContent='✓ Cetak Lagi';
-  }catch(err){
-    setStatus('error','Gagal cetak: '+err.message,'Coba konek ulang atau Print Browser');
-    btChar=null;
-    btn.textContent='🔄 Coba Lagi';
-  }
-  btn.disabled=false;
-}
-
-// Paper size change → update preview CSS var
-document.querySelectorAll('input[name="sz"]').forEach(function(r){
-  r.addEventListener('change',function(){
-    document.documentElement.style.setProperty('--paper-w',r.value+'mm');
   });
-});
 
-// Check BT support on load
-window.addEventListener('DOMContentLoaded',function(){
-  // Set paper size from server data
-  var pw = document.getElementById('invData').dataset.paperw || '80mm';
-  document.documentElement.style.setProperty('--paper-w', pw);
-  if(pw === '58mm') {
-    var r58 = document.getElementById('sz-58');
-    if(r58) r58.checked = true;
+  // ─── Status helper ───
+  function setStatus(state, txt) {
+    var bar = document.getElementById("stBar");
+    bar.className = "st-bar" + (state ? " " + state : "");
+    document.getElementById("stTxt").textContent = txt || "";
+  }
+  function showInfo(msg) {
+    var b = document.getElementById("infoBox");
+    b.innerHTML = msg;
+    b.style.display = msg ? "block" : "none";
   }
 
-  if(!navigator.bluetooth){
-    document.getElementById('btWarn').style.display='block';
-    setStatus('error','Web Bluetooth tidak tersedia','Gunakan Chrome/Edge di Android, atau Print Browser');
+  // ═══════════════════════════════════════════════════
+  // WINDOWS: Print via Flask server → pyserial → COM port
+  // ═══════════════════════════════════════════════════
+
+  function loadPorts() {
+    var sel = document.getElementById("comSel");
+    sel.innerHTML = '<option value="">Memuat port…</option>';
+    fetch("/invoice/" + INV_ID + "/list-ports")
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        sel.innerHTML = '<option value="">— Pilih COM Port Printer —</option>';
+        if (d.ports && d.ports.length) {
+          d.ports.forEach(function (p) {
+            var opt = document.createElement("option");
+            opt.value = p.device;
+            opt.textContent = p.device + " — " + (p.desc || "");
+            // auto-select if name suggests bluetooth/printer
+            if (/bluetooth|spp|printer/i.test(p.desc || ""))
+              opt.selected = true;
+            sel.appendChild(opt);
+          });
+          showInfo("");
+        } else {
+          sel.innerHTML =
+            '<option value="">Tidak ada port (pair printer dulu)</option>';
+          showInfo(
+            "⚠️ Tidak ada COM port ditemukan.<br/>Pastikan printer sudah di-<strong>pair</strong> di Windows: Settings → Bluetooth → Tambahkan perangkat → pilih printer → PIN: <strong>1234</strong>.<br/>Setelah pair, Windows akan assign COM port otomatis.",
+          );
+        }
+      })
+      .catch(function () {
+        sel.innerHTML = '<option value="">Gagal memuat port</option>';
+      });
   }
-});
+
+  document
+    .getElementById("btnRefreshPorts")
+    .addEventListener("click", loadPorts);
+
+  document.getElementById("btnWinPrint").addEventListener("click", function () {
+    var sel = document.getElementById("comSel");
+    var port = sel.value;
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = "⏳ Mengirim ke printer…";
+    setStatus("loading", "Mengirim data ke " + (port || "COM port auto") + "…");
+
+    fetch("/invoice/" + INV_ID + "/print-server", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ port: port }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        if (d.ok) {
+          setStatus(
+            "ok",
+            "✓ Berhasil cetak via " + d.port + " (" + d.bytes + " bytes)",
+          );
+          showInfo("");
+        } else {
+          setStatus("err", "✗ " + d.error);
+          showInfo(
+            "💡 Tips: " +
+              (d.error.indexOf("COM") > -1
+                ? "Cek Device Manager → Ports (COM & LPT) untuk nomor COM printer."
+                : "Pastikan printer menyala & sudah di-pair di Windows."),
+          );
+        }
+      })
+      .catch(function (e) {
+        setStatus("err", "Network error: " + e.message);
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML =
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><rect x="17" y="8" width="4" height="13" rx="1"/></svg> Cetak via COM Port (Windows)';
+      });
+  });
+
+  // ═══════════════════════════════════════════════════
+  // ANDROID: RawBT deep-link
+  // ═══════════════════════════════════════════════════
+  // RawBT opens rawbt:// URI with base64 ESC/POS data
+  // We fetch the /escpos endpoint and encode it
+
+  document.getElementById("btnAndroid").addEventListener("click", function (e) {
+    e.preventDefault();
+    var btn = this;
+    btn.style.opacity = "0.7";
+    setStatus("loading", "Menyiapkan data untuk RawBT…");
+
+    // Check if on Android
+    var isAndroid = /android/i.test(navigator.userAgent);
+
+    fetch("/invoice/" + INV_ID + "/escpos")
+      .then(function (r) {
+        return r.arrayBuffer();
+      })
+      .then(function (buf) {
+        // Convert ArrayBuffer to base64
+        var bytes = new Uint8Array(buf);
+        var binary = "";
+        for (var i = 0; i < bytes.byteLength; i++)
+          binary += String.fromCharCode(bytes[i]);
+        var b64 = btoa(binary);
+
+        // RawBT deep link
+        var uri = "rawbt:base64," + b64;
+
+        if (isAndroid) {
+          window.location.href = uri;
+          setStatus("ok", "✓ Membuka RawBT…");
+          document.getElementById("rawbtHint").style.display = "block";
+        } else {
+          // Not Android — offer download instead
+          setStatus("loading", "Bukan Android. Mengunduh file ESC/POS…");
+          var blob = new Blob([bytes], { type: "application/octet-stream" });
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "nota_" + (_d.no || "print") + ".bin";
+          a.click();
+          setStatus(
+            "ok",
+            "File .bin diunduh — kirim ke Android & buka dengan RawBT",
+          );
+          document.getElementById("rawbtHint").style.display = "block";
+        }
+      })
+      .catch(function (e) {
+        setStatus("err", "Gagal menyiapkan data: " + e.message);
+      })
+      .finally(function () {
+        btn.style.opacity = "1";
+      });
+  });
+
+  // ─── Init on load ───
+  loadPorts();
 </script>
 {% endblock %}
