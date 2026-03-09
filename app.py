@@ -211,6 +211,266 @@ def _otp_hash(email, otp):
     msg = (email.lower().strip() + ":" + otp.strip()).encode("utf-8")
     return hashlib.sha256(salt + msg).hexdigest()
 
+# =========================
+# Helper invoice
+# =========================
+
+def _make_invoice_no():
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    return "INV-" + now.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:5].upper()
+
+
+def _safe_int(v, default=0):
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+def _invoice_rows_from_form(form):
+    product_ids = form.getlist("product_id[]")
+    qtys = form.getlist("qty[]")
+
+    rows = []
+    for i in range(min(len(product_ids), len(qtys))):
+        pid = _safe_int(product_ids[i], 0)
+        qty = _safe_int(qtys[i], 0)
+        if pid > 0 and qty > 0:
+            rows.append({
+                "product_id": pid,
+                "qty": qty
+            })
+    return rows
+
+
+# =========================
+# SIMPAN INVOICE
+# =========================
+
+def _save_invoice(is_admin_mode=False):
+    ensure_invoice_schema()
+
+    created_by = session.get("user_id")
+    customer_name = (request.form.get("customer_name") or "").strip()
+    payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
+    print_size = (request.form.get("print_size") or "80mm").strip()
+    notes = (request.form.get("notes") or "").strip()
+
+    target_user_id = created_by
+    if is_admin_mode:
+        target_user_id = _safe_int(request.form.get("employee_id"), created_by)
+
+    item_rows = _invoice_rows_from_form(request.form)
+    if not item_rows:
+        return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        invoice_no = _make_invoice_no()
+
+        final_items = []
+        subtotal = 0
+
+        for row in item_rows:
+            cur.execute("""
+                SELECT id, name, price
+                FROM products
+                WHERE id=%s AND is_global=TRUE
+                LIMIT 1;
+            """, (row["product_id"],))
+
+            p = cur.fetchone()
+            if not p:
+                continue
+
+            qty = row["qty"]
+            price = int(p.get("price") or 0)
+            line_subtotal = qty * price
+            subtotal += line_subtotal
+
+            final_items.append({
+                "product_id": p["id"],
+                "product_name": p["name"],
+                "qty": qty,
+                "price": price,
+                "subtotal": line_subtotal
+            })
+
+        if not final_items:
+            return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
+
+        grand_total = subtotal
+
+        cur.execute("""
+            INSERT INTO invoices
+                (invoice_no, created_by, customer_name, print_size, payment_method, subtotal, grand_total, notes)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (
+            invoice_no,
+            created_by,
+            customer_name,
+            print_size,
+            payment_method,
+            subtotal,
+            grand_total,
+            notes
+        ))
+
+        invoice_id = (cur.fetchone() or {}).get("id")
+
+        for item in final_items:
+
+            cur.execute("""
+                INSERT INTO invoice_items
+                (invoice_id, product_id, product_name, qty, price, subtotal)
+                VALUES (%s,%s,%s,%s,%s,%s);
+            """, (
+                invoice_id,
+                item["product_id"],
+                item["product_name"],
+                item["qty"],
+                item["price"],
+                item["subtotal"]
+            ))
+
+            # otomatis masuk monitor sales
+            cur.execute("""
+                INSERT INTO sales_submissions
+                (user_id, product_id, qty, note, status, created_at)
+                VALUES (%s,%s,%s,%s,'APPROVED',CURRENT_TIMESTAMP);
+            """, (
+                target_user_id,
+                item["product_id"],
+                item["qty"],
+                f"INVOICE {invoice_no}"
+            ))
+
+        conn.commit()
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect(f"/invoice/{invoice_id}")
+
+# =========================
+# SIMPAN INVOICE
+# =========================
+
+def _save_invoice(is_admin_mode=False):
+    ensure_invoice_schema()
+
+    created_by = session.get("user_id")
+    customer_name = (request.form.get("customer_name") or "").strip()
+    payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
+    print_size = (request.form.get("print_size") or "80mm").strip()
+    notes = (request.form.get("notes") or "").strip()
+
+    target_user_id = created_by
+    if is_admin_mode:
+        target_user_id = _safe_int(request.form.get("employee_id"), created_by)
+
+    item_rows = _invoice_rows_from_form(request.form)
+    if not item_rows:
+        return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        invoice_no = _make_invoice_no()
+
+        final_items = []
+        subtotal = 0
+
+        for row in item_rows:
+            cur.execute("""
+                SELECT id, name, price
+                FROM products
+                WHERE id=%s AND is_global=TRUE
+                LIMIT 1;
+            """, (row["product_id"],))
+
+            p = cur.fetchone()
+            if not p:
+                continue
+
+            qty = row["qty"]
+            price = int(p.get("price") or 0)
+            line_subtotal = qty * price
+            subtotal += line_subtotal
+
+            final_items.append({
+                "product_id": p["id"],
+                "product_name": p["name"],
+                "qty": qty,
+                "price": price,
+                "subtotal": line_subtotal
+            })
+
+        if not final_items:
+            return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
+
+        grand_total = subtotal
+
+        cur.execute("""
+            INSERT INTO invoices
+                (invoice_no, created_by, customer_name, print_size, payment_method, subtotal, grand_total, notes)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (
+            invoice_no,
+            created_by,
+            customer_name,
+            print_size,
+            payment_method,
+            subtotal,
+            grand_total,
+            notes
+        ))
+
+        invoice_id = (cur.fetchone() or {}).get("id")
+
+        for item in final_items:
+
+            cur.execute("""
+                INSERT INTO invoice_items
+                (invoice_id, product_id, product_name, qty, price, subtotal)
+                VALUES (%s,%s,%s,%s,%s,%s);
+            """, (
+                invoice_id,
+                item["product_id"],
+                item["product_name"],
+                item["qty"],
+                item["price"],
+                item["subtotal"]
+            ))
+
+            # otomatis masuk monitor sales
+            cur.execute("""
+                INSERT INTO sales_submissions
+                (user_id, product_id, qty, note, status, created_at)
+                VALUES (%s,%s,%s,%s,'APPROVED',CURRENT_TIMESTAMP);
+            """, (
+                target_user_id,
+                item["product_id"],
+                item["qty"],
+                f"INVOICE {invoice_no}"
+            ))
+
+        conn.commit()
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect(f"/invoice/{invoice_id}")
+
 # ==================== SCHEMA ENSURERS ====================
 def ensure_points_schema():
     conn = get_conn()
@@ -364,6 +624,43 @@ def ensure_attendance_links_schema():
         cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS created_by INTEGER;")
         cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;")
         cur.execute("ALTER TABLE attendance_links ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;")
+
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+# ============== INVOICE GENERATOR ================
+def ensure_invoice_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS invoices (
+                id SERIAL PRIMARY KEY,
+                invoice_no VARCHAR(50) UNIQUE NOT NULL,
+                created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                customer_name VARCHAR(150),
+                print_size VARCHAR(10) NOT NULL DEFAULT '80mm',
+                payment_method VARCHAR(30) DEFAULT 'CASH',
+                subtotal INTEGER NOT NULL DEFAULT 0,
+                grand_total INTEGER NOT NULL DEFAULT 0,
+                notes TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                product_name VARCHAR(150) NOT NULL,
+                qty INTEGER NOT NULL DEFAULT 1,
+                price INTEGER NOT NULL DEFAULT 0,
+                subtotal INTEGER NOT NULL DEFAULT 0
+            );
+        """)
 
         conn.commit()
     finally:
@@ -1834,6 +2131,152 @@ def admin_stats():
         rows.append(row)
 
     return render_template("admin_stats.html", month=month, rows=rows, totals=totals)
+
+# --------- INVOICE ---------
+@app.route("/invoice/new", methods=["GET", "POST"])
+def invoice_new_user():
+    if not is_logged_in():
+        return redirect("/login")
+    if session.get("role") == "admin":
+        return redirect("/admin/invoice/new")
+
+    ensure_invoice_schema()
+
+    if request.method == "POST":
+        return _save_invoice(is_admin_mode=False)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, name, price
+            FROM products
+            WHERE is_global=TRUE
+            ORDER BY name ASC;
+        """)
+        products = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "invoice_form.html",
+        products=products,
+        is_admin_mode=False
+    )
+
+
+@app.route("/admin/invoice/new", methods=["GET", "POST"])
+def invoice_new_admin():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_invoice_schema()
+
+    if request.method == "POST":
+        return _save_invoice(is_admin_mode=True)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, name, price
+            FROM products
+            WHERE is_global=TRUE
+            ORDER BY name ASC;
+        """)
+        products = cur.fetchall()
+
+        cur.execute("""
+            SELECT id, name, email
+            FROM users
+            WHERE role='employee'
+            ORDER BY name ASC;
+        """)
+        employees = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "invoice_form.html",
+        products=products,
+        employees=employees,
+        is_admin_mode=True
+    )
+
+@app.route("/invoice/<int:invoice_id>")
+def invoice_view(invoice_id):
+    if not is_logged_in():
+        return redirect("/login")
+
+    ensure_invoice_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT i.*, u.name AS created_by_name
+            FROM invoices i
+            JOIN users u ON u.id = i.created_by
+            WHERE i.id=%s
+            LIMIT 1;
+        """, (invoice_id,))
+        invoice = cur.fetchone()
+        if not invoice:
+            abort(404)
+
+        cur.execute("""
+            SELECT id, product_id, product_name, qty, price, subtotal
+            FROM invoice_items
+            WHERE invoice_id=%s
+            ORDER BY id ASC;
+        """, (invoice_id,))
+        items = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template("invoice_print.html", invoice=invoice, items=items)
+
+
+@app.route("/invoice/<int:invoice_id>/json")
+def invoice_json(invoice_id):
+    if not is_logged_in():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    ensure_invoice_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT *
+            FROM invoices
+            WHERE id=%s
+            LIMIT 1;
+        """, (invoice_id,))
+        invoice = cur.fetchone()
+        if not invoice:
+            return jsonify({"ok": False, "error": "Invoice tidak ditemukan"}), 404
+
+        cur.execute("""
+            SELECT product_name, qty, price, subtotal
+            FROM invoice_items
+            WHERE invoice_id=%s
+            ORDER BY id ASC;
+        """, (invoice_id,))
+        items = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    return jsonify({
+        "ok": True,
+        "invoice": invoice,
+        "items": items
+    })
 
 # ---------- PRODUCTS ----------
 @app.route("/products")
