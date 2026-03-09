@@ -1,242 +1,951 @@
-<!doctype html>
-<html lang="id">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Buat Nota</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background: #f5f6fb;
-        margin: 0;
-        padding: 20px;
-        color: #1f2a44;
-      }
-      .wrap {
-        max-width: 860px;
-        margin: 0 auto;
-      }
-      .card {
-        background: #fff;
-        border-radius: 18px;
-        padding: 18px;
-        margin-bottom: 16px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-      label {
-        display: block;
-        margin-bottom: 6px;
-        font-size: 13px;
-        font-weight: 700;
-      }
-      input,
-      select,
-      textarea,
-      button {
-        width: 100%;
-        box-sizing: border-box;
-        border: 1px solid #d9deea;
-        border-radius: 12px;
-        padding: 12px;
-        font-size: 14px;
-      }
-      button {
-        background: #2f66f3;
-        color: #fff;
-        font-weight: 800;
-        border: none;
-        cursor: pointer;
-      }
-      .btn-light {
-        background: #eef2ff;
-        color: #2f66f3;
-      }
-      .row-item {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr auto;
-        gap: 10px;
-        margin-bottom: 10px;
-      }
-      .tot {
-        font-weight: 900;
-        font-size: 18px;
-      }
-      @media (max-width: 700px) {
-        .grid,
-        .row-item {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <h2>{{ 'Buat Nota Admin' if is_admin_mode else 'Buat Nota' }}</h2>
-        <div>
-          Pilih produk dari fitur Produk, pilih ukuran thermal 58mm / 80mm, lalu
-          cetak.
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap");
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --bg: #f4f3f8;
+    --surface: #faf9fe;
+    --white: #fff;
+    --text: #18182a;
+    --sub: #5a5870;
+    --muted: #9b99b8;
+    --border: rgba(154, 152, 184, 0.14);
+    --v1: #7c5cfc;
+    --v2: #a78bfa;
+    --vs: rgba(124, 92, 252, 0.1);
+    --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+    --green: #06d6a0;
+    --green-s: rgba(6, 214, 160, 0.1);
+    --amber: #f59e0b;
+    --red: #f43f5e;
+    --red-s: rgba(244, 63, 94, 0.1);
+    --sh1: 0 2px 10px rgba(24, 24, 42, 0.06), 0 5px 20px rgba(24, 24, 42, 0.05);
+    --sh2:
+      0 10px 32px rgba(124, 92, 252, 0.2), 0 2px 8px rgba(24, 24, 42, 0.07);
+    --neu:
+      inset 4px 4px 8px rgba(24, 24, 42, 0.065),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.88);
+    --r: 22px;
+    --navh: 78px;
+    --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(var(--navh)+20px+env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(
+        ellipse 60% 40% at 10% 0%,
+        rgba(124, 92, 252, 0.06) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 50% 35% at 88% 88%,
+        rgba(6, 214, 160, 0.05) 0%,
+        transparent 55%
+      );
+  }
+  .screen {
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    min-height: 100dvh;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 520px;
+  }
+  .hdr {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hdr::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: linear-gradient(
+      90deg,
+      #7c5cfc,
+      #ff6b6b,
+      #ffb347,
+      #06d6a0,
+      #38bdf8
+    );
+  }
+  .hdr-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    flex: 0 0 44px;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hdr-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .hdr-info {
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px;
+  }
+  .hdr-app {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .hdr-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .hbtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.15s;
+    flex: 0 0 40px;
+  }
+  .hbtn:hover {
+    transform: translateY(-1px);
+  }
+  .hbtn svg {
+    width: 17px;
+    height: 17px;
+    stroke: var(--sub);
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .hero {
+    margin-top: 13px;
+    border-radius: 26px;
+    padding: 22px 22px 20px;
+    background: var(--vg);
+    box-shadow: 0 16px 44px rgba(124, 92, 252, 0.28);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    right: -24px;
+    top: -24px;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    pointer-events: none;
+  }
+  .hero-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+  }
+  .hero-title {
+    font-size: 24px;
+    font-weight: 900;
+    color: #fff;
+    margin-top: 5px;
+  }
+  .hero-sub {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 5px;
+    font-weight: 500;
+  }
+  .hero-chips {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 13px;
+  }
+  .hero-chip {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .sec {
+    margin-top: 13px;
+    background: var(--white);
+    border-radius: var(--r);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+  }
+  .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sh-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex: 0 0 34px;
+  }
+  .sh-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .sh-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+  .sec-body {
+    padding: 16px 18px 18px;
+  }
+  .field-lbl {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .f-input,
+  .f-select {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: var(--font);
+    transition: box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .f-input:focus,
+  .f-select:focus {
+    box-shadow:
+      var(--neu),
+      0 0 0 3px rgba(124, 92, 252, 0.15);
+  }
+  .f-input::placeholder {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .field-wrap {
+    margin-bottom: 13px;
+  }
+  .field-wrap:last-child {
+    margin-bottom: 0;
+  }
+  .sel-wrap {
+    position: relative;
+  }
+  .sel-wrap::after {
+    content: "";
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--muted);
+    pointer-events: none;
+  }
+  .pay-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .pay-btn {
+    position: relative;
+  }
+  .pay-btn input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .pay-btn label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 12px 8px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    border-radius: 14px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.18s;
+    font-family: var(--font);
+    text-align: center;
+  }
+  .pay-btn label .pi {
+    font-size: 20px;
+  }
+  .pay-btn label .pl {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--sub);
+  }
+  .pay-btn input:checked + label {
+    border-color: var(--v1);
+    background: #fff;
+    box-shadow: var(--sh2);
+  }
+  .pay-btn input:checked + label .pl {
+    color: var(--v1);
+  }
+  .size-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .size-btn {
+    position: relative;
+  }
+  .size-btn input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .size-btn label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 14px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    border-radius: 14px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.18s;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--sub);
+  }
+  .size-btn input:checked + label {
+    border-color: var(--green);
+    color: #065f46;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(6, 214, 160, 0.18);
+  }
+  .item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 13px;
+  }
+  .item-row {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 12px;
+    border: 1.5px solid var(--border);
+    animation: rowIn 0.25s ease;
+  }
+  @keyframes rowIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .ir-top {
+    display: grid;
+    grid-template-columns: 1fr 64px;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: end;
+  }
+  .ir-bot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .subtotal-pill {
+    flex: 1;
+    background: var(--vs);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--v1);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .qty-lbl {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .del-row {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 10px;
+    background: var(--red-s);
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+    flex: 0 0 34px;
+  }
+  .del-row:hover {
+    background: rgba(244, 63, 94, 0.22);
+    transform: scale(1.06);
+  }
+  .btn-add-row {
+    width: 100%;
+    height: 46px;
+    border: 2px dashed rgba(124, 92, 252, 0.3);
+    border-radius: 14px;
+    background: var(--vs);
+    color: var(--v1);
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.18s;
+  }
+  .btn-add-row:hover {
+    border-color: var(--v1);
+    background: rgba(124, 92, 252, 0.16);
+  }
+  .btn-add-row svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .total-bar {
+    margin-top: 14px;
+    background: var(--vg);
+    border-radius: 18px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 8px 24px rgba(124, 92, 252, 0.22);
+  }
+  .tb-lbl {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tb-val {
+    font-size: 26px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .btn-submit {
+    width: 100%;
+    height: 56px;
+    border: none;
+    border-radius: 18px;
+    background: var(--vg);
+    color: #fff;
+    font-weight: 900;
+    font-size: 16px;
+    cursor: pointer;
+    font-family: var(--font);
+    box-shadow: 0 12px 30px rgba(124, 92, 252, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+    margin-top: 14px;
+  }
+  .btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(124, 92, 252, 0.4);
+  }
+  .btn-submit svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+  .btn-back {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--neu);
+    color: var(--sub);
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    margin-top: 10px;
+    transition: transform 0.15s;
+  }
+  .btn-back:hover {
+    transform: translateY(-1px);
+  }
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(244, 243, 248, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 60;
+  }
+  .nav-bar {
+    max-width: 448px;
+    margin: 0 auto;
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: var(--sh1);
+    padding: 7px;
+    display: flex;
+    gap: 5px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
+    border-radius: 14px;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: var(--font);
+    text-decoration: none;
+    transition: all 0.16s;
+  }
+  .nav-item.active {
+    background: var(--vs);
+    color: var(--v1);
+  }
+  .ni {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 21px;
+  }
+  .ni svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .nf {
+    fill: currentColor;
+  }
+  .ns {
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+</style>
+<div class="screen">
+  <div class="wrap">
+    <div class="hdr">
+      <div class="hdr-logo">
+        <img
+          src="{{ url_for('static', filename='UMGAP (1).png') }}"
+          alt="UMGAP"
+        />
+      </div>
+      <div class="hdr-info">
+        <div class="hdr-app">UMGAP</div>
+        <div class="hdr-name">
+          {{ 'Nota Admin' if is_admin_mode else 'Buat Nota' }}
         </div>
       </div>
-
-      <form method="post">
-        <div class="card">
-          <div class="grid">
-            {% if is_admin_mode %}
-            <div>
-              <label>Karyawan Pemilik Penjualan</label>
-              <select name="employee_id" required>
-                {% for e in employees %}
-                <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
-                {% endfor %}
-              </select>
-            </div>
-            {% endif %}
-
-            <div>
-              <label>Nama Customer</label>
-              <input type="text" name="customer_name" placeholder="Opsional" />
-            </div>
-
-            <div>
-              <label>Ukuran Print</label>
-              <select name="print_size">
-                <option value="58mm">58mm</option>
-                <option value="80mm" selected>80mm</option>
-              </select>
-            </div>
-
-            <div>
-              <label>Metode Pembayaran</label>
-              <select name="payment_method">
-                <option value="CASH">Cash</option>
-                <option value="TRANSFER">Transfer</option>
-                <option value="QRIS">QRIS</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Item Nota</h3>
-          <div id="itemList">
-            <div class="row-item">
-              <select name="product_id[]" required>
-                <option value="">Pilih produk</option>
-                {% for p in products %}
-                <option value="{{ p.id }}" data-price="{{ p.price }}">
-                  {{ p.name }} - Rp {{ "{:,}".format(p.price).replace(",", ".")
-                  }}
-                </option>
-                {% endfor %}
-              </select>
-              <input type="number" name="qty[]" min="1" value="1" required />
-              <input type="text" class="line-sub" value="Rp 0" readonly />
-              <button type="button" class="btn-light del-row">Hapus</button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            id="btnAddRow"
-            class="btn-light"
-            style="margin-top: 8px"
-          >
-            + Tambah Item
-          </button>
-
-          <div style="margin-top: 16px">
-            <label>Catatan</label>
-            <textarea name="notes" placeholder="Opsional"></textarea>
-          </div>
-
-          <div style="margin-top: 16px" class="tot">
-            Total: <span id="grandTotal">Rp 0</span>
-          </div>
-        </div>
-
-        <div class="grid">
-          <button type="submit">Simpan & Buka Nota</button>
-          <a href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
-            ><button type="button" class="btn-light">Kembali</button></a
-          >
-        </div>
-      </form>
+      <a
+        href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+        class="hbtn"
+        ><svg viewBox="0 0 24 24">
+          <path d="M19 12H5" />
+          <path d="M12 5l-7 7 7 7" /></svg
+      ></a>
     </div>
-
-    <script>
-      (function () {
-        var itemList = document.getElementById("itemList");
-        var btnAdd = document.getElementById("btnAddRow");
-        var grand = document.getElementById("grandTotal");
-
-        function rp(n) {
-          n = Math.round(Number(n || 0));
-          return "Rp " + n.toLocaleString("id-ID");
+    <div class="hero">
+      <div style="position: relative; z-index: 1">
+        <div class="hero-tag">Point of Sale</div>
+        <div class="hero-title">
+          🧾 {{ 'Nota Admin' if is_admin_mode else 'Buat Nota Penjualan' }}
+        </div>
+        <div class="hero-sub">
+          Pilih produk, atur jumlah, cetak langsung ke printer thermal
+          Bluetooth.
+        </div>
+        <div class="hero-chips">
+          <span class="hero-chip">🖨️ 58/80mm</span
+          ><span class="hero-chip">📶 Bluetooth</span
+          ><span class="hero-chip">💳 Multi Bayar</span>
+        </div>
+      </div>
+    </div>
+    <form method="post" id="invoiceForm">
+      <div class="sec">
+        <div class="sec-head">
+          <div class="sh-ico" style="background: var(--vs)">👤</div>
+          <div>
+            <div class="sh-title">Info Transaksi</div>
+            <div class="sh-sub">Data pelanggan & kasir</div>
+          </div>
+        </div>
+        <div class="sec-body">
+          {% if is_admin_mode %}
+          <div class="field-wrap">
+            <label class="field-lbl">Karyawan Kasir</label>
+            <div class="sel-wrap">
+              <select class="f-select" name="employee_id" required>
+                {% for e in employees %}
+                <option value="{{ e.id }}">{{ e.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          {% endif %}
+          <div class="field-wrap">
+            <label class="field-lbl">Nama Customer (Opsional)</label
+            ><input
+              class="f-input"
+              type="text"
+              name="customer_name"
+              placeholder="Contoh: Budi, Toko Makmur…"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-head">
+          <div class="sh-ico" style="background: rgba(6, 214, 160, 0.12)">
+            💳
+          </div>
+          <div>
+            <div class="sh-title">Pembayaran & Printer</div>
+            <div class="sh-sub">Metode bayar & ukuran kertas thermal</div>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div class="field-wrap">
+            <label class="field-lbl">Metode Pembayaran</label>
+            <div class="pay-grid">
+              <div class="pay-btn">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  id="pm-cash"
+                  value="CASH"
+                  checked
+                /><label for="pm-cash"
+                  ><span class="pi">💵</span><span class="pl">Cash</span></label
+                >
+              </div>
+              <div class="pay-btn">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  id="pm-tf"
+                  value="TRANSFER"
+                /><label for="pm-tf"
+                  ><span class="pi">🏦</span
+                  ><span class="pl">Transfer</span></label
+                >
+              </div>
+              <div class="pay-btn">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  id="pm-qr"
+                  value="QRIS"
+                /><label for="pm-qr"
+                  ><span class="pi">📱</span><span class="pl">QRIS</span></label
+                >
+              </div>
+            </div>
+          </div>
+          <div class="field-wrap" style="margin-top: 4px">
+            <label class="field-lbl">Ukuran Kertas Thermal</label>
+            <div class="size-grid">
+              <div class="size-btn">
+                <input
+                  type="radio"
+                  name="print_size"
+                  id="sz-58"
+                  value="58mm"
+                /><label for="sz-58">🖨️ 58mm</label>
+              </div>
+              <div class="size-btn">
+                <input
+                  type="radio"
+                  name="print_size"
+                  id="sz-80"
+                  value="80mm"
+                  checked
+                /><label for="sz-80">🖨️ 80mm</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-head">
+          <div class="sh-ico" style="background: rgba(245, 158, 11, 0.12)">
+            🛒
+          </div>
+          <div>
+            <div class="sh-title">Item Nota</div>
+            <div class="sh-sub">Pilih produk & jumlah</div>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div class="item-list" id="itemList">
+            <div class="item-row">
+              <div class="ir-top">
+                <div class="sel-wrap">
+                  <select
+                    class="f-select"
+                    name="product_id[]"
+                    required
+                    style="padding: 9px 30px 9px 12px; font-size: 13px"
+                  >
+                    <option value="">— Pilih Produk —</option>
+                    {% for p in products %}
+                    <option value="{{ p.id }}" data-price="{{ p.price }}">
+                      {{ p.name }} · Rp {{
+                      "{:,}".format(p.price).replace(",",".") }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <div class="qty-lbl">Qty</div>
+                  <input
+                    class="f-input"
+                    type="number"
+                    name="qty[]"
+                    min="1"
+                    value="1"
+                    required
+                    style="
+                      padding: 9px 12px;
+                      font-size: 14px;
+                      text-align: center;
+                      font-weight: 800;
+                    "
+                  />
+                </div>
+              </div>
+              <div class="ir-bot">
+                <div class="subtotal-pill line-sub">Rp 0</div>
+                <button type="button" class="del-row">✕</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-add-row" id="btnAddRow">
+            <svg viewBox="0 0 24 24">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" /></svg
+            >Tambah Item
+          </button>
+          <div class="field-wrap" style="margin-top: 14px">
+            <label class="field-lbl">📝 Catatan (Opsional)</label
+            ><input
+              class="f-input"
+              type="text"
+              name="notes"
+              placeholder="Sudah DP, diskon khusus…"
+              autocomplete="off"
+            />
+          </div>
+          <div class="total-bar">
+            <div><div class="tb-lbl">Total Pembayaran</div></div>
+            <div class="tb-val" id="grandTotal">Rp 0</div>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn-submit">
+        <svg viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+          <path d="M12 5l7 7-7 7" /></svg
+        >Simpan &amp; Buka Nota
+      </button>
+      <a
+        href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+        class="btn-back"
+        >← Kembali</a
+      >
+    </form>
+  </div>
+</div>
+<div class="bottom-nav">
+  <div class="nav-bar">
+    <a
+      class="nav-item"
+      href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+      ><span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
+          <rect
+            class="nf"
+            x="13"
+            y="13"
+            width="8"
+            height="8"
+            rx="1.6"
+          /></svg></span
+      ><span>Dashboard</span></a
+    >
+    <a class="nav-item active" href="#"
+      ><span class="ni"
+        ><svg viewBox="0 0 24 24">
+          <rect class="ns" x="3" y="3" width="18" height="18" rx="2.5" />
+          <path class="ns" d="M8 10h8M8 14h5" /></svg></span
+      ><span>Nota</span></a
+    >
+  </div>
+</div>
+<script>
+  (function () {
+    var L = document.getElementById("itemList"),
+      B = document.getElementById("btnAddRow"),
+      G = document.getElementById("grandTotal");
+    function rp(n) {
+      return "Rp " + Math.round(n).toLocaleString("id-ID");
+    }
+    function bindRow(row) {
+      var s = row.querySelector('select[name="product_id[]"]'),
+        q = row.querySelector('input[name="qty[]"]'),
+        o = row.querySelector(".line-sub"),
+        d = row.querySelector(".del-row");
+      function c() {
+        var op = s.options[s.selectedIndex],
+          p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0,
+          n = parseInt(q.value || "0", 10) || 0;
+        o.textContent = rp(p * n);
+        grand();
+      }
+      s.addEventListener("change", c);
+      q.addEventListener("input", c);
+      d.addEventListener("click", function () {
+        if (L.querySelectorAll(".item-row").length > 1) {
+          row.remove();
+          grand();
         }
-
-        function bindRow(row) {
-          var sel = row.querySelector('select[name="product_id[]"]');
-          var qty = row.querySelector('input[name="qty[]"]');
-          var out = row.querySelector(".line-sub");
-          var del = row.querySelector(".del-row");
-
-          function calc() {
-            var opt = sel.options[sel.selectedIndex];
-            var price = opt
-              ? parseInt(opt.getAttribute("data-price") || "0", 10)
-              : 0;
-            var q = parseInt(qty.value || "0", 10) || 0;
-            out.value = rp(price * q);
-            calcGrand();
-          }
-
-          sel.addEventListener("change", calc);
-          qty.addEventListener("input", calc);
-
-          del.addEventListener("click", function () {
-            if (itemList.querySelectorAll(".row-item").length > 1) {
-              row.remove();
-              calcGrand();
-            }
-          });
-
-          calc();
-        }
-
-        function calcGrand() {
-          var total = 0;
-          itemList.querySelectorAll(".row-item").forEach(function (row) {
-            var sel = row.querySelector('select[name="product_id[]"]');
-            var qty = row.querySelector('input[name="qty[]"]');
-            var opt = sel.options[sel.selectedIndex];
-            var price = opt
-              ? parseInt(opt.getAttribute("data-price") || "0", 10)
-              : 0;
-            var q = parseInt(qty.value || "0", 10) || 0;
-            total += price * q;
-          });
-          grand.textContent = rp(total);
-        }
-
-        btnAdd.addEventListener("click", function () {
-          var first = itemList.querySelector(".row-item");
-          var clone = first.cloneNode(true);
-          clone.querySelector('select[name="product_id[]"]').selectedIndex = 0;
-          clone.querySelector('input[name="qty[]"]').value = "1";
-          clone.querySelector(".line-sub").value = "Rp 0";
-          itemList.appendChild(clone);
-          bindRow(clone);
-          calcGrand();
-        });
-
-        itemList.querySelectorAll(".row-item").forEach(bindRow);
-      })();
-    </script>
-  </body>
-</html>
+      });
+      c();
+    }
+    function grand() {
+      var t = 0;
+      L.querySelectorAll(".item-row").forEach(function (r) {
+        var s = r.querySelector('select[name="product_id[]"]'),
+          q = r.querySelector('input[name="qty[]"]'),
+          o = s.options[s.selectedIndex],
+          p = o ? parseInt(o.getAttribute("data-price") || "0", 10) : 0;
+        t += p * (parseInt(q.value || "0", 10) || 0);
+      });
+      G.textContent = rp(t);
+    }
+    B.addEventListener("click", function () {
+      var f = L.querySelector(".item-row"),
+        c = f.cloneNode(true);
+      c.querySelector('select[name="product_id[]"]').selectedIndex = 0;
+      c.querySelector('input[name="qty[]"]').value = "1";
+      c.querySelector(".line-sub").textContent = "Rp 0";
+      L.appendChild(c);
+      bindRow(c);
+      grand();
+    });
+    L.querySelectorAll(".item-row").forEach(bindRow);
+  })();
+</script>
+{% endblock %}
