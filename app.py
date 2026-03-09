@@ -3651,10 +3651,7 @@ def admin_buy_prices():
     finally:
         cur.close()
         conn.close()
-
-    # Wajib konversi ke plain dict — RealDictRow berisi Decimal & datetime
-    # yang tidak bisa di-serialize tojson Jinja2, akibatnya JSON.parse() di JS
-    # gagal diam-diam dan RAW = [] sehingga halaman tampil kosong
+    # Konversi ke plain dict — Decimal & datetime tidak bisa tojson Jinja2
     rows = []
     for r in raw_rows:
         rows.append({
@@ -3700,8 +3697,10 @@ def admin_buy_prices_save():
             if not row:
                 return jsonify({"ok": False, "error": "Not found"}), 404
             return jsonify({"ok": True, "row": {
-                "id": row["id"], "price": row["price"], "note": row["note"],
-                "is_active": row["is_active"],
+                "id":            int(row["id"]),
+                "price":         float(row["price"]) if row["price"] is not None else 0.0,
+                "note":          str(row["note"] or ""),
+                "is_active":     bool(row["is_active"]),
                 "updated_at_str": row["updated_at"].strftime("%d/%m/%Y %H:%M"),
             }})
         elif action == "add":
@@ -3721,9 +3720,14 @@ def admin_buy_prices_save():
             row = cur.fetchone()
             conn.commit()
             return jsonify({"ok": True, "row": {
-                "id": row["id"], "material": row["material"], "grade": row["grade"],
-                "unit": row["unit"], "price": row["price"], "note": row["note"],
-                "is_active": row["is_active"], "sort_order": row["sort_order"],
+                "id":            int(row["id"]),
+                "material":      str(row["material"] or ""),
+                "grade":         str(row["grade"] or ""),
+                "unit":          str(row["unit"] or "kg"),
+                "price":         float(row["price"]) if row["price"] is not None else 0.0,
+                "note":          str(row["note"] or ""),
+                "is_active":     bool(row["is_active"]) if row["is_active"] is not None else True,
+                "sort_order":    int(row["sort_order"]) if row["sort_order"] is not None else 0,
                 "updated_at_str": row["updated_at"].strftime("%d/%m/%Y %H:%M"),
             }})
         elif action == "delete":
