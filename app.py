@@ -291,14 +291,11 @@ def _save_invoice(is_admin_mode=False):
     ensure_invoice_schema()
 
     created_by = session.get("user_id")
-    customer_name  = (request.form.get("customer_name") or "").strip()
-    customer_phone = (request.form.get("customer_phone") or "").strip()
-    company_name   = (request.form.get("company_name") or "").strip()
+    customer_name = (request.form.get("customer_name") or "").strip()
+    company_name = (request.form.get("company_name") or "").strip()
     payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
-    print_size     = (request.form.get("print_size") or "80mm").strip()
-    notes          = (request.form.get("notes") or "").strip()
-    discount       = _safe_int(request.form.get("discount"), 0)
-    is_paid        = request.form.get("is_paid", "1") not in ("0", "false", "False", "")
+    print_size = (request.form.get("print_size") or "80mm").strip()
+    notes = (request.form.get("notes") or "").strip()
 
     logo_file = request.files.get("company_logo")
     company_logo_path = _save_company_logo(logo_file)
@@ -348,21 +345,26 @@ def _save_invoice(is_admin_mode=False):
         if not final_items:
             return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
 
-        grand_total = max(0, subtotal - discount)
-        now_wib = datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
+        grand_total = subtotal
 
         cur.execute("""
             INSERT INTO invoices
-                (invoice_no, created_by, customer_name, customer_phone, company_name,
-                 company_logo_path, print_size, payment_method, subtotal, discount,
-                 grand_total, notes, is_paid, paid_at)
+                (invoice_no, created_by, customer_name, company_name, company_logo_path,
+                 print_size, payment_method, subtotal, grand_total, notes)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
-            invoice_no, created_by, customer_name, customer_phone, company_name,
-            company_logo_path, print_size, payment_method, subtotal, discount,
-            grand_total, notes, is_paid, now_wib if is_paid else None
+            invoice_no,
+            created_by,
+            customer_name,
+            company_name,
+            company_logo_path,
+            print_size,
+            payment_method,
+            subtotal,
+            grand_total,
+            notes
         ))
 
         invoice_id = (cur.fetchone() or {}).get("id")
@@ -571,27 +573,20 @@ def ensure_invoice_schema():
                 invoice_no VARCHAR(50) UNIQUE NOT NULL,
                 created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 customer_name VARCHAR(150),
-                customer_phone VARCHAR(30),
                 company_name VARCHAR(150),
                 company_logo_path TEXT,
                 print_size VARCHAR(10) NOT NULL DEFAULT '80mm',
                 payment_method VARCHAR(30) DEFAULT 'CASH',
                 subtotal INTEGER NOT NULL DEFAULT 0,
                 grand_total INTEGER NOT NULL DEFAULT 0,
-                discount INTEGER NOT NULL DEFAULT 0,
                 notes TEXT,
-                is_paid BOOLEAN NOT NULL DEFAULT TRUE,
-                paid_at TIMESTAMP,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        # migrations untuk DB lama
+
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_name VARCHAR(150);")
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_logo_path TEXT;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30);")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_paid BOOLEAN NOT NULL DEFAULT TRUE;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;")
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS invoice_items (
                 id SERIAL PRIMARY KEY,
@@ -603,6 +598,7 @@ def ensure_invoice_schema():
                 subtotal INTEGER NOT NULL DEFAULT 0
             );
         """)
+
         conn.commit()
     finally:
         cur.close()
@@ -2180,10 +2176,6 @@ def invoice_view(invoice_id):
         conn.close()
 
     invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
-    invoice["paid_at_wib"]    = _utc_naive_to_wib_string(invoice.get("paid_at")) if invoice.get("paid_at") else None
-    invoice.setdefault("is_paid", True)
-    invoice.setdefault("discount", 0)
-    invoice.setdefault("customer_phone", "")
 
     return render_template("invoice_print.html", invoice=invoice, items=items)
 
@@ -2262,6 +2254,8 @@ def invoice_pdf(invoice_id):
     invoice.setdefault("is_paid", True)
     invoice.setdefault("discount", 0)
     invoice.setdefault("customer_phone", "")
+    invoice.setdefault("company_name", "")
+    invoice.setdefault("company_logo_path", None)
 
     html = render_template("invoice_pdf.html", invoice=invoice, items=items)
 
@@ -3249,89 +3243,6 @@ def preview_template(name):
 
 # ==================== THERMAL PRINT API ====================
 
-
-# ==================== INVOICE TAMBAHAN ====================
-
-@app.route("/invoice/<int:invoice_id>/mark-paid", methods=["POST"])
-def invoice_mark_paid(invoice_id):
-    """Toggle status lunas/belum lunas invoice."""
-    if not is_logged_in():
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
-    ensure_invoice_schema()
-    data    = request.get_json(silent=True) or {}
-    is_paid = bool(data.get("is_paid", True))
-    now_wib = datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            UPDATE invoices SET is_paid=%s, paid_at=%s WHERE id=%s
-            RETURNING id, is_paid, paid_at;
-        """, (is_paid, now_wib if is_paid else None, invoice_id))
-        row = cur.fetchone()
-        conn.commit()
-        if not row:
-            return jsonify({"ok": False, "error": "Invoice tidak ditemukan"}), 404
-        return jsonify({
-            "ok": True,
-            "is_paid": row["is_paid"],
-            "paid_at": _utc_naive_to_wib_string(row.get("paid_at")) if row.get("paid_at") else None
-        })
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
-    finally:
-        cur.close()
-        conn.close()
-
-
-@app.route("/invoice/<int:invoice_id>/whatsapp-text")
-def invoice_whatsapp_text(invoice_id):
-    """Return teks nota untuk dikirim via WhatsApp."""
-    if not is_logged_in():
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
-    ensure_invoice_schema()
-    inv, items = _get_invoice_with_items(invoice_id)
-    if not inv:
-        return jsonify({"ok": False, "error": "Invoice tidak ditemukan"}), 404
-
-    inv.setdefault("is_paid", True)
-    inv.setdefault("discount", 0)
-
-    grand    = int(inv.get("grand_total") or 0)
-    discount = int(inv.get("discount") or 0)
-    subtotal = int(inv.get("subtotal") or 0)
-    is_paid  = bool(inv.get("is_paid", True))
-    company  = (inv.get("company_name") or "UMGAP").strip()
-
-    def rp(n): return "Rp {:,}".format(int(n or 0)).replace(",", ".")
-
-    lines = [
-        f"🧾 *NOTA PENJUALAN — {company}*",
-        "━━━━━━━━━━━━━━━━━━",
-        f"No      : {inv.get('invoice_no','')}",
-        f"Tanggal : {_utc_naive_to_wib_string(inv.get('created_at'))}",
-        f"Customer: {inv.get('customer_name') or '-'}",
-        f"Kasir   : {inv.get('created_by_name') or '-'}",
-        f"Bayar   : {inv.get('payment_method','CASH')}",
-        "━━━━━━━━━━━━━━━━━━",
-    ]
-    for item in items:
-        lines.append(f"• *{item.get('product_name','')}*")
-        lines.append(f"  {item.get('qty',1)} x {rp(item.get('price',0))} = {rp(item.get('subtotal',0))}")
-    lines.append("━━━━━━━━━━━━━━━━━━")
-    if discount > 0:
-        lines.append(f"Subtotal : {rp(subtotal)}")
-        lines.append(f"Diskon   : -{rp(discount)}")
-    lines.append(f"*TOTAL   : {rp(grand)}*")
-    lines.append(f"Status   : {'✅ *LUNAS*' if is_paid else '⏳ *BELUM LUNAS*'}")
-    if inv.get("notes"):
-        lines += ["━━━━━━━━━━━━━━━━━━", f"Catatan: {inv['notes']}"]
-    lines += ["━━━━━━━━━━━━━━━━━━", "Terima kasih sudah berbelanja! 🙏"]
-
-    return jsonify({"ok": True, "text": "\n".join(lines), "phone": inv.get("customer_phone") or ""})
-
-
 def _build_escpos(invoice, items, paper_width=80):
     """Build ESC/POS byte array for ZJ-5809 II and similar BT thermal printers."""
     import struct
@@ -3420,17 +3331,6 @@ def _build_escpos(invoice, items, paper_width=80):
     if notes:
         b(enc('Catatan: ' + notes[:W-9]) + [LF])
         b(dash)
-
-    # Status lunas
-    is_paid = bool(invoice.get('is_paid', True))
-    b([ESC, 0x61, 0x01])        # center
-    b([ESC, 0x45, 0x01])        # bold on
-    if is_paid:
-        b(enc('*** LUNAS ***') + [LF])
-    else:
-        b(enc('*** BELUM LUNAS ***') + [LF])
-    b([ESC, 0x45, 0x00])        # bold off
-    b(dash)
 
     # Footer
     b([ESC, 0x61, 0x01])        # center
