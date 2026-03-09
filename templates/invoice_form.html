@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Buat Nota</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f6fb;
+        margin: 0;
+        padding: 20px;
+        color: #1f2a44;
+      }
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #fff;
+        border-radius: 18px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #d9deea;
+        border-radius: 12px;
+        padding: 12px;
+        font-size: 14px;
+      }
+      button {
+        background: #2f66f3;
+        color: #fff;
+        font-weight: 800;
+        border: none;
+        cursor: pointer;
+      }
+      .btn-light {
+        background: #eef2ff;
+        color: #2f66f3;
+      }
+      .row-item {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr auto;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .tot {
+        font-weight: 900;
+        font-size: 18px;
+      }
+      @media (max-width: 700px) {
+        .grid,
+        .row-item {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h2>{{ 'Buat Nota Admin' if is_admin_mode else 'Buat Nota' }}</h2>
+        <div>
+          Pilih produk dari fitur Produk, pilih ukuran thermal 58mm / 80mm, lalu
+          cetak.
+        </div>
+      </div>
+
+      <form method="post">
+        <div class="card">
+          <div class="grid">
+            {% if is_admin_mode %}
+            <div>
+              <label>Karyawan Pemilik Penjualan</label>
+              <select name="employee_id" required>
+                {% for e in employees %}
+                <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+
+            <div>
+              <label>Nama Customer</label>
+              <input type="text" name="customer_name" placeholder="Opsional" />
+            </div>
+
+            <div>
+              <label>Ukuran Print</label>
+              <select name="print_size">
+                <option value="58mm">58mm</option>
+                <option value="80mm" selected>80mm</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Metode Pembayaran</label>
+              <select name="payment_method">
+                <option value="CASH">Cash</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="QRIS">QRIS</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Item Nota</h3>
+          <div id="itemList">
+            <div class="row-item">
+              <select name="product_id[]" required>
+                <option value="">Pilih produk</option>
+                {% for p in products %}
+                <option value="{{ p.id }}" data-price="{{ p.price }}">
+                  {{ p.name }} - Rp {{ "{:,}".format(p.price).replace(",", ".")
+                  }}
+                </option>
+                {% endfor %}
+              </select>
+              <input type="number" name="qty[]" min="1" value="1" required />
+              <input type="text" class="line-sub" value="Rp 0" readonly />
+              <button type="button" class="btn-light del-row">Hapus</button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="btnAddRow"
+            class="btn-light"
+            style="margin-top: 8px"
+          >
+            + Tambah Item
+          </button>
+
+          <div style="margin-top: 16px">
+            <label>Catatan</label>
+            <textarea name="notes" placeholder="Opsional"></textarea>
+          </div>
+
+          <div style="margin-top: 16px" class="tot">
+            Total: <span id="grandTotal">Rp 0</span>
+          </div>
+        </div>
+
+        <div class="grid">
+          <button type="submit">Simpan & Buka Nota</button>
+          <a href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+            ><button type="button" class="btn-light">Kembali</button></a
+          >
+        </div>
+      </form>
+    </div>
+
+    <script>
+      (function () {
+        var itemList = document.getElementById("itemList");
+        var btnAdd = document.getElementById("btnAddRow");
+        var grand = document.getElementById("grandTotal");
+
+        function rp(n) {
+          n = Math.round(Number(n || 0));
+          return "Rp " + n.toLocaleString("id-ID");
+        }
+
+        function bindRow(row) {
+          var sel = row.querySelector('select[name="product_id[]"]');
+          var qty = row.querySelector('input[name="qty[]"]');
+          var out = row.querySelector(".line-sub");
+          var del = row.querySelector(".del-row");
+
+          function calc() {
+            var opt = sel.options[sel.selectedIndex];
+            var price = opt
+              ? parseInt(opt.getAttribute("data-price") || "0", 10)
+              : 0;
+            var q = parseInt(qty.value || "0", 10) || 0;
+            out.value = rp(price * q);
+            calcGrand();
+          }
+
+          sel.addEventListener("change", calc);
+          qty.addEventListener("input", calc);
+
+          del.addEventListener("click", function () {
+            if (itemList.querySelectorAll(".row-item").length > 1) {
+              row.remove();
+              calcGrand();
+            }
+          });
+
+          calc();
+        }
+
+        function calcGrand() {
+          var total = 0;
+          itemList.querySelectorAll(".row-item").forEach(function (row) {
+            var sel = row.querySelector('select[name="product_id[]"]');
+            var qty = row.querySelector('input[name="qty[]"]');
+            var opt = sel.options[sel.selectedIndex];
+            var price = opt
+              ? parseInt(opt.getAttribute("data-price") || "0", 10)
+              : 0;
+            var q = parseInt(qty.value || "0", 10) || 0;
+            total += price * q;
+          });
+          grand.textContent = rp(total);
+        }
+
+        btnAdd.addEventListener("click", function () {
+          var first = itemList.querySelector(".row-item");
+          var clone = first.cloneNode(true);
+          clone.querySelector('select[name="product_id[]"]').selectedIndex = 0;
+          clone.querySelector('input[name="qty[]"]').value = "1";
+          clone.querySelector(".line-sub").value = "Rp 0";
+          itemList.appendChild(clone);
+          bindRow(clone);
+          calcGrand();
+        });
+
+        itemList.querySelectorAll(".row-item").forEach(bindRow);
+      })();
+    </script>
+  </body>
+</html>
