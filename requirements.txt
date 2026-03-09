@@ -10,3 +10,4 @@ itsdangerous
 typing_extensions>=4.11
 pydantic>=2.7,<3
 openai>=1.40
+weasyprint
