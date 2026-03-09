@@ -2245,8 +2245,11 @@ def invoice_pdf(invoice_id):
         cur.close()
         conn.close()
 
+    invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
+
     html = render_template("invoice_pdf.html", invoice=invoice, items=items)
 
+    # 1) coba weasyprint dulu
     try:
         from weasyprint import HTML
         pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
@@ -2256,8 +2259,34 @@ def invoice_pdf(invoice_id):
             as_attachment=True,
             download_name=f"{invoice['invoice_no']}.pdf"
         )
-    except Exception as e:
-        return f"Gagal membuat PDF. Install dulu weasyprint. Error: {e}", 500
+    except Exception as e_weasy:
+        # 2) fallback ke xhtml2pdf
+        try:
+            from xhtml2pdf import pisa
+
+            pdf_io = io.BytesIO()
+            pisa_status = pisa.CreatePDF(
+                io.StringIO(html),
+                dest=pdf_io
+            )
+
+            if pisa_status.err:
+                return f"Gagal membuat PDF. WeasyPrint error: {e_weasy} | xhtml2pdf juga gagal.", 500
+
+            pdf_io.seek(0)
+            return send_file(
+                pdf_io,
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=f"{invoice['invoice_no']}.pdf"
+            )
+        except Exception as e_xhtml:
+            return (
+                "Gagal membuat PDF.<br>"
+                f"WeasyPrint error: {e_weasy}<br>"
+                f"xhtml2pdf error: {e_xhtml}",
+                500
+            )
 
 # ---------- PRODUCTS ----------
 @app.route("/products")
