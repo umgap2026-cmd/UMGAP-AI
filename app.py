@@ -3445,6 +3445,185 @@ def invoice_list_ports(invoice_id):
     return jsonify({"ok": True, "ports": ports})
 
 
+# ==================== HARGA BELI SCRAP ====================
+
+def ensure_buy_prices_schema():
+    """Buat tabel harga beli scrap material untuk landing page."""
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS buy_prices (
+                id         SERIAL PRIMARY KEY,
+                material   VARCHAR(100) NOT NULL,
+                grade      VARCHAR(100) NOT NULL DEFAULT '',
+                unit       VARCHAR(20)  NOT NULL DEFAULT 'kg',
+                price      INTEGER      NOT NULL DEFAULT 0,
+                note       TEXT,
+                is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
+                sort_order INTEGER      NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        # seed default materials if empty
+        cur.execute("SELECT COUNT(*) AS n FROM buy_prices;")
+        if cur.fetchone()[0] == 0:
+            defaults = [
+                ("Kuningan",   "Grade A (Kuning bersih)",    "kg", 0, 0),
+                ("Kuningan",   "Grade B (Campur/terkontaminasi)", "kg", 0, 1),
+                ("Aluminium",  "Grade A (Bersih/solid)",     "kg", 0, 2),
+                ("Aluminium",  "Grade B (Campur/tip)",       "kg", 0, 3),
+                ("Tembaga",    "Grade A (BC Bright)",        "kg", 0, 4),
+                ("Tembaga",    "Grade B (Campuran)",         "kg", 0, 5),
+                ("Stainless",  "Grade 304",                  "kg", 0, 6),
+                ("Stainless",  "Grade 201/lainnya",          "kg", 0, 7),
+            ]
+            for mat, grade, unit, price, sort in defaults:
+                cur.execute("""
+                    INSERT INTO buy_prices (material, grade, unit, price, sort_order)
+                    VALUES (%s,%s,%s,%s,%s);
+                """, (mat, grade, unit, price, sort))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/buy-prices")
+def api_buy_prices():
+    """Public API — harga beli untuk landing page."""
+    ensure_buy_prices_schema()
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, material, grade, unit, price, note, updated_at
+            FROM buy_prices
+            WHERE is_active = TRUE
+            ORDER BY sort_order ASC, id ASC;
+        """)
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    items = []
+    for r in rows:
+        items.append({
+            "id":       r["id"],
+            "material": r["material"],
+            "grade":    r["grade"],
+            "unit":     r["unit"],
+            "price":    r["price"],
+            "note":     r["note"] or "",
+            "updated_at": r["updated_at"].strftime("%d/%m/%Y") if r["updated_at"] else "-",
+        })
+    # group by material
+    groups = {}
+    for it in items:
+        m = it["material"]
+        if m not in groups:
+            groups[m] = []
+        groups[m].append(it)
+    return jsonify({"ok": True, "groups": [{"material": k, "items": v} for k, v in groups.items()]})
+
+
+@app.route("/admin/buy-prices")
+def admin_buy_prices():
+    """Halaman kelola harga beli scrap."""
+    deny = admin_required()
+    if deny:
+        return deny
+    ensure_buy_prices_schema()
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, material, grade, unit, price, note, is_active, sort_order, updated_at
+            FROM buy_prices ORDER BY sort_order ASC, id ASC;
+        """)
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    for r in rows:
+        if r["updated_at"]:
+            r["updated_at_str"] = r["updated_at"].strftime("%d/%m/%Y %H:%M")
+        else:
+            r["updated_at_str"] = "-"
+    return render_template("admin_buy_prices.html", rows=rows)
+
+
+@app.route("/admin/buy-prices/save", methods=["POST"])
+def admin_buy_prices_save():
+    """Simpan perubahan harga beli (upsert via JSON)."""
+    deny = admin_required()
+    if deny:
+        return deny
+    ensure_buy_prices_schema()
+    data = request.get_json(silent=True) or {}
+    action = data.get("action", "")
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if action == "update":
+            pid    = int(data.get("id", 0))
+            price  = max(0, int(data.get("price", 0) or 0))
+            note   = (data.get("note") or "").strip()
+            is_active = bool(data.get("is_active", True))
+            cur.execute("""
+                UPDATE buy_prices
+                SET price=%s, note=%s, is_active=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+                RETURNING id, price, note, is_active, updated_at;
+            """, (price, note, is_active, pid))
+            row = cur.fetchone()
+            conn.commit()
+            if not row:
+                return jsonify({"ok": False, "error": "Not found"}), 404
+            return jsonify({"ok": True, "row": {
+                "id": row["id"], "price": row["price"], "note": row["note"],
+                "is_active": row["is_active"],
+                "updated_at_str": row["updated_at"].strftime("%d/%m/%Y %H:%M"),
+            }})
+        elif action == "add":
+            material = (data.get("material") or "").strip()
+            grade    = (data.get("grade") or "").strip()
+            unit     = (data.get("unit") or "kg").strip()
+            price    = max(0, int(data.get("price", 0) or 0))
+            note     = (data.get("note") or "").strip()
+            if not material:
+                return jsonify({"ok": False, "error": "Material wajib diisi"}), 400
+            cur.execute("""
+                INSERT INTO buy_prices (material, grade, unit, price, note, sort_order)
+                VALUES (%s,%s,%s,%s,%s,
+                    (SELECT COALESCE(MAX(sort_order),0)+1 FROM buy_prices))
+                RETURNING id, material, grade, unit, price, note, is_active, sort_order, updated_at;
+            """, (material, grade, unit, price, note))
+            row = cur.fetchone()
+            conn.commit()
+            return jsonify({"ok": True, "row": {
+                "id": row["id"], "material": row["material"], "grade": row["grade"],
+                "unit": row["unit"], "price": row["price"], "note": row["note"],
+                "is_active": row["is_active"], "sort_order": row["sort_order"],
+                "updated_at_str": row["updated_at"].strftime("%d/%m/%Y %H:%M"),
+            }})
+        elif action == "delete":
+            pid = int(data.get("id", 0))
+            cur.execute("DELETE FROM buy_prices WHERE id=%s;", (pid,))
+            conn.commit()
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": "Unknown action"}), 400
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 # ==================== RUN ====================
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
