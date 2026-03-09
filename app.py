@@ -3456,9 +3456,9 @@ def ensure_buy_prices_schema():
             CREATE TABLE IF NOT EXISTS buy_prices (
                 id         SERIAL PRIMARY KEY,
                 material   VARCHAR(100) NOT NULL,
-                grade      VARCHAR(100) NOT NULL DEFAULT '',
+                grade      VARCHAR(150) NOT NULL DEFAULT '',
                 unit       VARCHAR(20)  NOT NULL DEFAULT 'kg',
-                price      INTEGER      NOT NULL DEFAULT 0,
+                price      NUMERIC(10,1) NOT NULL DEFAULT 0,
                 note       TEXT,
                 is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
                 sort_order INTEGER      NOT NULL DEFAULT 0,
@@ -3466,18 +3466,96 @@ def ensure_buy_prices_schema():
                 created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        # seed default materials if empty
+        cur.execute("ALTER TABLE buy_prices ALTER COLUMN price TYPE NUMERIC(10,1) USING price::NUMERIC;")
         cur.execute("SELECT COUNT(*) AS n FROM buy_prices;")
         if cur.fetchone()[0] == 0:
             defaults = [
-                ("Kuningan",   "Grade A (Kuning bersih)",    "kg", 0, 0),
-                ("Kuningan",   "Grade B (Campur/terkontaminasi)", "kg", 0, 1),
-                ("Aluminium",  "Grade A (Bersih/solid)",     "kg", 0, 2),
-                ("Aluminium",  "Grade B (Campur/tip)",       "kg", 0, 3),
-                ("Tembaga",    "Grade A (BC Bright)",        "kg", 0, 4),
-                ("Tembaga",    "Grade B (Campuran)",         "kg", 0, 5),
-                ("Stainless",  "Grade 304",                  "kg", 0, 6),
-                ("Stainless",  "Grade 201/lainnya",          "kg", 0, 7),
+                ("Tembaga", "TM", "kg", 205, 10),
+                ("Tembaga", "TS / TS Halus", "kg", 202, 11),
+                ("Tembaga", "BC", "kg", 198.5, 12),
+                ("Tembaga", "Telkom / TB Pipa", "kg", 197.5, 13),
+                ("Tembaga", "TB / TB Bakar", "kg", 189, 14),
+                ("Tembaga", "TB Putih Lidi", "kg", 189, 15),
+                ("Tembaga", "TB Putih", "kg", 184, 16),
+                ("Tembaga", "DD", "kg", 182, 17),
+                ("Tembaga", "Gram TB", "kg", 150, 18),
+                ("Tembaga", "Gram TB Lembut", "kg", 140, 19),
+                ("Tembaga", "Jarum TB Putih", "kg", 147.5, 20),
+                ("Tembaga", "Jarum TB Hitam", "kg", 150.5, 21),
+                ("Tembaga", "RD TB", "kg", 165, 22),
+                ("Tembaga", "TB Kotak", "kg", 122, 23),
+                ("Tembaga", "TB Bakau Super", "kg", 90, 24),
+                ("Kuningan", "Bron", "kg", 169, 30),
+                ("Kuningan", "Bron Putih", "kg", 164, 31),
+                ("Kuningan", "Plat KN", "kg", 125, 32),
+                ("Kuningan", "Patrum Bersih", "kg", 128, 33),
+                ("Kuningan", "KN Kasar", "kg", 122, 34),
+                ("Kuningan", "KN Rosok / KN Puler", "kg", 119, 35),
+                ("Kuningan", "KN Kipas", "kg", 121, 36),
+                ("Kuningan", "KN Rambut", "kg", 120, 37),
+                ("Kuningan", "KN Gelang", "kg", 107, 38),
+                ("Kuningan", "AISI", "kg", 123, 39),
+                ("Kuningan", "AISI Kawul", "kg", 120, 40),
+                ("Kuningan", "RD KN", "kg", 115, 41),
+                ("Kuningan", "RD KN Lepas", "kg", 110, 42),
+                ("Kuningan", "KN Totok", "kg", 115, 43),
+                ("Kuningan", "KN Paten", "kg", 103, 44),
+                ("Kuningan", "KN Tanjek", "kg", 103, 45),
+                ("Kuningan", "Gram ME", "kg", 118, 46),
+                ("Kuningan", "Gram Merah Lembut", "kg", 113, 47),
+                ("Kuningan", "Gram KN As", "kg", 106, 48),
+                ("Kuningan", "Gram Kemprotok", "kg", 108, 49),
+                ("Kuningan", "Gram KN Kawul", "kg", 103, 50),
+                ("Kuningan", "Gram Juwana", "kg", 100, 51),
+                ("Kuningan", "Awon KN", "kg", 77, 52),
+                ("Aluminium", "AK", "kg", 50, 60),
+                ("Aluminium", "AK Bakar", "kg", 49, 61),
+                ("Aluminium", "Kusen", "kg", 47.5, 62),
+                ("Aluminium", "Siku", "kg", 43, 63),
+                ("Aluminium", "Siku Cat", "kg", 42, 64),
+                ("Aluminium", "Plat Koran", "kg", 48, 65),
+                ("Aluminium", "Plat KPU", "kg", 43.5, 66),
+                ("Aluminium", "Plat A", "kg", 42.5, 67),
+                ("Aluminium", "Pelek Mobil", "kg", 44, 68),
+                ("Aluminium", "Pelek Mobil Krom", "kg", 43.5, 69),
+                ("Aluminium", "Seker", "kg", 40, 70),
+                ("Aluminium", "Blok", "kg", 39.5, 71),
+                ("Aluminium", "Blok 2", "kg", 36, 72),
+                ("Aluminium", "Blok Parabola", "kg", 32.5, 73),
+                ("Aluminium", "Kampas B", "kg", 35.5, 74),
+                ("Aluminium", "Kampas K", "kg", 27.5, 75),
+                ("Aluminium", "Plat B", "kg", 38, 76),
+                ("Aluminium", "Plat Nomor", "kg", 39.5, 77),
+                ("Aluminium", "Plat Lembutan", "kg", 31, 78),
+                ("Aluminium", "Plat Jeruk", "kg", 34.5, 79),
+                ("Aluminium", "Parfum B", "kg", 39.5, 80),
+                ("Aluminium", "Parfum Kotor", "kg", 18.5, 81),
+                ("Aluminium", "Nium Dinamo", "kg", 31.5, 82),
+                ("Aluminium", "RD N Utuh", "kg", 34, 83),
+                ("Aluminium", "RD N Lepas", "kg", 31, 84),
+                ("Aluminium", "Panci LPK", "kg", 37.5, 85),
+                ("Aluminium", "PC", "kg", 37, 86),
+                ("Aluminium", "PC Silitan Bersih", "kg", 33, 87),
+                ("Aluminium", "Kaleng", "kg", 36, 88),
+                ("Aluminium", "Wajan", "kg", 31, 89),
+                ("Aluminium", "Elemen", "kg", 25.5, 90),
+                ("Aluminium", "Kerey", "kg", 24, 91),
+                ("Aluminium", "Gram Nium", "kg", 19.5, 92),
+                ("Aluminium", "Gram Nium Kemprotok", "kg", 21, 93),
+                ("Aluminium", "Lelehan Nium", "kg", 16, 94),
+                ("Aluminium", "Ring", "kg", 21.5, 95),
+                ("Aluminium", "Tutup", "kg", 15, 96),
+                ("Aluminium", "Nium Api", "kg", 15, 97),
+                ("Aluminium", "Foil", "kg", 11, 98),
+                ("Stainless", "Monel", "kg", 15.5, 110),
+                ("Stainless", "Monel Cat", "kg", 15, 111),
+                ("Stainless", "India", "kg", 6, 112),
+                ("Timah & Aki", "Timah KPL", "kg", 29, 120),
+                ("Timah & Aki", "Nium KPL", "kg", 25, 121),
+                ("Timah & Aki", "Budeng", "kg", 30, 122),
+                ("Timah & Aki", "Lakson", "kg", 32, 123),
+                ("Timah & Aki", "Lakson RBS", "kg", 15.5, 124),
+                ("Timah & Aki", "Aki Bersih Bebas Air", "kg", 16.4, 125),
             ]
             for mat, grade, unit, price, sort in defaults:
                 cur.execute("""
@@ -3485,14 +3563,25 @@ def ensure_buy_prices_schema():
                     VALUES (%s,%s,%s,%s,%s);
                 """, (mat, grade, unit, price, sort))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cur.close()
         conn.close()
 
 
-@app.route("/api/buy-prices")
+@app.route("/api/buy-prices", methods=["GET","OPTIONS"])
 def api_buy_prices():
-    """Public API — harga beli untuk landing page."""
+    """Public API — harga beli untuk landing page (CORS enabled)."""
+    # Preflight
+    if request.method == "OPTIONS":
+        resp = Response("", status=200)
+        resp.headers["Access-Control-Allow-Origin"]  = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
     ensure_buy_prices_schema()
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -3507,6 +3596,7 @@ def api_buy_prices():
     finally:
         cur.close()
         conn.close()
+
     items = []
     for r in rows:
         items.append({
@@ -3514,18 +3604,22 @@ def api_buy_prices():
             "material": r["material"],
             "grade":    r["grade"],
             "unit":     r["unit"],
-            "price":    r["price"],
+            "price":    float(r["price"]) if r["price"] else 0,
             "note":     r["note"] or "",
             "updated_at": r["updated_at"].strftime("%d/%m/%Y") if r["updated_at"] else "-",
         })
-    # group by material
     groups = {}
     for it in items:
         m = it["material"]
         if m not in groups:
             groups[m] = []
         groups[m].append(it)
-    return jsonify({"ok": True, "groups": [{"material": k, "items": v} for k, v in groups.items()]})
+
+    resp = jsonify({"ok": True, "groups": [{"material": k, "items": v} for k, v in groups.items()]})
+    resp.headers["Access-Control-Allow-Origin"]  = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
 
 
 @app.route("/admin/buy-prices")
