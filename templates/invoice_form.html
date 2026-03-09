@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
 <style>
-  @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap");
+  @import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800;9..40,900&family=Syne:wght@700;800&display=swap");
   *,
   *::before,
   *::after {
@@ -9,74 +9,79 @@
     padding: 0;
   }
   :root {
-    --bg: #f4f3f8;
-    --surface: #faf9fe;
-    --white: #fff;
-    --text: #18182a;
+    --bg: #f0eff6;
+    --surf: #faf9fe;
+    --w: #fff;
+    --tx: #18182a;
     --sub: #5a5870;
-    --muted: #9b99b8;
-    --border: rgba(154, 152, 184, 0.14);
+    --mu: #9b99b8;
     --v1: #7c5cfc;
     --v2: #a78bfa;
-    --vs: rgba(124, 92, 252, 0.1);
-    --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
-    --green: #06d6a0;
-    --green-s: rgba(6, 214, 160, 0.1);
-    --amber: #f59e0b;
-    --red: #f43f5e;
-    --red-s: rgba(244, 63, 94, 0.1);
-    --sh1: 0 2px 10px rgba(24, 24, 42, 0.06), 0 5px 20px rgba(24, 24, 42, 0.05);
-    --sh2:
-      0 10px 32px rgba(124, 92, 252, 0.2), 0 2px 8px rgba(24, 24, 42, 0.07);
+    --vs: rgba(124, 92, 252, 0.09);
+    --vg: linear-gradient(135deg, #7c5cfc, #a78bfa);
+    --gr: #06d6a0;
+    --grs: rgba(6, 214, 160, 0.11);
+    --am: #f59e0b;
+    --ams: rgba(245, 158, 11, 0.11);
+    --rd: #f43f5e;
+    --rds: rgba(244, 63, 94, 0.09);
+    --sk: #38bdf8;
+    --sks: rgba(56, 189, 248, 0.1);
+    --s1: 0 2px 12px rgba(24, 24, 42, 0.07), 0 5px 20px rgba(24, 24, 42, 0.04);
+    --s2: 0 10px 32px rgba(124, 92, 252, 0.22);
     --neu:
-      inset 4px 4px 8px rgba(24, 24, 42, 0.065),
-      inset -4px -4px 8px rgba(255, 255, 255, 0.88);
-    --r: 22px;
-    --navh: 78px;
-    --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      inset 2px 2px 6px rgba(24, 24, 42, 0.07),
+      inset -2px -2px 6px rgba(255, 255, 255, 0.92);
+    --r: 20px;
+    --nh: 72px;
+    --ff: "DM Sans", ui-sans-serif, sans-serif;
+    --fh: "Syne", ui-sans-serif, sans-serif;
   }
   html {
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    font-family: var(--font);
+    font-family: var(--ff);
     background: var(--bg);
-    color: var(--text);
-    padding-bottom: calc(var(--navh) + 20px + env(safe-area-inset-bottom));
+    color: var(--tx);
+    padding-bottom: calc(var(--nh)+20px+env(safe-area-inset-bottom));
+    min-height: 100dvh;
     background-image:
       radial-gradient(
-        ellipse 60% 40% at 10% 0%,
+        ellipse 65% 45% at 0% 0%,
         rgba(124, 92, 252, 0.06) 0%,
         transparent 60%
       ),
       radial-gradient(
-        ellipse 50% 35% at 88% 88%,
+        ellipse 40% 30% at 100% 100%,
         rgba(6, 214, 160, 0.05) 0%,
         transparent 55%
       );
   }
-  .screen {
+  .pg {
     display: flex;
     justify-content: center;
-    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-    min-height: 100dvh;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   }
-  .wrap {
+  .ww {
     width: 100%;
     max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
   }
-  .hdr {
+  .topbar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: var(--white);
+    gap: 9px;
+    background: var(--w);
     border-radius: var(--r);
-    box-shadow: var(--sh1);
-    padding: 10px 12px;
+    box-shadow: var(--s1);
+    padding: 9px 11px;
     position: relative;
     overflow: hidden;
   }
-  .hdr::after {
+  .topbar::after {
     content: "";
     position: absolute;
     bottom: 0;
@@ -86,332 +91,369 @@
     background: linear-gradient(
       90deg,
       #7c5cfc,
-      #ff6b6b,
-      #ffb347,
+      #f43f5e,
+      #f59e0b,
       #06d6a0,
       #38bdf8
     );
   }
-  .hdr-logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-    flex: 0 0 44px;
-    overflow: hidden;
-    box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
-    background: #fff;
+  .tb-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--w);
+    box-shadow: 0 2px 8px rgba(124, 92, 252, 0.18);
+    flex: 0 0 40px;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
   }
-  .hdr-logo img {
+  .tb-logo img {
     width: 100%;
     height: 100%;
     object-fit: contain;
   }
-  .hdr-info {
+  .tb-info {
     flex: 1;
-    min-width: 0;
-    padding: 0 8px;
+    padding: 0 7px;
   }
-  .hdr-app {
+  .tb-app {
     font-size: 9px;
     font-weight: 700;
-    color: var(--muted);
+    color: var(--mu);
+    letter-spacing: 1.1px;
     text-transform: uppercase;
-    letter-spacing: 1px;
   }
-  .hdr-name {
+  .tb-title {
     font-size: 14px;
     font-weight: 800;
-    color: var(--text);
+    color: var(--tx);
+    font-family: var(--fh);
   }
-  .hbtn {
-    width: 40px;
-    height: 40px;
-    border-radius: 13px;
-    background: var(--surface);
+  .tb-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: var(--surf);
     box-shadow: var(--neu);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border: none;
     cursor: pointer;
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 36px;
     transition: transform 0.15s;
-    flex: 0 0 40px;
   }
-  .hbtn:hover {
+  .tb-btn:hover {
     transform: translateY(-1px);
   }
-  .hbtn svg {
-    width: 17px;
-    height: 17px;
+  .tb-btn svg {
+    width: 15px;
+    height: 15px;
     stroke: var(--sub);
     fill: none;
-    stroke-width: 2.2;
+    stroke-width: 2.3;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
   .hero {
-    margin-top: 13px;
-    border-radius: 26px;
-    padding: 22px 22px 20px;
+    border-radius: 24px;
+    padding: 20px 20px 18px;
     background: var(--vg);
-    box-shadow: 0 16px 44px rgba(124, 92, 252, 0.28);
+    box-shadow: var(--s2);
     position: relative;
     overflow: hidden;
   }
   .hero::before {
     content: "";
     position: absolute;
-    right: -24px;
-    top: -24px;
-    width: 150px;
-    height: 150px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.06);
+    right: -50px;
+    top: -60px;
     pointer-events: none;
   }
-  .hero-tag {
-    font-size: 10px;
+  .h-inner {
+    position: relative;
+    z-index: 1;
+  }
+  .h-eye {
+    font-size: 9px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1.1px;
     text-transform: uppercase;
-    letter-spacing: 0.9px;
+    margin-bottom: 5px;
   }
-  .hero-title {
-    font-size: 24px;
-    font-weight: 900;
+  .h-ttl {
+    font-family: var(--fh);
+    font-size: 20px;
+    font-weight: 800;
     color: #fff;
-    margin-top: 5px;
+    margin-bottom: 4px;
   }
-  .hero-sub {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.65);
-    margin-top: 5px;
-    font-weight: 500;
+  .h-sub {
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.62);
+    margin-bottom: 13px;
   }
-  .hero-chips {
+  .h-chips {
     display: flex;
-    gap: 7px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-top: 13px;
   }
-  .hero-chip {
-    display: inline-flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.16);
+  .h-chip {
+    background: rgba(255, 255, 255, 0.15);
     border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 11px;
+    padding: 4px 11px;
+    font-size: 10px;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.9);
   }
-  .sec {
-    margin-top: 13px;
-    background: var(--white);
+  .card {
+    background: var(--w);
     border-radius: var(--r);
-    box-shadow: var(--sh1);
+    box-shadow: var(--s1);
     overflow: hidden;
   }
-  .sec-head {
+  .card-hd {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 18px 13px;
-    border-bottom: 1px solid var(--border);
+    gap: 9px;
+    padding: 12px 15px 11px;
+    border-bottom: 1px solid rgba(124, 92, 252, 0.07);
   }
-  .sh-ico {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+  .c-ico {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    flex: 0 0 34px;
+    font-size: 14px;
+    flex: 0 0 30px;
   }
-  .sh-title {
-    font-size: 15px;
+  .c-ttl {
+    font-size: 13px;
     font-weight: 800;
-    color: var(--text);
+    color: var(--tx);
   }
-  .sh-sub {
-    font-size: 11px;
-    color: var(--muted);
+  .c-sub {
+    font-size: 10.5px;
+    color: var(--mu);
     font-weight: 500;
     margin-top: 1px;
   }
-  .sec-body {
-    padding: 16px 18px 18px;
+  .card-body {
+    padding: 13px 15px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
   }
-  .field-lbl {
-    font-size: 10px;
+  .flbl {
+    font-size: 9.5px;
     font-weight: 800;
-    color: var(--muted);
+    color: var(--mu);
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    letter-spacing: 0.7px;
-    margin-bottom: 6px;
     display: block;
+    margin-bottom: 5px;
   }
-  .f-input,
-  .f-select {
+  .fi,
+  .fs {
     width: 100%;
     border: none;
     outline: none;
-    border-radius: 12px;
-    background: var(--surface);
+    border-radius: 11px;
+    background: var(--surf);
     box-shadow: var(--neu);
-    padding: 12px 14px;
-    font-size: 14px;
-    color: var(--text);
-    font-family: var(--font);
+    padding: 10px 13px;
+    font-size: 12.5px;
+    color: var(--tx);
+    font-family: var(--ff);
     transition: box-shadow 0.2s;
     -webkit-appearance: none;
     appearance: none;
   }
-  .f-input[type="file"] {
-    padding: 10px 12px;
-  }
-  .f-input:focus,
-  .f-select:focus {
+  .fi:focus,
+  .fs:focus {
     box-shadow:
       var(--neu),
       0 0 0 3px rgba(124, 92, 252, 0.15);
   }
-  .f-input::placeholder {
-    color: var(--muted);
-    font-size: 13px;
+  .fi::placeholder {
+    color: var(--mu);
+    font-size: 12px;
   }
-  .field-wrap {
-    margin-bottom: 13px;
-  }
-  .field-wrap:last-child {
-    margin-bottom: 0;
-  }
-  .field-help {
-    margin-top: 7px;
+  .fi[type="file"] {
+    padding: 8px 12px;
     font-size: 11px;
-    color: var(--muted);
-    font-weight: 600;
-    line-height: 1.5;
   }
-  .sel-wrap {
+  .row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  @media (max-width: 360px) {
+    .row2 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .sw-wrap {
     position: relative;
   }
-  .sel-wrap::after {
-    content: "";
+  .sw-wrap::after {
+    content: "▾";
     position: absolute;
-    right: 13px;
+    right: 11px;
     top: 50%;
     transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 5px solid var(--muted);
+    color: var(--mu);
+    font-size: 11.5px;
     pointer-events: none;
   }
-  .pay-grid {
+  .pg3 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 7px;
   }
-  .pay-btn {
+  .pg2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+  .po {
     position: relative;
   }
-  .pay-btn input[type="radio"] {
+  .po input[type="radio"] {
     position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
   }
-  .pay-btn label {
+  .po label {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    padding: 12px 8px;
-    background: var(--surface);
+    gap: 3px;
+    padding: 9px 6px;
+    background: var(--surf);
     box-shadow: var(--neu);
-    border-radius: 14px;
+    border-radius: 12px;
     cursor: pointer;
     border: 2px solid transparent;
-    transition: all 0.18s;
-    font-family: var(--font);
+    transition: all 0.17s;
+    font-family: var(--ff);
     text-align: center;
+    width: 100%;
   }
-  .pay-btn label .pi {
-    font-size: 20px;
+  .po label .pi {
+    font-size: 16px;
+    line-height: 1;
   }
-  .pay-btn label .pl {
-    font-size: 12px;
+  .po label .pl {
+    font-size: 10.5px;
     font-weight: 800;
     color: var(--sub);
   }
-  .pay-btn input:checked + label {
+  .po input:checked + label {
     border-color: var(--v1);
-    background: #fff;
-    box-shadow: var(--sh2);
+    background: var(--w);
+    box-shadow: var(--s2);
   }
-  .pay-btn input:checked + label .pl {
+  .po input:checked + label .pl {
     color: var(--v1);
   }
-  .size-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+  .po.g input:checked + label {
+    border-color: var(--gr);
+    box-shadow: 0 4px 14px rgba(6, 214, 160, 0.2);
   }
-  .size-btn {
-    position: relative;
+  .po.g input:checked + label .pl {
+    color: #059669;
   }
-  .size-btn input[type="radio"] {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-  .size-btn label {
+  .pt {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 11px 14px;
-    background: var(--surface);
-    box-shadow: var(--neu);
-    border-radius: 14px;
+    gap: 11px;
+    padding: 11px 13px;
+    border-radius: 13px;
+    background: var(--grs);
+    border: 1.5px solid rgba(6, 214, 160, 0.2);
     cursor: pointer;
-    border: 2px solid transparent;
-    transition: all 0.18s;
-    font-family: var(--font);
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--sub);
+    transition: all 0.2s;
+    user-select: none;
   }
-  .size-btn input:checked + label {
-    border-color: var(--green);
-    color: #065f46;
+  .pt.off {
+    background: var(--ams);
+    border-color: rgba(245, 158, 11, 0.22);
+  }
+  .pt-ico {
+    font-size: 19px;
+    flex: 0 0 19px;
+  }
+  .pt-info {
+    flex: 1;
+  }
+  .pt-ttl {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #059669;
+  }
+  .pt.off .pt-ttl {
+    color: #92400e;
+  }
+  .pt-sub {
+    font-size: 10.5px;
+    color: var(--mu);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+  .sw-tog {
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--gr);
+    position: relative;
+    flex: 0 0 40px;
+    transition: background 0.2s;
+  }
+  .pt.off .sw-tog {
+    background: #d1d5db;
+  }
+  .sw-k {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
     background: #fff;
-    box-shadow: 0 6px 18px rgba(6, 214, 160, 0.18);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    transition: right 0.2s;
+  }
+  .pt.off .sw-k {
+    right: 20px;
   }
   .item-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-bottom: 13px;
+    gap: 8px;
   }
-  .item-row {
-    background: var(--surface);
-    border-radius: 14px;
-    padding: 12px;
-    border: 1.5px solid var(--border);
-    animation: rowIn 0.25s ease;
+  .ir {
+    background: var(--surf);
+    border-radius: 13px;
+    padding: 10px;
+    border: 1.5px solid rgba(124, 92, 252, 0.07);
+    animation: irIn 0.2s ease;
   }
-  @keyframes rowIn {
+  @keyframes irIn {
     from {
       opacity: 0;
-      transform: translateY(-5px);
+      transform: translateY(-4px);
     }
     to {
       opacity: 1;
@@ -420,210 +462,209 @@
   }
   .ir-top {
     display: grid;
-    grid-template-columns: 1fr 64px;
-    gap: 8px;
-    margin-bottom: 8px;
+    grid-template-columns: 1fr 56px;
+    gap: 7px;
+    margin-bottom: 6px;
     align-items: end;
   }
   .ir-bot {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
   }
-  .subtotal-pill {
+  .ir-sub {
     flex: 1;
     background: var(--vs);
-    border-radius: 10px;
-    padding: 9px 12px;
-    font-size: 12px;
+    border-radius: 9px;
+    padding: 7px 11px;
+    font-size: 11.5px;
     font-weight: 800;
     color: var(--v1);
     text-align: center;
-    white-space: nowrap;
   }
   .qty-lbl {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--muted);
-    margin-bottom: 4px;
+    font-size: 8.5px;
+    font-weight: 800;
+    color: var(--mu);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
   }
-  .del-row {
-    width: 34px;
-    height: 34px;
+  .del {
+    width: 30px;
+    height: 30px;
     border: none;
-    border-radius: 10px;
-    background: var(--red-s);
-    color: var(--red);
+    border-radius: 9px;
+    background: var(--rds);
+    color: var(--rd);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
     transition: all 0.15s;
-    flex: 0 0 34px;
+    flex: 0 0 30px;
   }
-  .del-row:hover {
-    background: rgba(244, 63, 94, 0.22);
-    transform: scale(1.06);
+  .del:hover {
+    background: rgba(244, 63, 94, 0.2);
+    transform: scale(1.08);
   }
-  .btn-add-row {
+  .add-btn {
     width: 100%;
-    height: 46px;
-    border: 2px dashed rgba(124, 92, 252, 0.3);
-    border-radius: 14px;
+    height: 41px;
+    border: 2px dashed rgba(124, 92, 252, 0.25);
+    border-radius: 12px;
     background: var(--vs);
     color: var(--v1);
     font-weight: 800;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
-    font-family: var(--font);
+    font-family: var(--ff);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: all 0.18s;
+    gap: 6px;
+    transition: all 0.17s;
   }
-  .btn-add-row:hover {
+  .add-btn:hover {
     border-color: var(--v1);
-    background: rgba(124, 92, 252, 0.16);
+    background: rgba(124, 92, 252, 0.14);
   }
-  .btn-add-row svg {
-    width: 15px;
-    height: 15px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 2.5;
-    stroke-linecap: round;
+  .disc-row {
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 9px;
+    align-items: end;
+  }
+  .disc-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ams);
+    border-radius: 9px;
+    padding: 9px 10px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #92400e;
+    height: 100%;
+    text-align: center;
   }
   .total-bar {
-    margin-top: 14px;
     background: var(--vg);
-    border-radius: 18px;
-    padding: 16px 18px;
+    border-radius: 15px;
+    padding: 13px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 8px 24px rgba(124, 92, 252, 0.22);
+    box-shadow: 0 6px 20px rgba(124, 92, 252, 0.22);
   }
-  .tb-lbl {
-    font-size: 12px;
+  .tb-l {
+    font-size: 9.5px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.58);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .tb-val {
-    font-size: 26px;
+  .tb-v {
+    font-size: 21px;
     font-weight: 900;
     color: #fff;
     letter-spacing: -0.5px;
+    font-family: var(--fh);
   }
   .btn-submit {
     width: 100%;
-    height: 56px;
+    height: 50px;
     border: none;
-    border-radius: 18px;
+    border-radius: 16px;
     background: var(--vg);
     color: #fff;
     font-weight: 900;
-    font-size: 16px;
-    cursor: pointer;
-    font-family: var(--font);
-    box-shadow: 0 12px 30px rgba(124, 92, 252, 0.32);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition:
-      transform 0.15s,
-      box-shadow 0.15s;
-    margin-top: 14px;
-  }
-  .btn-submit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 36px rgba(124, 92, 252, 0.4);
-  }
-  .btn-submit svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 2.4;
-    stroke-linecap: round;
-  }
-  .btn-back {
-    width: 100%;
-    height: 48px;
-    border: none;
-    border-radius: 14px;
-    background: var(--surface);
-    box-shadow: var(--neu);
-    color: var(--sub);
-    font-weight: 800;
     font-size: 14px;
     cursor: pointer;
-    font-family: var(--font);
+    font-family: var(--fh);
+    box-shadow: var(--s2);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+  }
+  .btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(124, 92, 252, 0.38);
+  }
+  .btn-back {
+    width: 100%;
+    height: 42px;
+    border: none;
+    border-radius: 13px;
+    background: var(--surf);
+    box-shadow: var(--neu);
+    color: var(--sub);
+    font-weight: 700;
+    font-size: 12.5px;
+    cursor: pointer;
+    font-family: var(--ff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-decoration: none;
-    margin-top: 10px;
     transition: transform 0.15s;
   }
   .btn-back:hover {
     transform: translateY(-1px);
   }
-  .bottom-nav {
+  .bnav {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(244, 243, 248, 0.92);
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(240, 239, 246, 0.92);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     z-index: 60;
   }
-  .nav-bar {
-    max-width: 448px;
+  .nbar {
+    max-width: 440px;
     margin: 0 auto;
-    background: var(--white);
-    border-radius: 20px;
-    box-shadow: var(--sh1);
-    padding: 7px;
+    background: var(--w);
+    border-radius: 18px;
+    box-shadow: var(--s1);
+    padding: 5px;
     display: flex;
-    gap: 5px;
+    gap: 3px;
   }
-  .nav-item {
+  .ni {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 8px 6px;
-    border-radius: 14px;
-    color: var(--muted);
+    gap: 2px;
+    padding: 7px 5px;
+    border-radius: 12px;
+    color: var(--mu);
     font-weight: 700;
-    font-size: 10px;
+    font-size: 9.5px;
+    text-decoration: none;
+    transition: all 0.15s;
     border: none;
     background: none;
     cursor: pointer;
-    font-family: var(--font);
-    text-decoration: none;
-    transition: all 0.16s;
+    font-family: var(--ff);
   }
-  .nav-item.active {
+  .ni.active {
     background: var(--vs);
     color: var(--v1);
   }
-  .ni {
-    width: 21px;
-    height: 21px;
-    flex: 0 0 21px;
+  .ni-i {
+    width: 19px;
+    height: 19px;
   }
-  .ni svg {
+  .ni-i svg {
     width: 100%;
     height: 100%;
     display: block;
@@ -639,25 +680,24 @@
     stroke-linejoin: round;
   }
 </style>
-
-<div class="screen">
-  <div class="wrap">
-    <div class="hdr">
-      <div class="hdr-logo">
+<div class="pg">
+  <div class="ww">
+    <div class="topbar">
+      <div class="tb-logo">
         <img
-          src="{{ url_for('static', filename='UMGAP (1).png') }}"
+          src="{{ url_for('static',filename='UMGAP (1).png') }}"
           alt="UMGAP"
         />
       </div>
-      <div class="hdr-info">
-        <div class="hdr-app">UMGAP</div>
-        <div class="hdr-name">
+      <div class="tb-info">
+        <div class="tb-app">UMGAP · POS</div>
+        <div class="tb-title">
           {{ 'Nota Admin' if is_admin_mode else 'Buat Nota' }}
         </div>
       </div>
       <a
         href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
-        class="hbtn"
+        class="tb-btn"
       >
         <svg viewBox="0 0 24 24">
           <path d="M19 12H5" />
@@ -665,40 +705,36 @@
         </svg>
       </a>
     </div>
-
     <div class="hero">
-      <div style="position: relative; z-index: 1">
-        <div class="hero-tag">Point of Sale</div>
-        <div class="hero-title">
-          🧾 {{ 'Nota Admin' if is_admin_mode else 'Buat Nota Penjualan' }}
+      <div class="h-inner">
+        <div class="h-eye">Point of Sale</div>
+        <div class="h-ttl">
+          🧾 {{ 'Nota Admin' if is_admin_mode else 'Nota Penjualan' }}
         </div>
-        <div class="hero-sub">
-          Pilih produk, atur jumlah, simpan logo perusahaan, lalu cetak ke
-          printer thermal.
-        </div>
-        <div class="hero-chips">
-          <span class="hero-chip">🏢 Logo Perusahaan</span>
-          <span class="hero-chip">🖨️ 58/80mm</span>
-          <span class="hero-chip">📄 PDF</span>
+        <div class="h-sub">Buat nota, cetak thermal &amp; kirim WhatsApp.</div>
+        <div class="h-chips">
+          <span class="h-chip">🖨️ 58/80mm</span
+          ><span class="h-chip">📶 BT</span>
+          <span class="h-chip">💳 Multi Bayar</span
+          ><span class="h-chip">📤 WA</span><span class="h-chip">📄 PDF</span>
         </div>
       </div>
     </div>
-
-    <form method="post" id="invoiceForm" enctype="multipart/form-data">
-      <div class="sec">
-        <div class="sec-head">
-          <div class="sh-ico" style="background: var(--vs)">👤</div>
+    <form method="post" id="invForm" enctype="multipart/form-data">
+      <div class="card">
+        <div class="card-hd">
+          <div class="c-ico" style="background: var(--vs)">👤</div>
           <div>
-            <div class="sh-title">Info Transaksi</div>
-            <div class="sh-sub">Data pelanggan & kasir</div>
+            <div class="c-ttl">Info Pelanggan</div>
+            <div class="c-sub">Nama &amp; nomor WhatsApp customer</div>
           </div>
         </div>
-        <div class="sec-body">
+        <div class="card-body">
           {% if is_admin_mode %}
-          <div class="field-wrap">
-            <label class="field-lbl">Karyawan Kasir</label>
-            <div class="sel-wrap">
-              <select class="f-select" name="employee_id" required>
+          <div>
+            <label class="flbl">Karyawan / Kasir</label>
+            <div class="sw-wrap">
+              <select class="fs" name="employee_id" required>
                 {% for e in employees %}
                 <option value="{{ e.id }}">{{ e.name }}</option>
                 {% endfor %}
@@ -706,160 +742,172 @@
             </div>
           </div>
           {% endif %}
-
-          <div class="field-wrap">
-            <label class="field-lbl">Nama Customer (Opsional)</label>
-            <input
-              class="f-input"
-              type="text"
-              name="customer_name"
-              placeholder="Contoh: Budi, Toko Makmur…"
-              autocomplete="off"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div class="sec">
-        <div class="sec-head">
-          <div class="sh-ico" style="background: rgba(56, 189, 248, 0.12)">
-            🏢
-          </div>
-          <div>
-            <div class="sh-title">Identitas Perusahaan</div>
-            <div class="sh-sub">Akan tampil di nota bersama logo UMGAP</div>
-          </div>
-        </div>
-        <div class="sec-body">
-          <div class="field-wrap">
-            <label class="field-lbl">Nama Perusahaan / Toko</label>
-            <input
-              class="f-input"
-              type="text"
-              name="company_name"
-              placeholder="Contoh: Toko Supri Jaya"
-              autocomplete="off"
-            />
-          </div>
-
-          <div class="field-wrap">
-            <label class="field-lbl">Logo Perusahaan</label>
-            <input
-              class="f-input"
-              type="file"
-              name="company_logo"
-              accept=".png,.jpg,.jpeg,.webp"
-            />
-            <div class="field-help">
-              Format: PNG / JPG / WEBP. Logo UMGAP tetap tampil di sebelah logo
-              perusahaan.
+          <div class="row2">
+            <div>
+              <label class="flbl">Nama Customer</label>
+              <input
+                class="fi"
+                type="text"
+                name="customer_name"
+                placeholder="Opsional…"
+                autocomplete="off"
+              />
+            </div>
+            <div>
+              <label class="flbl">No. WhatsApp</label>
+              <input
+                class="fi"
+                type="tel"
+                name="customer_phone"
+                placeholder="08xx…"
+                autocomplete="off"
+              />
             </div>
           </div>
         </div>
       </div>
-
-      <div class="sec">
-        <div class="sec-head">
-          <div class="sh-ico" style="background: rgba(6, 214, 160, 0.12)">
-            💳
-          </div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="c-ico" style="background: var(--sks)">🏢</div>
           <div>
-            <div class="sh-title">Pembayaran & Printer</div>
-            <div class="sh-sub">Metode bayar & ukuran kertas thermal</div>
+            <div class="c-ttl">Info Perusahaan</div>
+            <div class="c-sub">Tampil di PDF — opsional</div>
           </div>
         </div>
-        <div class="sec-body">
-          <div class="field-wrap">
-            <label class="field-lbl">Metode Pembayaran</label>
-            <div class="pay-grid">
-              <div class="pay-btn">
+        <div class="card-body">
+          <div class="row2">
+            <div>
+              <label class="flbl">Nama Perusahaan</label>
+              <input
+                class="fi"
+                type="text"
+                name="company_name"
+                placeholder="Nama toko…"
+                autocomplete="off"
+              />
+            </div>
+            <div>
+              <label class="flbl">Logo (PNG/JPG)</label>
+              <input
+                class="fi"
+                type="file"
+                name="company_logo"
+                accept="image/*"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="c-ico" style="background: var(--grs)">💳</div>
+          <div>
+            <div class="c-ttl">Pembayaran &amp; Printer</div>
+            <div class="c-sub">Metode, kertas, status lunas</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div>
+            <label class="flbl">Metode Pembayaran</label>
+            <div class="pg3">
+              <div class="po">
                 <input
                   type="radio"
                   name="payment_method"
-                  id="pm-cash"
+                  id="pm-c"
                   value="CASH"
                   checked
-                />
-                <label for="pm-cash">
-                  <span class="pi">💵</span>
-                  <span class="pl">Cash</span>
-                </label>
+                /><label for="pm-c"
+                  ><span class="pi">💵</span><span class="pl">Cash</span></label
+                >
               </div>
-              <div class="pay-btn">
+              <div class="po">
                 <input
                   type="radio"
                   name="payment_method"
-                  id="pm-tf"
+                  id="pm-t"
                   value="TRANSFER"
-                />
-                <label for="pm-tf">
-                  <span class="pi">🏦</span>
-                  <span class="pl">Transfer</span>
-                </label>
+                /><label for="pm-t"
+                  ><span class="pi">🏦</span
+                  ><span class="pl">Transfer</span></label
+                >
               </div>
-              <div class="pay-btn">
+              <div class="po">
                 <input
                   type="radio"
                   name="payment_method"
-                  id="pm-qr"
+                  id="pm-q"
                   value="QRIS"
-                />
-                <label for="pm-qr">
-                  <span class="pi">📱</span>
-                  <span class="pl">QRIS</span>
-                </label>
+                /><label for="pm-q"
+                  ><span class="pi">📱</span><span class="pl">QRIS</span></label
+                >
               </div>
             </div>
           </div>
-
-          <div class="field-wrap" style="margin-top: 4px">
-            <label class="field-lbl">Ukuran Kertas Thermal</label>
-            <div class="size-grid">
-              <div class="size-btn">
-                <input type="radio" name="print_size" id="sz-58" value="58mm" />
-                <label for="sz-58">🖨️ 58mm</label>
+          <div>
+            <label class="flbl">Ukuran Kertas Thermal</label>
+            <div class="pg2">
+              <div class="po g">
+                <input
+                  type="radio"
+                  name="print_size"
+                  id="sz-58"
+                  value="58mm"
+                /><label for="sz-58"
+                  ><span class="pi">🖨️</span><span class="pl">58mm</span></label
+                >
               </div>
-              <div class="size-btn">
+              <div class="po g">
                 <input
                   type="radio"
                   name="print_size"
                   id="sz-80"
                   value="80mm"
                   checked
-                />
-                <label for="sz-80">🖨️ 80mm</label>
+                /><label for="sz-80"
+                  ><span class="pi">🖨️</span><span class="pl">80mm</span></label
+                >
               </div>
+            </div>
+          </div>
+          <div>
+            <label class="flbl">Status Pembayaran</label>
+            <input type="hidden" name="is_paid" id="isPaidInp" value="1" />
+            <div class="pt" id="ptog" onclick="togglePaid()">
+              <span class="pt-ico" id="ptIco">✅</span>
+              <div class="pt-info">
+                <div class="pt-ttl" id="ptTtl">Lunas</div>
+                <div class="pt-sub" id="ptSub">Pembayaran sudah diterima</div>
+              </div>
+              <div class="sw-tog"><div class="sw-k"></div></div>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="sec">
-        <div class="sec-head">
-          <div class="sh-ico" style="background: rgba(245, 158, 11, 0.12)">
-            🛒
-          </div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="c-ico" style="background: var(--ams)">🛒</div>
           <div>
-            <div class="sh-title">Item Nota</div>
-            <div class="sh-sub">Pilih produk & jumlah</div>
+            <div class="c-ttl">Item Nota</div>
+            <div class="c-sub">Produk &amp; jumlah</div>
           </div>
         </div>
-        <div class="sec-body">
+        <div class="card-body">
           <div class="item-list" id="itemList">
-            <div class="item-row">
+            <div class="ir">
               <div class="ir-top">
-                <div class="sel-wrap">
+                <div class="sw-wrap">
                   <select
-                    class="f-select"
+                    class="fs"
                     name="product_id[]"
                     required
-                    style="padding: 9px 30px 9px 12px; font-size: 13px"
+                    style="padding: 8px 26px 8px 11px; font-size: 11.5px"
                   >
                     <option value="">— Pilih Produk —</option>
                     {% for p in products %}
                     <option value="{{ p.id }}" data-price="{{ p.price }}">
-                      {{ p.name }} · Rp {{ "{:,}".format(p.price).replace(",",
-                      ".") }}
+                      {{ p.name }} · Rp {{
+                      "{:,}".format(p.price).replace(",",".") }}
                     </option>
                     {% endfor %}
                   </select>
@@ -867,116 +915,171 @@
                 <div>
                   <div class="qty-lbl">Qty</div>
                   <input
-                    class="f-input"
+                    class="fi"
                     type="number"
                     name="qty[]"
                     min="1"
                     value="1"
                     required
                     style="
-                      padding: 9px 12px;
+                      padding: 8px 10px;
                       font-size: 14px;
                       text-align: center;
-                      font-weight: 800;
+                      font-weight: 900;
                     "
                   />
                 </div>
               </div>
               <div class="ir-bot">
-                <div class="subtotal-pill line-sub">Rp 0</div>
-                <button type="button" class="del-row">✕</button>
+                <div class="ir-sub line-sub">Rp 0</div>
+                <button type="button" class="del">✕</button>
               </div>
             </div>
           </div>
-
-          <button type="button" class="btn-add-row" id="btnAddRow">
-            <svg viewBox="0 0 24 24">
+          <button type="button" class="add-btn" id="btnAdd">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.8"
+              stroke-linecap="round"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             Tambah Item
           </button>
-
-          <div class="field-wrap" style="margin-top: 14px">
-            <label class="field-lbl">📝 Catatan (Opsional)</label>
+          <div>
+            <label class="flbl">Diskon (Rp)</label>
+            <div class="disc-row">
+              <input
+                class="fi"
+                type="number"
+                name="discount"
+                id="discInp"
+                min="0"
+                value="0"
+                placeholder="0"
+                style="font-size: 13px"
+              />
+              <div class="disc-badge" id="discBadge">- Rp 0</div>
+            </div>
+          </div>
+          <div>
+            <label class="flbl">📝 Catatan</label>
             <input
-              class="f-input"
+              class="fi"
               type="text"
               name="notes"
-              placeholder="Sudah lunas, diskon khusus, dll…"
+              placeholder="DP, keterangan…"
               autocomplete="off"
             />
           </div>
-
           <div class="total-bar">
-            <div><div class="tb-lbl">Total Pembayaran</div></div>
-            <div class="tb-val" id="grandTotal">Rp 0</div>
+            <div>
+              <div class="tb-l">Total Pembayaran</div>
+              <div
+                style="
+                  font-size: 10px;
+                  color: rgba(255, 255, 255, 0.5);
+                  margin-top: 2px;
+                "
+                id="discLine"
+              ></div>
+            </div>
+            <div class="tb-v" id="grandTotal">Rp 0</div>
           </div>
         </div>
       </div>
-
       <button type="submit" class="btn-submit">
-        <svg viewBox="0 0 24 24">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+        >
           <path d="M5 12h14" />
           <path d="M12 5l7 7-7 7" />
         </svg>
         Simpan &amp; Buka Nota
       </button>
-
       <a
         href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
         class="btn-back"
+        >← Kembali</a
       >
-        ← Kembali
-      </a>
     </form>
   </div>
 </div>
-
-<div class="bottom-nav">
-  <div class="nav-bar">
+<div class="bnav">
+  <div class="nbar">
     <a
-      class="nav-item"
+      class="ni"
       href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+      ><span class="ni-i"
+        ><svg viewBox="0 0 24 24">
+          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.5" />
+          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.5" />
+          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.5" />
+          <rect
+            class="nf"
+            x="13"
+            y="13"
+            width="8"
+            height="8"
+            rx="1.5"
+          /></svg></span
+      ><span>Dashboard</span></a
     >
-      <span class="ni">
-        <svg viewBox="0 0 24 24">
-          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="13" y="13" width="8" height="8" rx="1.6" />
-        </svg>
-      </span>
-      <span>Dashboard</span>
-    </a>
-    <a class="nav-item active" href="#">
-      <span class="ni">
-        <svg viewBox="0 0 24 24">
+    <a class="ni active" href="#"
+      ><span class="ni-i"
+        ><svg viewBox="0 0 24 24">
           <rect class="ns" x="3" y="3" width="18" height="18" rx="2.5" />
-          <path class="ns" d="M8 10h8M8 14h5" />
-        </svg>
-      </span>
-      <span>Nota</span>
-    </a>
+          <path class="ns" d="M8 9h8M8 13h5" /></svg></span
+      ><span>Nota</span></a
+    >
   </div>
 </div>
-
 <script>
   (function () {
     var L = document.getElementById("itemList"),
-      B = document.getElementById("btnAddRow"),
       G = document.getElementById("grandTotal");
-
+    var DI = document.getElementById("discInp"),
+      DB = document.getElementById("discBadge"),
+      DL = document.getElementById("discLine");
     function rp(n) {
-      return "Rp " + Math.round(n).toLocaleString("id-ID");
+      return "Rp " + Math.round(n || 0).toLocaleString("id-ID");
     }
-
-    function bindRow(row) {
-      var s = row.querySelector('select[name="product_id[]"]'),
-        q = row.querySelector('input[name="qty[]"]'),
-        o = row.querySelector(".line-sub"),
-        d = row.querySelector(".del-row");
-
+    function subTot() {
+      var t = 0;
+      L.querySelectorAll(".ir").forEach(function (r) {
+        var s = r.querySelector('select[name="product_id[]"]'),
+          q = r.querySelector('input[name="qty[]"]'),
+          op = s.options[s.selectedIndex],
+          p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0;
+        t += p * (parseInt(q.value || "0", 10) || 0);
+      });
+      return t;
+    }
+    function grand() {
+      var sub = subTot(),
+        disc = Math.max(0, parseInt(DI.value || "0", 10) || 0),
+        g = Math.max(0, sub - disc);
+      G.textContent = rp(g);
+      DB.textContent = "- " + rp(disc);
+      DL.textContent =
+        disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
+    }
+    function bindRow(r) {
+      var s = r.querySelector('select[name="product_id[]"]'),
+        q = r.querySelector('input[name="qty[]"]'),
+        o = r.querySelector(".line-sub"),
+        d = r.querySelector(".del");
       function c() {
         var op = s.options[s.selectedIndex],
           p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0,
@@ -984,34 +1087,18 @@
         o.textContent = rp(p * n);
         grand();
       }
-
       s.addEventListener("change", c);
       q.addEventListener("input", c);
-
       d.addEventListener("click", function () {
-        if (L.querySelectorAll(".item-row").length > 1) {
-          row.remove();
+        if (L.querySelectorAll(".ir").length > 1) {
+          r.remove();
           grand();
         }
       });
-
       c();
     }
-
-    function grand() {
-      var t = 0;
-      L.querySelectorAll(".item-row").forEach(function (r) {
-        var s = r.querySelector('select[name="product_id[]"]'),
-          q = r.querySelector('input[name="qty[]"]'),
-          o = s.options[s.selectedIndex],
-          p = o ? parseInt(o.getAttribute("data-price") || "0", 10) : 0;
-        t += p * (parseInt(q.value || "0", 10) || 0);
-      });
-      G.textContent = rp(t);
-    }
-
-    B.addEventListener("click", function () {
-      var f = L.querySelector(".item-row"),
+    document.getElementById("btnAdd").addEventListener("click", function () {
+      var f = L.querySelector(".ir"),
         c = f.cloneNode(true);
       c.querySelector('select[name="product_id[]"]').selectedIndex = 0;
       c.querySelector('input[name="qty[]"]').value = "1";
@@ -1020,8 +1107,22 @@
       bindRow(c);
       grand();
     });
-
-    L.querySelectorAll(".item-row").forEach(bindRow);
+    L.querySelectorAll(".ir").forEach(bindRow);
+    DI.addEventListener("input", grand);
+    var isPaid = true;
+    window.togglePaid = function () {
+      isPaid = !isPaid;
+      var t = document.getElementById("ptog");
+      t.className = "pt" + (isPaid ? "" : " off");
+      document.getElementById("ptIco").textContent = isPaid ? "✅" : "⏳";
+      document.getElementById("ptTtl").textContent = isPaid
+        ? "Lunas"
+        : "Belum Lunas";
+      document.getElementById("ptSub").textContent = isPaid
+        ? "Pembayaran sudah diterima"
+        : "Tagihan masih berjalan";
+      document.getElementById("isPaidInp").value = isPaid ? "1" : "0";
+    };
   })();
 </script>
 {% endblock %}
