@@ -3652,8 +3652,9 @@ def admin_buy_prices():
         cur.close()
         conn.close()
 
-    # Konversi ke plain dict agar bisa di-serialize JSON di template
-    # RealDictRow mengandung Decimal dan datetime yang tidak bisa tojson langsung
+    # Wajib konversi ke plain dict — RealDictRow berisi Decimal & datetime
+    # yang tidak bisa di-serialize tojson Jinja2, akibatnya JSON.parse() di JS
+    # gagal diam-diam dan RAW = [] sehingga halaman tampil kosong
     rows = []
     for r in raw_rows:
         rows.append({
