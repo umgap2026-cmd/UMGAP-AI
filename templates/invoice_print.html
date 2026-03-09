@@ -1,7 +1,8 @@
-{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 <style>
   @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap");
   @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap");
+
   *,
   *::before,
   *::after {
@@ -9,6 +10,7 @@
     margin: 0;
     padding: 0;
   }
+
   :root {
     --bg: #f4f3f8;
     --surface: #faf9fe;
@@ -39,9 +41,11 @@
     --mono: "IBM Plex Mono", ui-monospace, monospace;
     --paper-w: 80mm;
   }
+
   html {
     -webkit-tap-highlight-color: transparent;
   }
+
   body {
     font-family: var(--font);
     background: var(--bg);
@@ -59,16 +63,19 @@
         transparent 55%
       );
   }
+
   .screen {
     display: flex;
     justify-content: center;
     padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
     min-height: 100dvh;
   }
+
   .wrap {
     width: 100%;
     max-width: 520px;
   }
+
   .hdr {
     display: flex;
     align-items: center;
@@ -80,6 +87,7 @@
     position: relative;
     overflow: hidden;
   }
+
   .hdr::after {
     content: "";
     position: absolute;
@@ -96,6 +104,7 @@
       #38bdf8
     );
   }
+
   .hdr-logo {
     width: 44px;
     height: 44px;
@@ -105,16 +114,19 @@
     box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
     background: #fff;
   }
+
   .hdr-logo img {
     width: 100%;
     height: 100%;
     object-fit: contain;
   }
+
   .hdr-info {
     flex: 1;
     min-width: 0;
     padding: 0 8px;
   }
+
   .hdr-app {
     font-size: 9px;
     font-weight: 700;
@@ -122,6 +134,7 @@
     text-transform: uppercase;
     letter-spacing: 1px;
   }
+
   .hdr-name {
     font-size: 14px;
     font-weight: 800;
@@ -130,6 +143,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
   .hbtn {
     width: 40px;
     height: 40px;
@@ -145,9 +159,11 @@
     transition: transform 0.15s;
     flex: 0 0 40px;
   }
+
   .hbtn:hover {
     transform: translateY(-1px);
   }
+
   .hbtn svg {
     width: 17px;
     height: 17px;
@@ -157,19 +173,23 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .print-card {
+
+  .print-card,
+  .preview-wrap {
     margin-top: 13px;
     background: var(--white);
     border-radius: var(--r);
     box-shadow: var(--sh1);
     overflow: hidden;
   }
+
   .pc-hero {
     background: var(--vg);
     padding: 18px 20px 16px;
     position: relative;
     overflow: hidden;
   }
+
   .pc-hero::before {
     content: "";
     position: absolute;
@@ -180,6 +200,7 @@
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.07);
   }
+
   .pc-tag {
     font-size: 9px;
     font-weight: 700;
@@ -187,6 +208,7 @@
     text-transform: uppercase;
     letter-spacing: 0.9px;
   }
+
   .pc-no {
     font-size: 13px;
     font-weight: 900;
@@ -194,6 +216,7 @@
     margin-top: 4px;
     font-family: var(--mono);
   }
+
   .pc-meta {
     display: flex;
     gap: 12px;
@@ -202,6 +225,7 @@
     position: relative;
     z-index: 1;
   }
+
   .pc-pill {
     display: inline-flex;
     align-items: center;
@@ -213,9 +237,11 @@
     font-weight: 700;
     color: rgba(255, 255, 255, 0.9);
   }
+
   .pc-body {
     padding: 16px 18px 18px;
   }
+
   .st-bar {
     display: flex;
     align-items: center;
@@ -228,21 +254,25 @@
     transition: all 0.3s;
     min-height: 46px;
   }
+
   .st-bar.ok {
     background: var(--green-s);
     box-shadow: none;
     border: 1.5px solid rgba(6, 214, 160, 0.25);
   }
+
   .st-bar.err {
     background: var(--red-s);
     box-shadow: none;
     border: 1.5px solid rgba(244, 63, 94, 0.2);
   }
+
   .st-bar.loading {
     background: var(--amber-s);
     box-shadow: none;
     border: 1.5px solid rgba(245, 158, 11, 0.2);
   }
+
   .st-dot {
     width: 9px;
     height: 9px;
@@ -251,41 +281,26 @@
     flex: 0 0 9px;
     transition: background 0.3s;
   }
+
   .st-bar.ok .st-dot {
     background: var(--green);
-    animation: stPulse 1.8s ease infinite;
   }
+
   .st-bar.err .st-dot {
     background: var(--red);
   }
+
   .st-bar.loading .st-dot {
     background: var(--amber);
-    animation: stPulse 0.8s ease infinite;
   }
-  @keyframes stPulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.35;
-    }
-  }
+
   .st-txt {
     flex: 1;
     font-size: 12px;
     font-weight: 700;
     color: var(--sub);
   }
-  .st-bar.ok .st-txt {
-    color: #065f46;
-  }
-  .st-bar.err .st-txt {
-    color: #9f1239;
-  }
-  .st-bar.loading .st-txt {
-    color: #92400e;
-  }
+
   .info-box {
     display: none;
     background: var(--amber-s);
@@ -298,21 +313,25 @@
     border: 1.5px solid rgba(245, 158, 11, 0.2);
     margin-bottom: 12px;
   }
+
   .size-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-bottom: 14px;
   }
+
   .sz-btn {
     position: relative;
   }
+
   .sz-btn input[type="radio"] {
     position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
   }
+
   .sz-btn label {
     display: flex;
     align-items: center;
@@ -329,12 +348,14 @@
     color: var(--sub);
     transition: all 0.18s;
   }
+
   .sz-btn input:checked + label {
     border-color: var(--green);
     color: #065f46;
     background: #fff;
     box-shadow: 0 6px 18px rgba(6, 214, 160, 0.18);
   }
+
   .btn-win,
   .btn-browser,
   .btn-pdf,
@@ -346,41 +367,47 @@
     border-radius: 14px;
     font-weight: 800;
     font-size: 14px;
-    cursor: pointer;
     font-family: var(--font);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     text-decoration: none;
+    cursor: pointer;
     transition: transform 0.15s;
     margin-bottom: 10px;
   }
+
   .btn-win {
     height: 52px;
     background: linear-gradient(135deg, #2563eb, #7c5cfc);
     color: #fff;
     box-shadow: 0 10px 28px rgba(124, 92, 252, 0.28);
   }
+
   .btn-browser {
     background: var(--surface);
     box-shadow: var(--neu);
     color: var(--sub);
   }
+
   .btn-pdf {
-    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    background: linear-gradient(135deg, #ef4444, #f59e0b);
     color: #fff;
-    box-shadow: 0 10px 28px rgba(99, 102, 241, 0.24);
+    box-shadow: 0 10px 28px rgba(239, 68, 68, 0.18);
   }
+
   .btn-new {
     background: var(--vs);
     color: var(--v1);
   }
+
   .btn-back {
     background: transparent;
     color: var(--muted);
-    font-size: 13px;
+    margin-bottom: 0;
   }
+
   .btn-win:hover,
   .btn-browser:hover,
   .btn-pdf:hover,
@@ -388,6 +415,7 @@
   .btn-back:hover {
     transform: translateY(-1px);
   }
+
   .sec-divider {
     display: flex;
     align-items: center;
@@ -399,6 +427,7 @@
     text-transform: uppercase;
     letter-spacing: 0.6px;
   }
+
   .sec-divider::before,
   .sec-divider::after {
     content: "";
@@ -406,13 +435,7 @@
     height: 1px;
     background: var(--border);
   }
-  .preview-wrap {
-    margin-top: 13px;
-    background: var(--white);
-    border-radius: var(--r);
-    box-shadow: var(--sh1);
-    overflow: hidden;
-  }
+
   .pw-head {
     display: flex;
     align-items: center;
@@ -420,6 +443,7 @@
     padding: 13px 18px 12px;
     border-bottom: 1px solid var(--border);
   }
+
   .pw-ico {
     width: 32px;
     height: 32px;
@@ -431,22 +455,26 @@
     font-size: 15px;
     flex: 0 0 32px;
   }
+
   .pw-title {
     font-size: 14px;
     font-weight: 800;
     color: var(--text);
   }
+
   .pw-sub {
     font-size: 11px;
     color: var(--muted);
     font-weight: 500;
     margin-top: 1px;
   }
+
   .pw-body {
     padding: 16px 18px 20px;
     display: flex;
     justify-content: center;
   }
+
   .paper {
     font-family: var(--mono);
     font-size: 12px;
@@ -460,6 +488,7 @@
       0 1px 4px rgba(0, 0, 0, 0.08);
     position: relative;
   }
+
   .paper::before,
   .paper::after {
     content: "";
@@ -474,10 +503,12 @@
     );
     margin: -14px -12px 10px;
   }
+
   .paper::after {
     margin: 10px -12px -14px;
     transform: rotate(180deg);
   }
+
   .receipt-logo-row {
     display: flex;
     align-items: center;
@@ -485,31 +516,33 @@
     gap: 10px;
     margin-bottom: 8px;
   }
+
   .receipt-logo-row img {
-    height: 34px;
+    height: 36px;
     width: auto;
     object-fit: contain;
   }
-  .receipt-logo-row img.umgap-only {
-    filter: grayscale(100%) contrast(1.4);
-  }
+
   .r-title {
     font-size: 14px;
     font-weight: 700;
     text-align: center;
     margin-bottom: 2px;
   }
+
   .r-sub {
     font-size: 11px;
     text-align: center;
     color: #555;
     margin-bottom: 6px;
   }
+
   .r-dash {
     border: none;
     border-top: 1px dashed #999;
     margin: 7px 0;
   }
+
   .r-row {
     display: flex;
     justify-content: space-between;
@@ -517,22 +550,26 @@
     margin: 2px 0;
     font-size: 11px;
   }
+
   .r-row .lft {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
   .r-row .rgt {
     text-align: right;
     white-space: nowrap;
   }
+
   .r-item-name {
     font-size: 11px;
     font-weight: 700;
     margin-top: 5px;
     margin-bottom: 1px;
   }
+
   .r-item-detail {
     display: flex;
     justify-content: space-between;
@@ -540,6 +577,7 @@
     color: #444;
     margin-bottom: 3px;
   }
+
   .r-total {
     display: flex;
     justify-content: space-between;
@@ -547,18 +585,21 @@
     font-weight: 700;
     margin: 3px 0;
   }
+
   .r-footer {
     text-align: center;
     font-size: 11px;
     margin-top: 8px;
     color: #555;
   }
+
   .r-notes {
     font-size: 10px;
     color: #444;
     margin-top: 4px;
     font-style: italic;
   }
+
   .r-inv {
     font-family: var(--mono);
     font-size: 9px;
@@ -567,6 +608,7 @@
     margin-top: 6px;
     word-break: break-all;
   }
+
   .bottom-nav {
     position: fixed;
     left: 0;
@@ -578,6 +620,7 @@
     -webkit-backdrop-filter: blur(14px);
     z-index: 60;
   }
+
   .nav-bar {
     max-width: 448px;
     margin: 0 auto;
@@ -588,6 +631,7 @@
     display: flex;
     gap: 5px;
   }
+
   .nav-item {
     flex: 1;
     display: flex;
@@ -607,23 +651,28 @@
     text-decoration: none;
     transition: all 0.16s;
   }
+
   .nav-item.active {
     background: var(--vs);
     color: var(--v1);
   }
+
   .ni {
     width: 21px;
     height: 21px;
     flex: 0 0 21px;
   }
+
   .ni svg {
     width: 100%;
     height: 100%;
     display: block;
   }
+
   .nf {
     fill: currentColor;
   }
+
   .ns {
     stroke: currentColor;
     fill: none;
@@ -637,17 +686,19 @@
       size: var(--paper-w) auto;
       margin: 0;
     }
+
     body {
       background: #fff;
       padding: 0;
     }
+
     .hdr,
     .print-card,
     .pw-head,
-    .bottom-nav,
-    .pw-body > *:not(.paper) {
-      display: none;
+    .bottom-nav {
+      display: none !important;
     }
+
     .screen,
     .wrap,
     .preview-wrap,
@@ -660,11 +711,13 @@
       background: #fff;
       border-radius: 0;
     }
+
     .paper {
       box-shadow: none;
       width: 100%;
       border-radius: 0;
     }
+
     .paper::before,
     .paper::after {
       display: none;
@@ -692,8 +745,8 @@
         class="hbtn"
       >
         <svg viewBox="0 0 24 24">
-          <path d="M19 12H5" />
-          <path d="M12 5l-7 7 7 7" />
+          <path d="M19 12H5"></path>
+          <path d="M12 5l-7 7 7 7"></path>
         </svg>
       </a>
     </div>
@@ -702,7 +755,7 @@
       <div class="pc-hero">
         <div class="pc-tag">Nota Penjualan</div>
         <div class="pc-no">{{ invoice.invoice_no }}</div>
-        <div class="pc-meta" style="position: relative; z-index: 1">
+        <div class="pc-meta">
           <span class="pc-pill"
             >{{ invoice.customer_name or 'Tanpa nama' }}</span
           >
@@ -715,7 +768,7 @@
 
       <div class="pc-body">
         <div class="st-bar" id="stBar">
-          <div class="st-dot" id="stDot"></div>
+          <div class="st-dot"></div>
           <div class="st-txt" id="stTxt">Pilih metode cetak di bawah</div>
         </div>
 
@@ -734,7 +787,7 @@
           >
             Ukuran Kertas
           </div>
-          <div class="size-row" id="sizeRow">
+          <div class="size-row">
             <div class="sz-btn">
               <input type="radio" name="sz" id="sz-58" value="58" />
               <label for="sz-58">🖨️ 58mm</label>
@@ -746,29 +799,31 @@
           </div>
         </div>
 
-        <div class="sec-divider">🖥️ Windows / Laptop</div>
-        <button class="btn-win" onclick="window.print()">
-          Print Browser / Thermal
+        <div class="sec-divider">Windows / Laptop</div>
+
+        <button class="btn-win" id="btnWinPrint" type="button">
+          Cetak via COM Port (Windows)
         </button>
 
-        <div class="sec-divider">📄 File</div>
-        <a class="btn-pdf" href="/invoice/{{ invoice.id }}/pdf">
-          Download PDF
-        </a>
+        <div class="sec-divider">Alternatif</div>
 
-        <div class="sec-divider">Aksi</div>
+        <button class="btn-browser" type="button" onclick="window.print()">
+          Print Browser (Ctrl+P)
+        </button>
+
+        <a class="btn-pdf" href="/invoice/{{ invoice.id }}/pdf">Download PDF</a>
+
         <a
           class="btn-new"
           href="{{ '/admin/invoice/new' if session.get('role') == 'admin' else '/invoice/new' }}"
+          >+ Buat Nota Baru</a
         >
-          + Buat Nota Baru
-        </a>
+
         <a
           class="btn-back"
           href="{{ '/admin/dashboard' if session.get('role') == 'admin' else '/dashboard' }}"
+          >← Kembali ke Dashboard</a
         >
-          ← Kembali ke Dashboard
-        </a>
       </div>
     </div>
 
@@ -780,12 +835,10 @@
           <div class="pw-sub">Tampilan sesuai kertas thermal yang dipilih</div>
         </div>
       </div>
-
       <div class="pw-body">
         <div class="paper" id="receiptPaper">
           <div class="receipt-logo-row">
             <img
-              class="umgap-only"
               src="{{ url_for('static', filename='UMGAP (1).png') }}"
               alt="UMGAP"
             />
@@ -804,9 +857,7 @@
 
           <div class="r-row">
             <span class="lft">No</span>
-            <span class="rgt" style="font-weight: 700"
-              >{{ invoice.invoice_no }}</span
-            >
+            <span class="rgt"><strong>{{ invoice.invoice_no }}</strong></span>
           </div>
           <div class="r-row">
             <span class="lft">Tanggal</span>
@@ -848,13 +899,12 @@
             >
           </div>
 
-          <hr class="r-dash" />
-
           {% if invoice.notes %}
-          <div class="r-notes">{{ invoice.notes }}</div>
           <hr class="r-dash" />
+          <div class="r-notes">{{ invoice.notes }}</div>
           {% endif %}
 
+          <hr class="r-dash" />
           <div class="r-footer">Terima kasih sudah berbelanja!</div>
           <div class="r-inv">{{ invoice.invoice_no }}</div>
         </div>
@@ -871,14 +921,58 @@
     >
       <span class="ni">
         <svg viewBox="0 0 24 24">
-          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
-          <rect class="nf" x="13" y="13" width="8" height="8" rx="1.6" />
+          <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="nf" x="13" y="13" width="8" height="8" rx="1.6"></rect>
         </svg>
       </span>
       <span>Dashboard</span>
     </a>
-    <a class="nav-item active" href="#"></a>
+    <a class="nav-item active" href="#">
+      <span class="ni">
+        <svg viewBox="0 0 24 24">
+          <rect class="ns" x="3" y="3" width="18" height="18" rx="2.5"></rect>
+          <path class="ns" d="M8 10h8M8 14h5"></path>
+        </svg>
+      </span>
+      <span>Nota</span>
+    </a>
   </div>
 </div>
+
+<script>
+  (function () {
+    var paperDefault =
+      "{{ invoice.print_size if invoice.print_size in ['58mm', '80mm'] else '80mm' }}";
+    document.documentElement.style.setProperty("--paper-w", paperDefault);
+
+    var defaultRadio = document.getElementById(
+      paperDefault === "58mm" ? "sz-58" : "sz-80",
+    );
+    if (defaultRadio) defaultRadio.checked = true;
+
+    document.querySelectorAll('input[name="sz"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        document.documentElement.style.setProperty("--paper-w", r.value + "mm");
+      });
+    });
+
+    function setStatus(state, txt) {
+      var bar = document.getElementById("stBar");
+      var txtEl = document.getElementById("stTxt");
+      bar.className = "st-bar" + (state ? " " + state : "");
+      txtEl.textContent = txt || "";
+    }
+
+    document
+      .getElementById("btnWinPrint")
+      .addEventListener("click", function () {
+        setStatus(
+          "",
+          "Gunakan Print Browser atau fitur COM port server jika sudah kamu pasang.",
+        );
+      });
+  })();
+</script>
+{% endblock %}
