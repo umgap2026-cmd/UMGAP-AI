@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ invoice.invoice_no }}</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        color: #111;
+        margin: 24px;
+        font-size: 12px;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        border: 1px solid #ddd;
+        border-radius: 14px;
+        padding: 24px;
+      }
+      .head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+      .logos {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logos img {
+        height: 42px;
+        width: auto;
+        object-fit: contain;
+      }
+      .title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .sub {
+        color: #666;
+        font-size: 13px;
+      }
+      .meta {
+        margin: 18px 0;
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .meta td {
+        padding: 6px 0;
+        vertical-align: top;
+      }
+      .items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      .items th,
+      .items td {
+        border-bottom: 1px solid #ddd;
+        padding: 10px 8px;
+        text-align: left;
+      }
+      .items th {
+        background: #f7f7fb;
+      }
+      .right {
+        text-align: right;
+      }
+      .total {
+        margin-top: 18px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .total-box {
+        min-width: 220px;
+      }
+      .total-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 14px;
+      }
+      .grand {
+        font-size: 18px;
+        font-weight: 700;
+        border-top: 2px solid #111;
+        margin-top: 8px;
+        padding-top: 10px;
+      }
+      .notes {
+        margin-top: 18px;
+        padding: 12px;
+        background: #fafafa;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="head">
+        <div>
+          <div class="logos">
+            <img
+              src="{{ url_for('static', filename='UMGAP (1).png', _external=True) }}"
+              alt="UMGAP"
+            />
+            {% if invoice.company_logo_path %}
+            <img
+              src="{{ url_for('static', filename=invoice.company_logo_path, _external=True) }}"
+              alt="Logo Perusahaan"
+            />
+            {% endif %}
+          </div>
+          <div class="title">{{ invoice.company_name or 'UMGAP' }}</div>
+          <div class="sub">Nota Penjualan</div>
+        </div>
+        <div>
+          <div><strong>{{ invoice.invoice_no }}</strong></div>
+          <div>
+            {{ (invoice.created_at + timedelta(hours=7)).strftime('%d/%m/%Y
+            %H:%M') if invoice.created_at else '-' }}
+          </div>
+        </div>
+      </div>
+
+      <table class="meta">
+        <tr>
+          <td width="140">Customer</td>
+          <td>{{ invoice.customer_name or '-' }}</td>
+        </tr>
+        <tr>
+          <td>Kasir</td>
+          <td>{{ invoice.created_by_name or '-' }}</td>
+        </tr>
+        <tr>
+          <td>Pembayaran</td>
+          <td>{{ invoice.payment_method }}</td>
+        </tr>
+        <tr>
+          <td>Ukuran Print</td>
+          <td>{{ invoice.print_size }}</td>
+        </tr>
+      </table>
+
+      <table class="items">
+        <thead>
+          <tr>
+            <th>Produk</th>
+            <th class="right">Qty</th>
+            <th class="right">Harga</th>
+            <th class="right">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.product_name }}</td>
+            <td class="right">{{ item.qty }}</td>
+            <td class="right">
+              Rp {{ "{:,}".format(item.price).replace(",", ".") }}
+            </td>
+            <td class="right">
+              Rp {{ "{:,}".format(item.subtotal).replace(",", ".") }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="total">
+        <div class="total-box">
+          <div class="total-row grand">
+            <span>TOTAL</span>
+            <span
+              >Rp {{ "{:,}".format(invoice.grand_total).replace(",", ".")
+              }}</span
+            >
+          </div>
+        </div>
+      </div>
+
+      {% if invoice.notes %}
+      <div class="notes">
+        <strong>Catatan:</strong><br />
+        {{ invoice.notes }}
+      </div>
+      {% endif %}
+    </div>
+  </body>
+</html>
