@@ -20,7 +20,7 @@ import psycopg2
 # Flask & Extensions
 from flask import (
     Flask, render_template, request, redirect, session, abort,
-    jsonify, url_for, flash, Response
+    jsonify, url_for, flash, Response, send_file
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
@@ -55,6 +55,8 @@ except ImportError:
 load_dotenv()
 
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from werkzeug.utils import secure_filename
 
 # ==================== APP CONFIG ====================
 app = Flask(__name__)
@@ -251,6 +253,36 @@ def _invoice_rows_from_form(form):
     return rows
 
 
+UPLOAD_INVOICE_LOGO_DIR = os.path.join("static", "uploads", "invoice_logo")
+
+def _ensure_invoice_logo_dir():
+    os.makedirs(UPLOAD_INVOICE_LOGO_DIR, exist_ok=True)
+
+def _save_company_logo(file_storage):
+    if not file_storage or not file_storage.filename:
+        return None
+
+    _ensure_invoice_logo_dir()
+
+    raw_name = secure_filename(file_storage.filename or "")
+    ext = os.path.splitext(raw_name)[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        ext = ".png"
+
+    filename = f"inv_logo_{datetime.now(ZoneInfo('Asia/Jakarta')).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{ext}"
+    save_path = os.path.join(UPLOAD_INVOICE_LOGO_DIR, filename)
+    file_storage.save(save_path)
+
+    return f"uploads/invoice_logo/{filename}"
+
+def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
+    if not dt:
+        return "-"
+    try:
+        return (dt + timedelta(hours=7)).strftime(fmt)
+    except Exception:
+        return "-"
+
 # =========================
 # SIMPAN INVOICE
 # =========================
@@ -365,119 +397,7 @@ def _save_invoice(is_admin_mode=False):
 
     return redirect(f"/invoice/{invoice_id}")
 
-# =========================
-# SIMPAN INVOICE
-# =========================
 
-def _save_invoice(is_admin_mode=False):
-    ensure_invoice_schema()
-
-    created_by = session.get("user_id")
-    customer_name = (request.form.get("customer_name") or "").strip()
-    payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
-    print_size = (request.form.get("print_size") or "80mm").strip()
-    notes = (request.form.get("notes") or "").strip()
-
-    target_user_id = created_by
-    if is_admin_mode:
-        target_user_id = _safe_int(request.form.get("employee_id"), created_by)
-
-    item_rows = _invoice_rows_from_form(request.form)
-    if not item_rows:
-        return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
-        invoice_no = _make_invoice_no()
-
-        final_items = []
-        subtotal = 0
-
-        for row in item_rows:
-            cur.execute("""
-                SELECT id, name, price
-                FROM products
-                WHERE id=%s AND is_global=TRUE
-                LIMIT 1;
-            """, (row["product_id"],))
-
-            p = cur.fetchone()
-            if not p:
-                continue
-
-            qty = row["qty"]
-            price = int(p.get("price") or 0)
-            line_subtotal = qty * price
-            subtotal += line_subtotal
-
-            final_items.append({
-                "product_id": p["id"],
-                "product_name": p["name"],
-                "qty": qty,
-                "price": price,
-                "subtotal": line_subtotal
-            })
-
-        if not final_items:
-            return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
-
-        grand_total = subtotal
-
-        cur.execute("""
-            INSERT INTO invoices
-                (invoice_no, created_by, customer_name, print_size, payment_method, subtotal, grand_total, notes)
-            VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id;
-        """, (
-            invoice_no,
-            created_by,
-            customer_name,
-            print_size,
-            payment_method,
-            subtotal,
-            grand_total,
-            notes
-        ))
-
-        invoice_id = (cur.fetchone() or {}).get("id")
-
-        for item in final_items:
-
-            cur.execute("""
-                INSERT INTO invoice_items
-                (invoice_id, product_id, product_name, qty, price, subtotal)
-                VALUES (%s,%s,%s,%s,%s,%s);
-            """, (
-                invoice_id,
-                item["product_id"],
-                item["product_name"],
-                item["qty"],
-                item["price"],
-                item["subtotal"]
-            ))
-
-            # otomatis masuk monitor sales
-            cur.execute("""
-                INSERT INTO sales_submissions
-                (user_id, product_id, qty, note, status, created_at)
-                VALUES (%s,%s,%s,%s,'APPROVED',CURRENT_TIMESTAMP);
-            """, (
-                target_user_id,
-                item["product_id"],
-                item["qty"],
-                f"INVOICE {invoice_no}"
-            ))
-
-        conn.commit()
-
-    finally:
-        cur.close()
-        conn.close()
-
-    return redirect(f"/invoice/{invoice_id}")
 
 # ==================== SCHEMA ENSURERS ====================
 def ensure_points_schema():
@@ -649,6 +569,8 @@ def ensure_invoice_schema():
                 invoice_no VARCHAR(50) UNIQUE NOT NULL,
                 created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 customer_name VARCHAR(150),
+                company_name VARCHAR(150),
+                company_logo_path TEXT,
                 print_size VARCHAR(10) NOT NULL DEFAULT '80mm',
                 payment_method VARCHAR(30) DEFAULT 'CASH',
                 subtotal INTEGER NOT NULL DEFAULT 0,
@@ -657,6 +579,9 @@ def ensure_invoice_schema():
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_name VARCHAR(150);")
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_logo_path TEXT;")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS invoice_items (
@@ -2246,6 +2171,8 @@ def invoice_view(invoice_id):
         cur.close()
         conn.close()
 
+    invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
+
     return render_template("invoice_print.html", invoice=invoice, items=items)
 
 
@@ -2285,6 +2212,52 @@ def invoice_json(invoice_id):
         "invoice": invoice,
         "items": items
     })
+
+@app.route("/invoice/<int:invoice_id>/pdf")
+def invoice_pdf(invoice_id):
+    if not is_logged_in():
+        return redirect("/login")
+
+    ensure_invoice_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT i.*, u.name AS created_by_name
+            FROM invoices i
+            JOIN users u ON u.id = i.created_by
+            WHERE i.id=%s
+            LIMIT 1;
+        """, (invoice_id,))
+        invoice = cur.fetchone()
+        if not invoice:
+            abort(404)
+
+        cur.execute("""
+            SELECT id, product_id, product_name, qty, price, subtotal
+            FROM invoice_items
+            WHERE invoice_id=%s
+            ORDER BY id ASC;
+        """, (invoice_id,))
+        items = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    html = render_template("invoice_pdf.html", invoice=invoice, items=items)
+
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{invoice['invoice_no']}.pdf"
+        )
+    except Exception as e:
+        return f"Gagal membuat PDF. Install dulu weasyprint. Error: {e}", 500
 
 # ---------- PRODUCTS ----------
 @app.route("/products")
