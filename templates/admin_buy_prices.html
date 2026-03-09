@@ -12,23 +12,28 @@
     --card: #f4f6fb;
     --text: #1a2740;
     --muted: #7d8aa6;
-    --shadow-out: 0 20px 40px rgba(18, 32, 62, 0.11);
-    --shadow-in:
+    --sout: 0 20px 40px rgba(18, 32, 62, 0.11);
+    --sin:
       inset 10px 10px 20px rgba(20, 40, 80, 0.13),
       inset -10px -10px 20px rgba(255, 255, 255, 0.92);
-    --soft-in:
+    --sfin:
       inset 6px 6px 12px rgba(20, 40, 80, 0.1),
       inset -6px -6px 12px rgba(255, 255, 255, 0.94);
-    --radius: 24px;
+    --r: 24px;
     --pill: 999px;
     --blue: #2f5f8f;
     --nav-h: 88px;
-    --green: #16a34a;
-    --greens: rgba(22, 163, 74, 0.1);
-    --amber: #d97706;
-    --ambers: rgba(217, 119, 6, 0.1);
-    --red: #dc2626;
-    --reds: rgba(220, 38, 38, 0.09);
+    --gr: #16a34a;
+    --grs: rgba(22, 163, 74, 0.1);
+    --am: #d97706;
+    --ams: rgba(217, 119, 6, 0.1);
+    --rd: #dc2626;
+    --rds: rgba(220, 38, 38, 0.09);
+    --tn: #b8860b;
+    --al: #6b7280;
+    --cu: #b87333;
+    --ss: #607d8b;
+    --ti: #6366f1;
   }
   body {
     font-family:
@@ -40,70 +45,68 @@
     background: var(--bg);
     color: var(--text);
     min-height: 100svh;
-    padding-bottom: calc(var(--nav-h)+env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   }
   .screen {
     min-height: 100svh;
     display: flex;
     justify-content: center;
-    padding: 14px 12px calc(14px+env(safe-area-inset-bottom));
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
   }
   .wrap {
     width: 100%;
-    max-width: 480px;
+    max-width: 520px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
   }
 
-  /* ── HEAD CARD ── */
-  .head-card {
+  /* HEAD */
+  .head {
     background: linear-gradient(135deg, #1e3a5f, #2f5f8f);
-    border-radius: var(--radius);
-    padding: 20px 20px 18px;
-    box-shadow: var(--shadow-out);
-    position: relative;
+    border-radius: var(--r);
+    padding: 18px 18px 0;
+    box-shadow: var(--sout);
     overflow: hidden;
+    position: relative;
   }
-  .head-card::before {
+  .head::before {
     content: "";
     position: absolute;
-    width: 180px;
-    height: 180px;
+    width: 160px;
+    height: 160px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.05);
-    right: -40px;
-    top: -50px;
-    pointer-events: none;
+    right: -30px;
+    top: -45px;
   }
-  .hc-inner {
-    position: relative;
-    z-index: 1;
+  .hd-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
+    z-index: 1;
   }
-
-  .hc-eye {
-    font-size: 10px;
+  .hd-eye {
+    font-size: 9px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.45);
     letter-spacing: 1px;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
-  .hc-title {
-    font-size: 20px;
+  .hd-title {
+    font-size: 19px;
     font-weight: 900;
     color: #fff;
-    letter-spacing: -0.3px;
   }
-  .hc-sub {
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.55);
-    margin-top: 3px;
+  .hd-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 2px;
+    margin-bottom: 14px;
   }
-  .hc-back {
+  .hd-back {
     width: 38px;
     height: 38px;
     border-radius: 13px;
@@ -114,22 +117,18 @@
     justify-content: center;
     cursor: pointer;
     text-decoration: none;
-    transition: background 0.15s;
+    flex: 0 0 38px;
   }
-  .hc-back:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
-  .hc-back svg {
-    width: 16px;
-    height: 16px;
+  .hd-back svg {
+    width: 15px;
+    height: 15px;
     stroke: #fff;
     fill: none;
     stroke-width: 2.4;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  /* rainbow stripe */
-  .hc-stripe {
+  .hd-stripe {
     height: 3px;
     background: linear-gradient(
       90deg,
@@ -140,71 +139,137 @@
       #3498db,
       #8b5cf6
     );
-    border-radius: 0 0 var(--radius) var(--radius);
-    margin-top: 14px;
+    margin: 0 -18px;
   }
 
-  /* ── MAIN CARD ── */
-  .main-card {
+  /* SEARCH & FILTER BAR */
+  .filter-bar {
     background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-out);
-    overflow: hidden;
-  }
-  .inner {
-    padding: 18px 16px;
-  }
-  .sec-head {
+    border-radius: 18px;
+    box-shadow: var(--sout);
+    padding: 12px 14px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-    gap: 10px;
+    flex-direction: column;
+    gap: 9px;
   }
-  .sec-title {
-    font-size: 14px;
-    font-weight: 900;
+  .search-wrap {
+    position: relative;
+  }
+  .search-ico {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    stroke: var(--muted);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .search-inp {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: var(--sfin);
+    padding: 10px 12px 10px 34px;
+    font-size: 13px;
     color: var(--text);
-    letter-spacing: -0.2px;
+    font-family: inherit;
+    transition: box-shadow 0.2s;
   }
-  .sec-desc {
-    font-size: 11px;
+  .search-inp:focus {
+    box-shadow:
+      var(--sfin),
+      0 0 0 3px rgba(47, 95, 143, 0.15);
+  }
+  .search-inp::placeholder {
     color: var(--muted);
-    margin-top: 2px;
+    font-size: 12px;
+  }
+  .mat-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .mat-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .mat-tab {
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--bg);
+    box-shadow: var(--sfin);
+    color: var(--muted);
+    transition: all 0.17s;
+    white-space: nowrap;
+  }
+  .mat-tab.active {
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  .mat-tab[data-mat="all"].active {
+    background: var(--blue);
+  }
+  .mat-tab[data-mat="Tembaga"].active {
+    background: var(--cu);
+  }
+  .mat-tab[data-mat="Kuningan"].active {
+    background: var(--tn);
+  }
+  .mat-tab[data-mat="Aluminium"].active {
+    background: var(--al);
+  }
+  .mat-tab[data-mat="Stainless"].active {
+    background: var(--ss);
+  }
+  .mat-tab[data-mat="Timah & Aki"].active {
+    background: var(--ti);
   }
 
-  /* ── STATUS BAR ── */
-  .st-bar {
+  /* STATUS */
+  .st {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     padding: 9px 13px;
     border-radius: 12px;
     background: var(--card);
-    box-shadow: var(--soft-in);
+    box-shadow: var(--sfin);
     font-size: 11.5px;
     font-weight: 700;
     color: var(--muted);
-    min-height: 40px;
-    transition: all 0.25s;
+    transition: all 0.2s;
+    min-height: 38px;
   }
-  .st-bar.ok {
-    background: var(--greens);
-    color: var(--green);
+  .st.ok {
+    background: var(--grs);
+    color: var(--gr);
     box-shadow: none;
     border: 1.5px solid rgba(22, 163, 74, 0.2);
   }
-  .st-bar.err {
-    background: var(--reds);
-    color: var(--red);
+  .st.err {
+    background: var(--rds);
+    color: var(--rd);
     box-shadow: none;
-    border: 1.5px solid rgba(220, 38, 38, 0.18);
+    border: 1.5px solid rgba(220, 38, 38, 0.15);
   }
-  .st-bar.ld {
-    background: var(--ambers);
-    color: var(--amber);
+  .st.ld {
+    background: var(--ams);
+    color: var(--am);
     box-shadow: none;
-    border: 1.5px solid rgba(217, 119, 6, 0.18);
+    border: 1.5px solid rgba(217, 119, 6, 0.15);
   }
   .st-dot {
     width: 7px;
@@ -213,7 +278,7 @@
     background: currentColor;
     flex: 0 0 7px;
   }
-  .st-bar.ld .st-dot {
+  .st.ld .st-dot {
     animation: pulse 0.7s ease infinite;
   }
   @keyframes pulse {
@@ -222,170 +287,316 @@
       opacity: 1;
     }
     50% {
-      opacity: 0.2;
+      opacity: 0.15;
     }
   }
 
-  /* ── MATERIAL GROUP ── */
+  /* MATERIAL GROUP */
   .mat-group {
-    margin-bottom: 4px;
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--sout);
+    overflow: hidden;
   }
-  .mat-label {
+  .mg-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 0 6px;
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    gap: 9px;
+    padding: 13px 15px 11px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.12);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--card);
   }
-  .mat-dot {
-    width: 8px;
-    height: 8px;
+  .mg-dot {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    flex: 0 0 8px;
+    flex: 0 0 10px;
   }
-  .mat-dot.brass {
-    background: #b8860b;
+  .mg-name {
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--text);
+    flex: 1;
   }
-  .mat-dot.alu {
-    background: #9aa5b4;
-  }
-  .mat-dot.copper {
-    background: #b87333;
-  }
-  .mat-dot.stainless {
-    background: #6b7280;
-  }
-  .mat-dot.other {
-    background: #8b5cf6;
+  .mg-count {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    background: var(--bg);
+    border-radius: 999px;
+    padding: 3px 9px;
+    box-shadow: var(--sfin);
   }
 
-  /* ── ROW ── */
+  /* ROWS */
+  .items-wrap {
+    padding: 8px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .bp-row {
+    border-radius: 14px;
+    background: var(--bg);
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(18, 32, 62, 0.06);
+    transition: box-shadow 0.15s;
+  }
+  .bp-row.hidden {
+    display: none;
+  }
+  .bp-main {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 8px;
     align-items: center;
     padding: 10px 12px;
-    border-radius: 14px;
-    background: var(--bg);
-    margin-bottom: 6px;
-    box-shadow: 0 1px 4px rgba(18, 32, 62, 0.06);
-    transition: box-shadow 0.15s;
-    position: relative;
+    cursor: default;
   }
-  .bp-row:hover {
-    box-shadow: 0 4px 12px rgba(18, 32, 62, 0.1);
-  }
-  .bp-row.inactive {
-    opacity: 0.45;
-  }
-
   .bp-grade {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
   }
-  .bp-meta {
+  .bp-note-txt {
     font-size: 10.5px;
     color: var(--muted);
     margin-top: 2px;
   }
-  .bp-price-wrap {
+  .bp-right {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 4px;
+    gap: 3px;
   }
   .bp-price {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 900;
     color: var(--blue);
     white-space: nowrap;
   }
   .bp-price.zero {
+    font-size: 13px;
     color: var(--muted);
     font-style: italic;
+    font-weight: 600;
   }
   .bp-unit {
-    font-size: 9.5px;
+    font-size: 9px;
     color: var(--muted);
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
-  .bp-acts {
-    display: flex;
-    gap: 5px;
-    margin-top: 5px;
+  .bp-row.inactive .bp-grade {
+    text-decoration: line-through;
+    opacity: 0.5;
   }
-  .bp-edit-btn,
-  .bp-del-btn {
-    border: none;
-    border-radius: 8px;
-    padding: 5px 9px;
-    font-size: 10.5px;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .bp-edit-btn {
-    background: rgba(47, 95, 143, 0.12);
-    color: var(--blue);
-  }
-  .bp-edit-btn:hover {
-    background: rgba(47, 95, 143, 0.2);
-  }
-  .bp-del-btn {
-    background: var(--reds);
-    color: var(--red);
-  }
-  .bp-del-btn:hover {
-    background: rgba(220, 38, 38, 0.18);
-  }
-  .bp-toggle-btn {
-    border: none;
-    border-radius: 8px;
-    padding: 5px 9px;
-    font-size: 10.5px;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .bp-toggle-btn.on {
-    background: var(--greens);
-    color: var(--green);
-  }
-  .bp-toggle-btn.off {
-    background: var(--ambers);
-    color: var(--amber);
+  .bp-row.inactive .bp-price {
+    opacity: 0.4;
   }
 
-  /* ── INLINE EDIT ── */
-  .bp-edit-form {
+  /* QUICK EDIT BAR */
+  .bp-edit-bar {
     display: none;
-    padding: 10px 12px;
-    background: rgba(47, 95, 143, 0.06);
-    border-radius: 12px;
-    margin-bottom: 6px;
-    border: 1.5px solid rgba(47, 95, 143, 0.14);
+    padding: 0 12px 11px;
+    gap: 7px;
   }
-  .bp-edit-form.open {
-    display: block;
+  .bp-edit-bar.open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
   }
-  .ef-row {
+  .be-price-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 0 0 auto;
+  }
+  .be-curr {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    padding: 0 8px 0 10px;
+    background: var(--card);
+    border: none;
+    border-radius: 10px 0 0 10px;
+    box-shadow: var(--sfin);
+    height: 38px;
+    display: flex;
+    align-items: center;
+  }
+  .be-price-inp {
+    width: 90px;
+    height: 38px;
+    border: none;
+    outline: none;
+    border-radius: 0 10px 10px 0;
+    background: var(--card);
+    box-shadow: var(--sfin);
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--text);
+    font-family: inherit;
+    transition: box-shadow 0.2s;
+  }
+  .be-price-inp:focus {
+    box-shadow:
+      var(--sfin),
+      0 0 0 3px rgba(47, 95, 143, 0.15);
+  }
+  .be-note-inp {
+    flex: 1;
+    min-width: 80px;
+    height: 38px;
+    border: none;
+    outline: none;
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: var(--sfin);
+    padding: 0 11px;
+    font-size: 12px;
+    color: var(--text);
+    font-family: inherit;
+    transition: box-shadow 0.2s;
+  }
+  .be-note-inp:focus {
+    box-shadow:
+      var(--sfin),
+      0 0 0 3px rgba(47, 95, 143, 0.15);
+  }
+  .be-note-inp::placeholder {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .be-btns {
+    display: flex;
+    gap: 5px;
+    flex: 0 0 auto;
+  }
+  .be-save {
+    height: 38px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1e3a5f, #2f5f8f);
+    color: #fff;
+    font-weight: 800;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 4px 12px rgba(47, 95, 143, 0.25);
+    transition: transform 0.15s;
+    white-space: nowrap;
+  }
+  .be-save:hover {
+    transform: translateY(-1px);
+  }
+  .be-tog {
+    height: 38px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .be-tog.on {
+    background: var(--grs);
+    color: var(--gr);
+  }
+  .be-tog.off {
+    background: var(--ams);
+    color: var(--am);
+  }
+  .be-del {
+    height: 38px;
+    width: 38px;
+    border: none;
+    border-radius: 10px;
+    background: var(--rds);
+    color: var(--rd);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 38px;
+  }
+  .be-del:hover {
+    background: rgba(220, 38, 38, 0.18);
+  }
+
+  /* ROW TOUCH TARGET — klik baris buka edit */
+  .bp-main {
+    cursor: pointer;
+  }
+  .bp-main:hover .bp-grade {
+    color: var(--blue);
+  }
+  .bp-row:hover {
+    box-shadow: 0 4px 14px rgba(18, 32, 62, 0.12);
+  }
+  .bp-row.editing {
+    box-shadow: 0 4px 18px rgba(47, 95, 143, 0.18);
+    border: 1.5px solid rgba(47, 95, 143, 0.2);
+  }
+
+  /* ADD FORM */
+  .add-card {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--sout);
+    overflow: hidden;
+  }
+  .add-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 15px 11px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.1);
+  }
+  .add-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--grs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex: 0 0 32px;
+  }
+  .add-title {
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--text);
+  }
+  .add-sub {
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+  .add-body {
+    padding: 13px 15px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .af-g2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 7px;
-    margin-bottom: 7px;
+    gap: 9px;
   }
-  .ef-lbl {
+  .af-lbl {
     font-size: 9.5px;
     font-weight: 800;
     color: var(--muted);
@@ -394,126 +605,85 @@
     display: block;
     margin-bottom: 4px;
   }
-  .ef-inp {
+  .af-inp,
+  .af-sel {
     width: 100%;
     border: none;
     outline: none;
-    border-radius: 10px;
-    background: var(--card);
-    box-shadow: var(--soft-in);
-    padding: 9px 12px;
+    border-radius: 11px;
+    background: var(--bg);
+    box-shadow: var(--sfin);
+    padding: 10px 12px;
     font-size: 12.5px;
     color: var(--text);
     font-family: inherit;
     transition: box-shadow 0.2s;
   }
-  .ef-inp:focus {
+  .af-inp:focus,
+  .af-sel:focus {
     box-shadow:
-      var(--soft-in),
+      var(--sfin),
       0 0 0 3px rgba(47, 95, 143, 0.15);
   }
-  .ef-inp::placeholder {
+  .af-inp::placeholder {
     color: var(--muted);
-    font-size: 11.5px;
-  }
-  .ef-actions {
-    display: flex;
-    gap: 7px;
-  }
-  .ef-save {
-    flex: 1;
-    height: 40px;
-    border: none;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #1e3a5f, #2f5f8f);
-    color: #fff;
-    font-weight: 800;
-    font-size: 12.5px;
-    cursor: pointer;
-    font-family: inherit;
-    box-shadow: 0 6px 16px rgba(47, 95, 143, 0.25);
-    transition: transform 0.15s;
-  }
-  .ef-save:hover {
-    transform: translateY(-1px);
-  }
-  .ef-cancel {
-    height: 40px;
-    padding: 0 14px;
-    border: none;
-    border-radius: 12px;
-    background: var(--bg);
-    box-shadow: var(--soft-in);
-    color: var(--muted);
-    font-weight: 700;
     font-size: 12px;
-    cursor: pointer;
-    font-family: inherit;
   }
-
-  /* ── ADD FORM ── */
-  .add-form {
-    background: rgba(22, 163, 74, 0.05);
-    border-radius: 14px;
-    padding: 12px 14px;
-    border: 1.5px dashed rgba(22, 163, 74, 0.25);
+  .af-sel-wrap {
+    position: relative;
   }
-  .add-form-title {
+  .af-sel-wrap::after {
+    content: "▾";
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
     font-size: 11px;
-    font-weight: 800;
-    color: var(--green);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 10px;
-  }
-  .add-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 7px;
-    margin-bottom: 7px;
+    pointer-events: none;
   }
   .add-btn {
     width: 100%;
-    height: 42px;
+    height: 44px;
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     background: linear-gradient(135deg, #14532d, #16a34a);
     color: #fff;
     font-weight: 800;
-    font-size: 12.5px;
+    font-size: 13px;
     cursor: pointer;
     font-family: inherit;
-    box-shadow: 0 6px 16px rgba(22, 163, 74, 0.25);
+    box-shadow: 0 6px 16px rgba(22, 163, 74, 0.22);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 7px;
     transition: transform 0.15s;
   }
   .add-btn:hover {
     transform: translateY(-1px);
   }
 
-  /* ── BOTTOM NAV ── */
-  .bottom-nav {
+  /* BOTTOM NAV */
+  .bnav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 99;
-    padding: 0 12px calc(10px+env(safe-area-inset-bottom)) 12px;
+    padding: 0 12px calc(10px + env(safe-area-inset-bottom)) 12px;
   }
-  .nav-bar {
-    max-width: 480px;
+  .nbar {
+    max-width: 520px;
     margin: 0 auto;
     background: var(--card);
     border-radius: 22px;
     padding: 6px;
     display: flex;
     gap: 4px;
-    box-shadow: var(--shadow-out);
+    box-shadow: var(--sout);
   }
-  .nav-item {
+  .ni {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -531,391 +701,513 @@
     cursor: pointer;
     font-family: inherit;
   }
-  .nav-item.active {
-    background: linear-gradient(
-      135deg,
-      rgba(47, 95, 143, 0.14),
-      rgba(47, 95, 143, 0.08)
-    );
+  .ni.active {
+    background: rgba(47, 95, 143, 0.12);
     color: var(--blue);
   }
-  .nav-ico {
-    width: 22px;
-    height: 22px;
-  }
-  .nav-ico svg {
-    width: 100%;
-    height: 100%;
-    display: block;
+  .ni svg {
+    width: 20px;
+    height: 20px;
   }
 
-  .divider {
-    height: 1px;
-    background: rgba(125, 138, 166, 0.13);
-    margin: 4px 0 10px;
-  }
-  .public-tip {
-    font-size: 10.5px;
+  .pub-tip {
+    font-size: 11px;
     color: var(--muted);
     background: rgba(47, 95, 143, 0.07);
-    border-radius: 9px;
-    padding: 8px 11px;
+    border-radius: 10px;
+    padding: 9px 13px;
     line-height: 1.55;
-    border: 1px solid rgba(47, 95, 143, 0.12);
+    border: 1px solid rgba(47, 95, 143, 0.1);
   }
-  .public-tip b {
+  .pub-tip b {
     color: var(--blue);
   }
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
 </style>
+
+<!-- DATA BRIDGE -->
+<div
+  id="rowsData"
+  style="display: none"
+  data-rows="{{ rows | tojson | e }}"
+></div>
 
 <div class="screen">
   <div class="wrap">
     <!-- HEAD -->
-    <div class="head-card">
-      <div class="hc-inner">
-        <div class="hc-left">
-          <div class="hc-eye">Admin · ARV Logam</div>
-          <div class="hc-title">💰 Harga Beli</div>
-          <div class="hc-sub">Kelola harga beli scrap untuk landing page</div>
+    <div class="head">
+      <div class="hd-row">
+        <div>
+          <div class="hd-eye">Admin · ARV Logam</div>
+          <div class="hd-title">💰 Harga Beli Scrap</div>
+          <div class="hd-sub">
+            Klik baris untuk edit harga · Perubahan langsung live di website
+          </div>
         </div>
-        <a href="/admin/dashboard" class="hc-back">
+        <a href="/admin/dashboard" class="hd-back">
           <svg viewBox="0 0 24 24">
             <path d="M19 12H5" />
             <path d="M12 5l-7 7 7 7" />
           </svg>
         </a>
       </div>
-      <div class="hc-stripe"></div>
+      <div class="hd-stripe"></div>
     </div>
 
-    <!-- STATUS BAR -->
-    <div class="st-bar" id="stBar">
+    <!-- STATUS -->
+    <div class="st" id="stBar">
       <div class="st-dot"></div>
-      <span id="stTxt">Siap — klik Edit untuk ubah harga</span>
+      <span id="stTxt">Klik baris manapun untuk ubah harga</span>
     </div>
 
     <!-- PUBLIC TIP -->
-    <div class="public-tip">
-      💡 Harga yang aktif akan <b>otomatis tampil</b> di landing page website
-      ARV Logam via <b>API publik</b>. Harga 0 tampil sebagai "Hubungi kami".
+    <div class="pub-tip">
+      🌐 Harga aktif otomatis tampil di <b>landing page</b> ARV Logam via API.
+      Harga <b>0</b> = "Hubungi kami".
     </div>
 
-    <!-- MATERIAL GROUPS -->
-    {% set mat_colors =
-    {"Kuningan":"brass","Aluminium":"alu","Tembaga":"copper","Stainless":"stainless"}
-    %} {% set materials = rows | map(attribute='material') | unique | list %} {%
-    for mat in materials %}
-    <div class="main-card">
-      <div class="inner">
-        <div class="mat-label">
-          <div class="mat-dot {{ mat_colors.get(mat, 'other') }}"></div>
-          {{ mat }}
-        </div>
-        {% for row in rows if row.material == mat %}
-        <div
-          class="bp-row {{ 'inactive' if not row.is_active else '' }}"
-          id="row-{{ row.id }}"
-          data-id="{{ row.id }}"
-        >
-          <div class="bp-info">
-            <div class="bp-grade">{{ row.grade or '—' }}</div>
-            <div class="bp-meta">
-              per {{ row.unit }}{% if row.note %} · {{ row.note }}{% endif %} ·
-              diupdate: {{ row.updated_at_str }}
-            </div>
-            <div class="bp-acts">
-              <button
-                type="button"
-                class="bp-edit-btn js-edit-btn"
-                data-id="{{ row.id }}"
-              >
-                ✏️ Edit
-              </button>
-
-              <button
-                type="button"
-                class="bp-toggle-btn js-toggle-btn {{ 'on' if row.is_active else 'off' }}"
-                id="tog-{{ row.id }}"
-                data-id="{{ row.id }}"
-                data-active="{{ 'true' if row.is_active else 'false' }}"
-              >
-                {{ '🟢 Aktif' if row.is_active else '⛔ Nonaktif' }}
-              </button>
-
-              <button
-                type="button"
-                class="bp-del-btn js-del-btn"
-                data-id="{{ row.id }}"
-                data-grade="{{ row.grade or '' }}"
-              >
-                🗑️
-              </button>
-            </div>
-          </div>
-          <div class="bp-price-wrap">
-            {% if row.price > 0 %}
-            <div class="bp-price" id="price-{{ row.id }}">
-              Rp {{ "{:,}".format(row.price).replace(",",".") }}
-            </div>
-            {% else %}
-            <div class="bp-price zero" id="price-{{ row.id }}">— Hubungi</div>
-            {% endif %}
-            <div class="bp-unit">/ {{ row.unit }}</div>
-          </div>
-        </div>
-        <!-- INLINE EDIT FORM -->
-        <div class="bp-edit-form" id="ef-{{ row.id }}">
-          <div class="ef-row">
-            <div>
-              <label class="ef-lbl">Harga (Rp / {{ row.unit }})</label>
-              <input
-                class="ef-inp"
-                type="number"
-                id="ef-price-{{ row.id }}"
-                min="0"
-                value="{{ row.price }}"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label class="ef-lbl">Catatan (opsional)</label>
-              <input
-                class="ef-inp"
-                type="text"
-                id="ef-note-{{ row.id }}"
-                value="{{ row.note or '' }}"
-                placeholder="misal: bersih, no oli"
-              />
-            </div>
-          </div>
-          <div class="ef-actions">
-            <button
-              type="button"
-              class="ef-save js-save-btn"
-              data-id="{{ row.id }}"
-            >
-              💾 Simpan
-            </button>
-            <button
-              type="button"
-              class="ef-cancel js-cancel-btn"
-              data-id="{{ row.id }}"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-        {% endfor %}
+    <!-- FILTER + SEARCH -->
+    <div class="filter-bar">
+      <div class="search-wrap">
+        <svg class="search-ico" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          class="search-inp"
+          type="text"
+          id="searchInp"
+          placeholder="Cari nama barang…"
+          autocomplete="off"
+        />
+      </div>
+      <div class="mat-tabs" id="matTabs">
+        <button class="mat-tab active" data-mat="all">Semua</button>
+        <button class="mat-tab" data-mat="Tembaga">🟤 Tembaga</button>
+        <button class="mat-tab" data-mat="Kuningan">🟡 Kuningan</button>
+        <button class="mat-tab" data-mat="Aluminium">⚪ Aluminium</button>
+        <button class="mat-tab" data-mat="Stainless">🔘 Stainless</button>
+        <button class="mat-tab" data-mat="Timah & Aki">🟣 Timah & Aki</button>
       </div>
     </div>
-    {% endfor %}
+
+    <!-- GROUPS will be rendered by JS -->
+    <div id="groupsWrap"></div>
 
     <!-- TAMBAH MATERIAL BARU -->
-    <div class="main-card">
-      <div class="inner">
-        <div class="sec-head">
-          <div>
-            <div class="sec-title">➕ Tambah Material</div>
-            <div class="sec-desc">Tambah material atau grade baru</div>
-          </div>
+    <div class="add-card">
+      <div class="add-head">
+        <div class="add-icon">➕</div>
+        <div>
+          <div class="add-title">Tambah Barang Baru</div>
+          <div class="add-sub">Tambah jenis / grade material baru</div>
         </div>
-        <div class="add-form" id="addForm">
-          <div class="add-form-title">Data Material Baru</div>
-          <div class="add-grid">
-            <div>
-              <label class="ef-lbl">Nama Material</label>
-              <input
-                class="ef-inp"
-                type="text"
-                id="add-material"
-                placeholder="mis: Kuningan"
-              />
-            </div>
-            <div>
-              <label class="ef-lbl">Grade / Jenis</label>
-              <input
-                class="ef-inp"
-                type="text"
-                id="add-grade"
-                placeholder="mis: Grade A"
-              />
-            </div>
-            <div>
-              <label class="ef-lbl">Satuan</label>
-              <input
-                class="ef-inp"
-                type="text"
-                id="add-unit"
-                value="kg"
-                placeholder="kg"
-              />
-            </div>
-            <div>
-              <label class="ef-lbl">Harga (Rp)</label>
-              <input
-                class="ef-inp"
-                type="number"
-                id="add-price"
-                min="0"
-                value="0"
-                placeholder="0"
-              />
+      </div>
+      <div class="add-body">
+        <div class="af-g2">
+          <div>
+            <label class="af-lbl">Kategori Material</label>
+            <div class="af-sel-wrap">
+              <select class="af-sel" id="addMat">
+                <option value="Tembaga">Tembaga</option>
+                <option value="Kuningan">Kuningan</option>
+                <option value="Aluminium">Aluminium</option>
+                <option value="Stainless">Stainless</option>
+                <option value="Timah & Aki">Timah & Aki</option>
+                <option value="Lainnya">Lainnya…</option>
+              </select>
             </div>
           </div>
-          <div style="margin-bottom: 7px">
-            <label class="ef-lbl">Catatan (opsional)</label>
+          <div id="customMatWrap" style="display: none">
+            <label class="af-lbl">Nama Kategori Baru</label>
             <input
-              class="ef-inp"
+              class="af-inp"
               type="text"
-              id="add-note"
-              placeholder="mis: bersih tanpa solder"
+              id="addCustomMat"
+              placeholder="Nama material…"
             />
           </div>
-          <button class="add-btn" onclick="addRow()">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Tambah
-          </button>
+          <div>
+            <label class="af-lbl">Nama Barang / Grade</label>
+            <input
+              class="af-inp"
+              type="text"
+              id="addGrade"
+              placeholder="mis: BC, AK, Bron…"
+            />
+          </div>
         </div>
+        <div class="af-g2">
+          <div>
+            <label class="af-lbl">Harga Beli (Rp/kg)</label>
+            <input
+              class="af-inp"
+              type="number"
+              id="addPrice"
+              min="0"
+              step="0.5"
+              value="0"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label class="af-lbl">Satuan</label>
+            <input
+              class="af-inp"
+              type="text"
+              id="addUnit"
+              value="kg"
+              placeholder="kg"
+            />
+          </div>
+        </div>
+        <div>
+          <label class="af-lbl">Catatan (opsional)</label>
+          <input
+            class="af-inp"
+            type="text"
+            id="addNote"
+            placeholder="mis: bersih, no solder, campur…"
+          />
+        </div>
+        <button class="add-btn" id="addBtn">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Tambah Barang
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- BOTTOM NAV -->
-<div class="bottom-nav">
-  <div class="nav-bar">
-    <a class="nav-item" href="/admin/dashboard">
-      <span class="nav-ico"
-        ><svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-        >
-          <rect
-            x="3"
-            y="3"
-            width="7"
-            height="7"
-            rx="1.5"
-            fill="currentColor"
-            stroke="none"
-          />
-          <rect
-            x="14"
-            y="3"
-            width="7"
-            height="7"
-            rx="1.5"
-            fill="currentColor"
-            stroke="none"
-          />
-          <rect
-            x="3"
-            y="14"
-            width="7"
-            height="7"
-            rx="1.5"
-            fill="currentColor"
-            stroke="none"
-          />
-          <rect
-            x="14"
-            y="14"
-            width="7"
-            height="7"
-            rx="1.5"
-            fill="currentColor"
-            stroke="none"
-          /></svg
-      ></span>
-      <span>Dashboard</span>
+<div class="bnav">
+  <div class="nbar">
+    <a class="ni" href="/admin/dashboard">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+      >
+        <rect
+          x="3"
+          y="3"
+          width="7"
+          height="7"
+          rx="1.5"
+          fill="currentColor"
+          stroke="none"
+        />
+        <rect
+          x="14"
+          y="3"
+          width="7"
+          height="7"
+          rx="1.5"
+          fill="currentColor"
+          stroke="none"
+        />
+        <rect
+          x="3"
+          y="14"
+          width="7"
+          height="7"
+          rx="1.5"
+          fill="currentColor"
+          stroke="none"
+        />
+        <rect
+          x="14"
+          y="14"
+          width="7"
+          height="7"
+          rx="1.5"
+          fill="currentColor"
+          stroke="none"
+        />
+      </svg>
+      Dashboard
     </a>
-    <a class="nav-item active" href="/admin/buy-prices">
-      <span class="nav-ico"
-        ><svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-        >
-          <line x1="12" y1="1" x2="12" y2="23" />
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg
-      ></span>
-      <span>Harga Beli</span>
+    <a class="ni active" href="/admin/buy-prices">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+      >
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+      Harga Beli
     </a>
-    <a class="nav-item" href="/products">
-      <span class="nav-ico"
-        ><svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-        >
-          <path
-            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-          /></svg
-      ></span>
-      <span>Produk</span>
+    <a class="ni" href="/products">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+      >
+        <path
+          d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+        />
+      </svg>
+      Produk
     </a>
   </div>
 </div>
 
 <script>
+  // ── Data dari server ──
+  var RAW = [];
+  try {
+    RAW = JSON.parse(document.getElementById("rowsData").dataset.rows || "[]");
+  } catch (e) {}
+
+  var DOT_COLORS = {
+    Tembaga: "var(--cu)",
+    Kuningan: "var(--tn)",
+    Aluminium: "var(--al)",
+    Stainless: "var(--ss)",
+    "Timah & Aki": "var(--ti)",
+  };
+  var MAT_ICONS = {
+    Tembaga: "🟤",
+    Kuningan: "🟡",
+    Aluminium: "⚪",
+    Stainless: "🔘",
+    "Timah & Aki": "🟣",
+  };
+
+  // ── State ──
+  var curMat = "all";
+  var curSearch = "";
+  var openRowId = null;
+
+  // ── Status ──
   function setSt(cls, txt) {
     var b = document.getElementById("stBar");
-    b.className = "st-bar" + (cls ? " " + cls : "");
-    document.getElementById("stTxt").textContent = txt;
+    b.className = "st" + (cls ? " " + cls : "");
+    document.getElementById("stTxt").textContent = txt || "";
   }
 
-  function openEdit(id) {
-    var opened = document.querySelectorAll(".bp-edit-form.open");
-    opened.forEach(function (f) {
-      f.classList.remove("open");
+  // ── Format harga ──
+  function fmtP(p) {
+    if (!p && p !== 0) return "—";
+    var n = parseFloat(p);
+    if (!n) return "—";
+    // Rp xxx.xxx,x  or Rp xxx.xxx
+    var parts = n.toFixed(1).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return "Rp " + (parts[1] === "0" ? parts[0] : parts.join(","));
+  }
+
+  // ── Render ──
+  function groupByMat(rows) {
+    var m = {};
+    rows.forEach(function (r) {
+      if (!m[r.material]) m[r.material] = [];
+      m[r.material].push(r);
     });
-
-    var form = document.getElementById("ef-" + id);
-    var priceInput = document.getElementById("ef-price-" + id);
-
-    if (form) form.classList.add("open");
-    if (priceInput) priceInput.focus();
+    return m;
   }
 
-  function closeEdit(id) {
-    var form = document.getElementById("ef-" + id);
-    if (form) form.classList.remove("open");
+  function render() {
+    var filtered = RAW.filter(function (r) {
+      var matchMat = curMat === "all" || r.material === curMat;
+      var matchSrch =
+        !curSearch ||
+        r.grade.toLowerCase().includes(curSearch) ||
+        r.material.toLowerCase().includes(curSearch);
+      return matchMat && matchSrch;
+    });
+    var groups = groupByMat(filtered);
+    var allGroups = groupByMat(RAW);
+
+    var wrap = document.getElementById("groupsWrap");
+    var html = "";
+    // Use order from RAW materials
+    var matOrder = [];
+    RAW.forEach(function (r) {
+      if (matOrder.indexOf(r.material) < 0) matOrder.push(r.material);
+    });
+    matOrder.forEach(function (mat) {
+      if (!groups[mat] || !groups[mat].length) return;
+      var items = groups[mat];
+      var dotColor = DOT_COLORS[mat] || "var(--ti)";
+      var icon = MAT_ICONS[mat] || "📦";
+      html += '<div class="mat-group" data-matgroup="' + esc(mat) + '">';
+      html += '<div class="mg-head">';
+      html += '<div class="mg-dot" style="background:' + dotColor + '"></div>';
+      html += '<div class="mg-name">' + icon + " " + esc(mat) + "</div>";
+      html +=
+        '<div class="mg-count">' +
+        (allGroups[mat] || []).length +
+        " barang</div>";
+      html += "</div>";
+      html += '<div class="items-wrap">';
+      items.forEach(function (r) {
+        var pDisplay = r.price ? fmtP(r.price) : "Hubungi";
+        var pClass = r.price ? "" : " zero";
+        html +=
+          '<div class="bp-row' +
+          (r.is_active ? "" : " inactive") +
+          '" id="bpr-' +
+          r.id +
+          '" data-id="' +
+          r.id +
+          '" data-mat="' +
+          esc(r.material) +
+          '">';
+        // MAIN ROW
+        html += '<div class="bp-main" onclick="toggleEdit(' + r.id + ')">';
+        html += "<div>";
+        html += '<div class="bp-grade">' + esc(r.grade || "—") + "</div>";
+        if (r.note)
+          html += '<div class="bp-note-txt">' + esc(r.note) + "</div>";
+        html += "</div>";
+        html += '<div class="bp-right">';
+        html +=
+          '<div class="bp-price' +
+          pClass +
+          '" id="bpp-' +
+          r.id +
+          '">' +
+          pDisplay +
+          "</div>";
+        html += '<div class="bp-unit">/ ' + esc(r.unit || "kg") + "</div>";
+        html += "</div>";
+        html += "</div>";
+        // EDIT BAR
+        html += '<div class="bp-edit-bar" id="bpe-' + r.id + '">';
+        html += '<div class="be-price-wrap">';
+        html += '<div class="be-curr">Rp</div>';
+        html +=
+          '<input class="be-price-inp" type="number" id="bei-' +
+          r.id +
+          '" min="0" step="0.5" value="' +
+          r.price +
+          '" placeholder="0" onkeydown="if(event.key===\'Enter\')saveEdit(' +
+          r.id +
+          ')"/>';
+        html += "</div>";
+        html +=
+          '<input class="be-note-inp" type="text" id="ben-' +
+          r.id +
+          '" value="' +
+          esc(r.note || "") +
+          '" placeholder="Catatan… (opsional)" onkeydown="if(event.key===\'Enter\')saveEdit(' +
+          r.id +
+          ')"/>';
+        html += '<div class="be-btns">';
+        html +=
+          '<button class="be-save" onclick="saveEdit(' +
+          r.id +
+          ')">💾 Simpan</button>';
+        html +=
+          '<button class="be-tog ' +
+          (r.is_active ? "on" : "off") +
+          '" id="bet-' +
+          r.id +
+          '" onclick="toggleActive(' +
+          r.id +
+          "," +
+          (r.is_active ? "true" : "false") +
+          ')">' +
+          (r.is_active ? "🟢" : "⛔") +
+          "</button>";
+        html +=
+          '<button class="be-del" onclick="deleteRow(' +
+          r.id +
+          ",'" +
+          esc(r.grade) +
+          '\')" title="Hapus">🗑</button>';
+        html += "</div>";
+        html += "</div>"; // edit-bar
+        html += "</div>"; // bp-row
+      });
+      if (curSearch && !items.length) {
+        html += '<div class="empty-state">Tidak ada hasil</div>';
+      }
+      html += "</div></div>";
+    });
+    if (!html)
+      html =
+        '<div class="empty-state" style="padding:24px;font-size:13px;color:var(--muted)">Tidak ada barang ditemukan.</div>';
+    wrap.innerHTML = html;
+    // Re-open edit if needed
+    if (openRowId !== null) {
+      var el = document.getElementById("bpe-" + openRowId);
+      if (el) {
+        el.classList.add("open");
+        var row = document.getElementById("bpr-" + openRowId);
+        if (row) row.classList.add("editing");
+      }
+    }
+  }
+
+  function toggleEdit(id) {
+    var bar = document.getElementById("bpe-" + id),
+      row = document.getElementById("bpr-" + id);
+    if (!bar) return;
+    var isOpen = bar.classList.contains("open");
+    // close all
+    document.querySelectorAll(".bp-edit-bar.open").forEach(function (b) {
+      b.classList.remove("open");
+    });
+    document.querySelectorAll(".bp-row.editing").forEach(function (r) {
+      r.classList.remove("editing");
+    });
+    if (!isOpen) {
+      bar.classList.add("open");
+      row.classList.add("editing");
+      openRowId = id;
+      // focus price input
+      var inp = document.getElementById("bei-" + id);
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    } else {
+      openRowId = null;
+    }
   }
 
   function saveEdit(id) {
-    var priceInput = document.getElementById("ef-price-" + id);
-    var noteInput = document.getElementById("ef-note-" + id);
-    var tog = document.getElementById("tog-" + id);
-
-    var price = parseInt((priceInput ? priceInput.value : "0") || "0", 10) || 0;
-    var note = noteInput ? noteInput.value.trim() : "";
-    var is_active = tog ? !tog.classList.contains("off") : true;
-
-    setSt("ld", "Menyimpan...");
-
+    var price =
+      parseFloat(document.getElementById("bei-" + id).value || "0") || 0;
+    var note = document.getElementById("ben-" + id).value.trim();
+    var btn = document.querySelector("#bpe-" + id + " .be-save");
+    if (btn) {
+      btn.textContent = "⏳";
+      btn.disabled = true;
+    }
+    setSt("ld", "Menyimpan…");
+    var rec = RAW.find(function (r) {
+      return r.id === id;
+    });
+    var is_active = rec ? rec.is_active : true;
     fetch("/admin/buy-prices/save", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "update",
         id: id,
@@ -928,50 +1220,50 @@
         return r.json();
       })
       .then(function (d) {
-        if (!d.ok) {
-          setSt("err", "✗ " + (d.error || "Gagal menyimpan"));
-          return;
-        }
-
-        var row = d.row || {};
-        var priceEl = document.getElementById("price-" + id);
-
-        if (priceEl) {
-          if ((row.price || 0) > 0) {
-            priceEl.textContent =
-              "Rp " + Number(row.price).toLocaleString("id-ID");
-            priceEl.classList.remove("zero");
-          } else {
-            priceEl.textContent = "— Hubungi";
-            priceEl.classList.add("zero");
+        if (d.ok) {
+          if (rec) {
+            rec.price = d.row.price;
+            rec.note = d.row.note;
           }
+          var pe = document.getElementById("bpp-" + id);
+          if (pe) {
+            pe.textContent = d.row.price ? fmtP(d.row.price) : "Hubungi";
+            pe.className = "bp-price" + (d.row.price ? "" : " zero");
+          }
+          // update note display
+          var noteEl = document.querySelector("#bpr-" + id + " .bp-note-txt");
+          if (noteEl) noteEl.textContent = d.row.note || "";
+          toggleEdit(id);
+          setSt(
+            "ok",
+            "✓ Tersimpan · " + new Date().toLocaleTimeString("id-ID"),
+          );
+        } else {
+          setSt("err", "✗ " + d.error);
         }
-
-        closeEdit(id);
-        setSt("ok", "✓ Tersimpan — " + new Date().toLocaleTimeString("id-ID"));
       })
       .catch(function (e) {
-        setSt("err", e && e.message ? e.message : "Terjadi kesalahan");
+        setSt("err", e.message);
+      })
+      .finally(function () {
+        if (btn) {
+          btn.textContent = "💾 Simpan";
+          btn.disabled = false;
+        }
       });
   }
 
   function toggleActive(id, currently) {
     var newVal = !currently;
-    setSt("ld", "Mengubah status...");
-
-    var priceEl = document.getElementById("price-" + id);
-    var noteInp = document.getElementById("ef-note-" + id);
-
-    var rawPriceText = priceEl ? priceEl.textContent : "0";
-    var price =
-      parseInt((rawPriceText || "0").replace(/[^0-9]/g, "") || "0", 10) || 0;
-    var note = noteInp ? noteInp.value : "";
-
+    setSt("ld", "Mengubah status…");
+    var rec = RAW.find(function (r) {
+      return r.id === id;
+    });
+    var price = rec ? rec.price : 0;
+    var note = rec ? rec.note : "";
     fetch("/admin/buy-prices/save", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "update",
         id: id,
@@ -984,98 +1276,110 @@
         return r.json();
       })
       .then(function (d) {
-        if (!d.ok) {
-          setSt("err", "✗ " + (d.error || "Gagal ubah status"));
-          return;
-        }
-
-        var row = document.getElementById("row-" + id);
-        var btn = document.getElementById("tog-" + id);
-
-        if (row) {
-          if (newVal) row.classList.remove("inactive");
-          else row.classList.add("inactive");
-        }
-
-        if (btn) {
-          if (newVal) {
-            btn.className = "bp-toggle-btn js-toggle-btn on";
-            btn.textContent = "🟢 Aktif";
-            btn.dataset.active = "true";
-          } else {
-            btn.className = "bp-toggle-btn js-toggle-btn off";
-            btn.textContent = "⛔ Nonaktif";
-            btn.dataset.active = "false";
+        if (d.ok) {
+          if (rec) rec.is_active = newVal;
+          var row = document.getElementById("bpr-" + id);
+          if (row) {
+            row.className = "bp-row" + (newVal ? "" : " inactive") + " editing";
           }
+          var btn = document.getElementById("bet-" + id);
+          if (btn) {
+            btn.className = "be-tog " + (newVal ? "on" : "off");
+            btn.textContent = newVal ? "🟢" : "⛔";
+            btn.setAttribute(
+              "onclick",
+              "toggleActive(" + id + "," + (newVal ? "true" : "false") + ")",
+            );
+          }
+          setSt("ok", "✓ " + (newVal ? "Aktif" : "Nonaktif"));
+        } else {
+          setSt("err", "✗ " + d.error);
         }
-
-        setSt("ok", "✓ Status diubah");
       })
       .catch(function (e) {
-        setSt("err", e && e.message ? e.message : "Terjadi kesalahan");
+        setSt("err", e.message);
       });
   }
 
   function deleteRow(id, grade) {
     if (!confirm('Hapus "' + grade + '"?')) return;
-
-    setSt("ld", "Menghapus...");
-
+    setSt("ld", "Menghapus…");
     fetch("/admin/buy-prices/save", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        action: "delete",
-        id: id,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id: id }),
     })
       .then(function (r) {
         return r.json();
       })
       .then(function (d) {
-        if (!d.ok) {
-          setSt("err", "✗ " + (d.error || "Gagal hapus"));
-          return;
+        if (d.ok) {
+          RAW = RAW.filter(function (r) {
+            return r.id !== id;
+          });
+          openRowId = null;
+          render();
+          setSt("ok", "✓ Dihapus");
+        } else {
+          setSt("err", "✗ " + d.error);
         }
-
-        var row = document.getElementById("row-" + id);
-        var ef = document.getElementById("ef-" + id);
-
-        if (row) row.remove();
-        if (ef) ef.remove();
-
-        setSt("ok", "✓ Dihapus");
       })
       .catch(function (e) {
-        setSt("err", e && e.message ? e.message : "Terjadi kesalahan");
+        setSt("err", e.message);
       });
   }
 
-  function addRow() {
-    var material = document.getElementById("add-material").value.trim();
-    var grade = document.getElementById("add-grade").value.trim();
-    var unit = document.getElementById("add-unit").value.trim() || "kg";
-    var price =
-      parseInt(document.getElementById("add-price").value || "0", 10) || 0;
-    var note = document.getElementById("add-note").value.trim();
+  // ── Filter tabs ──
+  document.getElementById("matTabs").addEventListener("click", function (e) {
+    var t = e.target.closest(".mat-tab");
+    if (!t) return;
+    document.querySelectorAll(".mat-tab").forEach(function (b) {
+      b.classList.remove("active");
+    });
+    t.classList.add("active");
+    curMat = t.dataset.mat;
+    openRowId = null;
+    render();
+  });
 
-    if (!material) {
-      alert("Nama material wajib diisi");
+  // ── Search ──
+  document.getElementById("searchInp").addEventListener("input", function (e) {
+    curSearch = e.target.value.toLowerCase().trim();
+    openRowId = null;
+    render();
+  });
+
+  // ── Add custom material toggle ──
+  document.getElementById("addMat").addEventListener("change", function () {
+    document.getElementById("customMatWrap").style.display =
+      this.value === "Lainnya" ? "block" : "none";
+  });
+
+  // ── Add row ──
+  document.getElementById("addBtn").addEventListener("click", function () {
+    var mat = document.getElementById("addMat").value;
+    if (mat === "Lainnya")
+      mat = (document.getElementById("addCustomMat").value || "").trim();
+    var grade = document.getElementById("addGrade").value.trim();
+    var price =
+      parseFloat(document.getElementById("addPrice").value || "0") || 0;
+    var unit = document.getElementById("addUnit").value.trim() || "kg";
+    var note = document.getElementById("addNote").value.trim();
+    if (!mat) {
+      alert("Pilih kategori material!");
       return;
     }
-
-    setSt("ld", "Menambahkan...");
-
+    if (!grade) {
+      alert("Nama barang wajib diisi!");
+      return;
+    }
+    setSt("ld", "Menambahkan…");
     fetch("/admin/buy-prices/save", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "add",
-        material: material,
+        material: mat,
         grade: grade,
         unit: unit,
         price: price,
@@ -1086,56 +1390,37 @@
         return r.json();
       })
       .then(function (d) {
-        if (!d.ok) {
-          setSt("err", "✗ " + (d.error || "Gagal menambah data"));
-          return;
+        if (d.ok) {
+          RAW.push(d.row);
+          document.getElementById("addGrade").value = "";
+          document.getElementById("addPrice").value = "0";
+          document.getElementById("addNote").value = "";
+          document.getElementById("addCustomMat").value = "";
+          curMat = d.row.material; // switch to that tab
+          document.querySelectorAll(".mat-tab").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.mat === curMat);
+          });
+          render();
+          setSt("ok", "✓ Berhasil ditambah!");
+        } else {
+          setSt("err", "✗ " + d.error);
         }
-
-        document.getElementById("add-material").value = "";
-        document.getElementById("add-grade").value = "";
-        document.getElementById("add-unit").value = "kg";
-        document.getElementById("add-price").value = "0";
-        document.getElementById("add-note").value = "";
-
-        setSt("ok", "✓ Berhasil ditambah — refresh halaman untuk melihat");
       })
       .catch(function (e) {
-        setSt("err", e && e.message ? e.message : "Terjadi kesalahan");
+        setSt("err", e.message);
       });
-  }
-  document.addEventListener("click", function (e) {
-    var editBtn = e.target.closest(".js-edit-btn");
-    if (editBtn) {
-      openEdit(editBtn.dataset.id);
-      return;
-    }
-
-    var saveBtn = e.target.closest(".js-save-btn");
-    if (saveBtn) {
-      saveEdit(saveBtn.dataset.id);
-      return;
-    }
-
-    var cancelBtn = e.target.closest(".js-cancel-btn");
-    if (cancelBtn) {
-      closeEdit(cancelBtn.dataset.id);
-      return;
-    }
-
-    var toggleBtn = e.target.closest(".js-toggle-btn");
-    if (toggleBtn) {
-      var id = toggleBtn.dataset.id;
-      var currently = toggleBtn.dataset.active === "true";
-      toggleActive(id, currently);
-      return;
-    }
-
-    var delBtn = e.target.closest(".js-del-btn");
-    if (delBtn) {
-      var id = delBtn.dataset.id;
-      var grade = delBtn.dataset.grade || "";
-      deleteRow(id, grade);
-    }
   });
+
+  // ── Escape HTML ──
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ── Init ──
+  render();
 </script>
 {% endblock %}
