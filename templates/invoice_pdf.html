@@ -19,8 +19,8 @@
       }
       .head {
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: flex-start;
         gap: 16px;
         margin-bottom: 18px;
       }
@@ -28,6 +28,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        margin-bottom: 10px;
       }
       .logos img {
         height: 42px;
@@ -44,9 +45,9 @@
         font-size: 13px;
       }
       .meta {
-        margin: 18px 0;
         width: 100%;
         border-collapse: collapse;
+        margin: 18px 0;
       }
       .meta td {
         padding: 6px 0;
@@ -77,18 +78,14 @@
       .total-box {
         min-width: 220px;
       }
-      .total-row {
+      .grand {
         display: flex;
         justify-content: space-between;
-        padding: 8px 0;
-        font-size: 14px;
-      }
-      .grand {
-        font-size: 18px;
-        font-weight: 700;
         border-top: 2px solid #111;
         margin-top: 8px;
         padding-top: 10px;
+        font-size: 18px;
+        font-weight: 700;
       }
       .notes {
         margin-top: 18px;
@@ -119,10 +116,7 @@
         </div>
         <div>
           <div><strong>{{ invoice.invoice_no }}</strong></div>
-          <div>
-            {{ (invoice.created_at + timedelta(hours=7)).strftime('%d/%m/%Y
-            %H:%M') if invoice.created_at else '-' }}
-          </div>
+          <div>{{ invoice.created_at_wib or '-' }}</div>
         </div>
       </div>
 
@@ -172,7 +166,7 @@
 
       <div class="total">
         <div class="total-box">
-          <div class="total-row grand">
+          <div class="grand">
             <span>TOTAL</span>
             <span
               >Rp {{ "{:,}".format(invoice.grand_total).replace(",", ".")
