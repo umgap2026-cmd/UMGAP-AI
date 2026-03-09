@@ -292,9 +292,13 @@ def _save_invoice(is_admin_mode=False):
 
     created_by = session.get("user_id")
     customer_name = (request.form.get("customer_name") or "").strip()
+    company_name = (request.form.get("company_name") or "").strip()
     payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
     print_size = (request.form.get("print_size") or "80mm").strip()
     notes = (request.form.get("notes") or "").strip()
+
+    logo_file = request.files.get("company_logo")
+    company_logo_path = _save_company_logo(logo_file)
 
     target_user_id = created_by
     if is_admin_mode:
@@ -320,8 +324,8 @@ def _save_invoice(is_admin_mode=False):
                 WHERE id=%s AND is_global=TRUE
                 LIMIT 1;
             """, (row["product_id"],))
-
             p = cur.fetchone()
+
             if not p:
                 continue
 
@@ -345,14 +349,17 @@ def _save_invoice(is_admin_mode=False):
 
         cur.execute("""
             INSERT INTO invoices
-                (invoice_no, created_by, customer_name, print_size, payment_method, subtotal, grand_total, notes)
+                (invoice_no, created_by, customer_name, company_name, company_logo_path,
+                 print_size, payment_method, subtotal, grand_total, notes)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             invoice_no,
             created_by,
             customer_name,
+            company_name,
+            company_logo_path,
             print_size,
             payment_method,
             subtotal,
@@ -363,7 +370,6 @@ def _save_invoice(is_admin_mode=False):
         invoice_id = (cur.fetchone() or {}).get("id")
 
         for item in final_items:
-
             cur.execute("""
                 INSERT INTO invoice_items
                 (invoice_id, product_id, product_name, qty, price, subtotal)
@@ -377,7 +383,6 @@ def _save_invoice(is_admin_mode=False):
                 item["subtotal"]
             ))
 
-            # otomatis masuk monitor sales
             cur.execute("""
                 INSERT INTO sales_submissions
                 (user_id, product_id, qty, note, status, created_at)
@@ -390,7 +395,6 @@ def _save_invoice(is_admin_mode=False):
             ))
 
         conn.commit()
-
     finally:
         cur.close()
         conn.close()
