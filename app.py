@@ -3458,7 +3458,7 @@ def ensure_buy_prices_schema():
                 material   VARCHAR(100) NOT NULL,
                 grade      VARCHAR(150) NOT NULL DEFAULT '',
                 unit       VARCHAR(20)  NOT NULL DEFAULT 'kg',
-                price      NUMERIC(10,1) NOT NULL DEFAULT 0,
+                price      NUMERIC(10,2) NOT NULL DEFAULT 0,
                 note       TEXT,
                 is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
                 sort_order INTEGER      NOT NULL DEFAULT 0,
@@ -3466,7 +3466,18 @@ def ensure_buy_prices_schema():
                 created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        cur.execute("ALTER TABLE buy_prices ALTER COLUMN price TYPE NUMERIC(10,1) USING price::NUMERIC;")
+        # safe migration: add columns if not exist (idempotent)
+        for col_sql in [
+            "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS note TEXT;",
+            "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
+            "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+            "ALTER TABLE buy_prices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+        ]:
+            try:
+                cur.execute(col_sql)
+            except Exception:
+                conn.rollback()
         cur.execute("SELECT COUNT(*) AS n FROM buy_prices;")
         if cur.fetchone()[0] == 0:
             defaults = [
@@ -3662,7 +3673,7 @@ def admin_buy_prices_save():
     try:
         if action == "update":
             pid    = int(data.get("id", 0))
-            price  = max(0, int(data.get("price", 0) or 0))
+            price  = max(0.0, float(data.get("price", 0) or 0))
             note   = (data.get("note") or "").strip()
             is_active = bool(data.get("is_active", True))
             cur.execute("""
@@ -3685,7 +3696,7 @@ def admin_buy_prices_save():
             material = (data.get("material") or "").strip()
             grade    = (data.get("grade") or "").strip()
             unit     = (data.get("unit") or "kg").strip()
-            price    = max(0, int(data.get("price", 0) or 0))
+            price    = max(0.0, float(data.get("price", 0) or 0))
             note     = (data.get("note") or "").strip()
             if not material:
                 return jsonify({"ok": False, "error": "Material wajib diisi"}), 400
@@ -3718,6 +3729,25 @@ def admin_buy_prices_save():
         conn.close()
 
 
+# ── Force init endpoint (admin only, satu kali pakai) ──
+@app.route("/init-buy-prices")
+def init_buy_prices_route():
+    """Force buat tabel buy_prices dan seed data. Akses sekali saat deploy."""
+    deny = admin_required()
+    if deny:
+        return deny
+    try:
+        ensure_buy_prices_schema()
+        conn2 = get_conn()
+        cur2  = conn2.cursor()
+        cur2.execute("SELECT COUNT(*) FROM buy_prices;")
+        n = cur2.fetchone()[0]
+        cur2.close(); conn2.close()
+        return f"OK: buy_prices siap. Total rows: {n}"
+    except Exception as e:
+        return f"ERROR: {e}", 500
+
+
 # ==================== RUN ====================
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
@@ -3731,7 +3761,8 @@ def safe_init_db():
         ensure_hr_v2_schema()
         init_points_v1()
         ensure_announcements_schema()
-        print("DB init OK")
+        ensure_buy_prices_schema()   # ← TAMBAH INI
+        print("DB init OK — buy_prices schema ready")
     except Exception as e:
         print("Init error:", e)
 
