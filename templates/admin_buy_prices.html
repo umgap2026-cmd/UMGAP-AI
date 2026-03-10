@@ -730,12 +730,9 @@
   }
 </style>
 
-<!-- DATA BRIDGE -->
-<div
-  id="rowsData"
-  style="display: none"
-  data-rows="{{ rows | tojson | e }}"
-></div>
+<!-- DATA BRIDGE — pakai script tag, bukan HTML attribute -->
+<!-- HTML attribute + tojson|e = double-escape, JSON.parse gagal -->
+<script id="rowsData" type="application/json">{{ rows | tojson }}</script>
 
 <div class="screen">
   <div class="wrap">
@@ -979,8 +976,12 @@
   // ── Data dari server ──
   var RAW = [];
   try {
-    RAW = JSON.parse(document.getElementById("rowsData").dataset.rows || "[]");
-  } catch (e) {}
+    var _src = document.getElementById("rowsData");
+    RAW = JSON.parse(_src ? _src.textContent : "[]");
+  } catch (e) {
+    console.error("RAW parse error:", e);
+  }
+  console.log("RAW loaded:", RAW.length, "items");
 
   var DOT_COLORS = {
     Tembaga: "var(--cu)",
