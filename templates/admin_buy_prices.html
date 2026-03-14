@@ -61,6 +61,60 @@
     gap: 12px;
   }
 
+  /* ── DESKTOP 2-COLUMN LAYOUT ── */
+  @media (min-width: 900px) {
+    body {
+      padding-bottom: 0;
+    }
+    .screen {
+      padding: 24px 28px 40px;
+      align-items: flex-start;
+    }
+    .wrap {
+      max-width: 1300px;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-areas:
+        "head    head"
+        "status  status"
+        "tip     tip"
+        "filter  addcard"
+        "groups  addcard";
+      column-gap: 20px;
+      row-gap: 12px;
+    }
+    .head {
+      grid-area: head;
+    }
+    .st {
+      grid-area: status;
+    }
+    .pub-tip {
+      grid-area: tip;
+    }
+    .filter-bar {
+      grid-area: filter;
+    }
+    #groupsWrap {
+      grid-area: groups;
+      align-self: start;
+    }
+    .add-card {
+      grid-area: addcard;
+      align-self: start;
+      position: sticky;
+      top: 24px;
+    }
+    .bnav {
+      display: none;
+    }
+  }
+  @media (min-width: 1200px) {
+    .wrap {
+      grid-template-columns: 1fr 420px;
+    }
+  }
+
   /* HEAD */
   .head {
     background: linear-gradient(135deg, #1e3a5f, #2f5f8f);
@@ -728,11 +782,105 @@
     font-size: 12.5px;
     color: var(--muted);
   }
+
+  /* ── DESKTOP ITEMS: 2-column grid per group ── */
+  @media (min-width: 900px) {
+    .items-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      padding: 10px 14px 14px;
+    }
+    /* edit bar must span both columns */
+    .bp-row {
+      display: contents; /* let children flow into grid */
+    }
+    /* override: rows are block again inside items-wrap grid */
+    .bp-row {
+      display: block;
+      border-radius: 14px;
+      background: var(--bg);
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(18, 32, 62, 0.06);
+    }
+    /* header: show stats inline */
+    .hd-title {
+      font-size: 22px;
+    }
+    .hd-sub {
+      font-size: 12px;
+    }
+    /* filter bar horizontal */
+    .filter-bar {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+    }
+    .search-wrap {
+      flex: 0 0 260px;
+    }
+    .mat-tabs {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    /* add-card wider inputs */
+    .af-g2 {
+      grid-template-columns: 1fr 1fr;
+    }
+    /* hide pub-tip on desktop — shown inline in header */
+    .pub-tip-desk {
+      display: flex;
+    }
+    /* status bar compact */
+    .st {
+      padding: 8px 14px;
+      font-size: 12px;
+    }
+  }
+
+  /* desktop header stats strip */
+  .hd-stats {
+    display: none;
+  }
+  @media (min-width: 900px) {
+    .hd-stats {
+      display: flex;
+      gap: 20px;
+      margin-top: 10px;
+      margin-bottom: 14px;
+    }
+    .hd-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .hd-stat-val {
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+    }
+    .hd-stat-lbl {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+    .hd-stat-div {
+      width: 1px;
+      background: rgba(255, 255, 255, 0.15);
+      align-self: stretch;
+      margin: 2px 0;
+    }
+  }
 </style>
 
 <!-- DATA BRIDGE — pakai script tag, bukan HTML attribute -->
 <!-- HTML attribute + tojson|e = double-escape, JSON.parse gagal -->
-<script id="rowsData" type="application/json">{{ rows | tojson }}</script>
+<script id="rowsData" type="application/json">
+  {{ rows | tojson }}
+</script>
 
 <div class="screen">
   <div class="wrap">
@@ -752,6 +900,33 @@
             <path d="M12 5l-7 7 7 7" />
           </svg>
         </a>
+      </div>
+      <!-- Desktop stats -->
+      <div class="hd-stats" id="hdStats">
+        <div class="hd-stat">
+          <div class="hd-stat-val" id="hdTotal">—</div>
+          <div class="hd-stat-lbl">Total Barang</div>
+        </div>
+        <div class="hd-stat-div"></div>
+        <div class="hd-stat">
+          <div class="hd-stat-val" id="hdAktif">—</div>
+          <div class="hd-stat-lbl">Aktif Tampil</div>
+        </div>
+        <div class="hd-stat-div"></div>
+        <div class="hd-stat">
+          <div class="hd-stat-val" id="hdKat">5</div>
+          <div class="hd-stat-lbl">Kategori</div>
+        </div>
+        <div class="hd-stat-div"></div>
+        <div class="hd-stat">
+          <div
+            class="hd-stat-val"
+            style="font-size: 13px; color: rgba(255, 255, 255, 0.7)"
+          >
+            🌐 Live API
+          </div>
+          <div class="hd-stat-lbl">Harga 0 = "Hubungi kami"</div>
+        </div>
       </div>
       <div class="hd-stripe"></div>
     </div>
@@ -1031,7 +1206,19 @@
     return m;
   }
 
+  function updateStats() {
+    var total = RAW.length;
+    var aktif = RAW.filter(function (r) {
+      return r.is_active;
+    }).length;
+    var elT = document.getElementById("hdTotal");
+    var elA = document.getElementById("hdAktif");
+    if (elT) elT.textContent = total;
+    if (elA) elA.textContent = aktif;
+  }
+
   function render() {
+    updateStats();
     var filtered = RAW.filter(function (r) {
       var matchMat = curMat === "all" || r.material === curMat;
       var matchSrch =
