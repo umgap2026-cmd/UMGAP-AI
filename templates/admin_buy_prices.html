@@ -63,13 +63,8 @@
 
   /* ── DESKTOP 2-COLUMN LAYOUT ── */
   @media (min-width: 900px) {
-    body {
-      padding-bottom: 0;
-    }
-    .screen {
-      padding: 24px 28px 40px;
-      align-items: flex-start;
-    }
+    body { padding-bottom: 0; }
+    .screen { padding: 24px 28px 40px; align-items: flex-start; }
     .wrap {
       max-width: 1300px;
       display: grid;
@@ -83,36 +78,21 @@
       column-gap: 20px;
       row-gap: 12px;
     }
-    .head {
-      grid-area: head;
-    }
-    .st {
-      grid-area: status;
-    }
-    .pub-tip {
-      grid-area: tip;
-    }
-    .filter-bar {
-      grid-area: filter;
-    }
-    #groupsWrap {
-      grid-area: groups;
-      align-self: start;
-    }
-    .add-card {
+    .head       { grid-area: head; }
+    .st         { grid-area: status; }
+    .pub-tip    { grid-area: tip; }
+    .filter-bar { grid-area: filter; }
+    #groupsWrap { grid-area: groups; align-self: start; }
+    .add-card   {
       grid-area: addcard;
       align-self: start;
       position: sticky;
       top: 24px;
     }
-    .bnav {
-      display: none;
-    }
+    .bnav { display: none; }
   }
   @media (min-width: 1200px) {
-    .wrap {
-      grid-template-columns: 1fr 420px;
-    }
+    .wrap { grid-template-columns: 1fr 420px; }
   }
 
   /* HEAD */
@@ -776,6 +756,45 @@
   .pub-tip b {
     color: var(--blue);
   }
+
+  /* ── ADD FORM ACCORDION (mobile only) ── */
+  .add-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 13px 15px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--text);
+    text-align: left;
+    border-bottom: 1px solid rgba(125,138,166,.1);
+  }
+  .add-toggle .atarr {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+    transition: transform .25s;
+    display: inline-block;
+  }
+  .add-card.open .atarr { transform: rotate(180deg); }
+  .add-body-wrap {
+    display: none;
+  }
+  .add-card.open .add-body-wrap {
+    display: block;
+  }
+  /* desktop: always show form, hide toggle button */
+  @media (min-width: 900px) {
+    .add-toggle { display: none; }
+    .add-body-wrap { display: block !important; }
+    .add-head { display: flex; }
+  }
+
   .empty-state {
     text-align: center;
     padding: 20px;
@@ -801,41 +820,25 @@
       border-radius: 14px;
       background: var(--bg);
       overflow: hidden;
-      box-shadow: 0 1px 4px rgba(18, 32, 62, 0.06);
+      box-shadow: 0 1px 4px rgba(18,32,62,.06);
     }
     /* header: show stats inline */
-    .hd-title {
-      font-size: 22px;
-    }
-    .hd-sub {
-      font-size: 12px;
-    }
+    .hd-title { font-size: 22px; }
+    .hd-sub   { font-size: 12px; }
     /* filter bar horizontal */
     .filter-bar {
       flex-direction: row;
       align-items: center;
       gap: 12px;
     }
-    .search-wrap {
-      flex: 0 0 260px;
-    }
-    .mat-tabs {
-      flex-wrap: wrap;
-      gap: 6px;
-    }
+    .search-wrap { flex: 0 0 260px; }
+    .mat-tabs { flex-wrap: wrap; gap: 6px; }
     /* add-card wider inputs */
-    .af-g2 {
-      grid-template-columns: 1fr 1fr;
-    }
+    .af-g2 { grid-template-columns: 1fr 1fr; }
     /* hide pub-tip on desktop — shown inline in header */
-    .pub-tip-desk {
-      display: flex;
-    }
+    .pub-tip-desk { display: flex; }
     /* status bar compact */
-    .st {
-      padding: 8px 14px;
-      font-size: 12px;
-    }
+    .st { padding: 8px 14px; font-size: 12px; }
   }
 
   /* desktop header stats strip */
@@ -862,14 +865,14 @@
     }
     .hd-stat-lbl {
       font-size: 10px;
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255,255,255,.5);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: .5px;
       font-weight: 700;
     }
     .hd-stat-div {
       width: 1px;
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255,255,255,.15);
       align-self: stretch;
       margin: 2px 0;
     }
@@ -919,12 +922,7 @@
         </div>
         <div class="hd-stat-div"></div>
         <div class="hd-stat">
-          <div
-            class="hd-stat-val"
-            style="font-size: 13px; color: rgba(255, 255, 255, 0.7)"
-          >
-            🌐 Live API
-          </div>
+          <div class="hd-stat-val" style="font-size:13px;color:rgba(255,255,255,.7)">🌐 Live API</div>
           <div class="hd-stat-lbl">Harga 0 = "Hubungi kami"</div>
         </div>
       </div>
@@ -968,11 +966,15 @@
       </div>
     </div>
 
-    <!-- GROUPS will be rendered by JS -->
-    <div id="groupsWrap"></div>
-
-    <!-- TAMBAH MATERIAL BARU -->
+    <!-- TAMBAH MATERIAL BARU — accordion mobile, sticky desktop -->
     <div class="add-card">
+      <!-- Toggle hanya muncul di mobile -->
+      <button class="add-toggle" id="addToggle" onclick="toggleAddForm()">
+        <span>➕</span>
+        <span>Tambah Barang Baru</span>
+        <span class="atarr" id="addArr">▾</span>
+      </button>
+      <div class="add-body-wrap" id="addBodyWrap">
       <div class="add-head">
         <div class="add-icon">➕</div>
         <div>
@@ -1063,7 +1065,12 @@
           Tambah Barang
         </button>
       </div>
-    </div>
+      </div><!-- /add-body-wrap -->
+    </div><!-- /add-card -->
+
+    <!-- GROUPS will be rendered by JS -->
+    <div id="groupsWrap"></div>
+
   </div>
 </div>
 
@@ -1208,13 +1215,11 @@
 
   function updateStats() {
     var total = RAW.length;
-    var aktif = RAW.filter(function (r) {
-      return r.is_active;
-    }).length;
-    var elT = document.getElementById("hdTotal");
-    var elA = document.getElementById("hdAktif");
-    if (elT) elT.textContent = total;
-    if (elA) elA.textContent = aktif;
+    var aktif = RAW.filter(function(r){ return r.is_active; }).length;
+    var elT = document.getElementById('hdTotal');
+    var elA = document.getElementById('hdAktif');
+    if(elT) elT.textContent = total;
+    if(elA) elA.textContent = aktif;
   }
 
   function render() {
@@ -1515,6 +1520,13 @@
       .catch(function (e) {
         setSt("err", e.message);
       });
+  }
+
+
+  // ── Add form toggle (mobile accordion) ──
+  function toggleAddForm() {
+    var card = document.querySelector('.add-card');
+    card.classList.toggle('open');
   }
 
   // ── Filter tabs ──
