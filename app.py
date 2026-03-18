@@ -292,14 +292,10 @@ def _save_invoice(is_admin_mode=False):
 
     created_by = session.get("user_id")
     customer_name = (request.form.get("customer_name") or "").strip()
-    customer_phone = (request.form.get("customer_phone") or "").strip()
     company_name = (request.form.get("company_name") or "").strip()
     payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
     print_size = (request.form.get("print_size") or "80mm").strip()
     notes = (request.form.get("notes") or "").strip()
-    discount = max(0, _safe_int(request.form.get("discount"), 0))
-    is_paid = str(request.form.get("is_paid") or "1").strip() in ("1", "true", "True", "on", "yes")
-    paid_at = datetime.utcnow() if is_paid else None
 
     logo_file = request.files.get("company_logo")
     company_logo_path = _save_company_logo(logo_file)
@@ -349,30 +345,26 @@ def _save_invoice(is_admin_mode=False):
         if not final_items:
             return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
 
-        grand_total = max(0, subtotal - discount)
+        grand_total = subtotal
 
         cur.execute("""
             INSERT INTO invoices
-                (invoice_no, created_by, customer_name, customer_phone, company_name, company_logo_path,
-                 print_size, payment_method, subtotal, discount, grand_total, notes, is_paid, paid_at)
+                (invoice_no, created_by, customer_name, company_name, company_logo_path,
+                 print_size, payment_method, subtotal, grand_total, notes)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             invoice_no,
             created_by,
             customer_name,
-            customer_phone,
             company_name,
             company_logo_path,
             print_size,
             payment_method,
             subtotal,
-            discount,
             grand_total,
-            notes,
-            is_paid,
-            paid_at
+            notes
         ))
 
         invoice_id = (cur.fetchone() or {}).get("id")
@@ -594,10 +586,6 @@ def ensure_invoice_schema():
 
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_name VARCHAR(150);")
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_logo_path TEXT;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30);")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_paid BOOLEAN NOT NULL DEFAULT TRUE;")
-        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL;")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS invoice_items (
@@ -2188,12 +2176,6 @@ def invoice_view(invoice_id):
         conn.close()
 
     invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
-    invoice["paid_at_wib"] = _utc_naive_to_wib_string(invoice.get("paid_at")) if invoice.get("paid_at") else None
-    invoice.setdefault("is_paid", True)
-    invoice.setdefault("discount", 0)
-    invoice.setdefault("customer_phone", "")
-    invoice.setdefault("company_name", "")
-    invoice.setdefault("company_logo_path", None)
 
     return render_template("invoice_print.html", invoice=invoice, items=items)
 
@@ -2233,44 +2215,6 @@ def invoice_json(invoice_id):
         "ok": True,
         "invoice": invoice,
         "items": items
-    })
-
-
-@app.route("/invoice/<int:invoice_id>/mark-paid", methods=["POST"])
-def invoice_mark_paid(invoice_id):
-    if not is_logged_in():
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
-
-    ensure_invoice_schema()
-
-    data = request.get_json(silent=True) or {}
-    is_paid = bool(data.get("is_paid"))
-    paid_at = datetime.utcnow() if is_paid else None
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            UPDATE invoices
-            SET is_paid=%s,
-                paid_at=%s
-            WHERE id=%s
-            RETURNING id, is_paid, paid_at;
-        """, (is_paid, paid_at, invoice_id))
-        row = cur.fetchone()
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
-
-    if not row:
-        return jsonify({"ok": False, "error": "Invoice tidak ditemukan"}), 404
-
-    return jsonify({
-        "ok": True,
-        "invoice_id": row.get("id"),
-        "is_paid": bool(row.get("is_paid")),
-        "paid_at_wib": _utc_naive_to_wib_string(row.get("paid_at")) if row.get("paid_at") else None
     })
 
 @app.route("/invoice/<int:invoice_id>/pdf")
@@ -2315,18 +2259,15 @@ def invoice_pdf(invoice_id):
 
     html = render_template("invoice_pdf.html", invoice=invoice, items=items)
 
-    filename = f"{invoice['invoice_no']}.pdf"
-
-    # 1) coba WeasyPrint dulu
+    # 1) coba weasyprint dulu
     try:
         from weasyprint import HTML
-
         pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
         return send_file(
             io.BytesIO(pdf_bytes),
             mimetype="application/pdf",
             as_attachment=True,
-            download_name=filename,
+            download_name=f"{invoice['invoice_no']}.pdf"
         )
     except Exception as e_weasy:
         # 2) fallback ke xhtml2pdf
@@ -2334,26 +2275,27 @@ def invoice_pdf(invoice_id):
             from xhtml2pdf import pisa
 
             pdf_io = io.BytesIO()
-            pisa_status = pisa.CreatePDF(src=html, dest=pdf_io)
+            pisa_status = pisa.CreatePDF(
+                io.StringIO(html),
+                dest=pdf_io
+            )
+
             if pisa_status.err:
-                return (
-                    f"Gagal membuat PDF. WeasyPrint error: {e_weasy} | xhtml2pdf juga gagal.",
-                    500,
-                )
+                return f"Gagal membuat PDF. WeasyPrint error: {e_weasy} | xhtml2pdf juga gagal.", 500
 
             pdf_io.seek(0)
             return send_file(
                 pdf_io,
                 mimetype="application/pdf",
                 as_attachment=True,
-                download_name=filename,
+                download_name=f"{invoice['invoice_no']}.pdf"
             )
         except Exception as e_xhtml:
             return (
                 "Gagal membuat PDF.<br>"
                 f"WeasyPrint error: {e_weasy}<br>"
                 f"xhtml2pdf error: {e_xhtml}",
-                500,
+                500
             )
 
 # ---------- PRODUCTS ----------
