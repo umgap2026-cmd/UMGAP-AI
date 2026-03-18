@@ -1287,8 +1287,8 @@
           <div class="r-item-name">{{ item.product_name }}</div>
           <div class="r-item-det">
             <span
-              >{{ item.qty }} x Rp {{ "{:,}".format(item.price).replace(",",".")
-              }}</span
+              >{{ item.qty_display or item.qty }} x Rp {{
+              "{:,}".format(item.price).replace(",",".") }}</span
             >
             <span>Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</span>
           </div>
