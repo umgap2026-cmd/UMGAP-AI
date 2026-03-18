@@ -916,11 +916,12 @@
                   <div class="qty-lbl">Qty</div>
                   <input
                     class="fi"
-                    type="number"
+                    type="text"
                     name="qty[]"
-                    min="1"
+                    inputmode="decimal"
                     value="1"
                     required
+                    placeholder="contoh: 16,5"
                     style="
                       padding: 8px 10px;
                       font-size: 14px;
@@ -1055,6 +1056,25 @@
     function rp(n) {
       return "Rp " + Math.round(n || 0).toLocaleString("id-ID");
     }
+    function qtyNum(v) {
+      var raw = String(v || "")
+        .replace(/\s+/g, "")
+        .replace(/,/g, ".")
+        .replace(/[^0-9.]/g, "");
+      var firstDot = raw.indexOf(".");
+      if (firstDot !== -1) {
+        raw =
+          raw.slice(0, firstDot + 1) +
+          raw.slice(firstDot + 1).replace(/\./g, "");
+      }
+      var n = parseFloat(raw);
+      return isNaN(n) ? 0 : n;
+    }
+    function fmtQty(v) {
+      var n = qtyNum(v);
+      if (!n) return "0";
+      return n.toLocaleString("id-ID", { maximumFractionDigits: 3 });
+    }
     function subTot() {
       var t = 0;
       L.querySelectorAll(".ir").forEach(function (r) {
@@ -1062,7 +1082,7 @@
           q = r.querySelector('input[name="qty[]"]'),
           op = s.options[s.selectedIndex],
           p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0;
-        t += p * (parseInt(q.value || "0", 10) || 0);
+        t += p * qtyNum(q.value || "0");
       });
       return t;
     }
@@ -1083,12 +1103,17 @@
       function c() {
         var op = s.options[s.selectedIndex],
           p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0,
-          n = parseInt(q.value || "0", 10) || 0;
+          n = qtyNum(q.value || "0");
         o.textContent = rp(p * n);
         grand();
       }
       s.addEventListener("change", c);
       q.addEventListener("input", c);
+      q.addEventListener("blur", function () {
+        var n = qtyNum(q.value || "0");
+        q.value = n > 0 ? fmtQty(n) : "";
+        c();
+      });
       d.addEventListener("click", function () {
         if (L.querySelectorAll(".ir").length > 1) {
           r.remove();
