@@ -58,6 +58,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from werkzeug.utils import secure_filename
 
+
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
 # ==================== APP CONFIG ====================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -236,6 +239,22 @@ def _safe_int(v, default=0):
     except Exception:
         return default
 
+def _safe_decimal(v, default="0"):
+    try:
+        raw = str(v or "").strip().replace(",", ".")
+        if not raw:
+            return Decimal(default)
+        return Decimal(raw)
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal(default)
+
+
+def _decimal_to_display(v):
+    d = _safe_decimal(v)
+    s = format(d.normalize(), "f")
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return s.replace(".", ",")
 
 def _invoice_rows_from_form(form):
     product_ids = form.getlist("product_id[]")
@@ -244,7 +263,8 @@ def _invoice_rows_from_form(form):
     rows = []
     for i in range(min(len(product_ids), len(qtys))):
         pid = _safe_int(product_ids[i], 0)
-        qty = _safe_int(qtys[i], 0)
+        qty = _safe_decimal(qtys[i], "0")
+
         if pid > 0 and qty > 0:
             rows.append({
                 "product_id": pid,
@@ -292,10 +312,14 @@ def _save_invoice(is_admin_mode=False):
 
     created_by = session.get("user_id")
     customer_name = (request.form.get("customer_name") or "").strip()
+    customer_phone = (request.form.get("customer_phone") or "").strip()
     company_name = (request.form.get("company_name") or "").strip()
     payment_method = (request.form.get("payment_method") or "CASH").strip().upper()
     print_size = (request.form.get("print_size") or "80mm").strip()
     notes = (request.form.get("notes") or "").strip()
+    discount = max(0, _safe_int(request.form.get("discount"), 0))
+    is_paid = str(request.form.get("is_paid") or "1").strip() in ("1", "true", "True", "on", "yes")
+    paid_at = datetime.utcnow() if is_paid else None
 
     logo_file = request.files.get("company_logo")
     company_logo_path = _save_company_logo(logo_file)
@@ -315,7 +339,7 @@ def _save_invoice(is_admin_mode=False):
         invoice_no = _make_invoice_no()
 
         final_items = []
-        subtotal = 0
+        subtotal = Decimal("0")
 
         for row in item_rows:
             cur.execute("""
@@ -329,42 +353,46 @@ def _save_invoice(is_admin_mode=False):
             if not p:
                 continue
 
-            qty = row["qty"]
-            price = int(p.get("price") or 0)
-            line_subtotal = qty * price
+            qty = _safe_decimal(row["qty"], "0")
+            price = Decimal(str(int(p.get("price") or 0)))
+            line_subtotal = (qty * price).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
             subtotal += line_subtotal
 
             final_items.append({
                 "product_id": p["id"],
                 "product_name": p["name"],
                 "qty": qty,
-                "price": price,
-                "subtotal": line_subtotal
+                "price": int(price),
+                "subtotal": int(line_subtotal)
             })
 
         if not final_items:
             return redirect("/admin/invoice/new" if is_admin_mode else "/invoice/new")
 
-        grand_total = subtotal
+        grand_total = max(0, subtotal - discount)
 
         cur.execute("""
             INSERT INTO invoices
-                (invoice_no, created_by, customer_name, company_name, company_logo_path,
-                 print_size, payment_method, subtotal, grand_total, notes)
+                (invoice_no, created_by, customer_name, customer_phone, company_name, company_logo_path,
+                 print_size, payment_method, subtotal, discount, grand_total, notes, is_paid, paid_at)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             invoice_no,
             created_by,
             customer_name,
+            customer_phone,
             company_name,
             company_logo_path,
             print_size,
             payment_method,
             subtotal,
+            discount,
             grand_total,
-            notes
+            notes,
+            is_paid,
+            paid_at
         ))
 
         invoice_id = (cur.fetchone() or {}).get("id")
@@ -378,7 +406,7 @@ def _save_invoice(is_admin_mode=False):
                 invoice_id,
                 item["product_id"],
                 item["product_name"],
-                item["qty"],
+                str(item["qty"]),
                 item["price"],
                 item["subtotal"]
             ))
@@ -390,7 +418,7 @@ def _save_invoice(is_admin_mode=False):
             """, (
                 target_user_id,
                 item["product_id"],
-                item["qty"],
+                int(Decimal(str(item["qty"])).quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
                 f"INVOICE {invoice_no}"
             ))
 
@@ -586,6 +614,10 @@ def ensure_invoice_schema():
 
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_name VARCHAR(150);")
         cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS company_logo_path TEXT;")
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30);")
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0;")
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_paid BOOLEAN NOT NULL DEFAULT TRUE;")
+        cur.execute("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL;")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS invoice_items (
@@ -593,10 +625,16 @@ def ensure_invoice_schema():
                 invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
                 product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
                 product_name VARCHAR(150) NOT NULL,
-                qty INTEGER NOT NULL DEFAULT 1,
+                qty NUMERIC(12,3) NOT NULL DEFAULT 1,
                 price INTEGER NOT NULL DEFAULT 0,
                 subtotal INTEGER NOT NULL DEFAULT 0
             );
+        """)
+
+        cur.execute("""
+            ALTER TABLE invoice_items
+            ALTER COLUMN qty TYPE NUMERIC(12,3)
+            USING qty::numeric;
         """)
 
         conn.commit()
@@ -2176,6 +2214,12 @@ def invoice_view(invoice_id):
         conn.close()
 
     invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
+    invoice["paid_at_wib"] = _utc_naive_to_wib_string(invoice.get("paid_at")) if invoice.get("paid_at") else None
+    invoice.setdefault("is_paid", True)
+    invoice.setdefault("discount", 0)
+    invoice.setdefault("customer_phone", "")
+    invoice.setdefault("company_name", "")
+    invoice.setdefault("company_logo_path", None)
 
     return render_template("invoice_print.html", invoice=invoice, items=items)
 
@@ -2215,6 +2259,44 @@ def invoice_json(invoice_id):
         "ok": True,
         "invoice": invoice,
         "items": items
+    })
+
+
+@app.route("/invoice/<int:invoice_id>/mark-paid", methods=["POST"])
+def invoice_mark_paid(invoice_id):
+    if not is_logged_in():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    ensure_invoice_schema()
+
+    data = request.get_json(silent=True) or {}
+    is_paid = bool(data.get("is_paid"))
+    paid_at = datetime.utcnow() if is_paid else None
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            UPDATE invoices
+            SET is_paid=%s,
+                paid_at=%s
+            WHERE id=%s
+            RETURNING id, is_paid, paid_at;
+        """, (is_paid, paid_at, invoice_id))
+        row = cur.fetchone()
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    if not row:
+        return jsonify({"ok": False, "error": "Invoice tidak ditemukan"}), 404
+
+    return jsonify({
+        "ok": True,
+        "invoice_id": row.get("id"),
+        "is_paid": bool(row.get("is_paid")),
+        "paid_at_wib": _utc_naive_to_wib_string(row.get("paid_at")) if row.get("paid_at") else None
     })
 
 @app.route("/invoice/<int:invoice_id>/pdf")
@@ -2259,15 +2341,18 @@ def invoice_pdf(invoice_id):
 
     html = render_template("invoice_pdf.html", invoice=invoice, items=items)
 
-    # 1) coba weasyprint dulu
+    filename = f"{invoice['invoice_no']}.pdf"
+
+    # 1) coba WeasyPrint dulu
     try:
         from weasyprint import HTML
+
         pdf_bytes = HTML(string=html, base_url=request.host_url).write_pdf()
         return send_file(
             io.BytesIO(pdf_bytes),
             mimetype="application/pdf",
             as_attachment=True,
-            download_name=f"{invoice['invoice_no']}.pdf"
+            download_name=filename,
         )
     except Exception as e_weasy:
         # 2) fallback ke xhtml2pdf
@@ -2275,27 +2360,26 @@ def invoice_pdf(invoice_id):
             from xhtml2pdf import pisa
 
             pdf_io = io.BytesIO()
-            pisa_status = pisa.CreatePDF(
-                io.StringIO(html),
-                dest=pdf_io
-            )
-
+            pisa_status = pisa.CreatePDF(src=html, dest=pdf_io)
             if pisa_status.err:
-                return f"Gagal membuat PDF. WeasyPrint error: {e_weasy} | xhtml2pdf juga gagal.", 500
+                return (
+                    f"Gagal membuat PDF. WeasyPrint error: {e_weasy} | xhtml2pdf juga gagal.",
+                    500,
+                )
 
             pdf_io.seek(0)
             return send_file(
                 pdf_io,
                 mimetype="application/pdf",
                 as_attachment=True,
-                download_name=f"{invoice['invoice_no']}.pdf"
+                download_name=filename,
             )
         except Exception as e_xhtml:
             return (
                 "Gagal membuat PDF.<br>"
                 f"WeasyPrint error: {e_weasy}<br>"
                 f"xhtml2pdf error: {e_xhtml}",
-                500
+                500,
             )
 
 # ---------- PRODUCTS ----------
