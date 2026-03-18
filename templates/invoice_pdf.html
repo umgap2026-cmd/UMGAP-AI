@@ -389,7 +389,7 @@
           <tr>
             <td style="color: #888">{{ loop.index }}</td>
             <td style="font-weight: 600">{{ item.product_name }}</td>
-            <td class="r">{{ item.qty }}</td>
+            <td class="r">{{ item.qty_display or item.qty }}</td>
             <td class="r">
               Rp {{ "{:,}".format(item.price).replace(",",".") }}
             </td>
