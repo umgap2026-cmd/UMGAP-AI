@@ -1345,7 +1345,7 @@ def admin_attendance_approval():
                 accuracy,
                 photo_path,
                 created_at,
-                (created_at + interval '7 hour') AS created_at_wib
+                created_at AS created_at_wib
             FROM attendance_pending
             WHERE status='PENDING'
             ORDER BY created_at DESC
@@ -1399,7 +1399,7 @@ def admin_attendance_approve():
                 accuracy,
                 photo_path,
                 created_at,
-                (created_at + interval '7 hour') AS created_at_wib
+                created_at AS created_at_wib
             FROM attendance_pending
             WHERE id=%s AND status='PENDING'
             LIMIT 1;
@@ -1413,7 +1413,7 @@ def admin_attendance_approve():
         if not target_user_id:
             return redirect("/admin/attendance-approval")
 
-        created_at_wib = p.get("created_at_wib") or _utc_naive_to_wib_naive(p.get("created_at"))
+        created_at_wib = p.get("created_at_wib") or p.get("created_at")
         work_date = p.get("work_date") or (created_at_wib.date() if created_at_wib else date.today())
         checkin_at = created_at_wib
 
