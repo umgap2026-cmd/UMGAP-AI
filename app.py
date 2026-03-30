@@ -5791,6 +5791,204 @@ def api_mobile_info():
         }
     )
 
+@app.route('/api/mobile/register', methods=['POST'])
+def api_mobile_register():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        year = (data.get('year') or '').strip()
+        month = (data.get('month') or '').strip()
+        day = (data.get('day') or '').strip()
+
+        if not first_name:
+            return jsonify({'ok': False, 'message': 'First name wajib diisi.'}), 400
+        if not last_name:
+            return jsonify({'ok': False, 'message': 'Last name wajib diisi.'}), 400
+        if not email:
+            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
+        if not password:
+            return jsonify({'ok': False, 'message': 'Password wajib diisi.'}), 400
+
+        full_name = f"{first_name} {last_name}".strip()
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
+        existing = cur.fetchone()
+        if existing:
+            cur.close()
+            conn.close()
+            return jsonify({'ok': False, 'message': 'Email sudah terdaftar.'}), 409
+
+        birthday = None
+        if year and month and day:
+            try:
+                birthday = f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+            except Exception:
+                birthday = None
+
+        password_hash = generate_password_hash(password)
+
+        # Aman kalau kolom birthday belum ada: insert tanpa birthday
+        try:
+            cur.execute("""
+                INSERT INTO users (name, email, password_hash, role, points, points_admin, birthday)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, name, email, role
+            """, (full_name, email, password_hash, 'employee', 0, 0, birthday))
+        except Exception:
+            conn.rollback()
+            cur.execute("""
+                INSERT INTO users (name, email, password_hash, role, points, points_admin)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, name, email, role
+            """, (full_name, email, password_hash, 'employee', 0, 0))
+
+        user = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'message': 'Register berhasil.',
+            'data': {
+                'user': {
+                    'id': user[0],
+                    'name': user[1],
+                    'email': user[2],
+                    'role': user[3]
+                }
+            }
+        }), 201
+
+    except Exception as e:
+        return jsonify({'ok': False, 'message': f'Register gagal: {str(e)}'}), 500
+
+
+@app.route('/api/mobile/forgot-password', methods=['POST'])
+def api_mobile_forgot_password():
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+
+        if not email:
+            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id, email FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
+        user = cur.fetchone()
+
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({'ok': False, 'message': 'Email tidak ditemukan.'}), 404
+
+        otp_code = str(random.randint(100000, 999999))
+        expired_at = datetime.now() + timedelta(minutes=10)
+
+        cur.execute("""
+            INSERT INTO password_reset_otps (email, otp_code, expired_at, used)
+            VALUES (%s, %s, %s, FALSE)
+        """, (email, otp_code, expired_at))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Untuk sementara OTP dikembalikan ke response
+        # Nanti bisa diganti kirim email/WhatsApp
+        return jsonify({
+            'ok': True,
+            'message': 'OTP reset password berhasil dibuat.',
+            'data': {
+                'email': email,
+                'otp_code': otp_code,
+                'expired_in_minutes': 10
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({'ok': False, 'message': f'Forgot password gagal: {str(e)}'}), 500
+
+
+@app.route('/api/mobile/reset-password', methods=['POST'])
+def api_mobile_reset_password():
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        otp_code = (data.get('otp_code') or '').strip()
+        new_password = data.get('new_password') or ''
+
+        if not email:
+            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
+        if not otp_code:
+            return jsonify({'ok': False, 'message': 'OTP wajib diisi.'}), 400
+        if not new_password:
+            return jsonify({'ok': False, 'message': 'Password baru wajib diisi.'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, expired_at, used
+            FROM password_reset_otps
+            WHERE LOWER(email)=LOWER(%s) AND otp_code=%s
+            ORDER BY id DESC
+            LIMIT 1
+        """, (email, otp_code))
+        otp_row = cur.fetchone()
+
+        if not otp_row:
+            cur.close()
+            conn.close()
+            return jsonify({'ok': False, 'message': 'OTP tidak valid.'}), 400
+
+        otp_id, expired_at, used = otp_row
+
+        if used:
+            cur.close()
+            conn.close()
+            return jsonify({'ok': False, 'message': 'OTP sudah digunakan.'}), 400
+
+        if expired_at < datetime.now():
+            cur.close()
+            conn.close()
+            return jsonify({'ok': False, 'message': 'OTP sudah kadaluarsa.'}), 400
+
+        password_hash = generate_password_hash(new_password)
+
+        cur.execute("""
+            UPDATE users
+            SET password_hash=%s
+            WHERE LOWER(email)=LOWER(%s)
+        """, (password_hash, email))
+
+        cur.execute("""
+            UPDATE password_reset_otps
+            SET used=TRUE
+            WHERE id=%s
+        """, (otp_id,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'message': 'Password berhasil direset.'
+        }), 200
+
+    except Exception as e:
+        return jsonify({'ok': False, 'message': f'Reset password gagal: {str(e)}'}), 500
+
 @app.route("/api/mobile/<path:anything>", methods=["OPTIONS"])
 def api_mobile_options(anything):
     return ("", 204)
