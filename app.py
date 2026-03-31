@@ -5289,7 +5289,7 @@ def api_mobile_attendance_checkin():
         )
 
     wib = pytz.timezone("Asia/Jakarta")
-    now = datetime.now(wib)
+    now = datetime.now(pytz.timezone("Asia/Jakarta"))
     work_date = now.date()
 
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
