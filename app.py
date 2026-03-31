@@ -25,6 +25,7 @@ from flask import (
     Flask, render_template, request, redirect, session, abort,
     jsonify, url_for, flash, Response, send_file,
 )
+import pytz
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
@@ -73,6 +74,8 @@ app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+wib = pytz.timezone("Asia/Jakarta")
 
 @app.after_request
 def add_mobile_api_headers(response):
@@ -5255,7 +5258,7 @@ def api_mobile_attendance():
                 "status": r.get("status") or "",
                 "arrival_type": r.get("arrival_type") or "",
                 "note": r.get("note") or "",
-                "checkin_at": str(r.get("checkin_at") or ""),
+                "checkin_at": r["checkin_at"].astimezone(wib).strftime("%Y-%m-%d %H:%M:%S") if r.get("checkin_at") else "",
             })
 
         return mobile_api_response(
@@ -5285,7 +5288,8 @@ def api_mobile_attendance_checkin():
             status_code=400
         )
 
-    now = datetime.now()
+    wib = pytz.timezone("Asia/Jakarta")
+    now = datetime.now(wib)
     work_date = now.date()
 
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
