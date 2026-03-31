@@ -5815,7 +5815,7 @@ def api_mobile_register():
 
         full_name = f"{first_name} {last_name}".strip()
 
-        conn = get_db_connection()
+        conn = get_conn()
         cur = conn.cursor()
 
         cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
@@ -5880,7 +5880,7 @@ def api_mobile_forgot_password():
         if not email:
             return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
 
-        conn = get_db_connection()
+        conn = get_conn()
         cur = conn.cursor()
 
         cur.execute("SELECT id, email FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
@@ -5934,7 +5934,7 @@ def api_mobile_reset_password():
         if not new_password:
             return jsonify({'ok': False, 'message': 'Password baru wajib diisi.'}), 400
 
-        conn = get_db_connection()
+        conn = get_conn()
         cur = conn.cursor()
 
         cur.execute("""
