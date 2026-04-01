@@ -206,6 +206,13 @@ def _utc_naive_to_wib_naive(dt):
         return None
     return dt + timedelta(hours=7)
 
+def _now_wib_naive():
+    return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
+
+def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
+    dt_wib = _utc_naive_to_wib_naive(dt)
+    return dt_wib.strftime(fmt) if dt_wib else ""
+
 def _parse_date(s):
     if not s:
         return None
@@ -5258,7 +5265,7 @@ def api_mobile_attendance():
                 "status": r.get("status") or "",
                 "arrival_type": r.get("arrival_type") or "",
                 "note": r.get("note") or "",
-                "checkin_at": r["checkin_at"].astimezone(wib).strftime("%Y-%m-%d %H:%M:%S") if r.get("checkin_at") else "",
+                "checkin_at": _utc_naive_to_wib_string(r.get("checkin_at")),
             })
 
         return mobile_api_response(
@@ -5288,8 +5295,7 @@ def api_mobile_attendance_checkin():
             status_code=400
         )
 
-    wib = pytz.timezone("Asia/Jakarta")
-    now = datetime.now(pytz.timezone("Asia/Jakarta"))
+    now = _now_wib_naive()
     work_date = now.date()
 
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
