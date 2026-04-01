@@ -5806,6 +5806,10 @@ def api_mobile_info():
 import base64
 from urllib import request as _urlrequest, parse as _urlparse
 
+def build_photo_url(path):
+    if not path:
+        return None
+    return request.host_url.rstrip('/') + '/static/' + str(path).lstrip('/')
 
 def mobile_api_admin_required(fn):
     @wraps(fn)
@@ -6357,71 +6361,218 @@ def api_mobile_attendance_checkin_full():
 @app.route('/api/mobile/attendance/pending', methods=['GET'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_list():
-    ensure_attendance_pending_schema(); ensure_mobile_attendance_columns()
-    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    ensure_attendance_pending_schema()
+    ensure_mobile_attendance_columns()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT p.*, u.name AS user_name
+            SELECT
+                p.*,
+                u.name AS user_name
             FROM attendance_pending p
-            LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.approved_user_id)
-            WHERE p.status='PENDING'
+            LEFT JOIN users u
+                ON u.id = COALESCE(p.user_id, p.approved_user_id)
+            WHERE p.status = 'PENDING'
             ORDER BY p.created_at DESC
             LIMIT 200;
         """)
         rows = cur.fetchall()
-        items = [{**dict(r), 'work_date': str(r.get('work_date') or ''), 'created_at': _utc_naive_to_wib_string(r.get('created_at')) if r.get('created_at') else '', 'approved_at': _utc_naive_to_wib_string(r.get('approved_at')) if r.get('approved_at') else '', 'rejected_at': _utc_naive_to_wib_string(r.get('rejected_at')) if r.get('rejected_at') else ''} for r in rows]
-        return mobile_api_response(True, 'Daftar pending absensi berhasil diambil.', data={'pending': items})
+
+        items = []
+        for r in rows:
+            item = dict(r)
+
+            item['work_date'] = str(r.get('work_date') or '')
+            item['created_at'] = _utc_naive_to_wib_string(r.get('created_at')) if r.get('created_at') else ''
+            item['approved_at'] = _utc_naive_to_wib_string(r.get('approved_at')) if r.get('approved_at') else ''
+            item['rejected_at'] = _utc_naive_to_wib_string(r.get('rejected_at')) if r.get('rejected_at') else ''
+
+            item['photo_url'] = build_photo_url(r.get('photo_path'))
+
+            latv = r.get('latitude')
+            lngv = r.get('longitude')
+            item['map_url'] = f'https://www.google.com/maps?q={latv},{lngv}' if latv is not None and lngv is not None else None
+
+            items.append(item)
+
+        return mobile_api_response(
+            True,
+            'Daftar pending absensi berhasil diambil.',
+            {'attendance': items}
+        )
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
 
 
 @app.route('/api/mobile/attendance/pending/<int:pending_id>/approve', methods=['POST'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_approve(pending_id):
-    ensure_attendance_pending_schema(); ensure_mobile_attendance_columns(); ensure_hr_v2_schema()
-    data = _mobile_json(); user_id_form = data.get('user_id')
-    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    ensure_attendance_pending_schema()
+    ensure_mobile_attendance_columns()
+    ensure_hr_v2_schema()
+
+    data = _mobile_json()
+    user_id_form = data.get('user_id')
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("SELECT * FROM attendance_pending WHERE id=%s AND status='PENDING' LIMIT 1;", (pending_id,))
+        cur.execute("""
+            SELECT *
+            FROM attendance_pending
+            WHERE id=%s AND status='PENDING'
+            LIMIT 1;
+        """, (pending_id,))
         p = cur.fetchone()
+
         if not p:
             return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
+
         target_user_id = p.get('user_id') or (int(user_id_form) if user_id_form else None)
         if not target_user_id:
             return mobile_api_response(False, 'user_id tujuan wajib ada.', status_code=400)
+
         created_at_wib = p.get('created_at') or _now_wib_naive()
         work_date = p.get('work_date') or created_at_wib.date()
+
         arrival_type = (p.get('arrival_type') or 'ONTIME').strip().upper()
-        status = 'PRESENT' if arrival_type in ('ONTIME', 'LATE') else arrival_type
-        latv = p.get('latitude'); lngv = p.get('longitude')
+        if arrival_type in ('ONTIME', 'LATE'):
+            status = 'PRESENT'
+        elif arrival_type == 'SICK':
+            status = 'SICK'
+        elif arrival_type == 'LEAVE':
+            status = 'LEAVE'
+        elif arrival_type == 'ABSENT':
+            status = 'ABSENT'
+        else:
+            status = 'PRESENT'
+            arrival_type = 'ONTIME'
+
+        latv = p.get('latitude')
+        lngv = p.get('longitude')
         map_url = f'https://www.google.com/maps?q={latv},{lngv}' if latv is not None and lngv is not None else None
-        cur.execute("UPDATE attendance_pending SET status='APPROVED', approved_user_id=%s, approved_by=%s, approved_at=NOW() WHERE id=%s;", (target_user_id, request.mobile_user['id'], pending_id))
+        clean_note = (p.get('note') or '').strip()
+
         cur.execute("""
-            INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at, device_id, latitude, longitude, accuracy, photo_path, map_url)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            UPDATE attendance_pending
+            SET status='APPROVED',
+                approved_user_id=%s,
+                approved_by=%s,
+                approved_at=NOW()
+            WHERE id=%s;
+        """, (
+            int(target_user_id),
+            request.mobile_user['id'],
+            pending_id
+        ))
+
+        cur.execute("""
+            INSERT INTO attendance
+                (user_id, work_date, status, arrival_type, note, checkin_at,
+                 device_id, latitude, longitude, accuracy, photo_path, map_url)
+            VALUES
+                (%s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s)
             ON CONFLICT (user_id, work_date)
-            DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at,
-                          device_id=EXCLUDED.device_id, latitude=EXCLUDED.latitude, longitude=EXCLUDED.longitude,
-                          accuracy=EXCLUDED.accuracy, photo_path=EXCLUDED.photo_path, map_url=EXCLUDED.map_url;
-        """, (target_user_id, work_date, status, arrival_type, (p.get('note') or '').strip(), created_at_wib, p.get('device_id'), latv, lngv, p.get('accuracy'), p.get('photo_path'), map_url))
+            DO UPDATE SET
+                status=EXCLUDED.status,
+                arrival_type=EXCLUDED.arrival_type,
+                note=EXCLUDED.note,
+                checkin_at=EXCLUDED.checkin_at,
+                device_id=EXCLUDED.device_id,
+                latitude=EXCLUDED.latitude,
+                longitude=EXCLUDED.longitude,
+                accuracy=EXCLUDED.accuracy,
+                photo_path=EXCLUDED.photo_path,
+                map_url=EXCLUDED.map_url;
+        """, (
+            int(target_user_id),
+            work_date,
+            status,
+            arrival_type,
+            clean_note,
+            created_at_wib,
+            p.get('device_id'),
+            latv,
+            lngv,
+            p.get('accuracy'),
+            p.get('photo_path'),
+            map_url
+        ))
+
         conn.commit()
-        return mobile_api_response(True, 'Absensi berhasil disetujui.')
+
+        return mobile_api_response(
+            True,
+            'Absensi berhasil disetujui.',
+            {
+                'pending_id': pending_id,
+                'user_id': int(target_user_id),
+                'work_date': str(work_date),
+                'status': status,
+                'arrival_type': arrival_type,
+                'note': clean_note,
+                'latitude': latv,
+                'longitude': lngv,
+                'accuracy': p.get('accuracy'),
+                'photo_path': p.get('photo_path'),
+                'photo_url': build_photo_url(p.get('photo_path')),
+                'map_url': map_url,
+                'approved_at': _utc_naive_to_wib_string(datetime.utcnow())
+            }
+        )
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
 
 
 @app.route('/api/mobile/attendance/pending/<int:pending_id>/reject', methods=['POST'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_reject(pending_id):
     ensure_attendance_pending_schema()
-    reason = (_mobile_json().get('reason') or '').strip()
-    conn = get_conn(); cur = conn.cursor()
+    ensure_mobile_attendance_columns()
+
+    data = _mobile_json()
+    reason = (data.get('reason') or '').strip()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("UPDATE attendance_pending SET status='REJECTED', rejected_by=%s, rejected_at=NOW(), reject_reason=%s WHERE id=%s AND status='PENDING';", (request.mobile_user['id'], reason, pending_id))
+        cur.execute("""
+            UPDATE attendance_pending
+            SET status='REJECTED',
+                rejected_by=%s,
+                rejected_at=NOW(),
+                reject_reason=%s
+            WHERE id=%s AND status='PENDING'
+            RETURNING id, reject_reason, rejected_at;
+        """, (
+            request.mobile_user['id'],
+            reason,
+            pending_id
+        ))
+        row = cur.fetchone()
         conn.commit()
-        return mobile_api_response(True, 'Absensi berhasil ditolak.')
+
+        if not row:
+            return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
+
+        return mobile_api_response(
+            True,
+            'Absensi berhasil ditolak.',
+            {
+                'pending_id': row['id'],
+                'reject_reason': row.get('reject_reason') or '',
+                'rejected_at': _utc_naive_to_wib_string(row.get('rejected_at')) if row.get('rejected_at') else ''
+            }
+        )
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
+
 
 
 @app.route('/api/mobile/attendance-links', methods=['GET', 'POST'])
