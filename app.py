@@ -6372,9 +6372,8 @@ def api_mobile_attendance_pending_list():
                 p.*,
                 u.name AS user_name
             FROM attendance_pending p
-            LEFT JOIN users u
-                ON u.id = COALESCE(p.user_id, p.approved_user_id)
-            WHERE p.status = 'PENDING'
+            LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.approved_user_id)
+            WHERE p.status='PENDING'
             ORDER BY p.created_at DESC
             LIMIT 200;
         """)
@@ -6383,24 +6382,22 @@ def api_mobile_attendance_pending_list():
         items = []
         for r in rows:
             item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["created_at"] = _utc_naive_to_wib_string(r.get("created_at")) if r.get("created_at") else ""
+            item["approved_at"] = _utc_naive_to_wib_string(r.get("approved_at")) if r.get("approved_at") else ""
+            item["rejected_at"] = _utc_naive_to_wib_string(r.get("rejected_at")) if r.get("rejected_at") else ""
+            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
 
-            item['work_date'] = str(r.get('work_date') or '')
-            item['created_at'] = _utc_naive_to_wib_string(r.get('created_at')) if r.get('created_at') else ''
-            item['approved_at'] = _utc_naive_to_wib_string(r.get('approved_at')) if r.get('approved_at') else ''
-            item['rejected_at'] = _utc_naive_to_wib_string(r.get('rejected_at')) if r.get('rejected_at') else ''
-
-            item['photo_url'] = build_photo_url(r.get('photo_path'))
-
-            latv = r.get('latitude')
-            lngv = r.get('longitude')
-            item['map_url'] = f'https://www.google.com/maps?q={latv},{lngv}' if latv is not None and lngv is not None else None
+            latv = r.get("latitude")
+            lngv = r.get("longitude")
+            item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}" if latv is not None and lngv is not None else None
 
             items.append(item)
 
         return mobile_api_response(
             True,
-            'Daftar pending absensi berhasil diambil.',
-            {'attendance': items}
+            "Daftar pending absensi berhasil diambil.",
+            data={"pending": items}
         )
     finally:
         cur.close()
@@ -6573,7 +6570,60 @@ def api_mobile_attendance_pending_reject(pending_id):
         cur.close()
         conn.close()
 
+@app.route('/api/mobile/attendance/me', methods=['GET'])
+@mobile_api_login_required
+def api_mobile_attendance_me():
+    ensure_mobile_attendance_columns()
+    ensure_hr_v2_schema()
 
+    user = request.mobile_user
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                a.id,
+                a.user_id,
+                a.work_date,
+                a.status,
+                a.arrival_type,
+                a.note,
+                a.checkin_at,
+                a.device_id,
+                a.latitude,
+                a.longitude,
+                a.accuracy,
+                a.photo_path,
+                a.map_url
+            FROM attendance a
+            WHERE a.user_id=%s
+            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
+            LIMIT 100;
+        """, (user["id"],))
+        rows = cur.fetchall()
+
+        items = []
+        for r in rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at"] = _utc_naive_to_wib_string(r.get("checkin_at")) if r.get("checkin_at") else ""
+            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
+
+            latv = r.get("latitude")
+            lngv = r.get("longitude")
+            if not item.get("map_url") and latv is not None and lngv is not None:
+                item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}"
+
+            items.append(item)
+
+        return mobile_api_response(
+            True,
+            "Riwayat absen saya berhasil diambil.",
+            data={"attendance": items}
+        )
+    finally:
+        cur.close()
+        conn.close()
 
 @app.route('/api/mobile/attendance-links', methods=['GET', 'POST'])
 @mobile_api_admin_required
