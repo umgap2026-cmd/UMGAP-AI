@@ -15,6 +15,7 @@ from functools import wraps
 from decimal import Decimal
 import uuid
 import psycopg2
+import cv2
 import atexit
 import json
 
@@ -30,7 +31,7 @@ from dotenv import load_dotenv
 
 # Database
 from psycopg2.extras import RealDictCursor
-from db import get_conn as _raw_get_conn
+from db import get_conn
 
 # AI
 from openai import OpenAI
@@ -63,26 +64,6 @@ from werkzeug.utils import secure_filename
 
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-
-APP_TIMEZONE_NAME = "Asia/Jakarta"
-APP_TIMEZONE = ZoneInfo(APP_TIMEZONE_NAME)
-
-def get_conn():
-    """Open DB connection with session timezone forced to WIB."""
-    conn = _raw_get_conn()
-    try:
-        cur = conn.cursor()
-        try:
-            cur.execute("SET TIME ZONE %s;", (APP_TIMEZONE_NAME,))
-            conn.commit()
-        finally:
-            cur.close()
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-    return conn
 
 # ==================== APP CONFIG ====================
 app = Flask(__name__)
@@ -210,41 +191,27 @@ def _parse_manual_wib_naive(manual_dt):
 
 def _now_wib_naive_from_form():
     client_ts = request.form.get("client_ts")
-    if client_ts and str(client_ts).isdigit():
-        return datetime.fromtimestamp(int(client_ts) / 1000, tz=APP_TIMEZONE).replace(tzinfo=None)
-    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
-
-
-def _now_wib_naive():
-    """Return current WIB time as timezone-naive for DB compatibility."""
-    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
-
-
-def _now_wib_aware():
-    return datetime.now(APP_TIMEZONE)
-
+    if client_ts and client_ts.isdigit():
+        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+    else:
+        now_wib_aware = datetime.now(ZoneInfo("Asia/Jakarta"))
+    return now_wib_aware.replace(tzinfo=None)
 
 def _utc_naive_to_wib_naive(dt):
-    """Normalize datetimes for display in WIB without double-shifting."""
+    """
+    DB kamu sekarang banyak menyimpan timestamp naive yang tampil seperti UTC.
+    Fungsi ini geser +7 jam agar sinkron ke WIB.
+    """
     if not dt:
         return None
-    try:
-        if getattr(dt, "tzinfo", None) is not None:
-            return dt.astimezone(APP_TIMEZONE).replace(tzinfo=None)
-    except Exception:
-        pass
-    return dt
+    return dt + timedelta(hours=7)
 
+def _now_wib_naive():
+    return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
 
-def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
-    dt_wib = _utc_naive_to_wib_naive(dt)
-    return dt_wib.strftime(fmt) if dt_wib else "-"
-
-
-def _json_wib_datetime(dt, fmt="%Y-%m-%d %H:%M:%S"):
+def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
     dt_wib = _utc_naive_to_wib_naive(dt)
     return dt_wib.strftime(fmt) if dt_wib else ""
-
 
 def _parse_date(s):
     if not s:
@@ -392,7 +359,13 @@ def _save_company_logo(file_storage):
 
     return f"uploads/invoice_logo/{filename}"
 
-
+def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
+    if not dt:
+        return "-"
+    try:
+        return (dt + timedelta(hours=7)).strftime(fmt)
+    except Exception:
+        return "-"
 # =========================
 # APP MOBOLE API
 # =========================
@@ -466,9 +439,9 @@ def get_mobile_api_user():
         if row:
             cur.execute("""
                 UPDATE mobile_api_tokens
-                SET last_used_at=%s
+                SET last_used_at=CURRENT_TIMESTAMP
                 WHERE id=%s;
-            """, (_now_wib_naive(), row["token_id"]))
+            """, (row["token_id"],))
             conn.commit()
 
         return row
@@ -509,7 +482,7 @@ def _save_invoice(is_admin_mode=False):
     notes = (request.form.get("notes") or "").strip()
     discount = max(0, _safe_int(request.form.get("discount"), 0))
     is_paid = str(request.form.get("is_paid") or "1").strip() in ("1", "true", "True", "on", "yes")
-    paid_at = _now_wib_naive() if is_paid else None
+    paid_at = datetime.utcnow() if is_paid else None
 
     logo_file = request.files.get("company_logo")
     company_logo_path = _save_company_logo(logo_file)
@@ -619,13 +592,159 @@ def _save_invoice(is_admin_mode=False):
 
     return redirect(f"/invoice/{invoice_id}")
 
-# CCTV code moved to cctv/ ✅
-# get_camera_url(), get_camera_config() → cctv.config
+# === CCTV MULTI CAMERA CONFIG ===
+CCTV_CAMERAS = [
+    {
+        "code": "CAM01",
+        "name": "Kamera 1",
+        "location": "Area 1",
+        "rtsp_url": os.getenv("CCTV_CAM01_RTSP", "").strip(),
+    },
+    {
+        "code": "CAM02",
+        "name": "Kamera 2",
+        "location": "Gudang",
+        "rtsp_url": os.getenv("CCTV_CAM02_RTSP", "").strip(),
+    },
+    {
+        "code": "CAM03",
+        "name": "Kamera 3",
+        "location": "Bak Muat",
+        "rtsp_url": os.getenv("CCTV_CAM03_RTSP", "").strip(),
+    },
+    {
+        "code": "CAM04",
+        "name": "Kamera 4",
+        "location": "Area Dalam",
+        "rtsp_url": os.getenv("CCTV_CAM04_RTSP", "").strip(),
+    },
+]
 
-# CCTV globals/functions → cctv/ ✅
+# === MODE TEST CCTV (PAKAI VIDEO LOKAL SAAT CCTV ASLI TIDAK BISA DIAKSES) ===
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+USE_TEST_VIDEO = (os.getenv("USE_TEST_VIDEO") or "true").strip().lower() == "true"
+
+TEST_VIDEO_DEFAULT = os.path.join(BASE_DIR, "static", "sample.mp4")
+
+TEST_VIDEO_MAP = {
+    "CAM01": os.path.join(BASE_DIR, "static", "sample1.mp4"),
+    "CAM02": os.path.join(BASE_DIR, "static", "sample2.mp4"),
+    "CAM03": os.path.join(BASE_DIR, "static", "sample3.mp4"),
+    "CAM04": os.path.join(BASE_DIR, "static", "sample4.mp4"),
+}
 
 
-# _make_offline_frame_multi → cctv.stream ✅
+def get_camera_url(camera_code):
+    camera_code = (camera_code or "").strip().upper()
+
+    # kalau mode test aktif, pakai video lokal
+    if USE_TEST_VIDEO:
+        path = TEST_VIDEO_MAP.get(camera_code, TEST_VIDEO_DEFAULT)
+        if os.path.exists(path):
+            return path
+        return TEST_VIDEO_DEFAULT
+
+    # kalau mode test mati, pakai RTSP asli dari config
+    cam = get_camera_config(camera_code)
+    if cam and (cam.get("rtsp_url") or "").strip():
+        return cam["rtsp_url"].strip()
+
+    return None
+
+CCTV_ROIS = {
+    "CAM01": (120, 120, 1100, 650),
+    "CAM02": (80, 80, 1150, 680),
+    "CAM03": (100, 100, 1100, 650),
+    "CAM04": (100, 100, 1100, 650),
+}
+
+CCTV_EVENT_SNAPSHOT_DIR = os.path.join("static", "uploads", "cctv_events")
+
+def _ensure_cctv_event_snapshot_dir():
+    os.makedirs(CCTV_EVENT_SNAPSHOT_DIR, exist_ok=True)
+
+CCTV_ACTIVITY_STATE = {}
+CCTV_ZONE_ACTIVITY_STATE = {}
+CCTV_BG_SUBTRACTORS = {}
+CCTV_LAST_SNAPSHOT_TS = {}
+
+def detect_motion_simple(frame, camera_code):
+    if camera_code not in CCTV_BG_SUBTRACTORS:
+        CCTV_BG_SUBTRACTORS[camera_code] = cv2.createBackgroundSubtractorMOG2(
+            history=300,
+            varThreshold=25,
+            detectShadows=True
+        )
+
+    roi = CCTV_ROIS.get(camera_code)
+    if roi:
+        x1, y1, x2, y2 = roi
+        crop = frame[y1:y2, x1:x2]
+    else:
+        x1, y1, x2, y2 = 0, 0, frame.shape[1], frame.shape[0]
+        crop = frame
+
+    if crop is None or crop.size == 0:
+        return False, 0, (x1, y1, x2, y2)
+
+    fgbg = CCTV_BG_SUBTRACTORS[camera_code]
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (21, 21), 0)
+
+    fgmask = fgbg.apply(blur)
+    _, th = cv2.threshold(fgmask, 200, 255, cv2.THRESH_BINARY)
+
+    motion_pixels = cv2.countNonZero(th)
+    moving = motion_pixels > 2500
+
+    return moving, motion_pixels, (x1, y1, x2, y2)
+
+def get_camera_config(camera_code):
+    camera_code = (camera_code or "").strip().upper()
+    for cam in CCTV_CAMERAS:
+        if (cam.get("code") or "").strip().upper() == camera_code:
+            return cam
+    return None
+
+
+def _make_offline_frame_multi(camera_name, message):
+    import numpy as np
+
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+    frame[:] = (36, 44, 62)
+
+    cv2.putText(
+        frame,
+        camera_name or "CCTV",
+        (60, 120),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1.5,
+        (255, 255, 255),
+        3,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        frame,
+        message,
+        (60, 200),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.9,
+        (180, 210, 255),
+        2,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        frame,
+        "Periksa RTSP URL / user / password / channel DVR.",
+        (60, 250),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (210, 220, 230),
+        2,
+        cv2.LINE_AA,
+    )
+    return frame
 
 
 def _jpeg_chunk_multi(frame):
@@ -1130,79 +1249,6 @@ def ensure_attendance_links_schema():
         cur.close()
         conn.close()
 
-def ensure_attendance_wib_schema():
-    """Ensure attendance tables have timezone marker columns without shifting existing data."""
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            ALTER TABLE attendance
-            ADD COLUMN IF NOT EXISTS timezone_used VARCHAR(20) DEFAULT 'WIB';
-        """)
-        cur.execute("""
-            ALTER TABLE attendance_pending
-            ADD COLUMN IF NOT EXISTS timezone_used VARCHAR(20) DEFAULT 'WIB';
-        """)
-        cur.execute("UPDATE attendance SET timezone_used='WIB' WHERE timezone_used IS NULL;")
-        cur.execute("UPDATE attendance_pending SET timezone_used='WIB' WHERE timezone_used IS NULL;")
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
-
-
-def ensure_attendance_pending_schema():
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS attendance_pending (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                approved_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                work_date DATE,
-                arrival_type VARCHAR(20) NOT NULL DEFAULT 'ONTIME',
-                note TEXT,
-                name_input VARCHAR(150),
-                device_id VARCHAR(180),
-                latitude DOUBLE PRECISION,
-                longitude DOUBLE PRECISION,
-                accuracy DOUBLE PRECISION,
-                photo_path TEXT,
-                ip_address VARCHAR(80),
-                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                approved_at TIMESTAMP,
-                rejected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                rejected_at TIMESTAMP,
-                reject_reason TEXT
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_attendance_pending_status_created ON attendance_pending(status, created_at DESC);")
-        cur.execute("ALTER TABLE attendance_pending ADD COLUMN IF NOT EXISTS timezone_used VARCHAR(20) DEFAULT 'WIB';")
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
-
-
-def ensure_mobile_attendance_columns():
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS device_id VARCHAR(180);")
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;")
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;")
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;")
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS photo_path TEXT;")
-        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS map_url TEXT;")
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
-
-
 def ensure_cctv_activity_schema():
     conn = get_conn()
     cur = conn.cursor()
@@ -1702,7 +1748,7 @@ def forgot_password():
 
     otp = f"{random.randint(0, 999999):06d}"
     otp_h = _otp_hash(email, otp)
-    expires_at = _now_wib_naive() + timedelta(minutes=10)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
 
     conn = get_conn()
     cur = conn.cursor()
@@ -1759,7 +1805,7 @@ def reset_password():
         conn.close()
         return "OTP tidak ditemukan / sudah dipakai.", 400
 
-    if _now_wib_naive() > row["expires_at"]:
+    if datetime.utcnow() > row["expires_at"]:
         cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
         conn.commit()
         cur.close()
@@ -2052,32 +2098,27 @@ def admin_attendance_approval():
     if deny:
         return deny
 
-    ensure_attendance_pending_schema()
-    ensure_mobile_attendance_columns()
-    ensure_attendance_wib_schema()
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
             SELECT
-                p.id,
-                p.name_input,
-                p.user_id,
-                p.work_date,
-                p.arrival_type,
-                p.note,
-                p.device_id,
-                p.latitude,
-                p.longitude,
-                p.accuracy,
-                p.photo_path,
-                p.created_at,
-                COALESCE(p.timezone_used, 'legacy_fixed') AS timezone_used,
-                (p.created_at + INTERVAL '7 hours') AS created_at_wib
-            FROM attendance_pending p
-            WHERE p.status='PENDING'
-            ORDER BY p.created_at DESC
+                id,
+                name_input,
+                user_id,
+                work_date,
+                arrival_type,
+                note,
+                device_id,
+                latitude,
+                longitude,
+                accuracy,
+                photo_path,
+                created_at,
+                created_at AS created_at_wib
+            FROM attendance_pending
+            WHERE status='PENDING'
+            ORDER BY created_at DESC
             LIMIT 200;
         """)
         pendings = cur.fetchall()
@@ -2106,10 +2147,6 @@ def admin_attendance_approve():
     if deny:
         return deny
 
-    ensure_attendance_pending_schema()
-    ensure_mobile_attendance_columns()
-    ensure_attendance_wib_schema()
-
     pending_id = request.form.get("pending_id")
     user_id_form = request.form.get("user_id")
     if not pending_id:
@@ -2132,7 +2169,7 @@ def admin_attendance_approve():
                 accuracy,
                 photo_path,
                 created_at,
-                (created_at + interval '7 hour') AS created_at_wib
+                created_at AS created_at_wib
             FROM attendance_pending
             WHERE id=%s AND status='PENDING'
             LIMIT 1;
@@ -2226,9 +2263,6 @@ def admin_attendance_reject():
     if deny:
         return deny
 
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
-
     pending_id = request.form.get("pending_id")
     reason = (request.form.get("reason") or "").strip()
     if not pending_id:
@@ -2260,38 +2294,12 @@ def attendance_page():
     if is_admin():
         return redirect("/admin")
 
-    ensure_mobile_attendance_columns()
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT
-                work_date,
-                arrival_type,
-                status,
-                note,
-                checkin_at,
-                COALESCE(timezone_used, 'unknown') AS timezone_used
-            FROM attendance
-            WHERE user_id=%s
-            ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
-        """, (session["user_id"],))
-        raw_rows = cur.fetchall()
-
-        rows = []
-        for r in raw_rows:
-            item = dict(r)
-            item["work_date"] = str(r.get("work_date") or "")
-            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
-            rows.append(item)
-
-    finally:
-        cur.close()
-        conn.close()
-
+    cur.execute("SELECT work_date, arrival_type, status, note, checkin_at FROM attendance WHERE user_id=%s ORDER BY work_date DESC, checkin_at DESC NULLS LAST;", (session["user_id"],))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
     return render_template("attendance.html", rows=rows)
 
 @app.route("/attendance/add", methods=["POST"])
@@ -2299,17 +2307,10 @@ def attendance_add():
     if not is_logged_in():
         return redirect("/login")
 
-    ensure_mobile_attendance_columns()
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
-
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
-    
-    # Use WIB time from form/client
     now = _now_wib_naive_from_form()
     work_date = now.date()
-    submit_at = now
 
     device_id = (request.form.get("device_id") or "").strip()
     lat = request.form.get("latitude")
@@ -2319,7 +2320,7 @@ def attendance_add():
     def _to_float(x):
         try:
             return float(x) if x not in (None, "", "null") else None
-        except Exception:
+        except:
             return None
 
     lat_f = _to_float(lat)
@@ -2330,90 +2331,42 @@ def attendance_add():
     photo = request.files.get("selfie")
     photo_path = None
     if photo and photo.filename:
-        _ensure_att_user_upload_dir()
+        os.makedirs(os.path.join("static", "uploads", "attendance_user"), exist_ok=True)
         today_tag = date.today().strftime("%Y_%m_%d")
         filename = f"att_{today_tag}_{uuid.uuid4().hex}.jpg"
-        save_path = os.path.join(UPLOAD_ATT_USER_DIR, filename)
+        save_path = os.path.join("static", "uploads", "attendance_user", filename)
         photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Check if device already submitted today
+        # masukkan ke pending (menunggu admin)
+        submit_at = _now_wib_naive_from_form()
+
         cur.execute("""
-            SELECT id, status, photo_path, timezone_used
-            FROM attendance_pending
-            WHERE device_id=%s AND DATE(created_at)=%s
-            ORDER BY created_at DESC LIMIT 1;
-        """, (device_id, work_date))
-        existing = cur.fetchone()
-
-        if existing:
-            # Update existing pending record
-            old_photo_path = existing.get("photo_path")
-            cur.execute("""
-                UPDATE attendance_pending SET
-                    user_id=%s,
-                    work_date=%s,
-                    arrival_type=%s,
-                    note=%s,
-                    name_input=%s,
-                    latitude=%s,
-                    longitude=%s,
-                    accuracy=%s,
-                    photo_path=COALESCE(%s, photo_path),
-                    ip_address=%s,
-                    timezone_used='WIB',
-                    created_at=%s,
-                    status='PENDING',
-                    reject_reason=NULL,
-                    rejected_by=NULL,
-                    rejected_at=NULL,
-                    approved_by=NULL,
-                    approved_at=NULL,
-                    approved_user_id=NULL
-                WHERE id=%s;
-            """, (
-                session.get("user_id"),
-                work_date,
-                arrival_type,
-                note,
-                session.get("user_name"),
-                lat_f,
-                lng_f,
-                acc_f,
-                photo_path,
-                _public_ip(),
-                submit_at,
-                existing["id"]
-            ))
-            
-            # Cleanup old photo if new one uploaded
-            if photo_path and old_photo_path and old_photo_path != photo_path:
-                try:
-                    old_full_path = os.path.join("static", old_photo_path.lstrip("/"))
-                    if os.path.exists(old_full_path):
-                        os.remove(old_full_path)
-                except Exception:
-                    pass
-            
-            flash("✅ Absensi hari ini berhasil diupdate (pending admin)", "success")
-        else:
-            # New pending record
-            cur.execute("""
-                INSERT INTO attendance_pending
-                    (user_id, work_date, arrival_type, note, name_input,
-                     device_id, latitude, longitude, accuracy, photo_path,
-                     ip_address, status, created_at, timezone_used)
-                VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,'PENDING',%s,'WIB');
-            """, (
-                session.get("user_id"), work_date, arrival_type, note, session.get("user_name"),
-                device_id, lat_f, lng_f, acc_f, photo_path,
-                _public_ip(), submit_at
-            ))
-            flash("✅ Absensi berhasil dikirim ke admin untuk approval", "success")
-
+            INSERT INTO attendance_pending
+                (user_id, work_date, arrival_type, note,
+                name_input, device_id, latitude, longitude, accuracy, photo_path,
+                ip_address, status, created_at)
+            VALUES
+                (%s,%s,%s,%s,
+                %s,%s,%s,%s,%s,%s,
+                %s,'PENDING', %s)
+        """, (
+            session.get("user_id"),
+            work_date,
+            arrival_type,
+            note,
+            session.get("user_name"),
+            device_id,
+            lat_f,
+            lng_f,
+            acc_f,
+            photo_path,
+            _public_ip(),
+            submit_at
+        ))
         conn.commit()
     finally:
         cur.close()
@@ -2427,44 +2380,20 @@ def admin_attendance():
     if r:
         return r
 
-    ensure_mobile_attendance_columns()
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
-        employees = cur.fetchall()
-
-        cur.execute("""
-            SELECT
-                a.work_date,
-                a.arrival_type,
-                a.status,
-                a.note,
-                a.checkin_at,
-                COALESCE(a.timezone_used, 'unknown') AS timezone_used,
-                u.name AS employee_name,
-                (a.checkin_at + INTERVAL '7 hours') AS checkin_at_wib
-            FROM attendance a
-            JOIN users u ON u.id = a.user_id
-            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-            LIMIT 80;
-        """)
-        raw_rows = cur.fetchall()
-
-        rows = []
-        for r in raw_rows:
-            item = dict(r)
-            item["work_date"] = str(r.get("work_date") or "")
-            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at_wib"))
-            rows.append(item)
-
-    finally:
-        cur.close()
-        conn.close()
-
+    cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+    employees = cur.fetchall()
+    cur.execute("""
+        SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at, u.name AS employee_name
+        FROM attendance a
+        JOIN users u ON u.id=a.user_id
+        ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
+        LIMIT 80;
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
     return render_template("admin_attendance.html", employees=employees, rows=rows)
 
 @app.route("/admin/attendance/add", methods=["POST"])
@@ -2477,64 +2406,33 @@ def admin_attendance_add():
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
     manual_checkin = (request.form.get("manual_checkin") or "").strip()
-    client_ts = request.form.get("client_ts", "")
 
-    ensure_mobile_attendance_columns()
-    ensure_attendance_wib_schema()
-
-    # Determine status from arrival type
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
         status = arrival_type
     else:
         status = "PRESENT"
 
-    # Always use WIB time
-    if manual_checkin:
-        now = _parse_manual_wib_naive(manual_checkin)
-        if not now:
-            flash("Format jam tidak valid. Menggunakan jam server WIB.", "warning")
-            now = _now_wib_naive()
-    elif client_ts and client_ts.isdigit():
-        # Client timestamp → assume client time is WIB
-        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
-        now = now_wib_aware.replace(tzinfo=None)
+    if user_id == session.get("user_id"):
+        now = _now_wib_naive_from_form()
     else:
-        now = _now_wib_naive()
+        now = _parse_manual_wib_naive(manual_checkin) or _now_wib_naive_from_form()
 
     work_date = now.date()
-    
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        # Check existing for this day
-        cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
-        existing = cur.fetchone()
+    cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
+    existing = cur.fetchone()
 
-        if existing:
-            # Update existing record
-            cur.execute("""
-                UPDATE attendance 
-                SET status=%s, 
-                    arrival_type=%s, 
-                    note=%s, 
-                    checkin_at=%s,
-                    timezone_used='WIB'
-                WHERE id=%s;
-            """, (status, arrival_type, note, now, existing["id"]))
-        else:
-            # Insert new record
-            cur.execute("""
-                INSERT INTO attendance 
-                    (user_id, work_date, status, arrival_type, note, created_at, checkin_at, timezone_used) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'WIB');
-            """, (user_id, work_date, status, arrival_type, note, now, now))
+    if existing:
+        cur.execute("UPDATE attendance SET status=%s, arrival_type=%s, note=%s, checkin_at=%s WHERE id=%s;",
+            (status, arrival_type, note, now, existing["id"]))
+    else:
+        cur.execute("INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at) VALUES (%s, %s, %s, %s, %s, %s, %s);",
+            (user_id, work_date, status, arrival_type, note, now, now))
 
-        conn.commit()
-        flash(f"✅ Absensi {status} {arrival_type} disimpan untuk {now.strftime('%d/%m/%Y %H:%M')} WIB", "success")
-    finally:
-        cur.close()
-        conn.close()
-    
+    conn.commit()
+    cur.close()
+    conn.close()
     return redirect("/admin/attendance")
 
 # ---------- QUICK ATTENDANCE (PUBLIC, NO LOGIN) ----------
@@ -2548,9 +2446,6 @@ def quick_attendance_form(token):
 def quick_attendance_submit(token):
     if not is_token_valid(token):
         return "Link absensi tidak valid / sudah nonaktif.", 404
-
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
 
     name_input = (request.form.get("name_input") or "").strip()
     device_id = (request.form.get("device_id") or "").strip()
@@ -2598,63 +2493,22 @@ def quick_attendance_submit(token):
         submit_at = _now_wib_naive_from_form()
 
         cur.execute("""
-            SELECT id, status, photo_path
-            FROM attendance_pending
-            WHERE device_id=%s AND DATE(created_at)=%s
-            ORDER BY created_at DESC
-            LIMIT 1;
-        """, (device_id, submit_at.date()))
-        existing = cur.fetchone()
-
-        if existing:
-            cur.execute("""
-                UPDATE attendance_pending SET
-                    name_input=%s,
-                    latitude=%s,
-                    longitude=%s,
-                    accuracy=%s,
-                    photo_path=COALESCE(%s, photo_path),
-                    ip_address=%s,
-                    created_at=%s,
-                    timezone_used='WIB',
-                    status='PENDING',
-                    reject_reason=NULL,
-                    rejected_by=NULL,
-                    rejected_at=NULL,
-                    approved_by=NULL,
-                    approved_at=NULL,
-                    approved_user_id=NULL
-                WHERE id=%s
-                RETURNING id;
-            """, (
-                name_input,
-                lat_f,
-                lng_f,
-                acc_f,
-                photo_path,
-                _public_ip(),
-                submit_at,
-                existing["id"]
-            ))
-            row = cur.fetchone()
-        else:
-            cur.execute("""
-                INSERT INTO attendance_pending
-                (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at, timezone_used)
-                VALUES
-                (%s, %s, %s, %s, %s, %s, %s, 'PENDING', %s, 'WIB')
-                RETURNING id;
-            """, (
-                name_input,
-                device_id,
-                lat_f,
-                lng_f,
-                acc_f,
-                photo_path,
-                _public_ip(),
-                submit_at
-            ))
-            row = cur.fetchone()
+            INSERT INTO attendance_pending
+            (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at)
+            VALUES
+            (%s, %s, %s, %s, %s, %s, %s, 'PENDING', %s)
+            RETURNING id;
+        """, (
+            name_input,
+            device_id,
+            lat_f,
+            lng_f,
+            acc_f,
+            photo_path,
+            _public_ip(),
+            submit_at
+        ))
+        row = cur.fetchone() or {}
         conn.commit()
         pending_id = row.get("id")
     except psycopg2.IntegrityError:
@@ -3187,7 +3041,7 @@ def invoice_mark_paid(invoice_id):
 
     data = request.get_json(silent=True) or {}
     is_paid = bool(data.get("is_paid"))
-    paid_at = _now_wib_naive() if is_paid else None
+    paid_at = datetime.utcnow() if is_paid else None
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5344,7 +5198,7 @@ def api_mobile_products():
                 "name": r["name"],
                 "price": int(r.get("price") or 0),
                 "is_global": bool(r.get("is_global")),
-                "created_at": _json_wib_datetime(r.get("created_at")) if r.get("created_at") else "",
+                "created_at": str(r.get("created_at") or ""),
             })
 
         return mobile_api_response(
@@ -5359,10 +5213,6 @@ def api_mobile_products():
 @app.route("/api/mobile/attendance", methods=["GET"])
 @mobile_api_login_required
 def api_mobile_attendance():
-    ensure_mobile_attendance_columns()
-    ensure_attendance_pending_schema()
-    ensure_attendance_wib_schema()
-    
     user = request.mobile_user
     user_id = user["id"]
     role = user["role"]
@@ -5373,20 +5223,32 @@ def api_mobile_attendance():
         if role == "admin":
             cur.execute("""
                 SELECT
-                    a.id, a.user_id, u.name AS user_name,
-                    a.work_date, a.status, a.arrival_type, a.note,
-                    a.checkin_at, COALESCE(a.timezone_used, 'unknown') AS timezone_used
-                FROM attendance a JOIN users u ON u.id = a.user_id
+                    a.id,
+                    a.user_id,
+                    u.name AS user_name,
+                    a.work_date,
+                    a.status,
+                    a.arrival_type,
+                    a.note,
+                    a.checkin_at
+                FROM attendance a
+                JOIN users u ON u.id = a.user_id
                 ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
                 LIMIT 100;
             """)
         else:
             cur.execute("""
                 SELECT
-                    a.id, a.user_id, %s AS user_name,
-                    a.work_date, a.status, a.arrival_type, a.note,
-                    a.checkin_at, COALESCE(a.timezone_used, 'unknown') AS timezone_used
-                FROM attendance a WHERE a.user_id=%s
+                    a.id,
+                    a.user_id,
+                    %s AS user_name,
+                    a.work_date,
+                    a.status,
+                    a.arrival_type,
+                    a.note,
+                    a.checkin_at
+                FROM attendance a
+                WHERE a.user_id=%s
                 ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
                 LIMIT 100;
             """, (user["name"], user_id))
@@ -5404,12 +5266,11 @@ def api_mobile_attendance():
                 "arrival_type": r.get("arrival_type") or "",
                 "note": r.get("note") or "",
                 "checkin_at": _utc_naive_to_wib_string(r.get("checkin_at")),
-                "timezone_used": r.get("timezone_used") or "unknown"
             })
 
         return mobile_api_response(
             ok=True,
-            message="Data absensi berhasil diambil (WIB timezone)",
+            message="Data absensi berhasil diambil.",
             data={"attendance": attendance}
         )
     finally:
@@ -5419,16 +5280,12 @@ def api_mobile_attendance():
 @app.route("/api/mobile/attendance/checkin", methods=["POST"])
 @mobile_api_login_required
 def api_mobile_attendance_checkin():
-    ensure_mobile_attendance_columns()
-    ensure_attendance_wib_schema()
-    
     user = request.mobile_user
     user_id = user["id"]
 
     data = request.get_json(silent=True) or {}
     arrival_type = (data.get("arrival_type") or "ONTIME").strip().upper()
     note = (data.get("note") or "").strip()
-    client_ts = data.get("client_ts")
 
     allowed_arrival = {"ONTIME", "LATE", "SICK", "LEAVE", "ABSENT"}
     if arrival_type not in allowed_arrival:
@@ -5438,55 +5295,84 @@ def api_mobile_attendance_checkin():
             status_code=400
         )
 
-    # Determine status
+    now = _now_wib_naive()
+    work_date = now.date()
+
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
         status = arrival_type
     else:
         status = "PRESENT"
 
-    # Always WIB time
-    if client_ts and isinstance(client_ts, (int, float)):
-        now_wib_aware = datetime.fromtimestamp(client_ts / 1000, tz=ZoneInfo("Asia/Jakarta"))
-        now = now_wib_aware.replace(tzinfo=None)
-    else:
-        now = _now_wib_naive()
-    
-    work_date = now.date()
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT id FROM attendance 
-            WHERE user_id=%s AND work_date=%s LIMIT 1;
+            SELECT id
+            FROM attendance
+            WHERE user_id=%s AND work_date=%s
+            LIMIT 1;
         """, (user_id, work_date))
         existing = cur.fetchone()
 
         if existing:
             cur.execute("""
-                UPDATE attendance SET
-                    status=%s, arrival_type=%s, note=%s,
-                    checkin_at=%s, timezone_used='WIB'
-                WHERE id=%s RETURNING id;
-            """, (status, arrival_type, note, now, existing["id"]))
+                UPDATE attendance
+                SET status=%s,
+                    arrival_type=%s,
+                    note=%s,
+                    checkin_at=%s
+                WHERE id=%s
+                RETURNING id;
+            """, (
+                status,
+                arrival_type,
+                note,
+                now,
+                existing["id"]
+            ))
             row = cur.fetchone()
             conn.commit()
+
             return mobile_api_response(
-                ok=True, message="Absensi berhasil diperbarui",
-                data={"attendance_id": row["id"], "work_date": str(work_date), "wib_time": now.strftime("%d/%m/%Y %H:%M")}
+                ok=True,
+                message="Absensi berhasil diperbarui.",
+                data={
+                    "attendance_id": row["id"],
+                    "work_date": str(work_date),
+                    "status": status,
+                    "arrival_type": arrival_type,
+                    "note": note,
+                }
             )
         else:
             cur.execute("""
-                INSERT INTO attendance 
-                    (user_id, work_date, status, arrival_type, note, 
-                     created_at, checkin_at, timezone_used)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,'WIB') RETURNING id;
-            """, (user_id, work_date, status, arrival_type, note, now, now))
+                INSERT INTO attendance
+                    (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id;
+            """, (
+                user_id,
+                work_date,
+                status,
+                arrival_type,
+                note,
+                now,
+                now
+            ))
             row = cur.fetchone()
             conn.commit()
+
             return mobile_api_response(
-                ok=True, message="Absensi berhasil (langsung approved)",
-                data={"attendance_id": row["id"], "work_date": str(work_date), "wib_time": now.strftime("%d/%m/%Y %H:%M")}
+                ok=True,
+                message="Absensi berhasil dikirim.",
+                data={
+                    "attendance_id": row["id"],
+                    "work_date": str(work_date),
+                    "status": status,
+                    "arrival_type": arrival_type,
+                    "note": note,
+                }
             )
     finally:
         cur.close()
@@ -5519,7 +5405,7 @@ def api_mobile_notifications():
                 "title": r.get("title") or "",
                 "message": r.get("message") or "",
                 "is_active": bool(r.get("is_active")),
-                "created_at": _json_wib_datetime(r.get("created_at")) if r.get("created_at") else "",
+                "created_at": str(r.get("created_at") or ""),
             })
 
         return mobile_api_response(
@@ -5594,7 +5480,7 @@ def api_mobile_sales():
                 "note": r.get("note") or "",
                 "status": r.get("status") or "",
                 "admin_note": r.get("admin_note") or "",
-                "created_at": _json_wib_datetime(r.get("created_at")) if r.get("created_at") else "",
+                "created_at": str(r.get("created_at") or ""),
             })
 
         return mobile_api_response(
@@ -5720,7 +5606,7 @@ def api_mobile_profile():
                     "role": row["role"],
                     "points": int(row.get("points") or 0),
                     "points_admin": int(row.get("points_admin") or 0),
-                    "created_at": _json_wib_datetime(row.get("created_at")) if row.get("created_at") else "",
+                    "created_at": str(row.get("created_at") or ""),
                 }
             }
         )
@@ -5920,10 +5806,6 @@ def api_mobile_info():
 import base64
 from urllib import request as _urlrequest, parse as _urlparse
 
-def build_photo_url(path):
-    if not path:
-        return None
-    return request.host_url.rstrip('/') + '/static/' + str(path).lstrip('/')
 
 def mobile_api_admin_required(fn):
     @wraps(fn)
@@ -6124,7 +6006,7 @@ def api_mobile_forgot_password():
                 return mobile_api_response(False, 'Email tidak ditemukan.', status_code=404)
             otp = f"{random.randint(0, 999999):06d}"
             otp_h = _otp_hash(email, otp)
-            expires_at = _now_wib_naive() + timedelta(minutes=10)
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
             cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE email=%s AND used=FALSE;", (email,))
             cur.execute("INSERT INTO password_reset_otps (email, otp_hash, expires_at, used) VALUES (%s, %s, %s, FALSE);", (email, otp_h, expires_at))
             conn.commit()
@@ -6167,7 +6049,7 @@ def api_mobile_reset_password():
             row = cur.fetchone()
             if not row:
                 return mobile_api_response(False, 'OTP tidak ditemukan / sudah dipakai.', status_code=400)
-            if _now_wib_naive() > row['expires_at']:
+            if datetime.utcnow() > row['expires_at']:
                 cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row['id'],))
                 conn.commit()
                 return mobile_api_response(False, 'OTP sudah kedaluwarsa.', status_code=400)
@@ -6245,7 +6127,7 @@ def api_mobile_announcements_get():
             LIMIT 100;
         """, (request.mobile_user['id'],))
         rows = cur.fetchall()
-        data = [{'id': r['id'], 'title': r['title'], 'message': r['message'], 'is_active': bool(r['is_active']), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else '', 'created_by_name': r.get('created_by_name') or '', 'is_read': bool(r.get('is_read'))} for r in rows]
+        data = [{'id': r['id'], 'title': r['title'], 'message': r['message'], 'is_active': bool(r['is_active']), 'created_at': str(r['created_at'] or ''), 'created_by_name': r.get('created_by_name') or '', 'is_read': bool(r.get('is_read'))} for r in rows]
         return mobile_api_response(True, 'Pengumuman berhasil diambil.', data={'announcements': data})
     finally:
         cur.close(); conn.close()
@@ -6265,7 +6147,7 @@ def api_mobile_announcements_post():
     try:
         cur.execute('INSERT INTO announcements (title, message, is_active, created_by) VALUES (%s, %s, %s, %s) RETURNING id, created_at;', (title, message, is_active, request.mobile_user['id']))
         row = cur.fetchone(); conn.commit()
-        return mobile_api_response(True, 'Pengumuman berhasil dibuat.', data={'id': row['id'], 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}, status_code=201)
+        return mobile_api_response(True, 'Pengumuman berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
     finally:
         cur.close(); conn.close()
 
@@ -6302,7 +6184,7 @@ def api_mobile_users_get():
                 FROM users ORDER BY name ASC;
             """)
         rows = cur.fetchall()
-        return mobile_api_response(True, 'Daftar user berhasil diambil.', data={'users': [{**dict(r), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in rows]})
+        return mobile_api_response(True, 'Daftar user berhasil diambil.', data={'users': [{**dict(r), 'created_at': str(r.get('created_at') or '')} for r in rows]})
     finally:
         cur.close(); conn.close()
 
@@ -6330,7 +6212,7 @@ def api_mobile_users_post():
             RETURNING id, name, email, role, created_at;
         """, (name, email, generate_password_hash(password), role))
         row = cur.fetchone(); conn.commit()
-        return mobile_api_response(True, 'User berhasil dibuat.', data={'user': {**dict(row), 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}, 'plain_password': password if not IS_PROD else None}, status_code=201)
+        return mobile_api_response(True, 'User berhasil dibuat.', data={'user': {**dict(row), 'created_at': str(row.get('created_at') or '')}, 'plain_password': password if not IS_PROD else None}, status_code=201)
     finally:
         cur.close(); conn.close()
 
@@ -6348,7 +6230,7 @@ def api_mobile_products_post():
     try:
         cur.execute('INSERT INTO products (user_id, name, price, is_global) VALUES (%s, %s, %s, %s) RETURNING id, created_at;', (request.mobile_user['id'], name, max(0, price), is_global))
         row = cur.fetchone(); conn.commit()
-        return mobile_api_response(True, 'Produk berhasil dibuat.', data={'id': row['id'], 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}, status_code=201)
+        return mobile_api_response(True, 'Produk berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
     finally:
         cur.close(); conn.close()
 
@@ -6374,7 +6256,7 @@ def api_mobile_products_mutate(product_id):
         row = cur.fetchone(); conn.commit()
         if not row:
             return mobile_api_response(False, 'Produk tidak ditemukan.', status_code=404)
-        return mobile_api_response(True, 'Produk berhasil diperbarui.', data={'product': {**dict(row), 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}})
+        return mobile_api_response(True, 'Produk berhasil diperbarui.', data={'product': {**dict(row), 'created_at': str(row.get('created_at') or '')}})
     finally:
         cur.close(); conn.close()
 
@@ -6407,10 +6289,10 @@ def api_mobile_content_plans():
                 return mobile_api_response(False, 'plan_date, platform, dan content_type wajib diisi.', status_code=400)
             cur.execute('INSERT INTO content_plans (user_id, plan_date, platform, content_type, notes, is_done) VALUES (%s, %s, %s, %s, %s, FALSE) RETURNING id, created_at;', (request.mobile_user['id'], plan_date, platform, content_type, notes))
             row = cur.fetchone(); conn.commit()
-            return mobile_api_response(True, 'Rencana konten berhasil dibuat.', data={'id': row['id'], 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}, status_code=201)
+            return mobile_api_response(True, 'Rencana konten berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
         cur.execute('SELECT id, plan_date, platform, content_type, notes, is_done, created_at FROM content_plans WHERE user_id=%s ORDER BY plan_date DESC, id DESC LIMIT 200;', (request.mobile_user['id'],))
         rows = cur.fetchall()
-        items = [{**dict(r), 'plan_date': str(r.get('plan_date') or ''), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in rows]
+        items = [{**dict(r), 'plan_date': str(r.get('plan_date') or ''), 'created_at': str(r.get('created_at') or '')} for r in rows]
         return mobile_api_response(True, 'Rencana konten berhasil diambil.', data={'content_plans': items})
     finally:
         cur.close(); conn.close()
@@ -6475,16 +6357,11 @@ def api_mobile_attendance_checkin_full():
 @app.route('/api/mobile/attendance/pending', methods=['GET'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_list():
-    ensure_attendance_pending_schema()
-    ensure_mobile_attendance_columns()
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    ensure_attendance_pending_schema(); ensure_mobile_attendance_columns()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT
-                p.*,
-                u.name AS user_name
+            SELECT p.*, u.name AS user_name
             FROM attendance_pending p
             LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.approved_user_id)
             WHERE p.status='PENDING'
@@ -6492,252 +6369,60 @@ def api_mobile_attendance_pending_list():
             LIMIT 200;
         """)
         rows = cur.fetchall()
-
-        items = []
-        for r in rows:
-            item = dict(r)
-            item["work_date"] = str(r.get("work_date") or "")
-            item["created_at"] = _utc_naive_to_wib_string(r.get("created_at")) if r.get("created_at") else ""
-            item["approved_at"] = _utc_naive_to_wib_string(r.get("approved_at")) if r.get("approved_at") else ""
-            item["rejected_at"] = _utc_naive_to_wib_string(r.get("rejected_at")) if r.get("rejected_at") else ""
-            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
-
-            latv = r.get("latitude")
-            lngv = r.get("longitude")
-            item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}" if latv is not None and lngv is not None else None
-
-            items.append(item)
-
-        return mobile_api_response(
-            True,
-            "Daftar pending absensi berhasil diambil.",
-            data={"pending": items}
-        )
+        items = [{**dict(r), 'work_date': str(r.get('work_date') or ''), 'created_at': _utc_naive_to_wib_string(r.get('created_at')) if r.get('created_at') else '', 'approved_at': _utc_naive_to_wib_string(r.get('approved_at')) if r.get('approved_at') else '', 'rejected_at': _utc_naive_to_wib_string(r.get('rejected_at')) if r.get('rejected_at') else ''} for r in rows]
+        return mobile_api_response(True, 'Daftar pending absensi berhasil diambil.', data={'pending': items})
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
 
 @app.route('/api/mobile/attendance/pending/<int:pending_id>/approve', methods=['POST'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_approve(pending_id):
-    ensure_attendance_pending_schema()
-    ensure_mobile_attendance_columns()
-    ensure_hr_v2_schema()
-
-    data = _mobile_json()
-    user_id_form = data.get('user_id')
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    ensure_attendance_pending_schema(); ensure_mobile_attendance_columns(); ensure_hr_v2_schema()
+    data = _mobile_json(); user_id_form = data.get('user_id')
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("""
-            SELECT *
-            FROM attendance_pending
-            WHERE id=%s AND status='PENDING'
-            LIMIT 1;
-        """, (pending_id,))
+        cur.execute("SELECT * FROM attendance_pending WHERE id=%s AND status='PENDING' LIMIT 1;", (pending_id,))
         p = cur.fetchone()
-
         if not p:
             return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
-
         target_user_id = p.get('user_id') or (int(user_id_form) if user_id_form else None)
         if not target_user_id:
             return mobile_api_response(False, 'user_id tujuan wajib ada.', status_code=400)
-
         created_at_wib = p.get('created_at') or _now_wib_naive()
         work_date = p.get('work_date') or created_at_wib.date()
-
         arrival_type = (p.get('arrival_type') or 'ONTIME').strip().upper()
-        if arrival_type in ('ONTIME', 'LATE'):
-            status = 'PRESENT'
-        elif arrival_type == 'SICK':
-            status = 'SICK'
-        elif arrival_type == 'LEAVE':
-            status = 'LEAVE'
-        elif arrival_type == 'ABSENT':
-            status = 'ABSENT'
-        else:
-            status = 'PRESENT'
-            arrival_type = 'ONTIME'
-
-        latv = p.get('latitude')
-        lngv = p.get('longitude')
+        status = 'PRESENT' if arrival_type in ('ONTIME', 'LATE') else arrival_type
+        latv = p.get('latitude'); lngv = p.get('longitude')
         map_url = f'https://www.google.com/maps?q={latv},{lngv}' if latv is not None and lngv is not None else None
-        clean_note = (p.get('note') or '').strip()
-
+        cur.execute("UPDATE attendance_pending SET status='APPROVED', approved_user_id=%s, approved_by=%s, approved_at=NOW() WHERE id=%s;", (target_user_id, request.mobile_user['id'], pending_id))
         cur.execute("""
-            UPDATE attendance_pending
-            SET status='APPROVED',
-                approved_user_id=%s,
-                approved_by=%s,
-                approved_at=NOW()
-            WHERE id=%s;
-        """, (
-            int(target_user_id),
-            request.mobile_user['id'],
-            pending_id
-        ))
-
-        cur.execute("""
-            INSERT INTO attendance
-                (user_id, work_date, status, arrival_type, note, checkin_at,
-                 device_id, latitude, longitude, accuracy, photo_path, map_url)
-            VALUES
-                (%s, %s, %s, %s, %s, %s,
-                 %s, %s, %s, %s, %s, %s)
+            INSERT INTO attendance (user_id, work_date, status, arrival_type, note, checkin_at, device_id, latitude, longitude, accuracy, photo_path, map_url)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (user_id, work_date)
-            DO UPDATE SET
-                status=EXCLUDED.status,
-                arrival_type=EXCLUDED.arrival_type,
-                note=EXCLUDED.note,
-                checkin_at=EXCLUDED.checkin_at,
-                device_id=EXCLUDED.device_id,
-                latitude=EXCLUDED.latitude,
-                longitude=EXCLUDED.longitude,
-                accuracy=EXCLUDED.accuracy,
-                photo_path=EXCLUDED.photo_path,
-                map_url=EXCLUDED.map_url;
-        """, (
-            int(target_user_id),
-            work_date,
-            status,
-            arrival_type,
-            clean_note,
-            created_at_wib,
-            p.get('device_id'),
-            latv,
-            lngv,
-            p.get('accuracy'),
-            p.get('photo_path'),
-            map_url
-        ))
-
+            DO UPDATE SET status=EXCLUDED.status, arrival_type=EXCLUDED.arrival_type, note=EXCLUDED.note, checkin_at=EXCLUDED.checkin_at,
+                          device_id=EXCLUDED.device_id, latitude=EXCLUDED.latitude, longitude=EXCLUDED.longitude,
+                          accuracy=EXCLUDED.accuracy, photo_path=EXCLUDED.photo_path, map_url=EXCLUDED.map_url;
+        """, (target_user_id, work_date, status, arrival_type, (p.get('note') or '').strip(), created_at_wib, p.get('device_id'), latv, lngv, p.get('accuracy'), p.get('photo_path'), map_url))
         conn.commit()
-
-        return mobile_api_response(
-            True,
-            'Absensi berhasil disetujui.',
-            {
-                'pending_id': pending_id,
-                'user_id': int(target_user_id),
-                'work_date': str(work_date),
-                'status': status,
-                'arrival_type': arrival_type,
-                'note': clean_note,
-                'latitude': latv,
-                'longitude': lngv,
-                'accuracy': p.get('accuracy'),
-                'photo_path': p.get('photo_path'),
-                'photo_url': build_photo_url(p.get('photo_path')),
-                'map_url': map_url,
-                'approved_at': _utc_naive_to_wib_string(_now_wib_naive())
-            }
-        )
+        return mobile_api_response(True, 'Absensi berhasil disetujui.')
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
 
 @app.route('/api/mobile/attendance/pending/<int:pending_id>/reject', methods=['POST'])
 @mobile_api_admin_required
 def api_mobile_attendance_pending_reject(pending_id):
     ensure_attendance_pending_schema()
-    ensure_mobile_attendance_columns()
-
-    data = _mobile_json()
-    reason = (data.get('reason') or '').strip()
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    reason = (_mobile_json().get('reason') or '').strip()
+    conn = get_conn(); cur = conn.cursor()
     try:
-        cur.execute("""
-            UPDATE attendance_pending
-            SET status='REJECTED',
-                rejected_by=%s,
-                rejected_at=NOW(),
-                reject_reason=%s
-            WHERE id=%s AND status='PENDING'
-            RETURNING id, reject_reason, rejected_at;
-        """, (
-            request.mobile_user['id'],
-            reason,
-            pending_id
-        ))
-        row = cur.fetchone()
+        cur.execute("UPDATE attendance_pending SET status='REJECTED', rejected_by=%s, rejected_at=NOW(), reject_reason=%s WHERE id=%s AND status='PENDING';", (request.mobile_user['id'], reason, pending_id))
         conn.commit()
-
-        if not row:
-            return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
-
-        return mobile_api_response(
-            True,
-            'Absensi berhasil ditolak.',
-            {
-                'pending_id': row['id'],
-                'reject_reason': row.get('reject_reason') or '',
-                'rejected_at': _utc_naive_to_wib_string(row.get('rejected_at')) if row.get('rejected_at') else ''
-            }
-        )
+        return mobile_api_response(True, 'Absensi berhasil ditolak.')
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
-@app.route('/api/mobile/attendance/me', methods=['GET'])
-@mobile_api_login_required
-def api_mobile_attendance_me():
-    ensure_mobile_attendance_columns()
-    ensure_hr_v2_schema()
-
-    user = request.mobile_user
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT
-                a.id,
-                a.user_id,
-                a.work_date,
-                a.status,
-                a.arrival_type,
-                a.note,
-                a.checkin_at,
-                a.device_id,
-                a.latitude,
-                a.longitude,
-                a.accuracy,
-                a.photo_path,
-                a.map_url
-            FROM attendance a
-            WHERE a.user_id=%s
-            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-            LIMIT 100;
-        """, (user["id"],))
-        rows = cur.fetchall()
-
-        items = []
-        for r in rows:
-            item = dict(r)
-            item["work_date"] = str(r.get("work_date") or "")
-            item["checkin_at"] = _utc_naive_to_wib_string(r.get("checkin_at")) if r.get("checkin_at") else ""
-            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
-
-            latv = r.get("latitude")
-            lngv = r.get("longitude")
-            if not item.get("map_url") and latv is not None and lngv is not None:
-                item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}"
-
-            items.append(item)
-
-        return mobile_api_response(
-            True,
-            "Riwayat absen saya berhasil diambil.",
-            data={"attendance": items}
-        )
-    finally:
-        cur.close()
-        conn.close()
 
 @app.route('/api/mobile/attendance-links', methods=['GET', 'POST'])
 @mobile_api_admin_required
@@ -6751,13 +6436,13 @@ def api_mobile_attendance_links():
             token = uuid.uuid4().hex
             cur.execute('INSERT INTO attendance_links (token, title, created_by, is_active) VALUES (%s, %s, %s, TRUE) RETURNING id, created_at;', (token, title, request.mobile_user['id']))
             row = cur.fetchone(); conn.commit()
-            return mobile_api_response(True, 'Link absensi cepat berhasil dibuat.', data={'id': row['id'], 'title': title, 'token': token, 'url': url_for('quick_attendance_form', token=token, _external=True), 'created_at': _json_wib_datetime(row.get('created_at')) if row.get('created_at') else ''}, status_code=201)
+            return mobile_api_response(True, 'Link absensi cepat berhasil dibuat.', data={'id': row['id'], 'title': title, 'token': token, 'url': url_for('quick_attendance_form', token=token, _external=True), 'created_at': str(row['created_at'])}, status_code=201)
         try:
             cur.execute("SELECT id, token, COALESCE(title, label, '') AS title, created_by, created_at, is_active FROM attendance_links ORDER BY id DESC;")
         except Exception:
             cur.execute("SELECT id, token, COALESCE(title, '') AS title, created_by, created_at, is_active FROM attendance_links ORDER BY id DESC;")
         rows = cur.fetchall()
-        items = [{'id': r['id'], 'title': r.get('title') or '', 'token': r['token'], 'url': url_for('quick_attendance_form', token=r['token'], _external=True), 'is_active': bool(r.get('is_active')), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in rows]
+        items = [{'id': r['id'], 'title': r.get('title') or '', 'token': r['token'], 'url': url_for('quick_attendance_form', token=r['token'], _external=True), 'is_active': bool(r.get('is_active')), 'created_at': str(r.get('created_at') or '')} for r in rows]
         return mobile_api_response(True, 'Daftar link absensi cepat berhasil diambil.', data={'attendance_links': items})
     finally:
         cur.close(); conn.close()
@@ -6840,7 +6525,7 @@ def api_mobile_sales_monitor():
         rows = cur.fetchall()
         return mobile_api_response(True, 'Monitor penjualan berhasil diambil.', data={
             'summary': [{**dict(r), 'total_qty': int(r.get('total_qty') or 0)} for r in summary],
-            'details': [{**dict(r), 'qty': int(r.get('qty') or 0), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in rows]
+            'details': [{**dict(r), 'qty': int(r.get('qty') or 0), 'created_at': str(r.get('created_at') or '')} for r in rows]
         })
     finally:
         cur.close(); conn.close()
@@ -6969,7 +6654,7 @@ def api_mobile_points():
             ORDER BY l.created_at DESC LIMIT 200;
         """)
         logs = cur.fetchall()
-        return mobile_api_response(True, 'Data poin berhasil diambil.', data={'employees': [dict(r) for r in employees], 'logs': [{**dict(r), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in logs]})
+        return mobile_api_response(True, 'Data poin berhasil diambil.', data={'employees': [dict(r) for r in employees], 'logs': [{**dict(r), 'created_at': str(r.get('created_at') or '')} for r in logs]})
     finally:
         cur.close(); conn.close()
 
@@ -6986,7 +6671,7 @@ def api_mobile_invoices():
             else:
                 cur.execute("SELECT i.id, i.invoice_no, i.customer_name, i.grand_total, i.payment_method, i.is_paid, i.created_at, u.name AS created_by_name FROM invoices i JOIN users u ON u.id=i.created_by WHERE i.created_by=%s ORDER BY i.id DESC LIMIT 100;", (request.mobile_user['id'],))
             rows = cur.fetchall()
-            return mobile_api_response(True, 'Daftar nota berhasil diambil.', data={'invoices': [{**dict(r), 'grand_total': int(r.get('grand_total') or 0), 'is_paid': bool(r.get('is_paid')), 'created_at': _json_wib_datetime(r.get('created_at')) if r.get('created_at') else ''} for r in rows]})
+            return mobile_api_response(True, 'Daftar nota berhasil diambil.', data={'invoices': [{**dict(r), 'grand_total': int(r.get('grand_total') or 0), 'is_paid': bool(r.get('is_paid')), 'created_at': str(r.get('created_at') or '')} for r in rows]})
         finally:
             cur.close(); conn.close()
     # POST create invoice JSON
@@ -7024,7 +6709,7 @@ def api_mobile_invoices():
         if not final_items:
             return mobile_api_response(False, 'Tidak ada item valid.', status_code=400)
         grand_total = max(0, int(subtotal) - discount)
-        paid_at = _now_wib_naive() if is_paid else None
+        paid_at = datetime.utcnow() if is_paid else None
         cur.execute("""
             INSERT INTO invoices (invoice_no, created_by, customer_name, customer_phone, company_name, print_size, payment_method, subtotal, discount, grand_total, notes, is_paid, paid_at)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
