@@ -1463,8 +1463,8 @@
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M") }}{% else
-                %}—{% endif %}
+                {{ r.checkin_at_wib or (r.checkin_at.strftime("%H:%M") if
+                r.checkin_at else "—") }}
               </span>
             </div>
             {% if r.note %}
