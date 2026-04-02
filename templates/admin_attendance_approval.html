@@ -928,7 +928,14 @@
                     🕒 {{ p.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
                     p.created_at_wib else '-' }}
                   </span>
-                  {% if p.device_id %}
+                  {% if p.timezone_used and p.timezone_used != 'WIB' %}
+                  <span
+                    class="pmeta-chip"
+                    style="background: #fef3c7; color: #92400e; font-size: 10px"
+                  >
+                    ⏰ {{ p.timezone_used }}
+                  </span>
+                  {% endif %} {% if p.device_id %}
                   <span class="pmeta-chip"
                     >📱 {{ (p.device_id or '')[:14] }}{% if p.device_id|length >
                     14 %}…{% endif %}</span
