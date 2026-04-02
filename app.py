@@ -192,26 +192,37 @@ def _parse_manual_wib_naive(manual_dt):
 def _now_wib_naive_from_form():
     client_ts = request.form.get("client_ts")
     if client_ts and client_ts.isdigit():
-        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+        now_wib_aware = datetime.fromtimestamp(
+            int(client_ts) / 1000,
+            tz=ZoneInfo("Asia/Jakarta")
+        )
     else:
         now_wib_aware = datetime.now(ZoneInfo("Asia/Jakarta"))
     return now_wib_aware.replace(tzinfo=None)
 
-def _utc_naive_to_wib_naive(dt):
-    """
-    DB kamu sekarang banyak menyimpan timestamp naive yang tampil seperti UTC.
-    Fungsi ini geser +7 jam agar sinkron ke WIB.
-    """
-    if not dt:
-        return None
-    return dt + timedelta(hours=7)
-
 def _now_wib_naive():
     return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
 
-def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
+def _utc_naive_to_wib_naive(dt):
+    """
+    Normalisasi datetime DB agar tampil konsisten sebagai WIB naive.
+    - jika dt aware -> convert ke Asia/Jakarta lalu buang tzinfo
+    - jika dt naive -> anggap itu UTC-naive lama, geser +7 jam
+    """
+    if not dt:
+        return None
+
+    try:
+        if getattr(dt, "tzinfo", None) is not None:
+            return dt.astimezone(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
+    except Exception:
+        pass
+
+    return dt + timedelta(hours=7)
+
+def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
     dt_wib = _utc_naive_to_wib_naive(dt)
-    return dt_wib.strftime(fmt) if dt_wib else ""
+    return dt_wib.strftime(fmt) if dt_wib else "-"
 
 def _parse_date(s):
     if not s:
@@ -359,13 +370,7 @@ def _save_company_logo(file_storage):
 
     return f"uploads/invoice_logo/{filename}"
 
-def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
-    if not dt:
-        return "-"
-    try:
-        return (dt + timedelta(hours=7)).strftime(fmt)
-    except Exception:
-        return "-"
+
 # =========================
 # APP MOBOLE API
 # =========================
@@ -2115,7 +2120,7 @@ def admin_attendance_approval():
                 accuracy,
                 photo_path,
                 created_at,
-                created_at AS created_at_wib
+                (created_at + interval '7 hour') AS created_at_wib
             FROM attendance_pending
             WHERE status='PENDING'
             ORDER BY created_at DESC
@@ -2296,10 +2301,31 @@ def attendance_page():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT work_date, arrival_type, status, note, checkin_at FROM attendance WHERE user_id=%s ORDER BY work_date DESC, checkin_at DESC NULLS LAST;", (session["user_id"],))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("""
+            SELECT
+                work_date,
+                arrival_type,
+                status,
+                note,
+                checkin_at
+            FROM attendance
+            WHERE user_id=%s
+            ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
+        """, (session["user_id"],))
+        raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
+            rows.append(item)
+
+    finally:
+        cur.close()
+        conn.close()
+
     return render_template("attendance.html", rows=rows)
 
 @app.route("/attendance/add", methods=["POST"])
@@ -2382,18 +2408,36 @@ def admin_attendance():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
-    employees = cur.fetchall()
-    cur.execute("""
-        SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at, u.name AS employee_name
-        FROM attendance a
-        JOIN users u ON u.id=a.user_id
-        ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-        LIMIT 80;
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+        employees = cur.fetchall()
+
+        cur.execute("""
+            SELECT
+                a.work_date,
+                a.arrival_type,
+                a.status,
+                a.note,
+                a.checkin_at,
+                u.name AS employee_name
+            FROM attendance a
+            JOIN users u ON u.id = a.user_id
+            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
+            LIMIT 80;
+        """)
+        raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
+            rows.append(item)
+
+    finally:
+        cur.close()
+        conn.close()
+
     return render_template("admin_attendance.html", employees=employees, rows=rows)
 
 @app.route("/admin/attendance/add", methods=["POST"])
