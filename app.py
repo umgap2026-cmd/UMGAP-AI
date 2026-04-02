@@ -2309,7 +2309,7 @@ def attendance_add():
 
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
-    now = _now_wib_naive_from_form()
+    now = _now_wib_naive()
     work_date = now.date()
 
     device_id = (request.form.get("device_id") or "").strip()
