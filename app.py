@@ -201,7 +201,34 @@ def _now_wib_naive_from_form():
     return now_wib_aware.replace(tzinfo=None)
 
 def _now_wib_naive():
+    """Always return current WIB time as timezone-naive (for DB compatibility)."""
     return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
+
+def _now_wib_aware():
+    """Return current WIB time as timezone-aware (ZoneInfo for Postgres)."""
+    return datetime.now(ZoneInfo("Asia/Jakarta"))
+
+def _utc_naive_to_wib_naive(dt):
+    """
+    Convert any datetime to WIB naive representation:
+    1. If aware → convert to Asia/Jakarta → strip tzinfo → naive WIB
+    2. If naive → assume legacy UTC → +7 hours → naive WIB
+    """
+    if not dt:
+        return None
+
+    # Case 1: Already timezone-aware
+    tzinfo = getattr(dt, 'tzinfo', None)
+    if tzinfo is not None and tzinfo != pytz.UTC:
+        try:
+            # Convert to WIB timezone
+            dt_wib_aware = dt.astimezone(ZoneInfo("Asia/Jakarta"))
+            return dt_wib_aware.replace(tzinfo=None)
+        except Exception:
+            pass  # fallback to legacy handling
+
+    # Case 2: Naive (legacy UTC) → add 7 hours for WIB
+    return (dt + timedelta(hours=7)).replace(tzinfo=None)
 
 def _utc_naive_to_wib_naive(dt):
     """
@@ -1254,6 +1281,47 @@ def ensure_attendance_links_schema():
         cur.close()
         conn.close()
 
+def ensure_attendance_wib_schema():
+    """Ensure timezone tracking columns for attendance tables."""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Add timezone_used column to main attendance table
+        cur.execute("""
+            ALTER TABLE attendance 
+            ADD COLUMN IF NOT EXISTS timezone_used VARCHAR(10) DEFAULT 'WIB';
+        """)
+        
+        # Add to pending table too
+        cur.execute("""
+            ALTER TABLE attendance_pending 
+            ADD COLUMN IF NOT EXISTS timezone_used VARCHAR(10) DEFAULT 'WIB';
+        """)
+        
+        # Migration for legacy data (UTC naive → WIB by +7 hours)
+        cur.execute("""
+            UPDATE attendance 
+            SET timezone_used = 'legacy_fixed',
+                checkin_at = checkin_at + INTERVAL '7 hours'
+            WHERE timezone_used IS NULL 
+              AND checkin_at IS NOT NULL;
+        """)
+        
+        # Same for pending
+        cur.execute("""
+            UPDATE attendance_pending 
+            SET timezone_used = 'legacy_fixed',
+                created_at = created_at + INTERVAL '7 hours'
+            WHERE timezone_used IS NULL 
+              AND created_at IS NOT NULL;
+        """)
+        
+        conn.commit()
+        print("✅ Attendance WIB schema ensured & legacy data migrated (+7hr)")
+    finally:
+        cur.close()
+        conn.close()
+
 def ensure_cctv_activity_schema():
     conn = get_conn()
     cur = conn.cursor()
@@ -2299,6 +2367,9 @@ def attendance_page():
     if is_admin():
         return redirect("/admin")
 
+    # Ensure WIB schema
+    ensure_attendance_wib_schema()
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -2308,7 +2379,8 @@ def attendance_page():
                 arrival_type,
                 status,
                 note,
-                checkin_at
+                checkin_at,
+                COALESCE(timezone_used, 'unknown') AS timezone_used
             FROM attendance
             WHERE user_id=%s
             ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
@@ -2333,10 +2405,16 @@ def attendance_add():
     if not is_logged_in():
         return redirect("/login")
 
+    # Ensure WIB schema
+    ensure_attendance_wib_schema()
+
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
+    
+    # Use WIB time from form/client
     now = _now_wib_naive_from_form()
     work_date = now.date()
+    submit_at = now
 
     device_id = (request.form.get("device_id") or "").strip()
     lat = request.form.get("latitude")
@@ -2357,121 +2435,81 @@ def attendance_add():
     photo = request.files.get("selfie")
     photo_path = None
     if photo and photo.filename:
-        os.makedirs(os.path.join("static", "uploads", "attendance_user"), exist_ok=True)
+        _ensure_att_user_upload_dir()
         today_tag = date.today().strftime("%Y_%m_%d")
         filename = f"att_{today_tag}_{uuid.uuid4().hex}.jpg"
-        save_path = os.path.join("static", "uploads", "attendance_user", filename)
+        save_path = os.path.join(UPLOAD_ATT_USER_DIR, filename)
         photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
-
-    submit_at = _now_wib_naive_from_form()
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # cek dulu apakah device ini sudah pernah submit hari ini
+        # Check if device already submitted today
         cur.execute("""
-            SELECT id, status, photo_path
+            SELECT id, status, photo_path, timezone_used
             FROM attendance_pending
-            WHERE device_id=%s
-              AND created_at::date=%s
-            ORDER BY created_at DESC
-            LIMIT 1;
+            WHERE device_id=%s AND DATE(created_at)=%s
+            ORDER BY created_at DESC LIMIT 1;
         """, (device_id, work_date))
         existing = cur.fetchone()
 
         if existing:
-            # kalau sudah ada, update record lama
+            # Update existing pending record
             old_photo_path = existing.get("photo_path")
-
             cur.execute("""
-                UPDATE attendance_pending
-                SET user_id=%s,
-                    work_date=%s,
-                    arrival_type=%s,
-                    note=%s,
-                    name_input=%s,
-                    latitude=%s,
-                    longitude=%s,
-                    accuracy=%s,
+                UPDATE attendance_pending SET
+                    user_id=%s, work_date=%s, arrival_type=%s, note=%s,
+                    name_input=%s, latitude=%s, longitude=%s, accuracy=%s,
                     photo_path=COALESCE(%s, photo_path),
-                    ip_address=%s,
-                    status='PENDING',
-                    approved_user_id=NULL,
-                    approved_by=NULL,
-                    approved_at=NULL,
-                    rejected_by=NULL,
-                    rejected_at=NULL,
-                    reject_reason=NULL,
-                    created_at=%s
+                    ip_address=%s, timezone_used='WIB', created_at=%s
                 WHERE id=%s;
             """, (
-                session.get("user_id"),
-                work_date,
-                arrival_type,
-                note,
-                session.get("user_name"),
-                lat_f,
-                lng_f,
-                acc_f,
-                photo_path,
-                _public_ip(),
-                submit_at,
-                existing["id"]
+                session.get("user_id"), work_date, arrival_type, note,
+                session.get("user_name"), lat_f, lng_f, acc_f, photo_path,
+                _public_ip(), submit_at, existing["id"]
             ))
-
-            conn.commit()
-
-            # hapus foto lama kalau ada foto baru
+            
+            # Cleanup old photo if new one uploaded
             if photo_path and old_photo_path and old_photo_path != photo_path:
                 try:
-                    old_full_path = os.path.join("static", old_photo_path.replace("uploads/", "uploads/"))
+                    old_full_path = os.path.join("static", old_photo_path.lstrip("/"))
                     if os.path.exists(old_full_path):
                         os.remove(old_full_path)
                 except Exception:
                     pass
-
-            flash("Absensi hari ini berhasil diperbarui dan menunggu approval admin.", "success")
-            return redirect("/attendance")
-
-        # kalau belum ada, insert baru
-        cur.execute("""
-            INSERT INTO attendance_pending
-                (user_id, work_date, arrival_type, note,
-                 name_input, device_id, latitude, longitude, accuracy, photo_path,
-                 ip_address, status, created_at)
-            VALUES
-                (%s,%s,%s,%s,
-                 %s,%s,%s,%s,%s,%s,
-                 %s,'PENDING', %s)
-        """, (
-            session.get("user_id"),
-            work_date,
-            arrival_type,
-            note,
-            session.get("user_name"),
-            device_id,
-            lat_f,
-            lng_f,
-            acc_f,
-            photo_path,
-            _public_ip(),
-            submit_at
-        ))
+            
+            flash("✅ Absensi hari ini berhasil diupdate (pending admin)", "success")
+        else:
+            # New pending record
+            cur.execute("""
+                INSERT INTO attendance_pending
+                    (user_id, work_date, arrival_type, note, name_input,
+                     device_id, latitude, longitude, accuracy, photo_path,
+                     ip_address, status, created_at, timezone_used)
+                VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,'PENDING',%s,'WIB');
+            """, (
+                session.get("user_id"), work_date, arrival_type, note, session.get("user_name"),
+                device_id, lat_f, lng_f, acc_f, photo_path,
+                _public_ip(), submit_at
+            ))
+            flash("✅ Absensi berhasil dikirim ke admin untuk approval", "success")
 
         conn.commit()
-        flash("Absensi berhasil dikirim dan menunggu approval admin.", "success")
-        return redirect("/attendance")
-
     finally:
         cur.close()
         conn.close()
+
+    return redirect("/attendance")
 
 @app.route("/admin/attendance")
 def admin_attendance():
     r = admin_guard()
     if r:
         return r
+
+    # Ensure WIB schema on first admin visit
+    ensure_attendance_wib_schema()
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2486,7 +2524,10 @@ def admin_attendance():
                 a.status,
                 a.note,
                 a.checkin_at,
-                u.name AS employee_name
+                COALESCE(a.timezone_used, 'unknown') AS timezone_used,
+                u.name AS employee_name,
+                -- Always return WIB time for display
+                _utc_naive_to_wib_naive(a.checkin_at) AS checkin_at_wib
             FROM attendance a
             JOIN users u ON u.id = a.user_id
             ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
@@ -2498,7 +2539,7 @@ def admin_attendance():
         for r in raw_rows:
             item = dict(r)
             item["work_date"] = str(r.get("work_date") or "")
-            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
+            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at_wib"))
             rows.append(item)
 
     finally:
@@ -2517,33 +2558,61 @@ def admin_attendance_add():
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
     manual_checkin = (request.form.get("manual_checkin") or "").strip()
+    client_ts = request.form.get("client_ts", "")
 
+    # Determine status from arrival type
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
         status = arrival_type
     else:
         status = "PRESENT"
 
-    if user_id == session.get("user_id"):
-        now = _now_wib_naive_from_form()
+    # Always use WIB time
+    if manual_checkin:
+        now = _parse_manual_wib_naive(manual_checkin)
+        if not now:
+            flash("Format jam tidak valid. Menggunakan jam server WIB.", "warning")
+            now = _now_wib_naive()
+    elif client_ts and client_ts.isdigit():
+        # Client timestamp → assume client time is WIB
+        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+        now = now_wib_aware.replace(tzinfo=None)
     else:
-        now = _parse_manual_wib_naive(manual_checkin) or _now_wib_naive_from_form()
+        now = _now_wib_naive()
 
     work_date = now.date()
+    
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
-    existing = cur.fetchone()
+    try:
+        # Check existing for this day
+        cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
+        existing = cur.fetchone()
 
-    if existing:
-        cur.execute("UPDATE attendance SET status=%s, arrival_type=%s, note=%s, checkin_at=%s WHERE id=%s;",
-            (status, arrival_type, note, now, existing["id"]))
-    else:
-        cur.execute("INSERT INTO attendance (user_id, work_date, status, arrival_type, note, created_at, checkin_at) VALUES (%s, %s, %s, %s, %s, %s, %s);",
-            (user_id, work_date, status, arrival_type, note, now, now))
+        if existing:
+            # Update existing record
+            cur.execute("""
+                UPDATE attendance 
+                SET status=%s, 
+                    arrival_type=%s, 
+                    note=%s, 
+                    checkin_at=%s,
+                    timezone_used='WIB'
+                WHERE id=%s;
+            """, (status, arrival_type, note, now, existing["id"]))
+        else:
+            # Insert new record
+            cur.execute("""
+                INSERT INTO attendance 
+                    (user_id, work_date, status, arrival_type, note, created_at, checkin_at, timezone_used) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'WIB');
+            """, (user_id, work_date, status, arrival_type, note, now, now))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        flash(f"✅ Absensi {status} {arrival_type} disimpan untuk {now.strftime('%d/%m/%Y %H:%M')} WIB", "success")
+    finally:
+        cur.close()
+        conn.close()
+    
     return redirect("/admin/attendance")
 
 # ---------- QUICK ATTENDANCE (PUBLIC, NO LOGIN) ----------
@@ -5324,6 +5393,8 @@ def api_mobile_products():
 @app.route("/api/mobile/attendance", methods=["GET"])
 @mobile_api_login_required
 def api_mobile_attendance():
+    ensure_attendance_wib_schema()
+    
     user = request.mobile_user
     user_id = user["id"]
     role = user["role"]
@@ -5334,32 +5405,20 @@ def api_mobile_attendance():
         if role == "admin":
             cur.execute("""
                 SELECT
-                    a.id,
-                    a.user_id,
-                    u.name AS user_name,
-                    a.work_date,
-                    a.status,
-                    a.arrival_type,
-                    a.note,
-                    a.checkin_at
-                FROM attendance a
-                JOIN users u ON u.id = a.user_id
+                    a.id, a.user_id, u.name AS user_name,
+                    a.work_date, a.status, a.arrival_type, a.note,
+                    a.checkin_at, COALESCE(a.timezone_used, 'unknown') AS timezone_used
+                FROM attendance a JOIN users u ON u.id = a.user_id
                 ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
                 LIMIT 100;
             """)
         else:
             cur.execute("""
                 SELECT
-                    a.id,
-                    a.user_id,
-                    %s AS user_name,
-                    a.work_date,
-                    a.status,
-                    a.arrival_type,
-                    a.note,
-                    a.checkin_at
-                FROM attendance a
-                WHERE a.user_id=%s
+                    a.id, a.user_id, %s AS user_name,
+                    a.work_date, a.status, a.arrival_type, a.note,
+                    a.checkin_at, COALESCE(a.timezone_used, 'unknown') AS timezone_used
+                FROM attendance a WHERE a.user_id=%s
                 ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
                 LIMIT 100;
             """, (user["name"], user_id))
@@ -5377,11 +5436,12 @@ def api_mobile_attendance():
                 "arrival_type": r.get("arrival_type") or "",
                 "note": r.get("note") or "",
                 "checkin_at": _utc_naive_to_wib_string(r.get("checkin_at")),
+                "timezone_used": r.get("timezone_used") or "unknown"
             })
 
         return mobile_api_response(
             ok=True,
-            message="Data absensi berhasil diambil.",
+            message="Data absensi berhasil diambil (WIB timezone)",
             data={"attendance": attendance}
         )
     finally:
@@ -5391,12 +5451,15 @@ def api_mobile_attendance():
 @app.route("/api/mobile/attendance/checkin", methods=["POST"])
 @mobile_api_login_required
 def api_mobile_attendance_checkin():
+    ensure_attendance_wib_schema()
+    
     user = request.mobile_user
     user_id = user["id"]
 
     data = request.get_json(silent=True) or {}
     arrival_type = (data.get("arrival_type") or "ONTIME").strip().upper()
     note = (data.get("note") or "").strip()
+    client_ts = data.get("client_ts")
 
     allowed_arrival = {"ONTIME", "LATE", "SICK", "LEAVE", "ABSENT"}
     if arrival_type not in allowed_arrival:
@@ -5406,84 +5469,55 @@ def api_mobile_attendance_checkin():
             status_code=400
         )
 
-    now = _now_wib_naive()
-    work_date = now.date()
-
+    # Determine status
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
         status = arrival_type
     else:
         status = "PRESENT"
 
+    # Always WIB time
+    if client_ts and isinstance(client_ts, (int, float)):
+        now_wib_aware = datetime.fromtimestamp(client_ts / 1000, tz=ZoneInfo("Asia/Jakarta"))
+        now = now_wib_aware.replace(tzinfo=None)
+    else:
+        now = _now_wib_naive()
+    
+    work_date = now.date()
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT id
-            FROM attendance
-            WHERE user_id=%s AND work_date=%s
-            LIMIT 1;
+            SELECT id FROM attendance 
+            WHERE user_id=%s AND work_date=%s LIMIT 1;
         """, (user_id, work_date))
         existing = cur.fetchone()
 
         if existing:
             cur.execute("""
-                UPDATE attendance
-                SET status=%s,
-                    arrival_type=%s,
-                    note=%s,
-                    checkin_at=%s
-                WHERE id=%s
-                RETURNING id;
-            """, (
-                status,
-                arrival_type,
-                note,
-                now,
-                existing["id"]
-            ))
+                UPDATE attendance SET
+                    status=%s, arrival_type=%s, note=%s,
+                    checkin_at=%s, timezone_used='WIB'
+                WHERE id=%s RETURNING id;
+            """, (status, arrival_type, note, now, existing["id"]))
             row = cur.fetchone()
             conn.commit()
-
             return mobile_api_response(
-                ok=True,
-                message="Absensi berhasil diperbarui.",
-                data={
-                    "attendance_id": row["id"],
-                    "work_date": str(work_date),
-                    "status": status,
-                    "arrival_type": arrival_type,
-                    "note": note,
-                }
+                ok=True, message="Absensi berhasil diperbarui",
+                data={"attendance_id": row["id"], "work_date": str(work_date), "wib_time": now.strftime("%d/%m/%Y %H:%M")}
             )
         else:
             cur.execute("""
-                INSERT INTO attendance
-                    (user_id, work_date, status, arrival_type, note, created_at, checkin_at)
-                VALUES
-                    (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id;
-            """, (
-                user_id,
-                work_date,
-                status,
-                arrival_type,
-                note,
-                now,
-                now
-            ))
+                INSERT INTO attendance 
+                    (user_id, work_date, status, arrival_type, note, 
+                     created_at, checkin_at, timezone_used)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,'WIB') RETURNING id;
+            """, (user_id, work_date, status, arrival_type, note, now, now))
             row = cur.fetchone()
             conn.commit()
-
             return mobile_api_response(
-                ok=True,
-                message="Absensi berhasil dikirim.",
-                data={
-                    "attendance_id": row["id"],
-                    "work_date": str(work_date),
-                    "status": status,
-                    "arrival_type": arrival_type,
-                    "note": note,
-                }
+                ok=True, message="Absensi berhasil (langsung approved)",
+                data={"attendance_id": row["id"], "work_date": str(work_date), "wib_time": now.strftime("%d/%m/%Y %H:%M")}
             )
     finally:
         cur.close()
