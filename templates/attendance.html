@@ -563,7 +563,7 @@
           <div class="hi-meta">
             <span class="hi-time">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M") }}{% else %}—{% endif %}
+              {% if r.checkin_at %}{{ r.checkin_at_wib }}{% else %}—{% endif %}
             </span>
           </div>
           {% if r.note %}
