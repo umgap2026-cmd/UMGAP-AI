@@ -1196,7 +1196,11 @@
                     {{ r.work_date }}
                   </div>
                 </td>
-                <td><div class="t-sub">{{ r.checkin_at }}</div></td>
+                <td>
+                  <div class="t-sub">
+                    {{ r.checkin_at_wib or r.checkin_at or "—" }}
+                  </div>
+                </td>
                 <td><div class="t-name">{{ r.employee_name }}</div></td>
                 <td>
                   <span class="tbadge rb-{{ at }}">{{ r.arrival_type }}</span>
@@ -1258,19 +1262,16 @@
 <script>
   (function () {
     /* live clock */
-    function pad(n) {
-      return String(n).padStart(2, "0");
-    }
+    var fmtClock = new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
     function tick() {
-      var d = new Date();
       var el = document.getElementById("liveClock");
-      if (el)
-        el.textContent =
-          pad(d.getHours()) +
-          ":" +
-          pad(d.getMinutes()) +
-          ":" +
-          pad(d.getSeconds());
+      if (el) el.textContent = fmtClock.format(new Date()).replace(/\./g, ":");
     }
     tick();
     setInterval(tick, 1000);
