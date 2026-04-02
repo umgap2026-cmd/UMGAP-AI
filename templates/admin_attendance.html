@@ -1114,7 +1114,15 @@
             <div class="rcard-top">
               <div class="rinfo">
                 <div class="rname">{{ r.employee_name }}</div>
-                <div class="rsub">{{ r.work_date }} · {{ r.checkin_at }}</div>
+                <div class="rsub">
+                  {{ r.work_date }} · {{ r.checkin_at_wib or r.checkin_at or '—'
+                  }}
+                </div>
+                {% if r.timezone_used and r.timezone_used != 'WIB' %}
+                <div class="rsub" style="font-size: 11px; opacity: 0.7">
+                  ⏰ {{ r.timezone_used }}
+                </div>
+                {% endif %}
               </div>
               <div class="rbadges">
                 <span class="rbadge rb-{{ (r.arrival_type or '')|lower }}"
@@ -1475,4 +1483,3 @@
   );
 </script>
 {% endblock %}
-
