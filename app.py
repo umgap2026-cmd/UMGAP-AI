@@ -2354,15 +2354,39 @@ def attendance_add():
             old_photo_path = existing.get("photo_path")
             cur.execute("""
                 UPDATE attendance_pending SET
-                    user_id=%s, work_date=%s, arrival_type=%s, note=%s,
-                    name_input=%s, latitude=%s, longitude=%s, accuracy=%s,
+                    user_id=%s,
+                    work_date=%s,
+                    arrival_type=%s,
+                    note=%s,
+                    name_input=%s,
+                    latitude=%s,
+                    longitude=%s,
+                    accuracy=%s,
                     photo_path=COALESCE(%s, photo_path),
-                    ip_address=%s, timezone_used='WIB', created_at=%s
+                    ip_address=%s,
+                    timezone_used='WIB',
+                    created_at=%s,
+                    status='PENDING',
+                    reject_reason=NULL,
+                    rejected_by=NULL,
+                    rejected_at=NULL,
+                    approved_by=NULL,
+                    approved_at=NULL,
+                    approved_user_id=NULL
                 WHERE id=%s;
             """, (
-                session.get("user_id"), work_date, arrival_type, note,
-                session.get("user_name"), lat_f, lng_f, acc_f, photo_path,
-                _public_ip(), submit_at, existing["id"]
+                session.get("user_id"),
+                work_date,
+                arrival_type,
+                note,
+                session.get("user_name"),
+                lat_f,
+                lng_f,
+                acc_f,
+                photo_path,
+                _public_ip(),
+                submit_at,
+                existing["id"]
             ))
             
             # Cleanup old photo if new one uploaded
@@ -2574,22 +2598,63 @@ def quick_attendance_submit(token):
         submit_at = _now_wib_naive_from_form()
 
         cur.execute("""
-            INSERT INTO attendance_pending
-            (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at, timezone_used)
-            VALUES
-            (%s, %s, %s, %s, %s, %s, %s, 'PENDING', %s, 'WIB')
-            RETURNING id;
-        """, (
-            name_input,
-            device_id,
-            lat_f,
-            lng_f,
-            acc_f,
-            photo_path,
-            _public_ip(),
-            submit_at
-        ))
-        row = cur.fetchone() or {}
+            SELECT id, status, photo_path
+            FROM attendance_pending
+            WHERE device_id=%s AND DATE(created_at)=%s
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """, (device_id, submit_at.date()))
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute("""
+                UPDATE attendance_pending SET
+                    name_input=%s,
+                    latitude=%s,
+                    longitude=%s,
+                    accuracy=%s,
+                    photo_path=COALESCE(%s, photo_path),
+                    ip_address=%s,
+                    created_at=%s,
+                    timezone_used='WIB',
+                    status='PENDING',
+                    reject_reason=NULL,
+                    rejected_by=NULL,
+                    rejected_at=NULL,
+                    approved_by=NULL,
+                    approved_at=NULL,
+                    approved_user_id=NULL
+                WHERE id=%s
+                RETURNING id;
+            """, (
+                name_input,
+                lat_f,
+                lng_f,
+                acc_f,
+                photo_path,
+                _public_ip(),
+                submit_at,
+                existing["id"]
+            ))
+            row = cur.fetchone()
+        else:
+            cur.execute("""
+                INSERT INTO attendance_pending
+                (name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at, timezone_used)
+                VALUES
+                (%s, %s, %s, %s, %s, %s, %s, 'PENDING', %s, 'WIB')
+                RETURNING id;
+            """, (
+                name_input,
+                device_id,
+                lat_f,
+                lng_f,
+                acc_f,
+                photo_path,
+                _public_ip(),
+                submit_at
+            ))
+            row = cur.fetchone()
         conn.commit()
         pending_id = row.get("id")
     except psycopg2.IntegrityError:
