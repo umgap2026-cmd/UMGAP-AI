@@ -1463,20 +1463,8 @@
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                {% if r.checkin_at %}{{ r.checkin_at_wib }}{% else %}—{% endif
-                %} {% if r.timezone_used and r.timezone_used != 'WIB' %}
-                <span
-                  style="
-                    font-size: 9px;
-                    color: #92400e;
-                    background: rgba(254, 243, 199, 0.8);
-                    padding: 1px 5px;
-                    border-radius: 4px;
-                    margin-left: 6px;
-                  "
-                  >{{ r.timezone_used }}</span
-                >
-                {% endif %}
+                {% if r.checkin_at %}{{ r.checkin_at.strftime("%H:%M") }}{% else
+                %}—{% endif %}
               </span>
             </div>
             {% if r.note %}
