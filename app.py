@@ -15,7 +15,6 @@ from functools import wraps
 from decimal import Decimal
 import uuid
 import psycopg2
-import cv2
 import atexit
 import json
 
@@ -26,7 +25,6 @@ from flask import (
     jsonify, url_for, flash, Response, send_file,
 )
 import pytz
-import cctv  # NEW CCTV MODULE ✅
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
