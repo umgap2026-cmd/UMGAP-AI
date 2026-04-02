@@ -192,26 +192,37 @@ def _parse_manual_wib_naive(manual_dt):
 def _now_wib_naive_from_form():
     client_ts = request.form.get("client_ts")
     if client_ts and client_ts.isdigit():
-        now_wib_aware = datetime.fromtimestamp(int(client_ts) / 1000, tz=ZoneInfo("Asia/Jakarta"))
+        now_wib_aware = datetime.fromtimestamp(
+            int(client_ts) / 1000,
+            tz=ZoneInfo("Asia/Jakarta")
+        )
     else:
         now_wib_aware = datetime.now(ZoneInfo("Asia/Jakarta"))
     return now_wib_aware.replace(tzinfo=None)
 
-def _utc_naive_to_wib_naive(dt):
-    """
-    DB kamu sekarang banyak menyimpan timestamp naive yang tampil seperti UTC.
-    Fungsi ini geser +7 jam agar sinkron ke WIB.
-    """
-    if not dt:
-        return None
-    return dt + timedelta(hours=7)
-
 def _now_wib_naive():
     return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
 
-def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
+def _utc_naive_to_wib_naive(dt):
+    """
+    Normalisasi datetime DB agar tampil konsisten sebagai WIB naive.
+    - jika dt aware -> convert ke Asia/Jakarta lalu buang tzinfo
+    - jika dt naive -> anggap itu UTC-naive lama, geser +7 jam
+    """
+    if not dt:
+        return None
+
+    try:
+        if getattr(dt, "tzinfo", None) is not None:
+            return dt.astimezone(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
+    except Exception:
+        pass
+
+    return dt + timedelta(hours=7)
+
+def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
     dt_wib = _utc_naive_to_wib_naive(dt)
-    return dt_wib.strftime(fmt) if dt_wib else ""
+    return dt_wib.strftime(fmt) if dt_wib else "-"
 
 def _parse_date(s):
     if not s:
@@ -359,13 +370,7 @@ def _save_company_logo(file_storage):
 
     return f"uploads/invoice_logo/{filename}"
 
-def _utc_naive_to_wib_string(dt, fmt="%d/%m/%Y %H:%M"):
-    if not dt:
-        return "-"
-    try:
-        return (dt + timedelta(hours=7)).strftime(fmt)
-    except Exception:
-        return "-"
+
 # =========================
 # APP MOBOLE API
 # =========================
@@ -2296,10 +2301,31 @@ def attendance_page():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT work_date, arrival_type, status, note, checkin_at FROM attendance WHERE user_id=%s ORDER BY work_date DESC, checkin_at DESC NULLS LAST;", (session["user_id"],))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("""
+            SELECT
+                work_date,
+                arrival_type,
+                status,
+                note,
+                checkin_at
+            FROM attendance
+            WHERE user_id=%s
+            ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
+        """, (session["user_id"],))
+        raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
+            rows.append(item)
+
+    finally:
+        cur.close()
+        conn.close()
+
     return render_template("attendance.html", rows=rows)
 
 @app.route("/attendance/add", methods=["POST"])
@@ -2320,7 +2346,7 @@ def attendance_add():
     def _to_float(x):
         try:
             return float(x) if x not in (None, "", "null") else None
-        except:
+        except Exception:
             return None
 
     lat_f = _to_float(lat)
@@ -2338,21 +2364,86 @@ def attendance_add():
         photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
 
+    submit_at = _now_wib_naive_from_form()
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # masukkan ke pending (menunggu admin)
-        submit_at = _now_wib_naive_from_form()
+        # cek dulu apakah device ini sudah pernah submit hari ini
+        cur.execute("""
+            SELECT id, status, photo_path
+            FROM attendance_pending
+            WHERE device_id=%s
+              AND created_at::date=%s
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """, (device_id, work_date))
+        existing = cur.fetchone()
 
+        if existing:
+            # kalau sudah ada, update record lama
+            old_photo_path = existing.get("photo_path")
+
+            cur.execute("""
+                UPDATE attendance_pending
+                SET user_id=%s,
+                    work_date=%s,
+                    arrival_type=%s,
+                    note=%s,
+                    name_input=%s,
+                    latitude=%s,
+                    longitude=%s,
+                    accuracy=%s,
+                    photo_path=COALESCE(%s, photo_path),
+                    ip_address=%s,
+                    status='PENDING',
+                    approved_user_id=NULL,
+                    approved_by=NULL,
+                    approved_at=NULL,
+                    rejected_by=NULL,
+                    rejected_at=NULL,
+                    reject_reason=NULL,
+                    created_at=%s
+                WHERE id=%s;
+            """, (
+                session.get("user_id"),
+                work_date,
+                arrival_type,
+                note,
+                session.get("user_name"),
+                lat_f,
+                lng_f,
+                acc_f,
+                photo_path,
+                _public_ip(),
+                submit_at,
+                existing["id"]
+            ))
+
+            conn.commit()
+
+            # hapus foto lama kalau ada foto baru
+            if photo_path and old_photo_path and old_photo_path != photo_path:
+                try:
+                    old_full_path = os.path.join("static", old_photo_path.replace("uploads/", "uploads/"))
+                    if os.path.exists(old_full_path):
+                        os.remove(old_full_path)
+                except Exception:
+                    pass
+
+            flash("Absensi hari ini berhasil diperbarui dan menunggu approval admin.", "success")
+            return redirect("/attendance")
+
+        # kalau belum ada, insert baru
         cur.execute("""
             INSERT INTO attendance_pending
                 (user_id, work_date, arrival_type, note,
-                name_input, device_id, latitude, longitude, accuracy, photo_path,
-                ip_address, status, created_at)
+                 name_input, device_id, latitude, longitude, accuracy, photo_path,
+                 ip_address, status, created_at)
             VALUES
                 (%s,%s,%s,%s,
-                %s,%s,%s,%s,%s,%s,
-                %s,'PENDING', %s)
+                 %s,%s,%s,%s,%s,%s,
+                 %s,'PENDING', %s)
         """, (
             session.get("user_id"),
             work_date,
@@ -2367,12 +2458,14 @@ def attendance_add():
             _public_ip(),
             submit_at
         ))
+
         conn.commit()
+        flash("Absensi berhasil dikirim dan menunggu approval admin.", "success")
+        return redirect("/attendance")
+
     finally:
         cur.close()
         conn.close()
-
-    return redirect("/attendance")
 
 @app.route("/admin/attendance")
 def admin_attendance():
@@ -2382,18 +2475,36 @@ def admin_attendance():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
-    employees = cur.fetchall()
-    cur.execute("""
-        SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at, u.name AS employee_name
-        FROM attendance a
-        JOIN users u ON u.id=a.user_id
-        ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-        LIMIT 80;
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+        employees = cur.fetchall()
+
+        cur.execute("""
+            SELECT
+                a.work_date,
+                a.arrival_type,
+                a.status,
+                a.note,
+                a.checkin_at,
+                u.name AS employee_name
+            FROM attendance a
+            JOIN users u ON u.id = a.user_id
+            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
+            LIMIT 80;
+        """)
+        raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at_wib"] = _utc_naive_to_wib_string(r.get("checkin_at"))
+            rows.append(item)
+
+    finally:
+        cur.close()
+        conn.close()
+
     return render_template("admin_attendance.html", employees=employees, rows=rows)
 
 @app.route("/admin/attendance/add", methods=["POST"])
@@ -5801,203 +5912,1204 @@ def api_mobile_info():
         }
     )
 
+
+# ==================== MOBILE API EXTENSIONS (patched) ====================
+import base64
+from urllib import request as _urlrequest, parse as _urlparse
+
+def build_photo_url(path):
+    if not path:
+        return None
+    return request.host_url.rstrip('/') + '/static/' + str(path).lstrip('/')
+
+def mobile_api_admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = get_mobile_api_user()
+        if not user:
+            return mobile_api_response(False, "Unauthorized. Token tidak valid atau belum login.", status_code=401)
+        if (user.get("role") or "") != "admin":
+            return mobile_api_response(False, "Akses admin diperlukan.", status_code=403)
+        request.mobile_user = user
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def _mobile_json():
+    return request.get_json(silent=True) or {}
+
+
+def _mobile_parse_month(month_str):
+    if month_str:
+        try:
+            year = int(month_str.split('-')[0])
+            mon = int(month_str.split('-')[1])
+            start_date = date(year, mon, 1)
+            end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+            return month_str, start_date, end_date
+        except Exception:
+            return None, None, None
+    today = date.today()
+    month_str = f"{today.year:04d}-{today.month:02d}"
+    start_date = date(today.year, today.month, 1)
+    end_date = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+    return month_str, start_date, end_date
+
+
+def ensure_attendance_pending_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS attendance_pending (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                approved_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                work_date DATE,
+                arrival_type VARCHAR(20) NOT NULL DEFAULT 'ONTIME',
+                note TEXT,
+                name_input VARCHAR(150),
+                device_id VARCHAR(180),
+                latitude DOUBLE PRECISION,
+                longitude DOUBLE PRECISION,
+                accuracy DOUBLE PRECISION,
+                photo_path TEXT,
+                ip_address VARCHAR(80),
+                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                approved_at TIMESTAMP,
+                rejected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                rejected_at TIMESTAMP,
+                reject_reason TEXT
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_attendance_pending_status_created ON attendance_pending(status, created_at DESC);")
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ensure_mobile_attendance_columns():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS device_id VARCHAR(180);")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS photo_path TEXT;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS map_url TEXT;")
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _decode_base64_image_to_file(b64_value, folder):
+    if not b64_value:
+        return None
+    raw = str(b64_value).strip()
+    ext = '.jpg'
+    if ',' in raw and ';base64' in raw:
+        header, raw = raw.split(',', 1)
+        if 'image/png' in header:
+            ext = '.png'
+        elif 'image/webp' in header:
+            ext = '.webp'
+        else:
+            ext = '.jpg'
+    try:
+        binary = base64.b64decode(raw)
+    except Exception:
+        return None
+    abs_dir = os.path.join('static', 'uploads', folder)
+    os.makedirs(abs_dir, exist_ok=True)
+    filename = f"{folder}_{datetime.now(ZoneInfo('Asia/Jakarta')).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{ext}"
+    abs_path = os.path.join(abs_dir, filename)
+    with open(abs_path, 'wb') as f:
+        f.write(binary)
+    return f"uploads/{folder}/{filename}"
+
+
+def _mobile_attendance_row_to_dict(r):
+    lat = r.get('latitude')
+    lng = r.get('longitude')
+    return {
+        'id': r['id'],
+        'user_id': r.get('user_id'),
+        'user_name': r.get('user_name'),
+        'work_date': str(r.get('work_date') or ''),
+        'status': r.get('status') or '',
+        'arrival_type': r.get('arrival_type') or '',
+        'note': r.get('note') or '',
+        'device_id': r.get('device_id') or '',
+        'latitude': float(lat) if lat is not None else None,
+        'longitude': float(lng) if lng is not None else None,
+        'accuracy': float(r.get('accuracy')) if r.get('accuracy') is not None else None,
+        'photo_path': r.get('photo_path') or '',
+        'map_url': r.get('map_url') or (f"https://www.google.com/maps?q={lat},{lng}" if lat is not None and lng is not None else ''),
+        'checkin_at': _utc_naive_to_wib_string(r.get('checkin_at')) if r.get('checkin_at') else '',
+        'created_at': _utc_naive_to_wib_string(r.get('created_at')) if r.get('created_at') else '',
+    }
+
+
 @app.route('/api/mobile/register', methods=['POST'])
 def api_mobile_register():
     try:
-        data = request.get_json(silent=True) or {}
-
+        data = _mobile_json()
         first_name = (data.get('first_name') or '').strip()
         last_name = (data.get('last_name') or '').strip()
         email = (data.get('email') or '').strip().lower()
-        password = data.get('password') or ''
+        password = (data.get('password') or '').strip()
         year = (data.get('year') or '').strip()
         month = (data.get('month') or '').strip()
         day = (data.get('day') or '').strip()
-
-        if not first_name:
-            return jsonify({'ok': False, 'message': 'First name wajib diisi.'}), 400
-        if not last_name:
-            return jsonify({'ok': False, 'message': 'Last name wajib diisi.'}), 400
-        if not email:
-            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
-        if not password:
-            return jsonify({'ok': False, 'message': 'Password wajib diisi.'}), 400
-
+        if not first_name or not last_name or not email or not password:
+            return mobile_api_response(False, 'Nama depan, nama belakang, email, dan password wajib diisi.', status_code=400)
         full_name = f"{first_name} {last_name}".strip()
-
-        conn = get_conn()
-        cur = conn.cursor()
-
-        cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
-        existing = cur.fetchone()
-        if existing:
-            cur.close()
-            conn.close()
-            return jsonify({'ok': False, 'message': 'Email sudah terdaftar.'}), 409
-
         birthday = None
         if year and month and day:
             try:
                 birthday = f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
             except Exception:
                 birthday = None
-
-        password_hash = generate_password_hash(password)
-
-        # Aman kalau kolom birthday belum ada: insert tanpa birthday
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cur.execute("""
-                INSERT INTO users (name, email, password_hash, role, points, points_admin, birthday)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, name, email, role
-            """, (full_name, email, password_hash, 'employee', 0, 0, birthday))
-        except Exception:
-            conn.rollback()
-            cur.execute("""
-                INSERT INTO users (name, email, password_hash, role, points, points_admin)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id, name, email, role
-            """, (full_name, email, password_hash, 'employee', 0, 0))
-
-        user = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({
-            'ok': True,
-            'message': 'Register berhasil.',
-            'data': {
-                'user': {
-                    'id': user[0],
-                    'name': user[1],
-                    'email': user[2],
-                    'role': user[3]
-                }
-            }
-        }), 201
-
+            cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
+            if cur.fetchone():
+                return mobile_api_response(False, 'Email sudah terdaftar.', status_code=409)
+            password_hash = generate_password_hash(password)
+            try:
+                cur.execute("""
+                    INSERT INTO users (name, email, password_hash, role, points, points_admin, birthday)
+                    VALUES (%s, %s, %s, 'employee', 0, 0, %s)
+                    RETURNING id, name, email, role;
+                """, (full_name, email, password_hash, birthday))
+            except Exception:
+                conn.rollback()
+                cur.execute("""
+                    INSERT INTO users (name, email, password_hash, role, points, points_admin)
+                    VALUES (%s, %s, %s, 'employee', 0, 0)
+                    RETURNING id, name, email, role;
+                """, (full_name, email, password_hash))
+            user = cur.fetchone()
+            conn.commit()
+            return mobile_api_response(True, 'Register berhasil.', data={'user': dict(user)}, status_code=201)
+        finally:
+            cur.close(); conn.close()
     except Exception as e:
-        return jsonify({'ok': False, 'message': f'Register gagal: {str(e)}'}), 500
+        return mobile_api_response(False, f'Register gagal: {str(e)}', status_code=500)
 
 
 @app.route('/api/mobile/forgot-password', methods=['POST'])
 def api_mobile_forgot_password():
     try:
-        data = request.get_json(silent=True) or {}
+        ensure_password_reset_schema()
+        data = _mobile_json()
         email = (data.get('email') or '').strip().lower()
-
         if not email:
-            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
-
+            return mobile_api_response(False, 'Email wajib diisi.', status_code=400)
         conn = get_conn()
-        cur = conn.cursor()
-
-        cur.execute("SELECT id, email FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
-        user = cur.fetchone()
-
-        if not user:
-            cur.close()
-            conn.close()
-            return jsonify({'ok': False, 'message': 'Email tidak ditemukan.'}), 404
-
-        otp_code = str(random.randint(100000, 999999))
-        expired_at = datetime.now() + timedelta(minutes=10)
-
-        cur.execute("""
-            INSERT INTO password_reset_otps (email, otp_code, expired_at, used)
-            VALUES (%s, %s, %s, FALSE)
-        """, (email, otp_code, expired_at))
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        # Untuk sementara OTP dikembalikan ke response
-        # Nanti bisa diganti kirim email/WhatsApp
-        return jsonify({
-            'ok': True,
-            'message': 'OTP reset password berhasil dibuat.',
-            'data': {
-                'email': email,
-                'otp_code': otp_code,
-                'expired_in_minutes': 10
-            }
-        }), 200
-
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
+            user = cur.fetchone()
+            if not user:
+                return mobile_api_response(False, 'Email tidak ditemukan.', status_code=404)
+            otp = f"{random.randint(0, 999999):06d}"
+            otp_h = _otp_hash(email, otp)
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
+            cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE email=%s AND used=FALSE;", (email,))
+            cur.execute("INSERT INTO password_reset_otps (email, otp_hash, expires_at, used) VALUES (%s, %s, %s, FALSE);", (email, otp_h, expires_at))
+            conn.commit()
+        finally:
+            cur.close(); conn.close()
+        email_sent = False
+        try:
+            send_email(
+                to_email=email,
+                subject='UMGAP • Kode OTP Reset Password',
+                body=f'Halo\n\nKode OTP reset password kamu: {otp}\nBerlaku 10 menit.\n\nJika kamu tidak meminta reset, abaikan email ini.'
+            )
+            email_sent = True
+        except Exception:
+            email_sent = False
+        data_resp = {'email': email, 'expired_in_minutes': 10, 'email_sent': email_sent}
+        if not email_sent and not IS_PROD:
+            data_resp['otp_code'] = otp
+        return mobile_api_response(True, 'OTP reset password berhasil dibuat.', data=data_resp)
     except Exception as e:
-        return jsonify({'ok': False, 'message': f'Forgot password gagal: {str(e)}'}), 500
+        return mobile_api_response(False, f'Forgot password gagal: {str(e)}', status_code=500)
 
 
 @app.route('/api/mobile/reset-password', methods=['POST'])
 def api_mobile_reset_password():
     try:
-        data = request.get_json(silent=True) or {}
+        ensure_password_reset_schema()
+        data = _mobile_json()
         email = (data.get('email') or '').strip().lower()
-        otp_code = (data.get('otp_code') or '').strip()
-        new_password = data.get('new_password') or ''
-
-        if not email:
-            return jsonify({'ok': False, 'message': 'Email wajib diisi.'}), 400
-        if not otp_code:
-            return jsonify({'ok': False, 'message': 'OTP wajib diisi.'}), 400
-        if not new_password:
-            return jsonify({'ok': False, 'message': 'Password baru wajib diisi.'}), 400
-
+        otp = (data.get('otp_code') or data.get('otp') or '').strip()
+        new_password = (data.get('new_password') or '').strip()
+        if not email or not otp or not new_password:
+            return mobile_api_response(False, 'Email, OTP, dan password baru wajib diisi.', status_code=400)
+        if len(new_password) < 6:
+            return mobile_api_response(False, 'Password baru minimal 6 karakter.', status_code=400)
         conn = get_conn()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT id, otp_hash, expires_at, used FROM password_reset_otps WHERE email=%s AND used=FALSE ORDER BY created_at DESC LIMIT 1;", (email,))
+            row = cur.fetchone()
+            if not row:
+                return mobile_api_response(False, 'OTP tidak ditemukan / sudah dipakai.', status_code=400)
+            if datetime.utcnow() > row['expires_at']:
+                cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row['id'],))
+                conn.commit()
+                return mobile_api_response(False, 'OTP sudah kedaluwarsa.', status_code=400)
+            if not hmac.compare_digest(row['otp_hash'], _otp_hash(email, otp)):
+                return mobile_api_response(False, 'OTP salah.', status_code=400)
+            pw_hash = generate_password_hash(new_password)
+            cur.execute("UPDATE users SET password_hash=%s WHERE LOWER(email)=LOWER(%s);", (pw_hash, email))
+            cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row['id'],))
+            conn.commit()
+            return mobile_api_response(True, 'Password berhasil direset.')
+        finally:
+            cur.close(); conn.close()
+    except Exception as e:
+        return mobile_api_response(False, f'Reset password gagal: {str(e)}', status_code=500)
 
+
+@app.route('/api/mobile/google-login', methods=['POST'])
+def api_mobile_google_login():
+    data = _mobile_json()
+    id_token = (data.get('id_token') or '').strip()
+    device_name = (data.get('device_name') or '').strip() or 'Android Device'
+    if not id_token:
+        return mobile_api_response(False, 'id_token wajib diisi.', status_code=400)
+    if not GOOGLE_CLIENT_ID:
+        return mobile_api_response(False, 'Google login belum dikonfigurasi di server.', status_code=500)
+    try:
+        qs = _urlparse.urlencode({'id_token': id_token})
+        with _urlrequest.urlopen(f'https://oauth2.googleapis.com/tokeninfo?{qs}', timeout=10) as resp:
+            payload = _json.loads(resp.read().decode('utf-8'))
+        aud = str(payload.get('aud') or '')
+        email = (payload.get('email') or '').strip().lower()
+        name = (payload.get('name') or payload.get('given_name') or 'Google User').strip()
+        if aud != GOOGLE_CLIENT_ID:
+            return mobile_api_response(False, 'Google token tidak valid untuk aplikasi ini.', status_code=401)
+        if not email:
+            return mobile_api_response(False, 'Email Google tidak ditemukan.', status_code=400)
+        conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute('SELECT id, name, email, role FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1;', (email,))
+            user = cur.fetchone()
+            if not user:
+                random_pw = uuid.uuid4().hex
+                cur.execute("""
+                    INSERT INTO users (name, email, password_hash, role, points, points_admin)
+                    VALUES (%s, %s, %s, 'employee', 0, 0)
+                    RETURNING id, name, email, role;
+                """, (name, email, generate_password_hash(random_pw)))
+                user = cur.fetchone()
+            token = uuid.uuid4().hex + uuid.uuid4().hex
+            cur.execute('INSERT INTO mobile_api_tokens (user_id, token, device_name, is_active) VALUES (%s, %s, %s, TRUE);', (user['id'], token, device_name))
+            conn.commit()
+            return mobile_api_response(True, 'Login Google berhasil.', data={'token': token, 'user': {'id': user['id'], 'name': user['name'], 'email': user['email'], 'role': user['role']}})
+        finally:
+            cur.close(); conn.close()
+    except Exception as e:
+        return mobile_api_response(False, f'Google login gagal: {str(e)}', status_code=500)
+
+
+@app.route('/api/mobile/announcements', methods=['GET'])
+@mobile_api_login_required
+def api_mobile_announcements_get():
+    ensure_announcements_schema()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
         cur.execute("""
-            SELECT id, expired_at, used
-            FROM password_reset_otps
-            WHERE LOWER(email)=LOWER(%s) AND otp_code=%s
-            ORDER BY id DESC
-            LIMIT 1
-        """, (email, otp_code))
-        otp_row = cur.fetchone()
+            SELECT a.id, a.title, a.message, a.is_active, a.created_at,
+                   u.name AS created_by_name,
+                   EXISTS(
+                       SELECT 1 FROM announcement_reads ar
+                       WHERE ar.announcement_id=a.id AND ar.user_id=%s
+                   ) AS is_read
+            FROM announcements a
+            LEFT JOIN users u ON u.id = a.created_by
+            ORDER BY a.created_at DESC
+            LIMIT 100;
+        """, (request.mobile_user['id'],))
+        rows = cur.fetchall()
+        data = [{'id': r['id'], 'title': r['title'], 'message': r['message'], 'is_active': bool(r['is_active']), 'created_at': str(r['created_at'] or ''), 'created_by_name': r.get('created_by_name') or '', 'is_read': bool(r.get('is_read'))} for r in rows]
+        return mobile_api_response(True, 'Pengumuman berhasil diambil.', data={'announcements': data})
+    finally:
+        cur.close(); conn.close()
 
-        if not otp_row:
-            cur.close()
-            conn.close()
-            return jsonify({'ok': False, 'message': 'OTP tidak valid.'}), 400
 
-        otp_id, expired_at, used = otp_row
+@app.route('/api/mobile/announcements', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_announcements_post():
+    ensure_announcements_schema()
+    data = _mobile_json()
+    title = (data.get('title') or '').strip()
+    message = (data.get('message') or '').strip()
+    is_active = bool(data.get('is_active', True))
+    if not title or not message:
+        return mobile_api_response(False, 'Title dan message wajib diisi.', status_code=400)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute('INSERT INTO announcements (title, message, is_active, created_by) VALUES (%s, %s, %s, %s) RETURNING id, created_at;', (title, message, is_active, request.mobile_user['id']))
+        row = cur.fetchone(); conn.commit()
+        return mobile_api_response(True, 'Pengumuman berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
+    finally:
+        cur.close(); conn.close()
 
-        if used:
-            cur.close()
-            conn.close()
-            return jsonify({'ok': False, 'message': 'OTP sudah digunakan.'}), 400
 
-        if expired_at < datetime.now():
-            cur.close()
-            conn.close()
-            return jsonify({'ok': False, 'message': 'OTP sudah kadaluarsa.'}), 400
-
-        password_hash = generate_password_hash(new_password)
-
-        cur.execute("""
-            UPDATE users
-            SET password_hash=%s
-            WHERE LOWER(email)=LOWER(%s)
-        """, (password_hash, email))
-
-        cur.execute("""
-            UPDATE password_reset_otps
-            SET used=TRUE
-            WHERE id=%s
-        """, (otp_id,))
-
+@app.route('/api/mobile/announcements/read/<int:ann_id>', methods=['POST'])
+@mobile_api_login_required
+def api_mobile_announcements_mark_read(ann_id):
+    ensure_announcements_schema()
+    conn = get_conn(); cur = conn.cursor()
+    try:
+        cur.execute('INSERT INTO announcement_reads (announcement_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING;', (ann_id, request.mobile_user['id']))
         conn.commit()
+        return mobile_api_response(True, 'Pengumuman ditandai sudah dibaca.')
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/users', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_users_get():
+    q = (request.args.get('q') or '').strip().lower()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if q:
+            cur.execute("""
+                SELECT id, name, email, role, created_at, COALESCE(points,0) AS points, COALESCE(points_admin,0) AS points_admin
+                FROM users
+                WHERE LOWER(name) LIKE %s OR LOWER(email) LIKE %s
+                ORDER BY name ASC;
+            """, (f'%{q}%', f'%{q}%'))
+        else:
+            cur.execute("""
+                SELECT id, name, email, role, created_at, COALESCE(points,0) AS points, COALESCE(points_admin,0) AS points_admin
+                FROM users ORDER BY name ASC;
+            """)
+        rows = cur.fetchall()
+        return mobile_api_response(True, 'Daftar user berhasil diambil.', data={'users': [{**dict(r), 'created_at': str(r.get('created_at') or '')} for r in rows]})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/users', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_users_post():
+    data = _mobile_json()
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '').strip() or uuid.uuid4().hex[:10]
+    role = (data.get('role') or 'employee').strip().lower()
+    if role not in ('admin', 'employee'):
+        role = 'employee'
+    if not name or not email:
+        return mobile_api_response(False, 'Nama dan email wajib diisi.', status_code=400)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute('SELECT id FROM users WHERE LOWER(email)=LOWER(%s) LIMIT 1;', (email,))
+        if cur.fetchone():
+            return mobile_api_response(False, 'Email sudah terdaftar.', status_code=409)
+        cur.execute("""
+            INSERT INTO users (name, email, password_hash, role, points, points_admin)
+            VALUES (%s, %s, %s, %s, 0, 0)
+            RETURNING id, name, email, role, created_at;
+        """, (name, email, generate_password_hash(password), role))
+        row = cur.fetchone(); conn.commit()
+        return mobile_api_response(True, 'User berhasil dibuat.', data={'user': {**dict(row), 'created_at': str(row.get('created_at') or '')}, 'plain_password': password if not IS_PROD else None}, status_code=201)
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/products', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_products_post():
+    data = _mobile_json()
+    name = (data.get('name') or '').strip()
+    price = int(data.get('price') or 0)
+    is_global = bool(data.get('is_global', True))
+    if not name:
+        return mobile_api_response(False, 'Nama produk wajib diisi.', status_code=400)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute('INSERT INTO products (user_id, name, price, is_global) VALUES (%s, %s, %s, %s) RETURNING id, created_at;', (request.mobile_user['id'], name, max(0, price), is_global))
+        row = cur.fetchone(); conn.commit()
+        return mobile_api_response(True, 'Produk berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/products/<int:product_id>', methods=['PUT', 'DELETE'])
+@mobile_api_admin_required
+def api_mobile_products_mutate(product_id):
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'DELETE':
+            cur.execute('DELETE FROM products WHERE id=%s RETURNING id;', (product_id,))
+            row = cur.fetchone(); conn.commit()
+            if not row:
+                return mobile_api_response(False, 'Produk tidak ditemukan.', status_code=404)
+            return mobile_api_response(True, 'Produk berhasil dihapus.')
+        data = _mobile_json()
+        name = (data.get('name') or '').strip()
+        price = int(data.get('price') or 0)
+        is_global = bool(data.get('is_global', True))
+        if not name:
+            return mobile_api_response(False, 'Nama produk wajib diisi.', status_code=400)
+        cur.execute('UPDATE products SET name=%s, price=%s, is_global=%s WHERE id=%s RETURNING id, name, price, is_global, created_at;', (name, max(0, price), is_global, product_id))
+        row = cur.fetchone(); conn.commit()
+        if not row:
+            return mobile_api_response(False, 'Produk tidak ditemukan.', status_code=404)
+        return mobile_api_response(True, 'Produk berhasil diperbarui.', data={'product': {**dict(row), 'created_at': str(row.get('created_at') or '')}})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/content-plans', methods=['GET', 'POST'])
+@mobile_api_login_required
+def api_mobile_content_plans():
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS content_plans (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                plan_date DATE NOT NULL,
+                platform VARCHAR(50) NOT NULL,
+                content_type VARCHAR(30) NOT NULL,
+                notes TEXT,
+                is_done BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        if request.method == 'POST':
+            data = _mobile_json()
+            plan_date = _parse_date(data.get('plan_date'))
+            platform = (data.get('platform') or '').strip()
+            content_type = (data.get('content_type') or '').strip()
+            notes = (data.get('notes') or '').strip()
+            if not plan_date or not platform or not content_type:
+                return mobile_api_response(False, 'plan_date, platform, dan content_type wajib diisi.', status_code=400)
+            cur.execute('INSERT INTO content_plans (user_id, plan_date, platform, content_type, notes, is_done) VALUES (%s, %s, %s, %s, %s, FALSE) RETURNING id, created_at;', (request.mobile_user['id'], plan_date, platform, content_type, notes))
+            row = cur.fetchone(); conn.commit()
+            return mobile_api_response(True, 'Rencana konten berhasil dibuat.', data={'id': row['id'], 'created_at': str(row['created_at'])}, status_code=201)
+        cur.execute('SELECT id, plan_date, platform, content_type, notes, is_done, created_at FROM content_plans WHERE user_id=%s ORDER BY plan_date DESC, id DESC LIMIT 200;', (request.mobile_user['id'],))
+        rows = cur.fetchall()
+        items = [{**dict(r), 'plan_date': str(r.get('plan_date') or ''), 'created_at': str(r.get('created_at') or '')} for r in rows]
+        return mobile_api_response(True, 'Rencana konten berhasil diambil.', data={'content_plans': items})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/content-plans/<int:cid>', methods=['PUT', 'DELETE'])
+@mobile_api_login_required
+def api_mobile_content_plans_mutate(cid):
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'DELETE':
+            cur.execute('DELETE FROM content_plans WHERE id=%s AND user_id=%s RETURNING id;', (cid, request.mobile_user['id']))
+            row = cur.fetchone(); conn.commit()
+            if not row:
+                return mobile_api_response(False, 'Data tidak ditemukan.', status_code=404)
+            return mobile_api_response(True, 'Rencana konten berhasil dihapus.')
+        data = _mobile_json()
+        plan_date = _parse_date(data.get('plan_date'))
+        platform = (data.get('platform') or '').strip()
+        content_type = (data.get('content_type') or '').strip()
+        notes = (data.get('notes') or '').strip()
+        is_done = bool(data.get('is_done', False))
+        if not plan_date or not platform or not content_type:
+            return mobile_api_response(False, 'plan_date, platform, dan content_type wajib diisi.', status_code=400)
+        cur.execute('UPDATE content_plans SET plan_date=%s, platform=%s, content_type=%s, notes=%s, is_done=%s WHERE id=%s AND user_id=%s RETURNING id;', (plan_date, platform, content_type, notes, is_done, cid, request.mobile_user['id']))
+        row = cur.fetchone(); conn.commit()
+        if not row:
+            return mobile_api_response(False, 'Data tidak ditemukan.', status_code=404)
+        return mobile_api_response(True, 'Rencana konten berhasil diperbarui.')
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/attendance/checkin-full', methods=['POST'])
+@mobile_api_login_required
+def api_mobile_attendance_checkin_full():
+    ensure_attendance_pending_schema(); ensure_mobile_attendance_columns()
+    data = _mobile_json()
+    arrival_type = (data.get('arrival_type') or 'ONTIME').strip().upper()
+    note = (data.get('note') or '').strip()
+    device_id = (data.get('device_id') or '').strip()
+    lat = data.get('latitude'); lng = data.get('longitude'); acc = data.get('accuracy')
+    photo_path = _decode_base64_image_to_file(data.get('selfie_base64') or data.get('photo_base64'), 'attendance_mobile')
+    allowed_arrival = {'ONTIME', 'LATE', 'SICK', 'LEAVE', 'ABSENT'}
+    if arrival_type not in allowed_arrival:
+        return mobile_api_response(False, 'arrival_type tidak valid.', status_code=400)
+    now = _now_wib_naive(); work_date = now.date()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO attendance_pending
+                (user_id, work_date, arrival_type, note, name_input, device_id, latitude, longitude, accuracy, photo_path, ip_address, status, created_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s)
+            RETURNING id;
+        """, (request.mobile_user['id'], work_date, arrival_type, note, request.mobile_user.get('name'), device_id, lat, lng, acc, photo_path, _public_ip(), now))
+        row = cur.fetchone(); conn.commit()
+        return mobile_api_response(True, 'Absensi berhasil dikirim dan menunggu persetujuan admin.', data={'pending_id': row['id'], 'photo_path': photo_path or ''}, status_code=201)
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/attendance/pending', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_attendance_pending_list():
+    ensure_attendance_pending_schema()
+    ensure_mobile_attendance_columns()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                p.*,
+                u.name AS user_name
+            FROM attendance_pending p
+            LEFT JOIN users u ON u.id = COALESCE(p.user_id, p.approved_user_id)
+            WHERE p.status='PENDING'
+            ORDER BY p.created_at DESC
+            LIMIT 200;
+        """)
+        rows = cur.fetchall()
+
+        items = []
+        for r in rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["created_at"] = _utc_naive_to_wib_string(r.get("created_at")) if r.get("created_at") else ""
+            item["approved_at"] = _utc_naive_to_wib_string(r.get("approved_at")) if r.get("approved_at") else ""
+            item["rejected_at"] = _utc_naive_to_wib_string(r.get("rejected_at")) if r.get("rejected_at") else ""
+            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
+
+            latv = r.get("latitude")
+            lngv = r.get("longitude")
+            item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}" if latv is not None and lngv is not None else None
+
+            items.append(item)
+
+        return mobile_api_response(
+            True,
+            "Daftar pending absensi berhasil diambil.",
+            data={"pending": items}
+        )
+    finally:
         cur.close()
         conn.close()
 
-        return jsonify({
-            'ok': True,
-            'message': 'Password berhasil direset.'
-        }), 200
 
+@app.route('/api/mobile/attendance/pending/<int:pending_id>/approve', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_attendance_pending_approve(pending_id):
+    ensure_attendance_pending_schema()
+    ensure_mobile_attendance_columns()
+    ensure_hr_v2_schema()
+
+    data = _mobile_json()
+    user_id_form = data.get('user_id')
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT *
+            FROM attendance_pending
+            WHERE id=%s AND status='PENDING'
+            LIMIT 1;
+        """, (pending_id,))
+        p = cur.fetchone()
+
+        if not p:
+            return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
+
+        target_user_id = p.get('user_id') or (int(user_id_form) if user_id_form else None)
+        if not target_user_id:
+            return mobile_api_response(False, 'user_id tujuan wajib ada.', status_code=400)
+
+        created_at_wib = p.get('created_at') or _now_wib_naive()
+        work_date = p.get('work_date') or created_at_wib.date()
+
+        arrival_type = (p.get('arrival_type') or 'ONTIME').strip().upper()
+        if arrival_type in ('ONTIME', 'LATE'):
+            status = 'PRESENT'
+        elif arrival_type == 'SICK':
+            status = 'SICK'
+        elif arrival_type == 'LEAVE':
+            status = 'LEAVE'
+        elif arrival_type == 'ABSENT':
+            status = 'ABSENT'
+        else:
+            status = 'PRESENT'
+            arrival_type = 'ONTIME'
+
+        latv = p.get('latitude')
+        lngv = p.get('longitude')
+        map_url = f'https://www.google.com/maps?q={latv},{lngv}' if latv is not None and lngv is not None else None
+        clean_note = (p.get('note') or '').strip()
+
+        cur.execute("""
+            UPDATE attendance_pending
+            SET status='APPROVED',
+                approved_user_id=%s,
+                approved_by=%s,
+                approved_at=NOW()
+            WHERE id=%s;
+        """, (
+            int(target_user_id),
+            request.mobile_user['id'],
+            pending_id
+        ))
+
+        cur.execute("""
+            INSERT INTO attendance
+                (user_id, work_date, status, arrival_type, note, checkin_at,
+                 device_id, latitude, longitude, accuracy, photo_path, map_url)
+            VALUES
+                (%s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, work_date)
+            DO UPDATE SET
+                status=EXCLUDED.status,
+                arrival_type=EXCLUDED.arrival_type,
+                note=EXCLUDED.note,
+                checkin_at=EXCLUDED.checkin_at,
+                device_id=EXCLUDED.device_id,
+                latitude=EXCLUDED.latitude,
+                longitude=EXCLUDED.longitude,
+                accuracy=EXCLUDED.accuracy,
+                photo_path=EXCLUDED.photo_path,
+                map_url=EXCLUDED.map_url;
+        """, (
+            int(target_user_id),
+            work_date,
+            status,
+            arrival_type,
+            clean_note,
+            created_at_wib,
+            p.get('device_id'),
+            latv,
+            lngv,
+            p.get('accuracy'),
+            p.get('photo_path'),
+            map_url
+        ))
+
+        conn.commit()
+
+        return mobile_api_response(
+            True,
+            'Absensi berhasil disetujui.',
+            {
+                'pending_id': pending_id,
+                'user_id': int(target_user_id),
+                'work_date': str(work_date),
+                'status': status,
+                'arrival_type': arrival_type,
+                'note': clean_note,
+                'latitude': latv,
+                'longitude': lngv,
+                'accuracy': p.get('accuracy'),
+                'photo_path': p.get('photo_path'),
+                'photo_url': build_photo_url(p.get('photo_path')),
+                'map_url': map_url,
+                'approved_at': _utc_naive_to_wib_string(datetime.utcnow())
+            }
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/mobile/attendance/pending/<int:pending_id>/reject', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_attendance_pending_reject(pending_id):
+    ensure_attendance_pending_schema()
+    ensure_mobile_attendance_columns()
+
+    data = _mobile_json()
+    reason = (data.get('reason') or '').strip()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            UPDATE attendance_pending
+            SET status='REJECTED',
+                rejected_by=%s,
+                rejected_at=NOW(),
+                reject_reason=%s
+            WHERE id=%s AND status='PENDING'
+            RETURNING id, reject_reason, rejected_at;
+        """, (
+            request.mobile_user['id'],
+            reason,
+            pending_id
+        ))
+        row = cur.fetchone()
+        conn.commit()
+
+        if not row:
+            return mobile_api_response(False, 'Data pending tidak ditemukan.', status_code=404)
+
+        return mobile_api_response(
+            True,
+            'Absensi berhasil ditolak.',
+            {
+                'pending_id': row['id'],
+                'reject_reason': row.get('reject_reason') or '',
+                'rejected_at': _utc_naive_to_wib_string(row.get('rejected_at')) if row.get('rejected_at') else ''
+            }
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/mobile/attendance/me', methods=['GET'])
+@mobile_api_login_required
+def api_mobile_attendance_me():
+    ensure_mobile_attendance_columns()
+    ensure_hr_v2_schema()
+
+    user = request.mobile_user
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                a.id,
+                a.user_id,
+                a.work_date,
+                a.status,
+                a.arrival_type,
+                a.note,
+                a.checkin_at,
+                a.device_id,
+                a.latitude,
+                a.longitude,
+                a.accuracy,
+                a.photo_path,
+                a.map_url
+            FROM attendance a
+            WHERE a.user_id=%s
+            ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
+            LIMIT 100;
+        """, (user["id"],))
+        rows = cur.fetchall()
+
+        items = []
+        for r in rows:
+            item = dict(r)
+            item["work_date"] = str(r.get("work_date") or "")
+            item["checkin_at"] = _utc_naive_to_wib_string(r.get("checkin_at")) if r.get("checkin_at") else ""
+            item["photo_url"] = build_photo_url(r.get("photo_path")) if r.get("photo_path") else None
+
+            latv = r.get("latitude")
+            lngv = r.get("longitude")
+            if not item.get("map_url") and latv is not None and lngv is not None:
+                item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}"
+
+            items.append(item)
+
+        return mobile_api_response(
+            True,
+            "Riwayat absen saya berhasil diambil.",
+            data={"attendance": items}
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/mobile/attendance-links', methods=['GET', 'POST'])
+@mobile_api_admin_required
+def api_mobile_attendance_links():
+    ensure_attendance_links_schema()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'POST':
+            data = _mobile_json()
+            title = (data.get('title') or data.get('label') or 'Link Absensi Cepat').strip()
+            token = uuid.uuid4().hex
+            cur.execute('INSERT INTO attendance_links (token, title, created_by, is_active) VALUES (%s, %s, %s, TRUE) RETURNING id, created_at;', (token, title, request.mobile_user['id']))
+            row = cur.fetchone(); conn.commit()
+            return mobile_api_response(True, 'Link absensi cepat berhasil dibuat.', data={'id': row['id'], 'title': title, 'token': token, 'url': url_for('quick_attendance_form', token=token, _external=True), 'created_at': str(row['created_at'])}, status_code=201)
+        try:
+            cur.execute("SELECT id, token, COALESCE(title, label, '') AS title, created_by, created_at, is_active FROM attendance_links ORDER BY id DESC;")
+        except Exception:
+            cur.execute("SELECT id, token, COALESCE(title, '') AS title, created_by, created_at, is_active FROM attendance_links ORDER BY id DESC;")
+        rows = cur.fetchall()
+        items = [{'id': r['id'], 'title': r.get('title') or '', 'token': r['token'], 'url': url_for('quick_attendance_form', token=r['token'], _external=True), 'is_active': bool(r.get('is_active')), 'created_at': str(r.get('created_at') or '')} for r in rows]
+        return mobile_api_response(True, 'Daftar link absensi cepat berhasil diambil.', data={'attendance_links': items})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/attendance-links/<int:link_id>', methods=['PATCH', 'DELETE'])
+@mobile_api_admin_required
+def api_mobile_attendance_links_mutate(link_id):
+    ensure_attendance_links_schema()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'DELETE':
+            cur.execute('DELETE FROM attendance_links WHERE id=%s RETURNING id;', (link_id,))
+            row = cur.fetchone(); conn.commit()
+            if not row:
+                return mobile_api_response(False, 'Link tidak ditemukan.', status_code=404)
+            return mobile_api_response(True, 'Link berhasil dihapus.')
+        is_active = bool(_mobile_json().get('is_active', True))
+        cur.execute('UPDATE attendance_links SET is_active=%s WHERE id=%s RETURNING id;', (is_active, link_id))
+        row = cur.fetchone(); conn.commit()
+        if not row:
+            return mobile_api_response(False, 'Link tidak ditemukan.', status_code=404)
+        return mobile_api_response(True, 'Status link berhasil diperbarui.')
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/sales/<int:sales_id>/approve', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_sales_approve(sales_id):
+    admin_note = (_mobile_json().get('admin_note') or '').strip()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("UPDATE sales_submissions SET status='APPROVED', admin_note=%s, decided_at=CURRENT_TIMESTAMP, decided_by=%s WHERE id=%s RETURNING id;", (admin_note, request.mobile_user['id'], sales_id))
+        row = cur.fetchone(); conn.commit()
+        if not row:
+            return mobile_api_response(False, 'Submit penjualan tidak ditemukan.', status_code=404)
+        return mobile_api_response(True, 'Submit penjualan berhasil disetujui.')
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/sales/<int:sales_id>/reject', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_sales_reject(sales_id):
+    admin_note = (_mobile_json().get('admin_note') or '').strip()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("UPDATE sales_submissions SET status='REJECTED', admin_note=%s, decided_at=CURRENT_TIMESTAMP, decided_by=%s WHERE id=%s RETURNING id;", (admin_note, request.mobile_user['id'], sales_id))
+        row = cur.fetchone(); conn.commit()
+        if not row:
+            return mobile_api_response(False, 'Submit penjualan tidak ditemukan.', status_code=404)
+        return mobile_api_response(True, 'Submit penjualan berhasil ditolak.')
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/sales/monitor', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_sales_monitor():
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT u.id, u.name AS employee_name, COALESCE(SUM(s.qty), 0) AS total_qty
+            FROM users u
+            LEFT JOIN sales_submissions s ON s.user_id=u.id AND s.status='APPROVED'
+            WHERE u.role='employee'
+            GROUP BY u.id, u.name
+            ORDER BY total_qty DESC, u.name ASC;
+        """)
+        summary = cur.fetchall()
+        cur.execute("""
+            SELECT s.id, s.created_at, u.name AS employee_name, COALESCE(p.name,'-') AS product_name,
+                   s.qty, s.status, s.note, s.admin_note
+            FROM sales_submissions s
+            JOIN users u ON u.id=s.user_id
+            LEFT JOIN products p ON p.id=s.product_id
+            ORDER BY s.created_at DESC LIMIT 200;
+        """)
+        rows = cur.fetchall()
+        return mobile_api_response(True, 'Monitor penjualan berhasil diambil.', data={
+            'summary': [{**dict(r), 'total_qty': int(r.get('total_qty') or 0)} for r in summary],
+            'details': [{**dict(r), 'qty': int(r.get('qty') or 0), 'created_at': str(r.get('created_at') or '')} for r in rows]
+        })
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/payroll', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_payroll():
+    ensure_hr_v2_schema()
+    month, start_date, end_date = _mobile_parse_month(request.args.get('month'))
+    if not start_date:
+        return mobile_api_response(False, 'Format month harus YYYY-MM.', status_code=400)
+    workdays = count_workdays_only_sunday_off(start_date, end_date)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT u.id, u.name,
+                   COALESCE(p.daily_salary,0) AS daily_salary,
+                   COALESCE(p.monthly_salary,0) AS monthly_salary,
+                   COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END),0) AS days_present,
+                   COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END),0) AS days_sick,
+                   COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END),0) AS days_leave,
+                   COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END),0) AS days_absent
+            FROM users u
+            LEFT JOIN payroll_settings p ON p.user_id=u.id
+            LEFT JOIN attendance a ON a.user_id=u.id AND a.work_date >= %s AND a.work_date < %s
+            WHERE u.role='employee'
+            GROUP BY u.id, u.name, p.daily_salary, p.monthly_salary
+            ORDER BY u.name ASC;
+        """, (start_date, end_date))
+        rows = cur.fetchall()
+        result = []
+        for r in rows:
+            daily_salary = int(r.get('daily_salary') or 0)
+            monthly_salary = int(r.get('monthly_salary') or 0)
+            if daily_salary == 0 and monthly_salary > 0 and workdays > 0:
+                daily_salary = int(round(monthly_salary / workdays))
+            days_present = int(r.get('days_present') or 0)
+            result.append({
+                'id': r['id'], 'name': r['name'], 'daily_salary': daily_salary, 'monthly_salary': monthly_salary,
+                'workdays': int(workdays), 'days_present': days_present, 'days_sick': int(r.get('days_sick') or 0),
+                'days_leave': int(r.get('days_leave') or 0), 'days_absent': int(r.get('days_absent') or 0),
+                'salary_paid': int(daily_salary * days_present)
+            })
+        return mobile_api_response(True, 'Payroll berhasil diambil.', data={'month': month, 'rows': result, 'workdays': int(workdays)})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/stats', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_stats():
+    month, start_date, end_date = _mobile_parse_month(request.args.get('month'))
+    if not start_date:
+        return mobile_api_response(False, 'Format month harus YYYY-MM.', status_code=400)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT u.id, u.name AS employee_name,
+                COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END),0) AS present_days,
+                COALESCE(SUM(CASE WHEN a.arrival_type='LATE' THEN 1 ELSE 0 END),0) AS late_days,
+                COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END),0) AS sick_days,
+                COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END),0) AS leave_days,
+                COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END),0) AS absent_days
+            FROM users u
+            LEFT JOIN attendance a ON a.user_id=u.id AND a.work_date >= %s AND a.work_date < %s
+            WHERE u.role='employee'
+            GROUP BY u.id, u.name
+            ORDER BY u.name ASC;
+        """, (start_date, end_date))
+        att = cur.fetchall()
+        cur.execute("""
+            SELECT u.id, COALESCE(SUM(s.qty), 0) AS sales_qty
+            FROM users u
+            LEFT JOIN sales_submissions s ON s.user_id=u.id AND s.created_at >= %s AND s.created_at < %s
+            WHERE u.role='employee'
+            GROUP BY u.id;
+        """, (start_date, end_date))
+        sales = cur.fetchall()
+        sales_map = {r['id']: int(r.get('sales_qty') or 0) for r in sales}
+        rows, totals = [], {'present':0,'late':0,'sick':0,'leave':0,'absent':0,'sales':0}
+        for r in att:
+            row = {
+                'employee_name': r['employee_name'], 'present_days': int(r.get('present_days') or 0),
+                'late_days': int(r.get('late_days') or 0), 'sick_days': int(r.get('sick_days') or 0),
+                'leave_days': int(r.get('leave_days') or 0), 'absent_days': int(r.get('absent_days') or 0),
+                'sales_qty': sales_map.get(r['id'], 0)
+            }
+            totals['present'] += row['present_days']; totals['late'] += row['late_days']; totals['sick'] += row['sick_days']; totals['leave'] += row['leave_days']; totals['absent'] += row['absent_days']; totals['sales'] += row['sales_qty']
+            rows.append(row)
+        chart = [
+            {'label': 'Hadir', 'value': totals['present']}, {'label': 'Terlambat', 'value': totals['late']},
+            {'label': 'Sakit', 'value': totals['sick']}, {'label': 'Izin', 'value': totals['leave']},
+            {'label': 'Absen', 'value': totals['absent']}, {'label': 'Penjualan', 'value': totals['sales']}
+        ]
+        return mobile_api_response(True, 'Statistik berhasil diambil.', data={'month': month, 'rows': rows, 'totals': totals, 'chart': chart})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/points', methods=['GET', 'POST'])
+@mobile_api_admin_required
+def api_mobile_points():
+    ensure_points_schema()
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'POST':
+            data = _mobile_json()
+            user_id = int(data.get('user_id') or 0)
+            delta = int(data.get('delta') or 0)
+            note = (data.get('note') or '').strip() or None
+            if user_id <= 0:
+                return mobile_api_response(False, 'user_id wajib valid.', status_code=400)
+            cur.execute("UPDATE users SET points_admin = COALESCE(points_admin,0) + %s WHERE id=%s AND role='employee' RETURNING id;", (delta, user_id))
+            row = cur.fetchone()
+            if not row:
+                return mobile_api_response(False, 'User karyawan tidak ditemukan.', status_code=404)
+            cur.execute('INSERT INTO points_logs (user_id, admin_id, delta, note) VALUES (%s, %s, %s, %s);', (user_id, request.mobile_user['id'], delta, note))
+            conn.commit()
+            return mobile_api_response(True, 'Poin berhasil disimpan.')
+        cur.execute("SELECT id, name, email, COALESCE(points,0) AS points, COALESCE(points_admin,0) AS points_admin FROM users WHERE role='employee' ORDER BY name ASC;")
+        employees = cur.fetchall()
+        cur.execute("""
+            SELECT l.id, l.created_at, u.name AS user_name, l.delta, l.note, a.name AS admin_name
+            FROM points_logs l JOIN users u ON u.id=l.user_id LEFT JOIN users a ON a.id=l.admin_id
+            ORDER BY l.created_at DESC LIMIT 200;
+        """)
+        logs = cur.fetchall()
+        return mobile_api_response(True, 'Data poin berhasil diambil.', data={'employees': [dict(r) for r in employees], 'logs': [{**dict(r), 'created_at': str(r.get('created_at') or '')} for r in logs]})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/invoices', methods=['GET', 'POST'])
+@mobile_api_login_required
+def api_mobile_invoices():
+    ensure_invoice_schema()
+    if request.method == 'GET':
+        conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            if request.mobile_user['role'] == 'admin':
+                cur.execute("SELECT i.id, i.invoice_no, i.customer_name, i.grand_total, i.payment_method, i.is_paid, i.created_at, u.name AS created_by_name FROM invoices i JOIN users u ON u.id=i.created_by ORDER BY i.id DESC LIMIT 100;")
+            else:
+                cur.execute("SELECT i.id, i.invoice_no, i.customer_name, i.grand_total, i.payment_method, i.is_paid, i.created_at, u.name AS created_by_name FROM invoices i JOIN users u ON u.id=i.created_by WHERE i.created_by=%s ORDER BY i.id DESC LIMIT 100;", (request.mobile_user['id'],))
+            rows = cur.fetchall()
+            return mobile_api_response(True, 'Daftar nota berhasil diambil.', data={'invoices': [{**dict(r), 'grand_total': int(r.get('grand_total') or 0), 'is_paid': bool(r.get('is_paid')), 'created_at': str(r.get('created_at') or '')} for r in rows]})
+        finally:
+            cur.close(); conn.close()
+    # POST create invoice JSON
+    data = _mobile_json()
+    customer_name = (data.get('customer_name') or '').strip()
+    customer_phone = (data.get('customer_phone') or '').strip()
+    company_name = (data.get('company_name') or '').strip()
+    payment_method = (data.get('payment_method') or 'CASH').strip().upper()
+    print_size = (data.get('print_size') or '80mm').strip()
+    notes = (data.get('notes') or '').strip()
+    discount = max(0, int(data.get('discount') or 0))
+    is_paid = bool(data.get('is_paid', True))
+    items = data.get('items') or []
+    if not isinstance(items, list) or not items:
+        return mobile_api_response(False, 'items wajib diisi.', status_code=400)
+    created_by = request.mobile_user['id']
+    target_user_id = created_by
+    if request.mobile_user['role'] == 'admin' and data.get('employee_id'):
+        target_user_id = int(data.get('employee_id'))
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        invoice_no = _make_invoice_no(); final_items = []; subtotal = Decimal('0')
+        for item in items:
+            pid = int(item.get('product_id') or 0); qty = _safe_decimal(item.get('qty') or 0, '0')
+            if pid <= 0 or qty <= 0:
+                continue
+            cur.execute('SELECT id, name, price FROM products WHERE id=%s AND is_global=TRUE LIMIT 1;', (pid,))
+            p = cur.fetchone()
+            if not p:
+                continue
+            price = Decimal(str(int(p.get('price') or 0)))
+            line_subtotal = (qty * price).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+            subtotal += line_subtotal
+            final_items.append({'product_id': p['id'], 'product_name': p['name'], 'qty': qty, 'price': int(price), 'subtotal': int(line_subtotal)})
+        if not final_items:
+            return mobile_api_response(False, 'Tidak ada item valid.', status_code=400)
+        grand_total = max(0, int(subtotal) - discount)
+        paid_at = datetime.utcnow() if is_paid else None
+        cur.execute("""
+            INSERT INTO invoices (invoice_no, created_by, customer_name, customer_phone, company_name, print_size, payment_method, subtotal, discount, grand_total, notes, is_paid, paid_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id;
+        """, (invoice_no, created_by, customer_name, customer_phone, company_name, print_size, payment_method, subtotal, discount, grand_total, notes, is_paid, paid_at))
+        row = cur.fetchone(); invoice_id = row['id']
+        for item in final_items:
+            cur.execute('INSERT INTO invoice_items (invoice_id, product_id, product_name, qty, price, subtotal) VALUES (%s,%s,%s,%s,%s,%s);', (invoice_id, item['product_id'], item['product_name'], str(item['qty']), item['price'], item['subtotal']))
+            cur.execute("INSERT INTO sales_submissions (user_id, product_id, qty, note, status, created_at) VALUES (%s,%s,%s,%s,'APPROVED',CURRENT_TIMESTAMP);", (target_user_id, item['product_id'], int(Decimal(str(item['qty'])).quantize(Decimal('1'), rounding=ROUND_HALF_UP)), f'INVOICE {invoice_no}'))
+        conn.commit()
+        return mobile_api_response(True, 'Nota berhasil dibuat.', data={'invoice_id': invoice_id, 'invoice_no': invoice_no, 'grand_total': grand_total}, status_code=201)
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/mobile/invoices/<int:invoice_id>', methods=['GET'])
+@mobile_api_login_required
+def api_mobile_invoice_detail(invoice_id):
+    ensure_invoice_schema()
+    inv, items = _get_invoice_with_items(invoice_id)
+    if not inv:
+        return mobile_api_response(False, 'Invoice tidak ditemukan.', status_code=404)
+    if request.mobile_user['role'] != 'admin' and int(inv.get('created_by') or 0) != int(request.mobile_user['id']):
+        return mobile_api_response(False, 'Tidak punya akses ke nota ini.', status_code=403)
+    inv = dict(inv)
+    inv['created_at_wib'] = _utc_naive_to_wib_string(inv.get('created_at')) if inv.get('created_at') else ''
+    inv['paid_at_wib'] = _utc_naive_to_wib_string(inv.get('paid_at')) if inv.get('paid_at') else ''
+    norm_items = [{**dict(i), 'qty': _decimal_to_display(i.get('qty')), 'price': int(i.get('price') or 0), 'subtotal': int(i.get('subtotal') or 0)} for i in items]
+    return mobile_api_response(True, 'Detail nota berhasil diambil.', data={'invoice': inv, 'items': norm_items, 'escpos_url': url_for('invoice_escpos', invoice_id=invoice_id, _external=True)})
+
+
+@app.route('/api/mobile/export/attendance', methods=['GET'])
+@mobile_api_admin_required
+def api_mobile_export_attendance():
+    ensure_hr_v2_schema()
+    start = _parse_date(request.args.get('start'))
+    end = _parse_date(request.args.get('end'))
+    user_id = request.args.get('user_id')
+    if not start or not end:
+        return mobile_api_response(False, 'start & end wajib (YYYY-MM-DD).', status_code=400)
+    ok, msg = _validate_range(start, end)
+    if not ok:
+        return mobile_api_response(False, msg, status_code=400)
+    if user_id:
+        return mobile_api_response(True, 'Gunakan URL download ini.', data={'download_url': url_for('admin_download_range_user_xlsx', user_id=user_id, start=start.isoformat(), end=end.isoformat(), _external=True)})
+    return mobile_api_response(True, 'Gunakan URL download ini.', data={'download_url': url_for('admin_download_range_xlsx', start=start.isoformat(), end=end.isoformat(), _external=True)})
+
+
+@app.route('/api/mobile/caption', methods=['POST'])
+@mobile_api_login_required
+def api_mobile_caption():
+    data = _mobile_json()
+    for k in ['template', 'biz_type', 'tone', 'product', 'price', 'wa']:
+        if not (data.get(k) or '').strip():
+            return mobile_api_response(False, f"Field '{k}' wajib diisi.", status_code=400)
+    caption, vid = build_caption(data)
+    return mobile_api_response(True, 'Caption berhasil dibuat.', data={'caption': caption, 'variant_id': vid})
+
+
+@app.route('/api/mobile/hpp-ai', methods=['POST'])
+@mobile_api_admin_required
+def api_mobile_hpp_ai():
+    data = _mobile_json()
+    try:
+        result = _hpp_calculate(
+            product_name=(data.get('product_name') or '').strip(),
+            materials_raw=data.get('materials') or [],
+            labor_cost_raw=data.get('labor_cost') or 0,
+            overhead_cost_raw=data.get('overhead_cost') or 0,
+            output_qty_raw=data.get('output_qty') or 1,
+        )
     except Exception as e:
-        return jsonify({'ok': False, 'message': f'Reset password gagal: {str(e)}'}), 500
+        return mobile_api_response(False, f'Kalkulasi HPP gagal: {str(e)}', status_code=400)
+    ai_notes = None
+    if oa_client:
+        try:
+            prompt = _hpp_ai_prompt(result)
+            resp = oa_client.chat.completions.create(
+                model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+                messages=[{'role': 'user', 'content': prompt}],
+                temperature=0.35,
+                max_tokens=500,
+            )
+            ai_notes = (resp.choices[0].message.content or '').strip()
+        except Exception as ex:
+            ai_notes = f'AI tidak tersedia saat ini ({type(ex).__name__}).'
+    return mobile_api_response(True, 'HPP berhasil dihitung.', data={'result': result, 'ai_notes': ai_notes})
+
 
 @app.route("/api/mobile/<path:anything>", methods=["OPTIONS"])
 def api_mobile_options(anything):
