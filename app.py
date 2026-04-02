@@ -2320,7 +2320,7 @@ def attendance_add():
     def _to_float(x):
         try:
             return float(x) if x not in (None, "", "null") else None
-        except:
+        except Exception:
             return None
 
     lat_f = _to_float(lat)
@@ -2338,21 +2338,86 @@ def attendance_add():
         photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
 
+    submit_at = _now_wib_naive_from_form()
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # masukkan ke pending (menunggu admin)
-        submit_at = _now_wib_naive_from_form()
+        # cek dulu apakah device ini sudah pernah submit hari ini
+        cur.execute("""
+            SELECT id, status, photo_path
+            FROM attendance_pending
+            WHERE device_id=%s
+              AND created_at::date=%s
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """, (device_id, work_date))
+        existing = cur.fetchone()
 
+        if existing:
+            # kalau sudah ada, update record lama
+            old_photo_path = existing.get("photo_path")
+
+            cur.execute("""
+                UPDATE attendance_pending
+                SET user_id=%s,
+                    work_date=%s,
+                    arrival_type=%s,
+                    note=%s,
+                    name_input=%s,
+                    latitude=%s,
+                    longitude=%s,
+                    accuracy=%s,
+                    photo_path=COALESCE(%s, photo_path),
+                    ip_address=%s,
+                    status='PENDING',
+                    approved_user_id=NULL,
+                    approved_by=NULL,
+                    approved_at=NULL,
+                    rejected_by=NULL,
+                    rejected_at=NULL,
+                    reject_reason=NULL,
+                    created_at=%s
+                WHERE id=%s;
+            """, (
+                session.get("user_id"),
+                work_date,
+                arrival_type,
+                note,
+                session.get("user_name"),
+                lat_f,
+                lng_f,
+                acc_f,
+                photo_path,
+                _public_ip(),
+                submit_at,
+                existing["id"]
+            ))
+
+            conn.commit()
+
+            # hapus foto lama kalau ada foto baru
+            if photo_path and old_photo_path and old_photo_path != photo_path:
+                try:
+                    old_full_path = os.path.join("static", old_photo_path.replace("uploads/", "uploads/"))
+                    if os.path.exists(old_full_path):
+                        os.remove(old_full_path)
+                except Exception:
+                    pass
+
+            flash("Absensi hari ini berhasil diperbarui dan menunggu approval admin.", "success")
+            return redirect("/attendance")
+
+        # kalau belum ada, insert baru
         cur.execute("""
             INSERT INTO attendance_pending
                 (user_id, work_date, arrival_type, note,
-                name_input, device_id, latitude, longitude, accuracy, photo_path,
-                ip_address, status, created_at)
+                 name_input, device_id, latitude, longitude, accuracy, photo_path,
+                 ip_address, status, created_at)
             VALUES
                 (%s,%s,%s,%s,
-                %s,%s,%s,%s,%s,%s,
-                %s,'PENDING', %s)
+                 %s,%s,%s,%s,%s,%s,
+                 %s,'PENDING', %s)
         """, (
             session.get("user_id"),
             work_date,
@@ -2367,12 +2432,14 @@ def attendance_add():
             _public_ip(),
             submit_at
         ))
+
         conn.commit()
+        flash("Absensi berhasil dikirim dan menunggu approval admin.", "success")
+        return redirect("/attendance")
+
     finally:
         cur.close()
         conn.close()
-
-    return redirect("/attendance")
 
 @app.route("/admin/attendance")
 def admin_attendance():
