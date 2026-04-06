@@ -1,0 +1,17 @@
+flask
+gunicorn
+psycopg2-binary
+python-dotenv
+openai
+openpyxl==3.1.5
+Authlib==1.3.1
+requests
+itsdangerous
+typing_extensions>=4.11
+pydantic>=2.7,<3
+openai>=1.40
+weasyprint
+xhtml2pdf
+pyserial
+opencv-python-headless
+numpy

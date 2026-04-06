@@ -1,0 +1,1034 @@
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+    --green: #15803d;
+    --red: #dc2626;
+    --orange: #b45309;
+    --nav-h: 92px;
+  }
+
+  body {
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 480px;
+  }
+  @media (min-width: 600px) {
+    .wrap {
+      max-width: 720px;
+    }
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* header */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+
+  .head-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .hdr-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 7px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 380px) {
+    .userpill {
+      display: none;
+    }
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+
+  .uname {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 14px;
+    background: #f3f6fc;
+    box-shadow:
+      0 10px 20px rgba(30, 60, 90, 0.16),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition: transform 0.15s;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .action-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 999px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  }
+
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #f00 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* cards */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 14px 0;
+  }
+
+  /* stat pills */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 640px) {
+    .stat-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .stat-pill {
+    background: #f2f5fb;
+    border-radius: 18px;
+    box-shadow: var(--soft-in);
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .s-num {
+    font-size: 20px;
+    font-weight: 1000;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .s-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    margin-top: 3px;
+  }
+
+  .stat-pill.blue .s-num {
+    color: #1e40af;
+  }
+  .stat-pill.green .s-num {
+    color: var(--green);
+  }
+  .stat-pill.red .s-num {
+    color: var(--red);
+  }
+  .stat-pill.orange .s-num {
+    color: var(--orange);
+  }
+
+  /* layout */
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  @media (min-width: 901px) {
+    .grid2 {
+      grid-template-columns: 360px 1fr;
+      align-items: start;
+    }
+  }
+
+  /* form */
+  label {
+    display: block;
+    margin: 0 0 7px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .field {
+    margin-bottom: 14px;
+  }
+
+  input[type="number"],
+  input[type="search"],
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  textarea {
+    min-height: 112px;
+    resize: vertical;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    box-shadow:
+      var(--soft-in),
+      0 0 0 3px rgba(47, 95, 143, 0.15);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
+  }
+
+  .btn-primary {
+    width: 100%;
+    height: 50px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 14px;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(41, 83, 126, 0.22);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(41, 83, 126, 0.28);
+  }
+
+  .tip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  /* search row */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .sr-left {
+    flex: 1 1 200px;
+  }
+  .sr-right {
+    flex: 1 1 200px;
+  }
+
+  /* status */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .badge.pending {
+    color: #a16207;
+    background: rgba(245, 158, 11, 0.12);
+  }
+
+  .badge.approved {
+    color: #15803d;
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  .badge.rejected {
+    color: #dc2626;
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  /* mobile cards */
+  .plist {
+    display: grid;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .sitem {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 14px 16px;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .sitem:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 26px 48px rgba(20, 35, 65, 0.13);
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .sitem-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .sitem-name {
+    font-weight: 1000;
+    font-size: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sitem-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .sitem-qty {
+    font-size: 15px;
+    font-weight: 1000;
+    color: #1e40af;
+    background: rgba(30, 64, 175, 0.08);
+    border-radius: 12px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .smeta {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .smeta b {
+    color: var(--text);
+  }
+
+  /* desktop table */
+  .tablewrap {
+    display: none;
+    overflow-x: auto;
+    margin-top: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+
+  th,
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.12);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    background: #f8faff;
+  }
+
+  tbody tr {
+    transition: background 0.14s;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  tbody tr:hover {
+    background: #f5f7fc;
+  }
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .t-name {
+    font-weight: 1000;
+  }
+  .t-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .t-qty {
+    font-weight: 1000;
+    color: #1e40af;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  @media (min-width: 901px) {
+    .plist {
+      display: none;
+    }
+    .tablewrap {
+      display: block;
+    }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 36px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.3;
+    margin-bottom: 10px;
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .fill {
+    fill: currentColor;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
+        <div class="hdr-right">
+          <div class="userpill">
+            <span class="dot"></span>
+            <span class="uname"
+              >{{ user_name or session.get("user_name","User") }}</span
+            >
+          </div>
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
+          </button>
+          <a
+            href="{{ url_for('auth.logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- INTRO -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Sales</h2>
+        <p class="desc">
+          Submit penjualan harian dan lihat riwayat status approval admin.
+        </p>
+      </div>
+    </div>
+
+    <!-- STAT PILLS -->
+    {% set pending_count = rows|selectattr("status", "equalto",
+    "PENDING")|list|length %} {% set approved_count = rows|selectattr("status",
+    "equalto", "APPROVED")|list|length %} {% set rejected_count =
+    rows|selectattr("status", "equalto", "REJECTED")|list|length %} {% set
+    total_qty = rows|sum(attribute="qty") if rows else 0 %}
+
+    <div class="stat-row">
+      <div class="stat-pill blue">
+        <div class="s-num">{{ rows|length }}</div>
+        <div class="s-lbl">Total Submit</div>
+      </div>
+      <div class="stat-pill orange">
+        <div class="s-num">{{ pending_count }}</div>
+        <div class="s-lbl">Pending</div>
+      </div>
+      <div class="stat-pill green">
+        <div class="s-num">{{ approved_count }}</div>
+        <div class="s-lbl">Approved</div>
+      </div>
+      <div class="stat-pill red">
+        <div class="s-num">{{ rejected_count }}</div>
+        <div class="s-lbl">Rejected</div>
+      </div>
+      <div class="stat-pill blue">
+        <div class="s-num">{{ total_qty }}</div>
+        <div class="s-lbl">Total Qty</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">{{ products|length }}</div>
+        <div class="s-lbl">Pilihan Produk</div>
+      </div>
+    </div>
+
+    <!-- GRID -->
+    <div class="grid2">
+      <!-- FORM -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Submit Penjualan</h2>
+          <p class="desc">
+            Pilih produk, isi jumlah terjual, lalu kirim ke admin.
+          </p>
+          <div class="divider"></div>
+
+          <form method="POST" action="/sales">
+            <div class="field">
+              <label>Pilih Produk</label>
+              <select name="product_id" required>
+                <option value="" disabled selected>Pilih produk</option>
+                {% for p in products %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Jumlah Terjual</label>
+              <input
+                type="number"
+                min="1"
+                name="qty"
+                placeholder="contoh: 100"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label>Catatan (opsional)</label>
+              <textarea
+                name="note"
+                placeholder="Contoh: terjual di toko / marketplace..."
+              ></textarea>
+            </div>
+
+            <div
+              style="
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+              "
+            >
+              <button class="btn-primary" type="submit">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                >
+                  <path d="M5 12h14"></path>
+                  <path d="M12 5l7 7-7 7"></path>
+                </svg>
+                Submit
+              </button>
+              <span class="tip">📦 Status awal akan masuk sebagai PENDING</span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- LIST -->
+      <div class="main-card">
+        <div class="inner">
+          <div class="search-row">
+            <div class="sr-left">
+              <h2 class="title">Riwayat Submit</h2>
+              <p class="desc">{{ rows|length }} submit penjualan tercatat.</p>
+            </div>
+            <div class="sr-right">
+              <label style="margin-top: 0">Search</label>
+              <input
+                type="search"
+                id="salesSearch"
+                placeholder="Cari produk / status / catatan…"
+              />
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- MOBILE -->
+          <div class="plist">
+            {% for r in rows %}
+            <div
+              class="sitem s-row"
+              data-search="{{ ((r.product_name or '') ~ ' ' ~ (r.status or '') ~ ' ' ~ (r.note or '') ~ ' ' ~ (r.admin_note or ''))|lower }}"
+            >
+              <div class="sitem-top">
+                <div style="min-width: 0; flex: 1">
+                  <div class="sitem-name">{{ r.product_name or "-" }}</div>
+                  <div class="sitem-sub">
+                    {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                    r.created_at_wib else '-' }}
+                  </div>
+                </div>
+                <div class="sitem-qty">Qty {{ r.qty }}</div>
+              </div>
+
+              <div style="margin-bottom: 8px">
+                <span
+                  class="badge {% if r.status == 'APPROVED' %}approved {% elif r.status == 'REJECTED' %}rejected {% else %}pending{% endif %}"
+                >
+                  {{ r.status }}
+                </span>
+              </div>
+
+              <div class="smeta">
+                <div>Catatan: <b>{{ r.note if r.note else "-" }}</b></div>
+                <div>
+                  Admin: <b>{{ r.admin_note if r.admin_note else "-" }}</b>
+                </div>
+              </div>
+            </div>
+            {% endfor %} {% if rows|length == 0 %}
+            <div class="empty-state">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6z" />
+                <path d="M20 7.4l-8 4.6-8-4.6" />
+                <path d="M12 12v9.2" />
+              </svg>
+              <p>Belum ada submit penjualan.</p>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- DESKTOP -->
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produk</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th>Waktu</th>
+                  <th>Catatan</th>
+                  <th>Catatan Admin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in rows %}
+                <tr
+                  class="s-row"
+                  data-search="{{ ((r.product_name or '') ~ ' ' ~ (r.status or '') ~ ' ' ~ (r.note or '') ~ ' ' ~ (r.admin_note or ''))|lower }}"
+                >
+                  <td>
+                    <div class="t-name">{{ r.product_name or "-" }}</div>
+                  </td>
+                  <td class="t-qty">{{ r.qty }}</td>
+                  <td>
+                    <span
+                      class="badge {% if r.status == 'APPROVED' %}approved {% elif r.status == 'REJECTED' %}rejected {% else %}pending{% endif %}"
+                    >
+                      {{ r.status }}
+                    </span>
+                  </td>
+                  <td class="mini">
+                    {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                    r.created_at_wib else '-' }}
+                  </td>
+                  <td class="mini">{{ r.note if r.note else "-" }}</td>
+                  <td class="mini">
+                    {{ r.admin_note if r.admin_note else "-" }}
+                  </td>
+                </tr>
+                {% endfor %} {% if rows|length == 0 %}
+                <tr>
+                  <td
+                    colspan="6"
+                    class="mini"
+                    style="text-align: center; padding: 32px"
+                  >
+                    Belum ada submit penjualan.
+                  </td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+    font-size: 13px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .nav-item.active {
+    color: #2f5f8f;
+    background: #f2f5fb;
+  }
+
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+  }
+
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  @media (max-width: 360px) {
+    .nav-item span:last-child {
+      display: none;
+    }
+  }
+</style>
+
+<div class="bottom-nav">
+  <div class="nav-bar" role="navigation">
+    <a class="nav-item" href="/">
+      <span class="nav-ico">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+
+    <button
+      class="nav-item active"
+      type="button"
+      onclick="event.preventDefault()"
+    >
+      <span class="nav-ico">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 8h12"></path>
+          <path d="M14.6 5.8L18 8l-3.4 2.2"></path>
+          <path d="M20 16H8"></path>
+          <path d="M9.4 13.8L6 16l3.4 2.2"></path>
+        </svg>
+      </span>
+      <span>Sales</span>
+    </button>
+
+    <a class="nav-item" href="/logout">
+      <span class="nav-ico">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M10 17l5-5-5-5"></path>
+          <path d="M15 12H3"></path>
+          <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+        </svg>
+      </span>
+      <span>Logout</span>
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+<script>
+  (function () {
+    var inp = document.getElementById("salesSearch");
+    if (!inp) return;
+
+    inp.addEventListener("input", function () {
+      var q = this.value.trim().toLowerCase();
+      document.querySelectorAll(".s-row").forEach(function (el) {
+        el.style.display =
+          !q || (el.dataset.search || "").includes(q) ? "" : "none";
+      });
+    });
+  })();
+</script>
+{% endblock %}
