@@ -15,4 +15,4 @@ xhtml2pdf
 pyserial
 opencv-python-headless
 numpy
-pytz
+PyJWT==2.8.0
