@@ -31,7 +31,7 @@ def api_mobile_login():
         cur.execute("""
             SELECT id, name, email, password_hash, role
             FROM users
-            WHERE lower(email)=%s
+            WHERE LOWER(email)=LOWER(%s)
             LIMIT 1;
         """, (email,))
         user = cur.fetchone()
