@@ -1,0 +1,1543 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>UMGAP • Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        /* ── User palette: warm coral → violet. Beda dari admin yang navy/cold ── */
+        --bg: #f4f3f8;
+        --surface: #faf9fe;
+        --white: #ffffff;
+        --text: #18182a;
+        --sub: #5a5870;
+        --muted: #9b99b8;
+        --border: rgba(154, 152, 184, 0.14);
+
+        --v1: #7c5cfc; /* violet primary */
+        --v2: #9b7afe; /* violet light */
+        --coral: #ff6b6b;
+        --amber: #ffb347;
+        --green: #06d6a0;
+        --sky: #38bdf8;
+
+        --vs: rgba(124, 92, 252, 0.1); /* violet subtle */
+        --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+
+        --sh1:
+          0 2px 10px rgba(24, 24, 42, 0.06), 0 6px 24px rgba(24, 24, 42, 0.05);
+        --sh2:
+          0 8px 30px rgba(124, 92, 252, 0.18), 0 2px 8px rgba(24, 24, 42, 0.07);
+        --neu:
+          inset 4px 4px 8px rgba(24, 24, 42, 0.065),
+          inset -4px -4px 8px rgba(255, 255, 255, 0.88);
+
+        --r: 22px;
+        --rpill: 999px;
+        --navh: 78px;
+        --font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      }
+
+      html {
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100dvh;
+        padding-bottom: calc(var(--navh) + 20px + env(safe-area-inset-bottom));
+        /* subtle grain texture */
+        background-image:
+          radial-gradient(
+            ellipse 70% 50% at 10% 0%,
+            rgba(124, 92, 252, 0.06) 0%,
+            transparent 65%
+          ),
+          radial-gradient(
+            ellipse 55% 40% at 90% 90%,
+            rgba(255, 107, 107, 0.05) 0%,
+            transparent 60%
+          );
+      }
+
+      /* ════════════════════════════════
+       LAYOUT
+    ════════════════════════════════ */
+      .screen {
+        display: flex;
+        justify-content: center;
+        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+        min-height: 100dvh;
+      }
+      .wrap {
+        width: 100%;
+        max-width: 448px;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      @media (min-width: 600px) {
+        .wrap {
+          max-width: 576px;
+        }
+      }
+      @media (min-width: 860px) {
+        .wrap {
+          max-width: 860px;
+        }
+      }
+
+      /* ════════════════════════════════
+       HEADER
+    ════════════════════════════════ */
+      .hdr {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--white);
+        border-radius: var(--r);
+        box-shadow: var(--sh1);
+        padding: 10px 12px;
+        position: relative;
+        overflow: hidden;
+      }
+      /* rainbow underline */
+      .hdr::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2.5px;
+        background: linear-gradient(
+          90deg,
+          #7c5cfc,
+          #ff6b6b,
+          #ffb347,
+          #06d6a0,
+          #38bdf8
+        );
+      }
+      .hdr-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        flex: 0 0 44px;
+        overflow: hidden;
+        background: var(--white);
+        box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
+      }
+      .hdr-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .hdr-info {
+        flex: 1;
+        min-width: 0;
+        padding: 0 8px;
+      }
+      .hdr-app {
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .hdr-name {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hdr-acts {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+
+      .hbtn {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        background: var(--surface);
+        box-shadow: var(--neu);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.15s;
+      }
+      .hbtn:hover {
+        transform: translateY(-1px);
+      }
+      .hbtn svg {
+        width: 17px;
+        height: 17px;
+        stroke: var(--sub);
+        fill: none;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .ndot {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        min-width: 16px;
+        background: var(--coral);
+        color: #fff;
+        font-size: 9px;
+        font-weight: 800;
+        padding: 1px 4px;
+        border-radius: 999px;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(255, 107, 107, 0.5);
+      }
+
+      /* ════════════════════════════════
+       WELCOME HERO CARD
+    ════════════════════════════════ */
+      .hero {
+        margin-top: 13px;
+        border-radius: 26px;
+        padding: 24px 22px 20px;
+        background: var(--vg);
+        box-shadow:
+          0 16px 44px rgba(124, 92, 252, 0.28),
+          0 2px 8px rgba(124, 92, 252, 0.15);
+        position: relative;
+        overflow: hidden;
+      }
+      /* decorative blobs */
+      .hero::before {
+        content: "";
+        position: absolute;
+        right: -28px;
+        top: -28px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+        pointer-events: none;
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        left: -20px;
+        bottom: -25px;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        pointer-events: none;
+      }
+      .hero-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        position: relative;
+        z-index: 1;
+      }
+      .hero-left {
+        min-width: 0;
+      }
+      .hero-tag {
+        font-size: 10px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.9px;
+      }
+      .hero-name {
+        font-size: 28px;
+        font-weight: 900;
+        color: #fff;
+        margin-top: 4px;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 210px;
+      }
+      .hero-sub {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 6px;
+        font-weight: 500;
+      }
+      .hero-pts {
+        text-align: right;
+        flex: 0 0 auto;
+      }
+      .hp-lbl {
+        font-size: 9px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+      }
+      .hp-num {
+        font-size: 36px;
+        font-weight: 900;
+        color: #fff;
+        line-height: 1;
+        letter-spacing: -1px;
+      }
+      .hp-unit {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 600;
+      }
+
+      /* progress */
+      .hero-prog {
+        margin-top: 20px;
+        position: relative;
+        z-index: 1;
+      }
+      .prog-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .prog-lbl {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.55);
+        font-weight: 600;
+      }
+      .prog-pct {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 800;
+      }
+      .prog-track {
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+      .prog-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(
+          90deg,
+          #fff 0%,
+          rgba(255, 255, 255, 0.65) 100%
+        );
+        width: 0%;
+        transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* ════════════════════════════════
+       QUICK STATS ROW
+    ════════════════════════════════ */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 13px;
+      }
+      .stat {
+        background: var(--white);
+        border-radius: 18px;
+        box-shadow: var(--sh1);
+        padding: 14px 8px 12px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.18s;
+      }
+      .stat:hover {
+        transform: translateY(-2px);
+      }
+      .stat::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--sc, #ccc);
+        border-radius: 3px 3px 0 0;
+      }
+      .sc-violet {
+        --sc: var(--v1);
+      }
+      .sc-coral {
+        --sc: var(--coral);
+      }
+      .sc-green {
+        --sc: var(--green);
+      }
+      .stat-ico {
+        font-size: 18px;
+        line-height: 1;
+        margin-bottom: 4px;
+      }
+      .stat-num {
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--sc, var(--text));
+        line-height: 1.1;
+      }
+      .stat-lbl {
+        font-size: 9px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+
+      /* ════════════════════════════════
+       MENU SECTION
+    ════════════════════════════════ */
+      .sec-ttl {
+        margin: 20px 0 11px 2px;
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .feat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 11px;
+      }
+      @media (min-width: 480px) {
+        .feat-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (min-width: 860px) {
+        .feat-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+
+      .feat {
+        text-decoration: none;
+        color: inherit;
+        background: var(--white);
+        border-radius: 20px;
+        box-shadow: var(--sh1);
+        padding: 22px 10px 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+        overflow: hidden;
+        transition:
+          transform 0.22s,
+          box-shadow 0.22s;
+        /* entrance state */
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      .feat.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .feat::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--fc, var(--v1));
+      }
+      .feat:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--sh2);
+      }
+      .feat:active {
+        transform: scale(0.97);
+      }
+
+      .feat-ico {
+        width: 62px;
+        height: 62px;
+        border-radius: 19px;
+        background: var(--fi, var(--vs));
+        box-shadow: var(--neu);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 27px;
+        line-height: 1;
+      }
+      .feat-lbl {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--text);
+        text-align: center;
+        line-height: 1.3;
+      }
+
+      /* accent colors per feature */
+      .f-a {
+        --fc: #4f8ef7;
+        --fi: rgba(79, 142, 247, 0.08);
+      } /* absensi — blue  */
+      .f-k {
+        --fc: #f59e0b;
+        --fi: rgba(245, 158, 11, 0.08);
+      } /* konten  — amber */
+      .f-c {
+        --fc: #7c5cfc;
+        --fi: rgba(124, 92, 252, 0.09);
+      } /* caption — violet*/
+      .f-b {
+        --fc: #06d6a0;
+        --fi: rgba(6, 214, 160, 0.08);
+      } /* bantuan — green */
+      .f-p {
+        --fc: #fb923c;
+        --fi: rgba(251, 146, 60, 0.08);
+      } /* produk  — orange*/
+      .f-j {
+        --fc: #22d3ee;
+        --fi: rgba(34, 211, 238, 0.08);
+      } /* jual    — cyan  */
+
+      /* ════════════════════════════════
+       MORE TOGGLE
+    ════════════════════════════════ */
+      .more-wrap {
+        display: flex;
+        justify-content: center;
+        margin-top: 14px;
+      }
+      .more-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--white);
+        box-shadow: var(--sh1);
+        color: var(--v1);
+        font-weight: 800;
+        font-size: 13px;
+        border: none;
+        border-radius: var(--rpill);
+        padding: 10px 26px;
+        cursor: pointer;
+        font-family: var(--font);
+        letter-spacing: 0.2px;
+        transition:
+          box-shadow 0.2s,
+          transform 0.15s;
+      }
+      .more-btn:hover {
+        box-shadow: var(--sh2);
+        transform: translateY(-1px);
+      }
+      .more-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        transition: transform 0.3s;
+      }
+      .more-btn.open svg {
+        transform: rotate(180deg);
+      }
+
+      .more-sec {
+        display: none;
+      }
+      .more-sec.show {
+        display: block;
+        animation: fadeUp 0.25s ease;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* notif badge pop */
+      @keyframes bellPop {
+        0% {
+          transform: scale(1) rotate(0deg);
+        }
+        20% {
+          transform: scale(1.3) rotate(-12deg);
+        }
+        40% {
+          transform: scale(1.2) rotate(10deg);
+        }
+        60% {
+          transform: scale(1.15) rotate(-6deg);
+        }
+        80% {
+          transform: scale(1.05) rotate(3deg);
+        }
+        100% {
+          transform: scale(1) rotate(0deg);
+        }
+      }
+      @keyframes badgePulse {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 2px 6px rgba(255, 107, 107, 0.5);
+        }
+        50% {
+          transform: scale(1.15);
+          box-shadow: 0 4px 12px rgba(255, 107, 107, 0.7);
+        }
+      }
+      .ndot {
+        animation: badgePulse 2s ease infinite 1s;
+      }
+
+      /* ════════════════════════════════
+       COMING SOON
+    ════════════════════════════════ */
+      .coming {
+        margin-top: 13px;
+        background: var(--white);
+        border-radius: var(--r);
+        box-shadow: var(--sh1);
+        padding: 30px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 10px;
+      }
+      .cs-ico {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: var(--neu);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+      }
+      .cs-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .cs-desc {
+        font-size: 13px;
+        color: var(--sub);
+        line-height: 1.55;
+        max-width: 240px;
+        font-weight: 500;
+      }
+      .cs-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 179, 71, 0.12);
+        color: #b45309;
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      /* ════════════════════════════════
+       BOTTOM NAV — user (violet active)
+    ════════════════════════════════ */
+      .nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(244, 243, 248, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        z-index: 60;
+      }
+      .nav-bar {
+        max-width: 448px;
+        margin: 0 auto;
+        background: var(--white);
+        border-radius: 20px;
+        box-shadow: var(--sh1);
+        padding: 7px;
+        display: flex;
+        gap: 5px;
+      }
+      .nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px 6px;
+        border-radius: 14px;
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 10px;
+        letter-spacing: 0.1px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: var(--font);
+        text-decoration: none;
+        transition: all 0.16s;
+      }
+      .nav-item.active {
+        background: var(--vs);
+        color: var(--v1);
+      }
+      .ni {
+        width: 21px;
+        height: 21px;
+        flex: 0 0 21px;
+      }
+      .ni svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .nf {
+        fill: currentColor;
+      }
+      @media (max-width: 360px) {
+        .nav-item span {
+          display: none;
+        }
+      }
+
+      /* ═══════════════════════════════════════
+         NOTIFICATION POPUP — Premium Animated
+      ═══════════════════════════════════════ */
+
+      /* backdrop */
+      .notif-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 120;
+        background: rgba(18, 18, 36, 0.4);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .notif-overlay.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* bottom sheet */
+      .notif-sheet {
+        position: fixed;
+        left: 50%;
+        bottom: 0;
+        transform: translateX(-50%) translateY(100%);
+        width: min(100%, 460px);
+        max-height: min(85dvh, 660px);
+        background: #fff;
+        border-radius: 28px 28px 0 0;
+        box-shadow:
+          0 -8px 40px rgba(18, 18, 36, 0.18),
+          0 -2px 12px rgba(18, 18, 36, 0.08);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        pointer-events: none;
+        z-index: 121;
+        transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+        will-change: transform;
+      }
+      .notif-sheet.open {
+        transform: translateX(-50%) translateY(0);
+        pointer-events: auto;
+      }
+
+      /* drag handle */
+      .notif-handle {
+        width: 36px;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(154, 152, 184, 0.28);
+        margin: 10px auto 0;
+        flex: 0 0 auto;
+        cursor: grab;
+      }
+
+      /* glass header */
+      .notif-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px 14px;
+        border-bottom: 1px solid rgba(154, 152, 184, 0.12);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        flex: 0 0 auto;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .notif-head-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        flex: 0 0 40px;
+        background: linear-gradient(135deg, #7c5cfc, #a78bfa);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        box-shadow: 0 6px 16px rgba(124, 92, 252, 0.3);
+      }
+      .notif-head-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .notif-title {
+        font-size: 17px;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1;
+      }
+      .notif-sub {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-top: 3px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .notif-sub-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--coral);
+        display: inline-block;
+        box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
+        animation: pulseDot 2s ease infinite;
+      }
+      @keyframes pulseDot {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.08);
+        }
+      }
+      .notif-sub-dot.none {
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgba(6, 214, 160, 0.2);
+        animation: none;
+      }
+
+      .notif-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 12px;
+        flex: 0 0 36px;
+        background: var(--surface);
+        box-shadow:
+          inset 3px 3px 6px rgba(24, 24, 42, 0.07),
+          inset -3px -3px 6px rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.15s;
+      }
+      .notif-close:hover {
+        transform: scale(1.08);
+      }
+      .notif-close svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--sub);
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+      }
+
+      /* mark all read button */
+      .notif-read-all {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 18px;
+        flex: 0 0 auto;
+        border-bottom: 1px solid rgba(154, 152, 184, 0.1);
+      }
+      .notif-read-all button {
+        border: none;
+        background: none;
+        font-family: var(--font);
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--v1);
+        cursor: pointer;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: var(--vs);
+        transition: background 0.15s;
+      }
+      .notif-read-all button:hover {
+        background: rgba(124, 92, 252, 0.18);
+      }
+
+      /* scrollable list */
+      .notif-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px 14px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(154, 152, 184, 0.2) transparent;
+      }
+      .notif-list::-webkit-scrollbar {
+        width: 4px;
+      }
+      .notif-list::-webkit-scrollbar-thumb {
+        background: rgba(154, 152, 184, 0.25);
+        border-radius: 999px;
+      }
+
+      /* individual card */
+      .notif-card {
+        background: var(--surface);
+        border-radius: 18px;
+        border: 1.5px solid rgba(154, 152, 184, 0.1);
+        padding: 14px 14px 12px;
+        position: relative;
+        overflow: hidden;
+        /* entrance: start hidden, JS will animate in */
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+        transition:
+          opacity 0.38s ease,
+          transform 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+          box-shadow 0.2s;
+      }
+      .notif-card.visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .notif-card:hover {
+        box-shadow: var(--sh2);
+      }
+
+      /* unread shimmer stripe */
+      .notif-card.unread::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(180deg, #7c5cfc, #a78bfa);
+        border-radius: 3px 0 0 3px;
+      }
+      .notif-card.unread {
+        background: #fff;
+        border-color: rgba(124, 92, 252, 0.14);
+      }
+
+      /* category icon chip */
+      .notif-card-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+      }
+      .notif-card-ico {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        flex: 0 0 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        background: var(--vs);
+      }
+      .notif-card-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .notif-card-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1.35;
+      }
+      .notif-time {
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 600;
+        margin-top: 3px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .notif-time svg {
+        width: 10px;
+        height: 10px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+      .notif-msg {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--sub);
+        line-height: 1.55;
+        font-weight: 500;
+        padding-top: 8px;
+        border-top: 1px solid rgba(154, 152, 184, 0.1);
+      }
+
+      /* action row */
+      .notif-actions {
+        margin-top: 10px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .notif-read-btn {
+        text-decoration: none;
+        border: none;
+        background: none;
+        border-radius: 10px;
+        padding: 7px 13px;
+        font-size: 11px;
+        font-weight: 800;
+        font-family: var(--font);
+        background: rgba(124, 92, 252, 0.1);
+        color: var(--v1);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition:
+          background 0.15s,
+          transform 0.12s;
+      }
+      .notif-read-btn:hover {
+        background: rgba(124, 92, 252, 0.18);
+        transform: translateY(-1px);
+      }
+      .notif-read-btn svg {
+        width: 11px;
+        height: 11px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+      }
+
+      /* empty state */
+      .notif-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        gap: 10px;
+        text-align: center;
+      }
+      .notif-empty-ico {
+        width: 64px;
+        height: 64px;
+        border-radius: 20px;
+        font-size: 28px;
+        background: var(--surface);
+        box-shadow:
+          inset 4px 4px 8px rgba(24, 24, 42, 0.06),
+          inset -4px -4px 8px rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 4px;
+      }
+      .notif-empty-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .notif-empty-sub {
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="screen">
+      <div class="wrap">
+        <!-- ═══ HEADER ═══ -->
+        <div class="hdr" id="top">
+          <div class="hdr-logo">
+            <img src="/static/UMGAP%20(1).png" alt="UMGAP" />
+          </div>
+          <div class="hdr-info">
+            <div class="hdr-app">UMGAP</div>
+            <div class="hdr-name">Halo, {{ user_name }} 👋</div>
+          </div>
+          <div class="hdr-acts">
+            <button class="hbtn" id="notifBtn" aria-label="Notifikasi">
+              <svg viewBox="0 0 24 24">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {% if notif_count and notif_count > 0 %}<span class="ndot"
+                >{{ notif_count }}</span
+              >{% endif %}
+            </button>
+            <a href="/logout" class="hbtn" aria-label="Logout">
+              <svg viewBox="0 0 24 24">
+                <path d="M10 17l5-5-5-5" />
+                <path d="M15 12H3" />
+                <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" />
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- ═══ WELCOME HERO ═══ -->
+        <div class="hero">
+          <div class="hero-top">
+            <div class="hero-left">
+              <div class="hero-tag">Selamat datang kembali</div>
+              <div class="hero-name">{{ user_name }}</div>
+              <div class="hero-sub">Semangat kerja hari ini! 💪</div>
+            </div>
+            <div class="hero-pts">
+              <div class="hp-lbl">Poin</div>
+              <div class="hp-num">{{ points_admin or 0 }}</div>
+              <div class="hp-unit">Keaktifan</div>
+            </div>
+          </div>
+          <div class="hero-prog">
+            <div class="prog-row">
+              <span class="prog-lbl">⚡ Level Keaktifan</span>
+              <span class="prog-pct" id="progPct">0%</span>
+            </div>
+            <div class="prog-track">
+              <div class="prog-fill" id="progFill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ QUICK STATS ═══ -->
+        <div class="stats">
+          <div class="stat sc-violet">
+            <div class="stat-ico">⚡</div>
+            <div class="stat-num">{{ points_admin or 0 }}</div>
+            <div class="stat-lbl">Poin</div>
+          </div>
+          <div class="stat sc-coral">
+            <div class="stat-ico">📅</div>
+            <div class="stat-num" id="statDay">—</div>
+            <div class="stat-lbl">Hari Ini</div>
+          </div>
+          <div class="stat sc-green">
+            <div class="stat-ico">✅</div>
+            <div class="stat-num" id="statDate">—</div>
+            <div class="stat-lbl">Tanggal</div>
+          </div>
+        </div>
+
+        <!-- ═══ MENU UTAMA ═══ -->
+        <div class="sec-ttl">Menu Utama</div>
+        <div class="feat-grid" id="grid1">
+          <a class="feat f-a" href="/attendance">
+            <div class="feat-ico">🗓️</div>
+            <div class="feat-lbl">Absensi</div>
+          </a>
+          <a class="feat f-k" href="/content">
+            <div class="feat-ico">📆</div>
+            <div class="feat-lbl">Kalender Konten</div>
+          </a>
+          <a class="feat f-c" href="/caption">
+            <div class="feat-ico">✨</div>
+            <div class="feat-lbl">AI Caption</div>
+          </a>
+          <a class="feat f-b" href="/sales">
+            <div class="feat-ico">🧾</div>
+            <div class="feat-lbl">Penjualan</div>
+          </a>
+        </div>
+
+        <!-- MORE toggle -->
+        <div class="more-wrap">
+          <button class="more-btn" id="moreBtn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+            Lihat Semua Menu
+          </button>
+        </div>
+
+        <div class="more-sec" id="moreSec">
+          <div class="sec-ttl" style="margin-top: 16px">Menu Lainnya</div>
+          <div class="feat-grid">
+            <a class="feat f-p visible" href="/products">
+              <div class="feat-ico">📦</div>
+              <div class="feat-lbl">Produk</div>
+            </a>
+            <a class="feat f-j visible" href="/invoice/new">
+              <div class="feat-ico">📝</div>
+              <div class="feat-lbl">Nota</div>
+            </a>
+          </div>
+        </div>
+
+        <!-- ═══ COMING SOON ═══ -->
+        <div class="coming">
+          <div class="cs-ico">📊</div>
+          <div class="cs-title">Ringkasan Aktivitas</div>
+          <div class="cs-desc">
+            Pantau absensi, penjualan, dan aktivitas harianmu dalam satu
+            tampilan.
+          </div>
+          <div class="cs-pill">🚧 Coming Soon</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ BOTTOM NAV ═══ -->
+    <nav class="nav">
+      <div class="nav-bar">
+        <button class="nav-item active" type="button" data-n="top">
+          <span class="ni"
+            ><svg viewBox="0 0 24 24">
+              <rect class="nf" x="3" y="3" width="8" height="8" rx="1.6" />
+              <rect class="nf" x="13" y="3" width="8" height="8" rx="1.6" />
+              <rect class="nf" x="3" y="13" width="8" height="8" rx="1.6" />
+              <rect
+                class="nf"
+                x="13"
+                y="13"
+                width="8"
+                height="8"
+                rx="1.6"
+              /></svg
+          ></span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" type="button" data-n="more">
+          <span class="ni"
+            ><svg viewBox="0 0 24 24">
+              <circle class="nf" cx="6.5" cy="12" r="1.8" />
+              <circle class="nf" cx="12" cy="12" r="1.8" />
+              <circle class="nf" cx="17.5" cy="12" r="1.8" /></svg
+          ></span>
+          <span>More</span>
+        </button>
+      </div>
+    </nav>
+    <!-- ═══ NOTIFICATION POPUP — Premium ═══ -->
+    <div class="notif-overlay" id="notifOverlay"></div>
+
+    <div
+      class="notif-sheet"
+      id="notifSheet"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+    >
+      <!-- drag handle -->
+      <div class="notif-handle" id="notifHandle"></div>
+
+      <!-- glass header -->
+      <div class="notif-head">
+        <div class="notif-head-icon">🔔</div>
+        <div class="notif-head-text">
+          <div class="notif-title">Notifikasi</div>
+          <div class="notif-sub">
+            {% set nc = announcements|length if announcements else 0 %} {% if nc
+            > 0 %}
+            <span class="notif-sub-dot"></span>
+            {{ nc }} belum dibaca {% else %}
+            <span class="notif-sub-dot none"></span>
+            Semua sudah dibaca {% endif %}
+          </div>
+        </div>
+        <button
+          type="button"
+          class="notif-close"
+          id="notifClose"
+          aria-label="Tutup"
+        >
+          <svg viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      {% if announcements and announcements|length > 0 %}
+      <div class="notif-read-all">
+        <button
+          type="button"
+          onclick="window.location.href = '/notifications/read-all'"
+        >
+          ✓ Tandai semua dibaca
+        </button>
+      </div>
+      {% endif %}
+
+      <div class="notif-list" id="notifList">
+        {% if announcements and announcements|length > 0 %} {% for a in
+        announcements %}
+        <div class="notif-card unread" data-id="{{ a.id }}">
+          <div class="notif-card-top">
+            <div class="notif-card-ico">📢</div>
+            <div class="notif-card-body">
+              <div class="notif-card-title">{{ a.title }}</div>
+              <div class="notif-time">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {{ a.created_at }}
+              </div>
+            </div>
+          </div>
+          <div class="notif-msg">{{ a.message }}</div>
+          <div class="notif-actions">
+            <a class="notif-read-btn" href="/notifications/read/{{ a.id }}">
+              <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Tandai dibaca
+            </a>
+          </div>
+        </div>
+        {% endfor %} {% else %}
+        <div class="notif-empty">
+          <div class="notif-empty-ico">✅</div>
+          <div class="notif-empty-title">Semua beres!</div>
+          <div class="notif-empty-sub">Tidak ada notifikasi baru.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        /* ── Date ── */
+        var d = new Date();
+        var days = [
+          "Minggu",
+          "Senin",
+          "Selasa",
+          "Rabu",
+          "Kamis",
+          "Jumat",
+          "Sabtu",
+        ];
+        document.getElementById("statDay").textContent = days[d.getDay()];
+        document.getElementById("statDate").textContent = d.getDate();
+
+        /* ── Progress bar ── */
+        var pts = parseInt("{{ points_admin or 0 }}") || 0;
+        var pct = Math.min(Math.round(pts * 0.5), 100);
+        setTimeout(function () {
+          document.getElementById("progFill").style.width = pct + "%";
+          document.getElementById("progPct").textContent = pct + "%";
+        }, 350);
+
+        /* ══ NOTIFICATION POPUP — Premium ══ */
+        (function () {
+          var nb = document.getElementById("notifBtn");
+          var overlay = document.getElementById("notifOverlay");
+          var sheet = document.getElementById("notifSheet");
+          var closeBtn = document.getElementById("notifClose");
+          var handle = document.getElementById("notifHandle");
+          var cards = document.querySelectorAll(".notif-card");
+
+          if (!sheet) return;
+
+          /* ── open / close ── */
+          function openNotif() {
+            overlay.classList.add("open");
+            sheet.classList.add("open");
+            sheet.setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+            /* stagger cards in */
+            cards.forEach(function (c, i) {
+              c.style.transitionDelay = i * 65 + "ms";
+              setTimeout(
+                function () {
+                  c.classList.add("visible");
+                },
+                60 + i * 65,
+              );
+            });
+          }
+
+          function closeNotif() {
+            /* reverse: cards slide out fast */
+            var arr = Array.from(cards).reverse();
+            arr.forEach(function (c, i) {
+              c.style.transitionDelay = i * 30 + "ms";
+              c.classList.remove("visible");
+            });
+            setTimeout(function () {
+              overlay.classList.remove("open");
+              sheet.classList.remove("open");
+              sheet.setAttribute("aria-hidden", "true");
+              document.body.style.overflow = "";
+              /* reset delays */
+              cards.forEach(function (c) {
+                c.style.transitionDelay = "0ms";
+              });
+            }, 180);
+          }
+
+          if (nb) nb.addEventListener("click", openNotif);
+          if (closeBtn) closeBtn.addEventListener("click", closeNotif);
+          if (overlay) overlay.addEventListener("click", closeNotif);
+          document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeNotif();
+          });
+
+          /* ── drag-to-dismiss (touch) ── */
+          var startY = 0,
+            currentY = 0,
+            dragging = false;
+          function onDragStart(e) {
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            dragging = true;
+            sheet.style.transition = "none";
+          }
+          function onDragMove(e) {
+            if (!dragging) return;
+            currentY = e.touches ? e.touches[0].clientY : e.clientY;
+            var dy = Math.max(0, currentY - startY);
+            sheet.style.transform = "translateX(-50%) translateY(" + dy + "px)";
+          }
+          function onDragEnd() {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transition = "";
+            var dy = Math.max(0, currentY - startY);
+            if (dy > 120) {
+              closeNotif();
+              setTimeout(function () {
+                sheet.style.transform = "";
+              }, 400);
+            } else {
+              sheet.style.transform = "translateX(-50%) translateY(0)";
+            }
+          }
+          if (handle) {
+            handle.addEventListener("touchstart", onDragStart, {
+              passive: true,
+            });
+            handle.addEventListener("mousedown", onDragStart);
+          }
+          window.addEventListener("touchmove", onDragMove, { passive: true });
+          window.addEventListener("mousemove", onDragMove);
+          window.addEventListener("touchend", onDragEnd);
+          window.addEventListener("mouseup", onDragEnd);
+
+          /* ── bell icon pulse when has notifs ── */
+          var ndot = document.querySelector(".ndot");
+          if (ndot) {
+            ndot.style.animation =
+              "bellPop .5s cubic-bezier(.36,.07,.19,.97) both";
+          }
+        })();
+
+        /* ── Feature card entrance (stagger) ── */
+        document.querySelectorAll("#grid1 .feat").forEach(function (el, i) {
+          el.style.transition =
+            "opacity .4s ease " +
+            (100 + i * 60) +
+            "ms, transform .4s ease " +
+            (100 + i * 60) +
+            "ms";
+          setTimeout(
+            function () {
+              el.classList.add("visible");
+            },
+            100 + i * 60,
+          );
+        });
+
+        /* ── More toggle ── */
+        var mBtn = document.getElementById("moreBtn");
+        var mSec = document.getElementById("moreSec");
+        mBtn.addEventListener("click", function () {
+          var open = mSec.classList.toggle("show");
+          mBtn.classList.toggle("open", open);
+          mBtn.innerHTML = open
+            ? '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transform:rotate(180deg)"><path d="M6 9l6 6 6-6"/></svg> Sembunyikan'
+            : '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;"><path d="M6 9l6 6 6-6"/></svg> Lihat Semua Menu';
+          if (open)
+            mSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+
+        /* ── Bottom nav ── */
+        document.querySelectorAll(".nav-item").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            document.querySelectorAll(".nav-item").forEach(function (b) {
+              b.classList.remove("active");
+            });
+            btn.classList.add("active");
+            var k = btn.dataset.n;
+            if (k === "top")
+              document
+                .getElementById("top")
+                .scrollIntoView({ behavior: "smooth" });
+            else if (k === "more") mBtn.click();
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

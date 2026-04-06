@@ -1,0 +1,861 @@
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
+<style>
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+
+    --radius: 22px;
+    --pill: 999px;
+
+    --blue: #2f5f8f;
+    --green: #16a34a;
+    --red: #dc2626;
+    --border: rgba(125, 138, 166, 0.22);
+
+    --bottom-nav-h: 92px;
+  }
+
+  body {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 430px;
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* ===== Header ===== */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 8px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+  .userpill .name {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 16px;
+    background: #f3f6fc;
+    box-shadow:
+      0 12px 22px rgba(30, 60, 90, 0.18),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .notif-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 7px;
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  }
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* ===== Cards ===== */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 12px 0;
+  }
+
+  /* ===== Stat pills ===== */
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    flex: 1 1 80px;
+    background: #f2f5fb;
+    border-radius: 16px;
+    box-shadow: var(--soft-in);
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .stat-pill .s-num {
+    font-size: 22px;
+    font-weight: 1000;
+    color: var(--text);
+  }
+  .stat-pill .s-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    margin-top: 2px;
+  }
+  .stat-pill.ok .s-num {
+    color: #166534;
+  }
+  .stat-pill.bad .s-num {
+    color: #991b1b;
+  }
+  .stat-pill.pend .s-num {
+    color: #92400e;
+  }
+
+  /* ===== Search row ===== */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .search-row .sr-left {
+    flex: 1 1 220px;
+  }
+  .search-row .sr-right {
+    flex: 1 1 220px;
+  }
+
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 12px 12px;
+    font-size: 14px;
+    color: var(--text);
+    box-sizing: border-box;
+  }
+
+  /* ===== Buttons ===== */
+  .btn-primary {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 10px 18px rgba(41, 83, 126, 0.22);
+    font-size: 14px;
+  }
+  .btn-approve {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 13px;
+    background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(21, 128, 61, 0.22);
+  }
+  .btn-reject {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 13px;
+    background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(185, 28, 28, 0.22);
+  }
+
+  /* ===== Badge status ===== */
+  .badge2 {
+    display: inline-flex;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .badge2.ok {
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+  }
+  .badge2.bad {
+    background: rgba(220, 38, 38, 0.12);
+    color: #991b1b;
+  }
+  .badge2.pend {
+    background: rgba(146, 64, 14, 0.1);
+    color: #92400e;
+  }
+
+  /* ===== Mobile List ===== */
+  .list {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .item {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 14px;
+  }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .hname {
+    margin: 0;
+    font-weight: 1000;
+    font-size: 15px;
+  }
+  .hsub {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .hmeta {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .action-form {
+    margin-top: 12px;
+  }
+  .action-form input {
+    margin-bottom: 8px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .admin-note-done {
+    margin-top: 10px;
+    background: #f2f5fb;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .admin-note-done b {
+    color: var(--text);
+  }
+
+  /* ===== Desktop Table ===== */
+  .tablewrap {
+    display: none;
+    overflow: auto;
+    margin-top: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 820px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.15);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    background: #f8faff;
+  }
+  td.note-cell {
+    white-space: normal;
+    max-width: 300px;
+    word-break: break-word;
+  }
+
+  .tbl-action {
+    min-width: 240px;
+  }
+  .tbl-actbox {
+    display: grid;
+    gap: 8px;
+  }
+  .tbl-actbox input {
+    margin: 0;
+  }
+  .tbl-btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .tbl-btn-row .btn-approve,
+  .tbl-btn-row .btn-reject {
+    height: 38px;
+    font-size: 12px;
+  }
+
+  @media (min-width: 901px) {
+    .list {
+      display: none;
+    }
+    .tablewrap {
+      display: block;
+    }
+  }
+
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .fill {
+    fill: currentColor;
+  }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
+        <div class="right">
+          <div class="userpill" title="User">
+            <span class="dot"></span>
+            <span class="name"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
+          </div>
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
+          </button>
+          <a
+            href="{{ url_for('auth.logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- INTRO CARD -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Approval Penjualan</h2>
+        <p class="desc">
+          Approve atau Reject submit penjualan karyawan yang masih PENDING.
+        </p>
+      </div>
+    </div>
+
+    <!-- STAT PILLS -->
+    <div class="stat-row">
+      <div class="stat-pill pend">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','PENDING') | list | length }}
+        </div>
+        <div class="s-lbl">Pending</div>
+      </div>
+      <div class="stat-pill ok">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','APPROVED') | list | length }}
+        </div>
+        <div class="s-lbl">Approved</div>
+      </div>
+      <div class="stat-pill bad">
+        <div class="s-num">
+          {{ rows | selectattr('status','equalto','REJECTED') | list | length }}
+        </div>
+        <div class="s-lbl">Rejected</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">{{ rows | length }}</div>
+        <div class="s-lbl">Total</div>
+      </div>
+    </div>
+
+    <!-- DATA CARD -->
+    <div class="main-card">
+      <div class="inner">
+        <div class="search-row">
+          <div class="sr-left">
+            <h2 class="title">Daftar Submit</h2>
+            <p class="desc">Pilih submit PENDING, lalu Approve atau Reject.</p>
+          </div>
+          <div class="sr-right">
+            <label style="margin-top: 0">Search</label>
+            <input
+              id="salesSearch"
+              type="text"
+              placeholder="Cari karyawan, produk, status…"
+            />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- MOBILE LIST -->
+        <div class="list" id="salesList">
+          {% for r in rows %}
+          <div
+            class="item s-row"
+            data-search="{{ (r.employee_name ~ ' ' ~ r.product_name ~ ' ' ~ r.status ~ ' ' ~ (r.note or ''))|lower }}"
+          >
+            <div class="item-top">
+              <div>
+                <p class="hname">{{ r.employee_name }}</p>
+                <p class="hsub">
+                  {{ r.product_name or "-" }} • Qty <b>{{ r.qty }}</b>
+                </p>
+                <p class="hsub">
+                  ⏱ {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                  r.created_at_wib else '-' }}
+                </p>
+              </div>
+              <span
+                class="badge2 {% if r.status=='APPROVED' %}ok{% elif r.status=='REJECTED' %}bad{% else %}pend{% endif %}"
+              >
+                {{ r.status }}
+              </span>
+            </div>
+
+            {% if r.note %}
+            <div class="mini" style="margin-top: 8px">
+              Catatan: <b style="color: var(--text)">{{ r.note }}</b>
+            </div>
+            {% endif %} {% if r.status == 'PENDING' %}
+            <form method="POST" class="action-form">
+              <label>Catatan admin (opsional)</label>
+              <input name="admin_note" placeholder="ok / data kurang jelas" />
+              <div class="btn-row">
+                <button
+                  class="btn-approve"
+                  type="submit"
+                  formaction="/admin/sales/approve/{{ r.id }}"
+                >
+                  ✓ Approve
+                </button>
+                <button
+                  class="btn-reject"
+                  type="submit"
+                  formaction="/admin/sales/reject/{{ r.id }}"
+                >
+                  ✕ Reject
+                </button>
+              </div>
+            </form>
+            {% else %}
+            <div class="admin-note-done">
+              Catatan admin: <b>{{ r.admin_note or "-" }}</b>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %} {% if rows|length == 0 %}
+          <div class="mini">Belum ada submit penjualan.</div>
+          {% endif %}
+        </div>
+
+        <!-- DESKTOP TABLE -->
+        <div class="tablewrap" id="salesTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th>Produk</th>
+                <th>Qty</th>
+                <th>Status</th>
+                <th>Waktu</th>
+                <th>Catatan</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="salesTable">
+              {% for r in rows %}
+              <tr
+                class="s-row"
+                data-search="{{ (r.employee_name ~ ' ' ~ r.product_name ~ ' ' ~ r.status ~ ' ' ~ (r.note or ''))|lower }}"
+              >
+                <td><b>{{ r.employee_name }}</b></td>
+                <td>{{ r.product_name or "-" }}</td>
+                <td><b>{{ r.qty }}</b></td>
+                <td>
+                  <span
+                    class="badge2 {% if r.status=='APPROVED' %}ok{% elif r.status=='REJECTED' %}bad{% else %}pend{% endif %}"
+                  >
+                    {{ r.status }}
+                  </span>
+                </td>
+                <td class="mini">
+                  {{ r.created_at_wib.strftime('%Y-%m-%d %H:%M:%S') if
+                  r.created_at_wib else '-' }}
+                </td>
+                <td class="note-cell">{{ r.note or "-" }}</td>
+                <td class="tbl-action">
+                  {% if r.status == 'PENDING' %}
+                  <form method="POST" class="tbl-actbox">
+                    <input
+                      name="admin_note"
+                      placeholder="Catatan admin (opsional)"
+                    />
+                    <div class="tbl-btn-row">
+                      <button
+                        class="btn-approve"
+                        type="submit"
+                        formaction="/admin/sales/approve/{{ r.id }}"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        class="btn-reject"
+                        type="submit"
+                        formaction="/admin/sales/reject/{{ r.id }}"
+                      >
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </form>
+                  {% else %}
+                  <div class="mini">
+                    Catatan admin:
+                    <b style="color: var(--text)">{{ r.admin_note or "-" }}</b>
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %} {% if rows|length == 0 %}
+              <tr>
+                <td colspan="7" class="mini">Belum ada submit penjualan.</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Search filter
+  (function () {
+    const input = document.getElementById("salesSearch");
+    if (!input) return;
+    input.addEventListener("input", function () {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll(".s-row").forEach(function (el) {
+        const hay = el.getAttribute("data-search") || "";
+        el.style.display = !q || hay.includes(q) ? "" : "none";
+      });
+    });
+  })();
+</script>
+{% endblock %} {% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .nav-item.is-active {
+    background: #f2f5fb00;
+    border: 0px solid #fff;
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+</style>
+
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+    <button
+      class="nav-item is-active"
+      type="button"
+      aria-label="Tab tengah (kosong)"
+      onclick="
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path
+            class="stroke"
+            d="M4 8h12"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M14.6 5.8L18 8l-3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M20 16H8"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M9.4 13.8L6 16l3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </span>
+      <span>Data</span>
+    </button>
+    <a
+      class="nav-item"
+      href="#"
+      onclick="
+        document.querySelector('[data-toggle-more]')?.click();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener(
+    "click",
+    function (e) {
+      const mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+</script>
+{% endblock %}

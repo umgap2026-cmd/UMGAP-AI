@@ -1,0 +1,1281 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>UMGAP • Absen Cepat</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
+
+      :root {
+        --blue-50: #eff6ff;
+        --blue-100: #dbeafe;
+        --blue-200: #bfdbfe;
+        --blue-300: #93c5fd;
+        --blue-400: #60a5fa;
+        --blue-500: #3b82f6;
+        --blue-600: #2563eb;
+        --blue-700: #1d4ed8;
+        --blue-800: #1e40af;
+        --blue-900: #1e3a8a;
+        --cyan-400: #22d3ee;
+        --cyan-500: #06b6d4;
+        --success: #10b981;
+        --danger: #ef4444;
+        --text: #0f172a;
+        --text-light: #475569;
+        --text-muted: #64748b;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          "Poppins",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        color: var(--text);
+        background: linear-gradient(
+          135deg,
+          #1e3a8a 0%,
+          #1e40af 25%,
+          #2563eb 50%,
+          #3b82f6 75%,
+          #06b6d4 100%
+        );
+        background-size: 400% 400%;
+        animation: gradientShift 15s ease infinite;
+        min-height: 100vh;
+        overflow-x: hidden;
+        position: relative;
+      }
+
+      @keyframes gradientShift {
+        0%,
+        100% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+      }
+
+      /* Particle Background */
+      .particles {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .particle {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 50%;
+        animation: float 20s infinite ease-in-out;
+      }
+
+      .particle:nth-child(1) {
+        left: 10%;
+        animation-delay: 0s;
+        animation-duration: 15s;
+      }
+      .particle:nth-child(2) {
+        left: 20%;
+        animation-delay: 2s;
+        animation-duration: 18s;
+      }
+      .particle:nth-child(3) {
+        left: 30%;
+        animation-delay: 4s;
+        animation-duration: 16s;
+      }
+      .particle:nth-child(4) {
+        left: 40%;
+        animation-delay: 1s;
+        animation-duration: 20s;
+      }
+      .particle:nth-child(5) {
+        left: 50%;
+        animation-delay: 3s;
+        animation-duration: 17s;
+      }
+      .particle:nth-child(6) {
+        left: 60%;
+        animation-delay: 5s;
+        animation-duration: 19s;
+      }
+      .particle:nth-child(7) {
+        left: 70%;
+        animation-delay: 2s;
+        animation-duration: 21s;
+      }
+      .particle:nth-child(8) {
+        left: 80%;
+        animation-delay: 4s;
+        animation-duration: 22s;
+      }
+      .particle:nth-child(9) {
+        left: 90%;
+        animation-delay: 1s;
+        animation-duration: 18s;
+      }
+      .particle:nth-child(10) {
+        left: 15%;
+        animation-delay: 3s;
+        animation-duration: 16s;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(100vh) scale(0);
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+        90% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-100px) scale(1);
+          opacity: 0;
+        }
+      }
+
+      /* Glowing Circles */
+      .glow-circle {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(60px);
+        opacity: 0.3;
+        pointer-events: none;
+        z-index: 0;
+        animation: pulse 8s ease-in-out infinite;
+      }
+
+      .glow-circle:nth-child(1) {
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(
+          circle,
+          rgba(59, 130, 246, 0.8),
+          transparent
+        );
+        top: -200px;
+        left: -200px;
+        animation-delay: 0s;
+      }
+
+      .glow-circle:nth-child(2) {
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(
+          circle,
+          rgba(34, 211, 238, 0.6),
+          transparent
+        );
+        bottom: -250px;
+        right: -250px;
+        animation-delay: 4s;
+      }
+
+      .glow-circle:nth-child(3) {
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(
+          circle,
+          rgba(96, 165, 250, 0.7),
+          transparent
+        );
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation-delay: 2s;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.3;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.5;
+        }
+      }
+
+      .wrap {
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 40px 16px 100px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Header Section */
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+        animation: fadeInDown 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes fadeInDown {
+        from {
+          opacity: 0;
+          transform: translateY(-40px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .logo-wrapper {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 24px;
+      }
+
+      .logo-container {
+        width: 100px;
+        height: 100px;
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow:
+          0 0 0 8px rgba(255, 255, 255, 0.1),
+          0 0 0 16px rgba(255, 255, 255, 0.05),
+          0 20px 60px rgba(0, 0, 0, 0.3);
+        position: relative;
+        animation: logoFloat 4s ease-in-out infinite;
+        padding: 16px;
+      }
+
+      @keyframes logoFloat {
+        0%,
+        100% {
+          transform: translateY(0px) rotate(0deg);
+        }
+        50% {
+          transform: translateY(-15px) rotate(2deg);
+        }
+      }
+
+      .logo-container::before {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border-radius: 30px;
+        padding: 3px;
+        background: linear-gradient(
+          135deg,
+          var(--cyan-400),
+          var(--blue-500),
+          var(--blue-700)
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        animation: rotate 6s linear infinite;
+      }
+
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .logo-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+      }
+
+      .glow-ring {
+        position: absolute;
+        inset: -20px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(59, 130, 246, 0.4),
+          transparent 70%
+        );
+        filter: blur(20px);
+        animation: glowPulse 3s ease-in-out infinite;
+      }
+
+      @keyframes glowPulse {
+        0%,
+        100% {
+          opacity: 0.5;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.1);
+        }
+      }
+
+      .title {
+        font-size: 36px;
+        font-weight: 900;
+        background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+        letter-spacing: -1px;
+        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .subtitle {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }
+
+      .device-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Main Card */
+      .main-card {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(30px);
+        border-radius: 32px;
+        padding: 36px 28px;
+        box-shadow:
+          0 30px 80px rgba(0, 0, 0, 0.3),
+          0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+        position: relative;
+        animation: cardSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        animation-delay: 0.2s;
+        animation-fill-mode: both;
+        overflow: hidden;
+      }
+
+      .main-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--cyan-400),
+          var(--blue-500),
+          var(--blue-700),
+          var(--cyan-400)
+        );
+        background-size: 200% 100%;
+        animation: shimmer 3s linear infinite;
+      }
+
+      @keyframes shimmer {
+        0% {
+          background-position: 0% 0%;
+        }
+        100% {
+          background-position: 200% 0%;
+        }
+      }
+
+      @keyframes cardSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(60px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .form-section {
+        display: grid;
+        gap: 32px;
+      }
+
+      /* Step Component */
+      .step {
+        position: relative;
+        animation: stepFadeIn 0.6s ease-out;
+        animation-fill-mode: both;
+      }
+
+      .step:nth-child(1) {
+        animation-delay: 0.3s;
+      }
+      .step:nth-child(2) {
+        animation-delay: 0.4s;
+      }
+      .step:nth-child(3) {
+        animation-delay: 0.5s;
+      }
+      .step:nth-child(4) {
+        animation-delay: 0.6s;
+      }
+
+      @keyframes stepFadeIn {
+        from {
+          opacity: 0;
+          transform: translateX(-30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .step-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+
+      .step-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .step-number {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 700;
+        box-shadow:
+          0 4px 16px rgba(37, 99, 235, 0.4),
+          0 0 0 4px rgba(59, 130, 246, 0.1);
+        position: relative;
+        transition: all 0.3s ease;
+      }
+
+      .step-number::before {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--cyan-400), var(--blue-500));
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+        filter: blur(8px);
+      }
+
+      .step-number.active {
+        box-shadow:
+          0 6px 24px rgba(37, 99, 235, 0.6),
+          0 0 0 4px rgba(59, 130, 246, 0.2);
+        animation: numberPulse 2s ease-in-out infinite;
+      }
+
+      .step-number.active::before {
+        opacity: 0.6;
+      }
+
+      @keyframes numberPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .step-title {
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.5px;
+      }
+
+      .status {
+        padding: 6px 16px;
+        border-radius: 16px;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .status-pending {
+        background: rgba(100, 116, 139, 0.1);
+        color: var(--text-muted);
+      }
+
+      .status-success {
+        background: linear-gradient(
+          135deg,
+          rgba(16, 185, 129, 0.15),
+          rgba(16, 185, 129, 0.25)
+        );
+        color: var(--success);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        animation: statusPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes statusPop {
+        0% {
+          transform: scale(0) rotate(-10deg);
+        }
+        50% {
+          transform: scale(1.1) rotate(5deg);
+        }
+        100% {
+          transform: scale(1) rotate(0deg);
+        }
+      }
+
+      /* Input Styles */
+      .input-wrapper {
+        position: relative;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 16px 20px;
+        border-radius: 16px;
+        border: 2px solid rgba(59, 130, 246, 0.15);
+        background: rgba(239, 246, 255, 0.5);
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text);
+        transition: all 0.3s ease;
+        outline: none;
+        font-family: "Poppins", sans-serif;
+      }
+
+      input[type="text"]:focus {
+        border-color: var(--blue-500);
+        background: white;
+        box-shadow:
+          0 0 0 4px rgba(59, 130, 246, 0.1),
+          0 8px 24px rgba(59, 130, 246, 0.15);
+        transform: translateY(-2px);
+      }
+
+      input[type="text"]::placeholder {
+        color: var(--text-muted);
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 18px 20px;
+        border-radius: 16px;
+        border: 2px dashed rgba(59, 130, 246, 0.3);
+        background: rgba(239, 246, 255, 0.5);
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-family: "Poppins", sans-serif;
+      }
+
+      input[type="file"]:hover {
+        border-color: var(--blue-500);
+        background: rgba(239, 246, 255, 0.8);
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 15px 28px;
+        border-radius: 16px;
+        border: none;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: "Poppins", sans-serif;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .btn:hover::before {
+        opacity: 1;
+      }
+
+      .btn:active {
+        transform: scale(0.96);
+      }
+
+      .btn-location {
+        background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+        color: white;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+        font-weight: 600;
+      }
+
+      .btn-location:hover {
+        box-shadow: 0 8px 28px rgba(37, 99, 235, 0.5);
+        transform: translateY(-3px);
+      }
+
+      .btn-primary {
+        width: 100%;
+        background: linear-gradient(135deg, var(--blue-600), var(--blue-800));
+        color: white;
+        padding: 18px 28px;
+        font-size: 17px;
+        font-weight: 700;
+        box-shadow: 0 10px 40px rgba(37, 99, 235, 0.4);
+        letter-spacing: 0.5px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn-primary::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition:
+          width 0.6s,
+          height 0.6s;
+      }
+
+      .btn-primary:hover::after {
+        width: 300px;
+        height: 300px;
+      }
+
+      .btn-primary:hover {
+        box-shadow: 0 16px 48px rgba(37, 99, 235, 0.5);
+        transform: translateY(-4px);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--blue-600);
+        padding: 10px 20px;
+        font-weight: 600;
+      }
+
+      .btn-ghost:hover {
+        background: rgba(59, 130, 246, 0.1);
+      }
+
+      /* Location Grid */
+      .location-layout {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .location-info {
+        padding: 12px 18px;
+        border-radius: 14px;
+        background: linear-gradient(
+          135deg,
+          rgba(239, 246, 255, 0.8),
+          rgba(219, 234, 254, 0.6)
+        );
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--blue-700);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 500px) {
+        .location-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Preview */
+      .preview {
+        display: none;
+        width: 100%;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow:
+          0 16px 40px rgba(0, 0, 0, 0.15),
+          0 0 0 4px rgba(59, 130, 246, 0.1);
+        border: 3px solid white;
+        margin-top: 16px;
+        animation: previewZoom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes previewZoom {
+        from {
+          opacity: 0;
+          transform: scale(0.8) rotate(-3deg);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) rotate(0deg);
+        }
+      }
+
+      .preview img {
+        width: 100%;
+        display: block;
+      }
+
+      /* Alerts */
+      .alert {
+        padding: 18px 22px;
+        border-radius: 18px;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 28px;
+        animation: alertSlide 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes alertSlide {
+        from {
+          opacity: 0;
+          transform: translateY(-20px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .alert-error {
+        background: linear-gradient(
+          135deg,
+          rgba(239, 68, 68, 0.1),
+          rgba(239, 68, 68, 0.15)
+        );
+        color: var(--danger);
+        border: 2px solid rgba(239, 68, 68, 0.3);
+      }
+
+      .alert-success {
+        background: linear-gradient(
+          135deg,
+          rgba(16, 185, 129, 0.1),
+          rgba(16, 185, 129, 0.15)
+        );
+        color: var(--success);
+        border: 2px solid rgba(16, 185, 129, 0.3);
+      }
+
+      .helper {
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 500;
+        margin-top: 12px;
+      }
+
+      /* Loading */
+      .spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Success Confetti */
+      #confetti-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+      }
+
+      /* Responsive */
+      @media (max-width: 500px) {
+        .wrap {
+          padding: 32px 12px 80px;
+        }
+        .main-card {
+          padding: 28px 20px;
+        }
+        .title {
+          font-size: 32px;
+        }
+        .logo-container {
+          width: 90px;
+          height: 90px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="glow-circle"></div>
+    <div class="glow-circle"></div>
+    <div class="glow-circle"></div>
+
+    <div class="particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <div class="wrap">
+      <div class="header">
+        <div class="logo-wrapper">
+          <div class="glow-ring"></div>
+          <div class="logo-container">
+            <img
+              src="{{ url_for('static', filename='UMGAP (2).png') }}"
+              alt="Logo"
+            />
+          </div>
+        </div>
+        <h1 class="title">Absen Cepat</h1>
+        <p class="subtitle">Nama • Lokasi • Selfie</p>
+        <div class="device-badge" id="deviceBadge">📱 Device ID</div>
+      </div>
+
+      <div class="main-card">
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %} {% if success %}
+        <div class="alert alert-success">{{ success }}</div>
+        {% endif %}
+
+        <form
+          method="post"
+          action="/quick-attendance/{{ token }}/submit"
+          enctype="multipart/form-data"
+          id="attendanceForm"
+        >
+          <input type="hidden" name="device_id" id="device_id" />
+          <input type="hidden" name="latitude" id="latitude" />
+          <input type="hidden" name="longitude" id="longitude" />
+          <input type="hidden" name="accuracy" id="accuracy" />
+
+          <div class="form-section">
+            <!-- Step 1: Nama -->
+            <div class="step">
+              <div class="step-header">
+                <div class="step-info">
+                  <div class="step-number" id="nameNumber">1</div>
+                  <div class="step-title">Nama Lengkap</div>
+                </div>
+              </div>
+              <div class="input-wrapper">
+                <input
+                  type="text"
+                  name="name_input"
+                  id="nameInput"
+                  placeholder="Masukkan nama lengkap Anda"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- Step 2: Lokasi -->
+            <div class="step">
+              <div class="step-header">
+                <div class="step-info">
+                  <div class="step-number" id="locationNumber">2</div>
+                  <div class="step-title">Lokasi GPS</div>
+                </div>
+                <div class="status status-pending" id="locationStatus">
+                  Belum
+                </div>
+              </div>
+              <div class="location-layout">
+                <button class="btn btn-location" type="button" id="getLocation">
+                  <span id="locationIcon">📍</span>
+                  <span id="locationText">Ambil Lokasi</span>
+                </button>
+                <div class="location-info" id="locationInfo">
+                  Aktifkan GPS Anda
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3: Selfie -->
+            <div class="step">
+              <div class="step-header">
+                <div class="step-info">
+                  <div class="step-number" id="selfieNumber">3</div>
+                  <div class="step-title">Foto Selfie</div>
+                </div>
+                <div class="status status-pending" id="selfieStatus">Belum</div>
+              </div>
+              <div class="input-wrapper">
+                <input
+                  type="file"
+                  name="selfie"
+                  id="selfieInput"
+                  accept="image/*"
+                  capture="user"
+                  required
+                />
+                <div class="preview" id="selfiePreview">
+                  <img id="selfieImage" alt="Selfie Preview" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="step">
+              <button class="btn btn-primary" type="submit" id="submitBtn">
+                <span id="submitText">✓ Kirim Absen</span>
+              </button>
+              <div style="text-align: center; margin-top: 16px">
+                <button class="btn btn-ghost" type="button" id="resetBtn">
+                  🔄 Reset Form
+                </button>
+              </div>
+              <p class="helper">Data Anda akan diverifikasi oleh admin</p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Device ID
+      (function () {
+        let deviceId = localStorage.getItem("umgap_device_id");
+        if (!deviceId) {
+          deviceId =
+            (crypto?.randomUUID && crypto.randomUUID()) ||
+            "dev_" + Math.random().toString(16).slice(2) + Date.now();
+          localStorage.setItem("umgap_device_id", deviceId);
+        }
+        document.getElementById("device_id").value = deviceId;
+        document.getElementById("deviceBadge").textContent =
+          "📱 " + deviceId.slice(0, 10) + "…";
+      })();
+
+      // Name input validation
+      const nameInput = document.getElementById("nameInput");
+      const nameNumber = document.getElementById("nameNumber");
+
+      nameInput.addEventListener("input", () => {
+        if (nameInput.value.trim().length > 0) {
+          nameNumber.classList.add("active");
+        } else {
+          nameNumber.classList.remove("active");
+        }
+      });
+
+      // Location
+      const getLocation = document.getElementById("getLocation");
+      const locationStatus = document.getElementById("locationStatus");
+      const locationInfo = document.getElementById("locationInfo");
+      const locationNumber = document.getElementById("locationNumber");
+      const locationIcon = document.getElementById("locationIcon");
+      const locationText = document.getElementById("locationText");
+
+      getLocation.addEventListener("click", () => {
+        locationText.textContent = "Mengambil...";
+        locationIcon.innerHTML = '<span class="spinner"></span>';
+        locationStatus.textContent = "Proses";
+        locationInfo.textContent = "Mohon tunggu...";
+
+        if (!navigator.geolocation) {
+          locationStatus.textContent = "Gagal";
+          locationInfo.textContent = "Browser tidak mendukung GPS";
+          locationText.textContent = "Ambil Lokasi";
+          locationIcon.textContent = "📍";
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const acc = position.coords.accuracy;
+
+            document.getElementById("latitude").value = lat;
+            document.getElementById("longitude").value = lng;
+            document.getElementById("accuracy").value = acc;
+
+            locationStatus.textContent = "✓ Berhasil";
+            locationStatus.className = "status status-success";
+            locationInfo.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)} (±${Math.round(acc)}m)`;
+            locationText.textContent = "Lokasi Tersimpan";
+            locationIcon.textContent = "✓";
+            locationNumber.classList.add("active");
+
+            // Trigger confetti
+            triggerMiniConfetti();
+          },
+          (error) => {
+            console.error(error);
+            locationStatus.textContent = "Gagal";
+            locationInfo.textContent = "Izinkan akses lokasi di browser";
+            locationText.textContent = "Coba Lagi";
+            locationIcon.textContent = "📍";
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      });
+
+      // Selfie
+      const selfieInput = document.getElementById("selfieInput");
+      const selfiePreview = document.getElementById("selfiePreview");
+      const selfieImage = document.getElementById("selfieImage");
+      const selfieStatus = document.getElementById("selfieStatus");
+      const selfieNumber = document.getElementById("selfieNumber");
+
+      selfieInput.addEventListener("change", () => {
+        const file = selfieInput.files && selfieInput.files[0];
+        if (!file) return;
+
+        const url = URL.createObjectURL(file);
+        selfieImage.src = url;
+        selfiePreview.style.display = "block";
+        selfieStatus.textContent = "✓ Berhasil";
+        selfieStatus.className = "status status-success";
+        selfieNumber.classList.add("active");
+
+        // Trigger confetti
+        triggerMiniConfetti();
+      });
+
+      // Reset
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        document.getElementById("attendanceForm").reset();
+        document.getElementById("latitude").value = "";
+        document.getElementById("longitude").value = "";
+        document.getElementById("accuracy").value = "";
+
+        locationStatus.textContent = "Belum";
+        locationStatus.className = "status status-pending";
+        locationInfo.textContent = "Aktifkan GPS Anda";
+        locationText.textContent = "Ambil Lokasi";
+        locationIcon.textContent = "📍";
+        locationNumber.classList.remove("active");
+
+        selfiePreview.style.display = "none";
+        selfieStatus.textContent = "Belum";
+        selfieStatus.className = "status status-pending";
+        selfieNumber.classList.remove("active");
+
+        nameNumber.classList.remove("active");
+      });
+
+      // Form validation
+      document
+        .getElementById("attendanceForm")
+        .addEventListener("submit", (e) => {
+          const deviceId = document.getElementById("device_id").value;
+          if (!deviceId) {
+            e.preventDefault();
+            alert("Error: Device ID tidak valid. Coba refresh halaman.");
+            return;
+          }
+
+          const file = selfieInput.files && selfieInput.files[0];
+          if (!file) {
+            e.preventDefault();
+            alert("Harap upload foto selfie terlebih dahulu.");
+            return;
+          }
+
+          // Success confetti
+          triggerFullConfetti();
+        });
+
+      // Mini confetti for step completion
+      function triggerMiniConfetti() {
+        const canvas = document.getElementById("confetti-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = ["#3b82f6", "#60a5fa", "#22d3ee", "#06b6d4", "#93c5fd"];
+
+        for (let i = 0; i < 30; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: -20,
+            size: Math.random() * 6 + 3,
+            speedY: Math.random() * 3 + 2,
+            speedX: Math.random() * 2 - 1,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rotation: Math.random() * 360,
+          });
+        }
+
+        function animate() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          particles.forEach((p, index) => {
+            p.y += p.speedY;
+            p.x += p.speedX;
+            p.speedY += 0.1;
+            p.rotation += 5;
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+
+            if (p.y > canvas.height) {
+              particles.splice(index, 1);
+            }
+          });
+
+          if (particles.length > 0) {
+            requestAnimationFrame(animate);
+          }
+        }
+
+        animate();
+      }
+
+      // Full confetti for form submission
+      function triggerFullConfetti() {
+        const canvas = document.getElementById("confetti-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = [
+          "#3b82f6",
+          "#60a5fa",
+          "#22d3ee",
+          "#06b6d4",
+          "#93c5fd",
+          "#2563eb",
+        ];
+
+        for (let i = 0; i < 100; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height - canvas.height,
+            size: Math.random() * 8 + 4,
+            speedY: Math.random() * 5 + 3,
+            speedX: Math.random() * 4 - 2,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rotation: Math.random() * 360,
+            rotationSpeed: Math.random() * 10 - 5,
+          });
+        }
+
+        function animate() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          particles.forEach((p, index) => {
+            p.y += p.speedY;
+            p.x += p.speedX;
+            p.speedY += 0.15;
+            p.rotation += p.rotationSpeed;
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+
+            if (p.y > canvas.height + 20) {
+              particles.splice(index, 1);
+            }
+          });
+
+          if (particles.length > 0) {
+            requestAnimationFrame(animate);
+          }
+        }
+
+        animate();
+      }
+    </script>
+  </body>
+</html>
+

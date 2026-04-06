@@ -1,0 +1,1318 @@
+{% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
+<style>
+  :root {
+    --bg: #f2f4f8;
+    --card: #f7f8fb;
+    --text: #1d2a44;
+    --muted: #7d8aa6;
+    --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
+    --shadow-in:
+      inset 10px 10px 18px rgba(25, 45, 80, 0.12),
+      inset -10px -10px 18px rgba(255, 255, 255, 0.9);
+    --soft-in:
+      inset 6px 6px 12px rgba(25, 45, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.92);
+    --radius: 22px;
+    --pill: 999px;
+    --blue: #2f5f8f;
+    --nav-h: 92px;
+  }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    background: var(--bg);
+  }
+
+  .screen {
+    min-height: 100svh;
+    display: flex;
+    justify-content: center;
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+  .wrap {
+    width: 100%;
+    max-width: min(100%, 480px);
+  }
+  @media (min-width: 600px) {
+    .wrap {
+      max-width: 720px;
+    }
+  }
+  @media (min-width: 901px) {
+    .wrap {
+      max-width: 1100px;
+    }
+  }
+
+  /* HEADER (copy payroll) */
+  .head-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 12px;
+  }
+  .head-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 10px 18px rgba(20, 35, 65, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .hdr-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .userpill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f2f5fb;
+    border-radius: var(--pill);
+    padding: 7px 12px;
+    box-shadow: var(--soft-in);
+    white-space: nowrap;
+  }
+  @media (max-width: 380px) {
+    .userpill {
+      display: none;
+    }
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex: 0 0 auto;
+  }
+  .uname {
+    font-size: 13px;
+    color: #506381;
+    font-weight: 800;
+  }
+  .action-btn {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 14px;
+    background: #f3f6fc;
+    box-shadow:
+      0 10px 20px rgba(30, 60, 90, 0.16),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.9),
+      inset -4px -4px 10px rgba(30, 60, 90, 0.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+  .action-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: #7b93c7;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ffd84d;
+    color: #1f2937;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 999px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  }
+  .rgb {
+    height: 3px;
+    border-radius: 999px;
+    margin-top: 10px;
+    background: linear-gradient(
+      90deg,
+      #f00 0%,
+      #ff7a00 18%,
+      #ffd500 36%,
+      #00c853 58%,
+      #00b0ff 78%,
+      #8a2be2 100%
+    );
+  }
+
+  /* CARDS */
+  .main-card {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-out);
+    padding: 16px 14px 18px;
+  }
+  .inner {
+    border-radius: 20px;
+    background: #f3f5f9;
+    box-shadow: var(--shadow-in);
+    padding: 18px 14px 16px;
+  }
+  .title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 1000;
+    color: #2a3b58;
+    letter-spacing: 0.2px;
+  }
+  .desc {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .divider {
+    height: 1px;
+    background: rgba(125, 138, 166, 0.18);
+    border-radius: 999px;
+    margin: 14px 0;
+  }
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* FILTER */
+  label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  input[type="month"],
+  input[type="text"] {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 13px 14px;
+    font-size: 15px;
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .btn-primary {
+    display: block;
+    width: 100%;
+    height: 50px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 15px;
+    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(41, 83, 126, 0.22);
+    margin-top: 10px;
+  }
+
+  /* STAT PILLS */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  @media (min-width: 640px) {
+    .stat-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .stat-pill {
+    min-width: 0;
+    background: #f2f5fb;
+    border-radius: 18px;
+    box-shadow: var(--soft-in);
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .stat-pill.wide {
+    grid-column: span 2;
+  }
+
+  @media (min-width: 640px) {
+    .stat-pill.wide {
+      grid-column: span 2;
+    }
+  }
+
+  .s-num {
+    font-size: clamp(15px, 3.5vw, 18px);
+    font-weight: 1000;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .s-lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 800;
+    margin-top: 3px;
+  }
+  .stat-pill.blue .s-num {
+    color: #1e40af;
+  }
+  .stat-pill.green .s-num {
+    color: #15803d;
+  }
+  .stat-pill.red .s-num {
+    color: #dc2626;
+  }
+  .stat-pill.orange .s-num {
+    color: #d97706;
+  }
+
+  /* GRID 2 */
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  .grid2-left {
+    display: grid;
+    gap: 14px;
+  }
+
+  @media (min-width: 901px) {
+    .grid2 {
+      grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  /* MOBILE cards (like payroll) */
+  .plist {
+    display: grid;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .pitem {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    padding: 14px;
+  }
+  .pitem-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  @media (min-width: 480px) {
+    .pitem-top {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+    }
+  }
+
+  .pinfo {
+    min-width: 0;
+  }
+
+  .pname {
+    margin: 0;
+    font-weight: 1000;
+    font-size: 15px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .psub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .ptotal {
+    font-size: 14px;
+    font-weight: 1000;
+    color: #1e40af;
+    text-align: left;
+    max-width: 100%;
+    word-break: break-word;
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  @media (min-width: 480px) {
+    .ptotal {
+      text-align: right;
+      max-width: 180px;
+    }
+  }
+
+  .pstat {
+    min-width: 0;
+    background: #f2f5fb;
+    border-radius: 10px;
+    box-shadow: var(--soft-in);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+    text-align: center;
+  }
+
+  @media (min-width: 560px) {
+    .pstats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .pstat {
+    background: #f2f5fb;
+    border-radius: 10px;
+    box-shadow: var(--soft-in);
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .pstat b {
+    color: var(--text);
+  }
+  .pstat.hadir b {
+    color: #15803d;
+  }
+  .pstat.telat b {
+    color: #d97706;
+  }
+  .pstat.cuti b {
+    color: #2563eb;
+  }
+  .pstat.sakit b {
+    color: #d97706;
+  }
+  .pstat.absen b {
+    color: #dc2626;
+  }
+  .pstat.sales b {
+    color: #1e40af;
+  }
+
+  /* DESKTOP table */
+  .tablewrap {
+    display: none;
+    overflow-x: auto;
+    margin: 4px -2px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: var(--shadow-out);
+    overflow: hidden;
+  }
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.13);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  th {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    background: #f8faff;
+  }
+  .tbadge {
+    display: inline-flex;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 900;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--text);
+  }
+  .tbadge.hadir {
+    background: rgba(21, 128, 61, 0.1);
+    color: #15803d;
+  }
+  .tbadge.telat {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+  }
+  .tbadge.sakit {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+  }
+  .tbadge.cuti {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+  }
+  .tbadge.absen {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+  }
+  .tbadge.sales {
+    background: rgba(30, 64, 175, 0.1);
+    color: #1e40af;
+  }
+  .tfoot-total td {
+    font-weight: 1000;
+    background: #f8faff;
+    border-top: 2px solid rgba(125, 138, 166, 0.2);
+    border-bottom: none;
+  }
+  @media (min-width: 901px) {
+    .plist {
+      display: none;
+    }
+    .tablewrap {
+      display: block;
+    }
+  }
+
+  /* ── CHART CARD ── */
+  /* upgrade grid2 to hold chart card between filter and data on desktop */
+  @media (min-width: 901px) {
+    .grid2 {
+      grid-template-columns: 240px 1fr;
+    }
+    .grid2-left {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+  }
+
+  /* metric quick-tabs */
+  .mtabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .mtab {
+    border: none;
+    border-radius: 999px;
+    padding: 5px 13px;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: inherit;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .mtab.on {
+    color: #fff;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+  }
+  .mtab[data-m="present_days"].on {
+    background: #15803d;
+  }
+  .mtab[data-m="late_days"].on {
+    background: #d97706;
+  }
+  .mtab[data-m="sick_days"].on {
+    background: #d97706;
+  }
+  .mtab[data-m="leave_days"].on {
+    background: #1e40af;
+  }
+  .mtab[data-m="absent_days"].on {
+    background: #dc2626;
+  }
+  .mtab[data-m="sales_qty"].on {
+    background: #1e40af;
+  }
+
+  /* chart type selector */
+  .chart-ctrls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  @media (min-width: 560px) {
+    .chart-ctrls {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .chart-ctrls select {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 12px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+
+  /* download button */
+  .btn-dl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    height: 44px;
+    border: none;
+    border-radius: 13px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 13px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--blue);
+    font-family: inherit;
+    transition: box-shadow 0.15s;
+    margin-top: 10px;
+  }
+  .btn-dl:hover {
+    box-shadow: var(--shadow-out);
+  }
+  .btn-dl svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* canvas wrapper */
+  .chart-frame {
+    min-width: 0;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: var(--shadow-out);
+    padding: 14px 12px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo">
+          <img
+            src="{{ url_for('static', filename='UMGAP (1).png') }}"
+            alt="UMGAP"
+          />
+        </div>
+        <div class="hdr-right">
+          <div class="userpill">
+            <span class="dot"></span>
+            <span class="uname"
+              >{{ user_name or session.get("user_name","Admin") }}</span
+            >
+          </div>
+
+          <button class="action-btn" type="button" aria-label="Pesan">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="M3 7l9 6 9-6"></path>
+            </svg>
+            <span class="notif-badge">{{ notif_count or 0 }}</span>
+          </button>
+
+          <a
+            href="{{ url_for('auth.logout') }}"
+            class="action-btn"
+            aria-label="Logout"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M17 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- INTRO -->
+    <div class="main-card">
+      <div class="inner">
+        <h2 class="title">Stats</h2>
+        <p class="desc">
+          Rekap performa karyawan (hadir, telat, sakit, cuti, absen) + sales
+          (qty) dalam 1 bulan.
+        </p>
+      </div>
+    </div>
+
+    <!-- STAT PILLS (copy payroll style) -->
+    <div class="stat-row">
+      <div class="stat-pill">
+        <div class="s-num">{{ month }}</div>
+        <div class="s-lbl">Bulan</div>
+      </div>
+
+      <div class="stat-pill green">
+        <div class="s-num">{{ totals.present or 0 }}</div>
+        <div class="s-lbl">Total Hadir</div>
+      </div>
+
+      <div class="stat-pill orange">
+        <div class="s-num">{{ totals.late or 0 }}</div>
+        <div class="s-lbl">Total Terlambat</div>
+      </div>
+
+      <div class="stat-pill red">
+        <div class="s-num">{{ totals.absent or 0 }}</div>
+        <div class="s-lbl">Total Absen</div>
+      </div>
+
+      <div class="stat-pill">
+        <div class="s-num">{{ totals.sick or 0 }}</div>
+        <div class="s-lbl">Total Sakit</div>
+      </div>
+
+      <div class="stat-pill blue">
+        <div class="s-num">{{ totals.leave or 0 }}</div>
+        <div class="s-lbl">Total Cuti</div>
+      </div>
+
+      <div class="stat-pill">
+        <div class="s-num">{{ rows|length }}</div>
+        <div class="s-lbl">Karyawan</div>
+      </div>
+
+      <div class="stat-pill blue wide">
+        <div class="s-num">{{ totals.sales or 0 }}</div>
+        <div class="s-lbl">Total Sales (Qty)</div>
+      </div>
+    </div>
+
+    <!-- GRID -->
+    <div class="grid2">
+      <!-- LEFT column: Filter + Chart -->
+      <div class="grid2-left">
+        <!-- Filter -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">Filter Bulan</h2>
+            <p class="desc">Pilih bulan untuk melihat rekap stats.</p>
+            <div class="divider"></div>
+
+            <form method="GET" action="/admin/stats">
+              <label>Pilih Bulan</label>
+              <input type="month" name="month" value="{{ month }}" required />
+              <button class="btn-primary" type="submit">Tampilkan</button>
+            </form>
+
+            <div class="divider"></div>
+
+            <label>Cari Karyawan</label>
+            <input id="qName" type="text" placeholder="Cari nama karyawan..." />
+
+            <p class="mini" style="margin-top: 10px; text-align: center">
+              Tips: Desktop tampil tabel, Mobile tampil kartu.
+            </p>
+          </div>
+        </div>
+
+        <!-- Chart Card -->
+        <div class="main-card">
+          <div class="inner">
+            <h2 class="title">📊 Chart Stats</h2>
+            <p class="desc">Pilih metrik &amp; jenis chart. Download PNG.</p>
+            <div class="divider"></div>
+
+            <!-- Metric tabs -->
+            <div class="mtabs" id="metricTabs">
+              <button class="mtab on" data-m="present_days" type="button">
+                Hadir
+              </button>
+              <button class="mtab" data-m="late_days" type="button">
+                Telat
+              </button>
+              <button class="mtab" data-m="sick_days" type="button">
+                Sakit
+              </button>
+              <button class="mtab" data-m="leave_days" type="button">
+                Cuti
+              </button>
+              <button class="mtab" data-m="absent_days" type="button">
+                Absen
+              </button>
+              <button class="mtab" data-m="sales_qty" type="button">
+                Sales
+              </button>
+            </div>
+
+            <!-- Type + Metric selects -->
+            <div class="chart-ctrls">
+              <div>
+                <label>Jenis Chart</label>
+                <select id="chartType">
+                  <option value="bar">Bar</option>
+                  <option value="line">Line</option>
+                  <option value="radar">Radar</option>
+                  <option value="pie">Pie</option>
+                  <option value="doughnut">Doughnut</option>
+                </select>
+              </div>
+              <div>
+                <label>Metrik</label>
+                <select id="chartMetric">
+                  <option value="present_days">Hadir</option>
+                  <option value="late_days">Terlambat</option>
+                  <option value="sick_days">Sakit</option>
+                  <option value="leave_days">Cuti</option>
+                  <option value="absent_days">Absen</option>
+                  <option value="sales_qty">Sales (Qty)</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="button" id="downloadChartBtn" class="btn-dl">
+              <svg viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download PNG
+            </button>
+
+            <div class="chart-frame">
+              <canvas id="statsChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /grid2-left -->
+
+      <!-- Data -->
+      <div class="main-card">
+        <div class="inner">
+          <h2 class="title">Rekap per Karyawan</h2>
+          <p class="desc">
+            Tabel untuk desktop, kartu untuk mobile (selaras payroll).
+          </p>
+          <div class="divider"></div>
+
+          <!-- MOBILE cards -->
+          <div class="plist" id="listCards">
+            {% for r in rows %}
+            <div class="pitem" data-name="{{ (r.employee_name or '')|lower }}">
+              <div class="pitem-top">
+                <div class="pinfo">
+                  <p class="pname">{{ r.employee_name }}</p>
+                  <p class="psub">Rekap bulan {{ month }}</p>
+                </div>
+                <div class="ptotal">Sales: <b>{{ r.sales_qty or 0 }}</b></div>
+              </div>
+
+              <div class="pstats">
+                <div class="pstat hadir">
+                  Hadir <b>{{ r.present_days or 0 }}</b>
+                </div>
+                <div class="pstat telat">
+                  Telat <b>{{ r.late_days or 0 }}</b>
+                </div>
+                <div class="pstat sakit">
+                  Sakit <b>{{ r.sick_days or 0 }}</b>
+                </div>
+                <div class="pstat cuti">
+                  Cuti <b>{{ r.leave_days or 0 }}</b>
+                </div>
+                <div class="pstat absen">
+                  Absen <b>{{ r.absent_days or 0 }}</b>
+                </div>
+                <div class="pstat sales">
+                  Sales <b>{{ r.sales_qty or 0 }}</b>
+                </div>
+              </div>
+            </div>
+            {% endfor %} {% if rows|length == 0 %}
+            <p class="mini">Belum ada data.</p>
+            {% endif %}
+          </div>
+
+          <!-- DESKTOP table -->
+          <div class="tablewrap">
+            <table id="tblStats">
+              <thead>
+                <tr>
+                  <th>Karyawan</th>
+                  <th>Hadir</th>
+                  <th>Terlambat</th>
+                  <th>Sakit</th>
+                  <th>Cuti</th>
+                  <th>Absen</th>
+                  <th>Sales (Qty)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in rows %}
+                <tr data-name="{{ (r.employee_name or '')|lower }}">
+                  <td><b>{{ r.employee_name }}</b></td>
+                  <td>
+                    <span class="tbadge hadir">{{ r.present_days or 0 }}</span>
+                  </td>
+                  <td>
+                    <span class="tbadge telat">{{ r.late_days or 0 }}</span>
+                  </td>
+                  <td>
+                    <span class="tbadge sakit">{{ r.sick_days or 0 }}</span>
+                  </td>
+                  <td>
+                    <span class="tbadge cuti">{{ r.leave_days or 0 }}</span>
+                  </td>
+                  <td>
+                    <span class="tbadge absen">{{ r.absent_days or 0 }}</span>
+                  </td>
+                  <td>
+                    <span class="tbadge sales">{{ r.sales_qty or 0 }}</span>
+                  </td>
+                </tr>
+                {% endfor %} {% if rows|length == 0 %}
+                <tr>
+                  <td colspan="7" class="mini">Belum ada data.</td>
+                </tr>
+                {% endif %}
+              </tbody>
+
+              {% if rows|length > 0 %}
+              <tfoot>
+                <tr class="tfoot-total">
+                  <td>Total</td>
+                  <td>{{ totals.present or 0 }}</td>
+                  <td>{{ totals.late or 0 }}</td>
+                  <td>{{ totals.sick or 0 }}</td>
+                  <td>{{ totals.leave or 0 }}</td>
+                  <td>{{ totals.absent or 0 }}</td>
+                  <td>{{ totals.sales or 0 }}</td>
+                </tr>
+              </tfoot>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /grid2 -->
+  </div>
+</div>
+
+<script id="stats-json" type="application/json">
+  {
+    "month": {{ month|tojson }},
+    "rows": {{ rows|tojson }}
+  }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function () {
+    // =========================
+    // SEARCH
+    // =========================
+    var q = document.getElementById("qName");
+
+    function applySearch() {
+      var needle = q ? (q.value || "").trim().toLowerCase() : "";
+      document.querySelectorAll("[data-name]").forEach(function (el) {
+        var name = el.getAttribute("data-name") || "";
+        el.style.display = !needle || name.includes(needle) ? "" : "none";
+      });
+    }
+
+    if (q) {
+      q.addEventListener("input", applySearch);
+      applySearch();
+    }
+
+    // =========================
+    // CHART
+    // =========================
+    var jsonEl = document.getElementById("stats-json");
+    var chartTypeEl = document.getElementById("chartType");
+    var chartMetricEl = document.getElementById("chartMetric");
+    var downloadBtn = document.getElementById("downloadChartBtn");
+    var canvas = document.getElementById("statsChart");
+
+    if (!jsonEl || !chartTypeEl || !chartMetricEl || !downloadBtn || !canvas) {
+      return;
+    }
+
+    var payload;
+    try {
+      payload = JSON.parse(jsonEl.textContent);
+    } catch (err) {
+      console.error("Gagal parse stats-json", err);
+      return;
+    }
+
+    var month = payload.month || "";
+    var rowsData = Array.isArray(payload.rows) ? payload.rows : [];
+
+    var labels = rowsData.map(function (r) {
+      return r.employee_name || "-";
+    });
+
+    var metaMap = {
+      present_days: {
+        label: "Hadir",
+        bg: "rgba(21,128,61,0.72)",
+        br: "#15803d",
+      },
+      late_days: {
+        label: "Terlambat",
+        bg: "rgba(217,119,6,0.72)",
+        br: "#d97706",
+      },
+      sick_days: {
+        label: "Sakit",
+        bg: "rgba(217,119,6,0.72)",
+        br: "#d97706",
+      },
+      leave_days: {
+        label: "Cuti",
+        bg: "rgba(30,64,175,0.72)",
+        br: "#1e40af",
+      },
+      absent_days: {
+        label: "Absen",
+        bg: "rgba(220,38,38,0.72)",
+        br: "#dc2626",
+      },
+      sales_qty: {
+        label: "Sales (Qty)",
+        bg: "rgba(30,64,175,0.72)",
+        br: "#1e40af",
+      },
+    };
+
+    var chartInstance = null;
+
+    function buildChart() {
+      var metric = chartMetricEl.value;
+      var chartType = chartTypeEl.value;
+      var meta = metaMap[metric];
+
+      if (!meta) return;
+
+      var series = rowsData.map(function (r) {
+        return Number(r[metric] || 0);
+      });
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(canvas, {
+        type: chartType,
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: meta.label,
+              data: series,
+              backgroundColor: meta.bg,
+              borderColor: meta.br,
+              borderWidth: 2,
+              borderRadius: chartType === "bar" ? 6 : 0,
+              tension: 0.38,
+              fill: false,
+              pointBackgroundColor: meta.br,
+              pointRadius: chartType === "line" ? 4 : 0,
+              pointHoverRadius: 6,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: true,
+              labels: {
+                color: "#1d2a44",
+                font: {
+                  weight: "700",
+                  size: 12,
+                },
+              },
+            },
+            tooltip: {
+              backgroundColor: "#1e3252",
+              titleColor: "#fff",
+              bodyColor: "rgba(255,255,255,0.85)",
+              cornerRadius: 10,
+              padding: 10,
+            },
+          },
+          scales:
+            chartType === "pie" ||
+            chartType === "doughnut" ||
+            chartType === "radar"
+              ? {}
+              : {
+                  x: {
+                    ticks: {
+                      color: "#7d8aa6",
+                      font: { size: 11 },
+                      maxRotation: 38,
+                    },
+                    grid: {
+                      color: "rgba(125,138,166,0.10)",
+                    },
+                  },
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      color: "#7d8aa6",
+                      font: { size: 11 },
+                      precision: 0,
+                    },
+                    grid: {
+                      color: "rgba(125,138,166,0.10)",
+                    },
+                  },
+                },
+        },
+      });
+    }
+
+    chartTypeEl.addEventListener("change", buildChart);
+
+    chartMetricEl.addEventListener("change", function () {
+      document.querySelectorAll(".mtab").forEach(function (btn) {
+        btn.classList.toggle("on", btn.dataset.m === chartMetricEl.value);
+      });
+      buildChart();
+    });
+
+    document.querySelectorAll(".mtab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        chartMetricEl.value = btn.dataset.m;
+        document.querySelectorAll(".mtab").forEach(function (b) {
+          b.classList.remove("on");
+        });
+        btn.classList.add("on");
+        buildChart();
+      });
+    });
+
+    downloadBtn.addEventListener("click", function () {
+      if (!chartInstance) return;
+      var a = document.createElement("a");
+      a.href = chartInstance.toBase64Image("image/png", 1);
+      a.download = "stats-" + chartMetricEl.value + "-" + month + ".png";
+      a.click();
+    });
+
+    buildChart();
+  })();
+</script>
+{% endblock %} {% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(246, 248, 252, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(20, 35, 65, 0.1);
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border-radius: 16px;
+    color: #9fb1d6;
+    font-weight: 800;
+    text-decoration: none;
+    font-size: 13px;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .nav-item.is-active {
+    background: transparent;
+  }
+  .nav-ico {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+    flex: 0 0 22px;
+  }
+  .nav-ico svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stroke {
+    stroke: currentColor;
+    fill: none;
+  }
+  .fill {
+    fill: currentColor;
+  }
+  @media (max-width: 360px) {
+    .nav-item span {
+      display: none;
+    }
+  }
+</style>
+
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') }}">
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+          <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+        </svg>
+      </span>
+      <span>Dashboard</span>
+    </a>
+
+    <button
+      class="nav-item is-active"
+      type="button"
+      aria-label="Tab tengah (kosong)"
+      onclick="
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path
+            class="stroke"
+            d="M4 8h12"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M14.6 5.8L18 8l-3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M20 16H8"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          ></path>
+          <path
+            class="stroke"
+            d="M9.4 13.8L6 16l3.4 2.2"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </span>
+      <span>Data</span>
+    </button>
+
+    <a
+      class="nav-item"
+      href="#"
+      onclick="
+        document.querySelector('[data-toggle-more]')?.click();
+        return false;
+      "
+    >
+      <span class="nav-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle class="fill" cx="6.5" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="12" cy="12" r="1.8"></circle>
+          <circle class="fill" cx="17.5" cy="12" r="1.8"></circle>
+        </svg>
+      </span>
+      <span>More</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener(
+    "click",
+    function (e) {
+      var mid = e.target.closest('button[aria-label="Tab tengah (kosong)"]');
+      if (!mid) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+</script>
+{% endblock %}
