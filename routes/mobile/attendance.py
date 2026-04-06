@@ -2,17 +2,11 @@ import os
 import uuid
 from datetime import date
 
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import (
-    mobile_api_response,
-    mobile_api_login_required,
-    admin_required,
-    _public_ip,
-    _now_wib_naive,
-)
+from .middleware import mobile_required
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
 
@@ -24,15 +18,48 @@ def _to_float(v):
         return None
 
 
-@mobile_attendance_bp.route("/attendance", methods=["GET"])
-@mobile_api_login_required
+def _row_to_attendance_dict(r):
+    lat = r.get("latitude")
+    lng = r.get("longitude")
+    photo_path = r.get("photo_path") or ""
+    photo_url = ""
+    if photo_path:
+        photo_url = request.host_url.rstrip("/") + "/static/" + photo_path
+
+    map_url = r.get("map_url") or ""
+    if not map_url and lat is not None and lng is not None:
+        map_url = f"https://www.google.com/maps?q={lat},{lng}"
+
+    return {
+        "id": r["id"],
+        "user_id": r.get("user_id"),
+        "user_name": r.get("user_name"),
+        "work_date": str(r.get("work_date") or ""),
+        "status": r.get("status") or "",
+        "arrival_type": r.get("arrival_type") or "",
+        "note": r.get("note") or "",
+        "device_id": r.get("device_id") or "",
+        "latitude": float(lat) if lat is not None else None,
+        "longitude": float(lng) if lng is not None else None,
+        "accuracy": float(r.get("accuracy")) if r.get("accuracy") is not None else None,
+        "photo_path": photo_path,
+        "photo_url": photo_url,
+        "map_url": map_url,
+        "checkin_at": str(r.get("checkin_at") or ""),
+        "created_at": str(r.get("created_at") or ""),
+    }
+
+
+@mobile_attendance_bp.route("/api/mobile/attendance", methods=["GET"])
+@mobile_required
 def api_mobile_attendance_list():
-    user = request.mobile_user
+    user_id = request.user["user_id"]
+    role = request.user["role"]
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        if user["role"] == "admin":
+        if role == "admin":
             cur.execute("""
                 SELECT
                     a.id,
@@ -42,13 +69,14 @@ def api_mobile_attendance_list():
                     a.status,
                     a.arrival_type,
                     a.note,
-                    a.checkin_at,
                     a.device_id,
                     a.latitude,
                     a.longitude,
                     a.accuracy,
                     a.photo_path,
-                    a.map_url
+                    a.map_url,
+                    a.checkin_at,
+                    a.created_at
                 FROM attendance a
                 LEFT JOIN users u ON u.id = a.user_id
                 ORDER BY a.work_date DESC, a.id DESC
@@ -64,51 +92,37 @@ def api_mobile_attendance_list():
                     a.status,
                     a.arrival_type,
                     a.note,
-                    a.checkin_at,
                     a.device_id,
                     a.latitude,
                     a.longitude,
                     a.accuracy,
                     a.photo_path,
-                    a.map_url
+                    a.map_url,
+                    a.checkin_at,
+                    a.created_at
                 FROM attendance a
                 LEFT JOIN users u ON u.id = a.user_id
-                WHERE a.user_id=%s
+                WHERE a.user_id = %s
                 ORDER BY a.work_date DESC, a.id DESC
                 LIMIT 100;
-            """, (user["id"],))
-
+            """, (user_id,))
         rows = cur.fetchall()
-
-        data = []
-        for r in rows:
-            data.append({
-                "id": r["id"],
-                "user_id": r["user_id"],
-                "user_name": r.get("user_name") or "",
-                "work_date": str(r["work_date"] or ""),
-                "status": r.get("status") or "",
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "checkin_at": str(r.get("checkin_at") or ""),
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "map_url": r.get("map_url") or "",
-            })
-
-        return mobile_api_response(True, "Riwayat absensi berhasil diambil.", data={"attendance": data})
     finally:
         cur.close()
         conn.close()
 
+    return jsonify({
+        "ok": True,
+        "data": {
+            "attendance": [_row_to_attendance_dict(r) for r in rows]
+        }
+    })
 
-@mobile_attendance_bp.route("/attendance/me", methods=["GET"])
-@mobile_api_login_required
+
+@mobile_attendance_bp.route("/api/mobile/attendance/me", methods=["GET"])
+@mobile_required
 def api_mobile_attendance_me():
-    user = request.mobile_user
+    user_id = request.user["user_id"]
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -122,85 +136,78 @@ def api_mobile_attendance_me():
                 a.status,
                 a.arrival_type,
                 a.note,
-                a.checkin_at,
                 a.device_id,
                 a.latitude,
                 a.longitude,
                 a.accuracy,
                 a.photo_path,
-                a.map_url
+                a.map_url,
+                a.checkin_at,
+                a.created_at
             FROM attendance a
             LEFT JOIN users u ON u.id = a.user_id
-            WHERE a.user_id=%s
+            WHERE a.user_id = %s
             ORDER BY a.work_date DESC, a.id DESC
             LIMIT 100;
-        """, (user["id"],))
+        """, (user_id,))
         rows = cur.fetchall()
-
-        data = []
-        for r in rows:
-            data.append({
-                "id": r["id"],
-                "user_id": r["user_id"],
-                "user_name": r.get("user_name") or "",
-                "work_date": str(r["work_date"] or ""),
-                "status": r.get("status") or "",
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "checkin_at": str(r.get("checkin_at") or ""),
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "map_url": r.get("map_url") or "",
-            })
-
-        return mobile_api_response(True, "Riwayat absensi saya berhasil diambil.", data={"attendance": data})
     finally:
         cur.close()
         conn.close()
 
+    return jsonify({
+        "ok": True,
+        "data": {
+            "attendance": [_row_to_attendance_dict(r) for r in rows]
+        }
+    })
 
-@mobile_attendance_bp.route("/attendance", methods=["POST"])
-@mobile_api_login_required
-def api_mobile_attendance_submit():
-    user = request.mobile_user
 
-    attendance_type = (request.form.get("attendance_type") or request.form.get("arrival_type") or "ONTIME").strip().upper()
+@mobile_attendance_bp.route("/api/mobile/attendance", methods=["POST"])
+@mobile_required
+def api_mobile_submit_attendance():
+    user_id = request.user["user_id"]
+
+    attendance_type = (request.form.get("attendance_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
     latitude = _to_float(request.form.get("latitude"))
     longitude = _to_float(request.form.get("longitude"))
     accuracy = _to_float(request.form.get("accuracy"))
     device_id = (request.form.get("device_id") or "android").strip()
-    now = _now_wib_naive()
-    work_date = now.date()
-
     selfie = request.files.get("selfie")
 
-    if selfie is None:
-        return mobile_api_response(False, "Selfie wajib diupload.", status_code=400)
+    if latitude is None or longitude is None:
+        return jsonify({"ok": False, "message": "Latitude dan longitude wajib diisi"}), 400
 
-    photo_path = None
-    if selfie and selfie.filename:
-        os.makedirs("static/uploads/attendance_user", exist_ok=True)
-        filename = f"att_mobile_{date.today()}_{uuid.uuid4().hex}.jpg"
-        save_path = os.path.join("static/uploads/attendance_user", filename)
-        selfie.save(save_path)
-        photo_path = f"uploads/attendance_user/{filename}"
+    if selfie is None:
+        return jsonify({"ok": False, "message": "Selfie wajib diupload"}), 400
+
+    os.makedirs("static/uploads/attendance_user", exist_ok=True)
+    filename = f"att_mobile_{date.today()}_{uuid.uuid4().hex}.jpg"
+    save_path = os.path.join("static/uploads/attendance_user", filename)
+    selfie.save(save_path)
+    photo_path = f"uploads/attendance_user/{filename}"
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        cur.execute("SELECT id, name FROM users WHERE id=%s LIMIT 1;", (user_id,))
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"ok": False, "message": "User tidak ditemukan"}), 404
+
         cur.execute("""
             INSERT INTO attendance_pending
             (user_id, work_date, arrival_type, note, name_input,
              device_id, latitude, longitude, accuracy, photo_path,
              ip_address, status, created_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s);
+            VALUES
+            (%s, CURRENT_DATE, %s, %s, %s,
+             %s, %s, %s, %s, %s,
+             %s, 'PENDING', CURRENT_TIMESTAMP)
+            RETURNING id;
         """, (
-            user["id"],
-            work_date,
+            user_id,
             attendance_type,
             note,
             user["name"],
@@ -209,23 +216,29 @@ def api_mobile_attendance_submit():
             longitude,
             accuracy,
             photo_path,
-            _public_ip(),
-            now
+            request.remote_addr
         ))
+        row = cur.fetchone()
         conn.commit()
-
-        return mobile_api_response(True, "Absensi berhasil dikirim dan menunggu persetujuan admin.")
     finally:
         cur.close()
         conn.close()
 
+    return jsonify({
+        "ok": True,
+        "message": "Absensi berhasil dikirim",
+        "data": {
+            "pending_id": row["id"]
+        }
+    })
 
-@mobile_attendance_bp.route("/attendance/pending", methods=["GET"])
-@mobile_api_login_required
-def api_mobile_attendance_pending():
-    user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa mengakses data ini.", status_code=403)
+
+@mobile_attendance_bp.route("/api/mobile/attendance/pending", methods=["GET"])
+@mobile_required
+def api_mobile_pending_attendance():
+    role = request.user["role"]
+    if role != "admin":
+        return jsonify({"ok": False, "message": "Forbidden"}), 403
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -233,8 +246,8 @@ def api_mobile_attendance_pending():
         cur.execute("""
             SELECT
                 id,
-                name_input,
                 user_id,
+                name_input,
                 work_date,
                 arrival_type,
                 note,
@@ -250,44 +263,58 @@ def api_mobile_attendance_pending():
             LIMIT 200;
         """)
         rows = cur.fetchall()
-
-        data = []
-        for r in rows:
-            map_url = ""
-            if r.get("latitude") and r.get("longitude"):
-                map_url = f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}"
-
-            data.append({
-                "id": r["id"],
-                "name_input": r.get("name_input") or "",
-                "user_id": r.get("user_id"),
-                "work_date": str(r["work_date"] or ""),
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "created_at": str(r.get("created_at") or ""),
-                "map_url": map_url,
-            })
-
-        return mobile_api_response(True, "Pending absensi berhasil diambil.", data={"attendance": data})
     finally:
         cur.close()
         conn.close()
 
+    data = []
+    for r in rows:
+        photo_path = r.get("photo_path") or ""
+        photo_url = ""
+        if photo_path:
+            photo_url = request.host_url.rstrip("/") + "/static/" + photo_path
 
-@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/approve", methods=["POST"])
-@mobile_api_login_required
-def api_mobile_attendance_approve(pending_id):
-    user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa approve.", status_code=403)
+        lat = r.get("latitude")
+        lng = r.get("longitude")
+        map_url = ""
+        if lat is not None and lng is not None:
+            map_url = f"https://www.google.com/maps?q={lat},{lng}"
+
+        data.append({
+            "id": r["id"],
+            "user_id": r.get("user_id"),
+            "name_input": r.get("name_input") or "",
+            "work_date": str(r.get("work_date") or ""),
+            "arrival_type": r.get("arrival_type") or "",
+            "note": r.get("note") or "",
+            "device_id": r.get("device_id") or "",
+            "latitude": float(lat) if lat is not None else None,
+            "longitude": float(lng) if lng is not None else None,
+            "accuracy": float(r.get("accuracy")) if r.get("accuracy") is not None else None,
+            "photo_path": photo_path,
+            "photo_url": photo_url,
+            "map_url": map_url,
+            "created_at": str(r.get("created_at") or ""),
+        })
+
+    return jsonify({
+        "ok": True,
+        "data": {
+            "attendance": data
+        }
+    })
+
+
+@mobile_attendance_bp.route("/api/mobile/attendance/pending/<int:pending_id>/approve", methods=["POST"])
+@mobile_required
+def api_mobile_approve_pending_attendance(pending_id):
+    role = request.user["role"]
+    admin_id = request.user["user_id"]
+    if role != "admin":
+        return jsonify({"ok": False, "message": "Forbidden"}), 403
 
     data = request.get_json(silent=True) or {}
-    user_id_form = data.get("user_id")
+    fallback_user_id = data.get("user_id")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -299,16 +326,12 @@ def api_mobile_attendance_approve(pending_id):
             LIMIT 1;
         """, (pending_id,))
         p = cur.fetchone()
-
         if not p:
-            return mobile_api_response(False, "Data pending tidak ditemukan.", status_code=404)
+            return jsonify({"ok": False, "message": "Data pending tidak ditemukan"}), 404
 
-        target_user_id = p.get("user_id") or user_id_form
+        target_user_id = p.get("user_id") or fallback_user_id
         if not target_user_id:
-            return mobile_api_response(False, "User tujuan tidak ditemukan.", status_code=400)
-
-        created_at_wib = p.get("created_at")
-        work_date = p.get("work_date") or (created_at_wib.date() if created_at_wib else date.today())
+            return jsonify({"ok": False, "message": "user_id tidak ditemukan"}), 400
 
         arrival_type = (p.get("arrival_type") or "ONTIME").upper()
         if arrival_type in ("ONTIME", "LATE"):
@@ -322,18 +345,18 @@ def api_mobile_attendance_approve(pending_id):
         else:
             status = "PRESENT"
 
-        latv = p.get("latitude")
-        lngv = p.get("longitude")
-        map_url = f"https://www.google.com/maps?q={latv},{lngv}" if latv and lngv else None
+        lat = p.get("latitude")
+        lng = p.get("longitude")
+        map_url = f"https://www.google.com/maps?q={lat},{lng}" if lat is not None and lng is not None else None
 
         cur.execute("""
             UPDATE attendance_pending
             SET status='APPROVED',
                 approved_user_id=%s,
                 approved_by=%s,
-                approved_at=NOW()
+                approved_at=CURRENT_TIMESTAMP
             WHERE id=%s;
-        """, (int(target_user_id), user["id"], pending_id))
+        """, (target_user_id, admin_id, pending_id))
 
         cur.execute("""
             INSERT INTO attendance
@@ -348,32 +371,34 @@ def api_mobile_attendance_approve(pending_id):
                 checkin_at=EXCLUDED.checkin_at;
         """, (
             int(target_user_id),
-            work_date,
+            p.get("work_date"),
             status,
             arrival_type,
             p.get("note"),
-            created_at_wib,
+            p.get("created_at"),
             p.get("device_id"),
-            latv,
-            lngv,
+            lat,
+            lng,
             p.get("accuracy"),
             p.get("photo_path"),
             map_url
         ))
-        conn.commit()
 
-        return mobile_api_response(True, "Absensi berhasil disetujui.")
+        conn.commit()
     finally:
         cur.close()
         conn.close()
 
+    return jsonify({"ok": True, "message": "Absensi berhasil disetujui"})
 
-@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/reject", methods=["POST"])
-@mobile_api_login_required
-def api_mobile_attendance_reject(pending_id):
-    user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa reject.", status_code=403)
+
+@mobile_attendance_bp.route("/api/mobile/attendance/pending/<int:pending_id>/reject", methods=["POST"])
+@mobile_required
+def api_mobile_reject_pending_attendance(pending_id):
+    role = request.user["role"]
+    admin_id = request.user["user_id"]
+    if role != "admin":
+        return jsonify({"ok": False, "message": "Forbidden"}), 403
 
     data = request.get_json(silent=True) or {}
     reason = (data.get("reason") or "").strip()
@@ -385,13 +410,13 @@ def api_mobile_attendance_reject(pending_id):
             UPDATE attendance_pending
             SET status='REJECTED',
                 rejected_by=%s,
-                rejected_at=NOW(),
+                rejected_at=CURRENT_TIMESTAMP,
                 reject_reason=%s
             WHERE id=%s;
-        """, (user["id"], reason, pending_id))
+        """, (admin_id, reason, pending_id))
         conn.commit()
-
-        return mobile_api_response(True, "Absensi berhasil ditolak.")
     finally:
         cur.close()
         conn.close()
+
+    return jsonify({"ok": True, "message": "Absensi berhasil ditolak"})
