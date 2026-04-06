@@ -96,9 +96,9 @@ app.register_blueprint(buy_prices_bp)
 
 
 
-app.register_blueprint(mobile_auth_bp)
-app.register_blueprint(mobile_attendance_bp)
-app.register_blueprint(mobile_hpp_bp)
+app.register_blueprint(mobile_auth_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_attendance_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_hpp_bp, url_prefix="/api/mobile")
 
 
 
