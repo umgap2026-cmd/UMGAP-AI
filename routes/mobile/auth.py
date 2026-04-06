@@ -62,6 +62,69 @@ def api_mobile_login():
         )
     finally:
         cur.close()
+        conn.close()@app.route("/api/mobile/login", methods=["POST"])
+def api_mobile_login():
+    ensure_mobile_api_schema()
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = (data.get("password") or "").strip()
+    device_name = (data.get("device_name") or "").strip()
+
+    if not email or not password:
+        return mobile_api_response(
+            ok=False,
+            message="Email dan password wajib diisi.",
+            status_code=400
+        )
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, name, email, password_hash, role
+            FROM users
+            WHERE LOWER(email)=LOWER(%s)
+            LIMIT 1;
+        """, (email,))
+        user = cur.fetchone()
+
+        if not user or not check_password_hash(user["password_hash"], password):
+            return mobile_api_response(
+                ok=False,
+                message="Email atau password salah.",
+                status_code=401
+            )
+
+        token = uuid.uuid4().hex + uuid.uuid4().hex
+
+        cur.execute("""
+            INSERT INTO mobile_api_tokens (user_id, token, device_name, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            RETURNING id;
+        """, (
+            user["id"],
+            token,
+            device_name or "Android Device"
+        ))
+        cur.fetchone()
+        conn.commit()
+
+        return mobile_api_response(
+            ok=True,
+            message="Login berhasil.",
+            data={
+                "token": token,
+                "user": {
+                    "id": user["id"],
+                    "name": user["name"],
+                    "email": user["email"],
+                    "role": user["role"],
+                }
+            }
+        )
+    finally:
+        cur.close()
         conn.close()
 
 
