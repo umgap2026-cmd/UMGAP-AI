@@ -16,3 +16,4 @@ pyserial
 opencv-python-headless
 numpy
 PyJWT==2.8.0
+pytz
