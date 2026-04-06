@@ -1,0 +1,73 @@
+from flask import Blueprint, render_template, redirect, session
+from db import get_conn
+from core import is_logged_in, ensure_hr_v2_schema
+
+system_bp = Blueprint("system", __name__)
+
+@system_bp.route("/")
+def landing():
+    if is_logged_in():
+        return redirect("/admin/dashboard" if session.get("role") == "admin" else "/dashboard")
+    return render_template("landing.html")
+
+@system_bp.route("/db-check")
+def db_check():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 AS ok;")
+        row = cur.fetchone()
+        return {"ok": row[0] if row else 0}
+    finally:
+        cur.close()
+        conn.close()
+
+@system_bp.route("/init-db")
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(120) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(20) DEFAULT 'employee',
+                points INTEGER NOT NULL DEFAULT 0,
+                points_admin INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    return "OK: tabel users siap."
+
+@system_bp.route("/init-products")
+def init_products():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                name VARCHAR(120) NOT NULL,
+                price INTEGER DEFAULT 0,
+                stock INTEGER DEFAULT 0,
+                is_global BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    return "OK: tabel products siap."
+
+@system_bp.route("/init-hr-v2")
+def init_hr_v2():
+    ensure_hr_v2_schema()
+    return "OK: HR v2 tables/columns ensured."
