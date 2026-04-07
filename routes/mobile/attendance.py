@@ -12,6 +12,7 @@ from core import (
     _public_ip,
     _now_wib_naive_from_form,
 )
+from core import get_admin_fcm_tokens, send_fcm_to_tokens
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
 
@@ -211,6 +212,30 @@ def mobile_attendance_submit():
             now
         ))
         conn.commit()
+
+        try:
+            admin_tokens = get_admin_fcm_tokens()
+            send_fcm_to_tokens(
+                admin_tokens,
+                title="Absensi Baru",
+                body=f"{user.get('name', 'Karyawan')} mengirim absensi dan menunggu verifikasi.",
+                data={
+                    "type": "attendance_pending",
+                    "screen": "attendance_approval",
+                    "user_id": user["user_id"],
+                    "work_date": str(work_date),
+                    "arrival_type": arrival_type,
+                }
+            )
+        except Exception as push_err:
+            print("FCM admin notify error:", push_err)
+
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil dikirim dan menunggu verifikasi admin.",
+            data={},
+            status_code=200
+        )
 
         return mobile_api_response(
             ok=True,
