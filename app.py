@@ -3,15 +3,15 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask
 from dotenv import load_dotenv
+load_dotenv()
+
+from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from core import init_oauth
 
-
-#------ WEB -----
-
+# ------ WEB -----
 from routes.web.system import system_bp
 from routes.web.auth import auth_bp
 from routes.web.dashboard import dashboard_bp
@@ -33,24 +33,20 @@ from routes.web.ai import ai_bp
 from routes.web.buy_prices import buy_prices_bp
 from routes.web.export import export_bp
 
-#------ MOBILE -------
+# ------ MOBILE -----
 from routes.mobile.auth import mobile_auth_bp
 from routes.mobile.attendance import mobile_attendance_bp
 from routes.mobile.hpp import mobile_hpp_bp
+from routes.mobile.dashboard import mobile_dashboard_bp
+from routes.mobile.notifications import mobile_notifications_bp
+from routes.mobile.products import mobile_products_bp
+from routes.mobile.sales import mobile_sales_bp
+from routes.mobile.admin_users import mobile_admin_users_bp
+from routes.mobile.invoice import mobile_invoice_bp
+from routes.mobile.payroll import mobile_payroll_bp
+from routes.mobile.stats import mobile_stats_bp
+from routes.mobile.points import mobile_points_bp
 
-
-
-try:
-    from routes.mobile.auth import mobile_auth_bp
-except Exception:
-    mobile_auth_bp = None
-
-try:
-    from routes.mobile.attendance import mobile_attendance_bp
-except Exception:
-    mobile_attendance_bp = None
-
-load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -66,6 +62,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 init_oauth(app)
 
+
 @app.after_request
 def add_mobile_api_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -73,6 +70,8 @@ def add_mobile_api_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
 
+
+# ------ REGISTER WEB -----
 app.register_blueprint(system_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -94,12 +93,19 @@ app.register_blueprint(ai_bp)
 app.register_blueprint(export_bp)
 app.register_blueprint(buy_prices_bp)
 
-
-
+# ------ REGISTER MOBILE -----
 app.register_blueprint(mobile_auth_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_attendance_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_hpp_bp, url_prefix="/api/mobile")
-
+app.register_blueprint(mobile_dashboard_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_notifications_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_products_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_sales_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_admin_users_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_invoice_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_payroll_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_stats_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_points_bp, url_prefix="/api/mobile")
 
 
 if __name__ == "__main__":
