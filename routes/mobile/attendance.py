@@ -11,8 +11,9 @@ from core import (
     mobile_api_login_required,
     _public_ip,
     _now_wib_naive_from_form,
+    get_admin_fcm_tokens,
+    send_fcm_to_tokens,
 )
-from core import get_admin_fcm_tokens, send_fcm_to_tokens
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
 
@@ -167,16 +168,16 @@ def mobile_attendance_submit():
 
     user = request.mobile_user
 
+    # mobile submit pakai multipart/form-data dari Flutter
     arrival_type = (request.form.get("attendance_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
     device_id = (request.form.get("device_id") or "").strip()
-
-    now = _now_wib_naive_from_form()
-    work_date = now.date()
-
     lat = _to_float(request.form.get("latitude"))
     lng = _to_float(request.form.get("longitude"))
     acc = _to_float(request.form.get("accuracy"))
+
+    now = _now_wib_naive_from_form()
+    work_date = now.date()
 
     photo = request.files.get("selfie")
     photo_path = None
@@ -189,28 +190,75 @@ def mobile_attendance_submit():
         photo_path = f"uploads/attendance_user/{filename}"
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        # Hindari duplicate per device per hari:
+        # kalau sudah ada pending dari device yang sama hari ini, update saja.
         cur.execute("""
-            INSERT INTO attendance_pending
-            (user_id, work_date, arrival_type, note, name_input,
-             device_id, latitude, longitude, accuracy, photo_path,
-             ip_address, status, created_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s)
-        """, (
-            user["user_id"],
-            work_date,
-            arrival_type,
-            note,
-            user.get("name"),
-            device_id or "android",
-            lat,
-            lng,
-            acc,
-            photo_path,
-            _public_ip(),
-            now
-        ))
+            SELECT id
+            FROM attendance_pending
+            WHERE device_id = %s
+              AND created_at::date = %s
+            ORDER BY id DESC
+            LIMIT 1;
+        """, (device_id or "android", work_date))
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute("""
+                UPDATE attendance_pending
+                SET
+                    user_id = %s,
+                    work_date = %s,
+                    arrival_type = %s,
+                    note = %s,
+                    name_input = %s,
+                    latitude = %s,
+                    longitude = %s,
+                    accuracy = %s,
+                    photo_path = %s,
+                    ip_address = %s,
+                    status = 'PENDING',
+                    created_at = %s
+                WHERE id = %s;
+            """, (
+                user["user_id"],
+                work_date,
+                arrival_type,
+                note,
+                user.get("name"),
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now,
+                existing["id"],
+            ))
+        else:
+            cur.execute("""
+                INSERT INTO attendance_pending
+                (
+                    user_id, work_date, arrival_type, note, name_input,
+                    device_id, latitude, longitude, accuracy, photo_path,
+                    ip_address, status, created_at
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s)
+            """, (
+                user["user_id"],
+                work_date,
+                arrival_type,
+                note,
+                user.get("name"),
+                device_id or "android",
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now
+            ))
+
         conn.commit()
 
         try:
@@ -229,13 +277,6 @@ def mobile_attendance_submit():
             )
         except Exception as push_err:
             print("FCM admin notify error:", push_err)
-
-        return mobile_api_response(
-            ok=True,
-            message="Absensi berhasil dikirim dan menunggu verifikasi admin.",
-            data={},
-            status_code=200
-        )
 
         return mobile_api_response(
             ok=True,
@@ -303,7 +344,12 @@ def mobile_attendance_pending():
             item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}" if latv and lngv else ""
             items.append(item)
 
-        return mobile_api_response(ok=True, message="OK", data={"attendance": items}, status_code=200)
+        return mobile_api_response(
+            ok=True,
+            message="OK",
+            data={"attendance": items},
+            status_code=200
+        )
     finally:
         cur.close()
         conn.close()
@@ -334,11 +380,19 @@ def mobile_attendance_approve(pending_id):
         p = cur.fetchone()
 
         if not p:
-            return mobile_api_response(ok=False, message="Data pending tidak ditemukan.", status_code=404)
+            return mobile_api_response(
+                ok=False,
+                message="Data pending tidak ditemukan.",
+                status_code=404
+            )
 
         target_user_id = p.get("user_id") or (int(user_id_form) if user_id_form else None)
         if not target_user_id:
-            return mobile_api_response(ok=False, message="User tujuan belum dipilih.", status_code=400)
+            return mobile_api_response(
+                ok=False,
+                message="User tujuan belum dipilih.",
+                status_code=400
+            )
 
         created_at_wib = p.get("created_at_wib") or p.get("created_at")
         work_date = p.get("work_date") or (created_at_wib.date() if created_at_wib else date.today())
@@ -371,15 +425,23 @@ def mobile_attendance_approve(pending_id):
 
         cur.execute("""
             INSERT INTO attendance
-            (user_id, work_date, status, arrival_type, note, checkin_at,
-             device_id, latitude, longitude, accuracy, photo_path, map_url)
+            (
+                user_id, work_date, status, arrival_type, note, checkin_at,
+                device_id, latitude, longitude, accuracy, photo_path, map_url
+            )
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (user_id, work_date)
             DO UPDATE SET
-                status=EXCLUDED.status,
-                arrival_type=EXCLUDED.arrival_type,
-                note=EXCLUDED.note,
-                checkin_at=EXCLUDED.checkin_at;
+                status = EXCLUDED.status,
+                arrival_type = EXCLUDED.arrival_type,
+                note = EXCLUDED.note,
+                checkin_at = EXCLUDED.checkin_at,
+                device_id = EXCLUDED.device_id,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                accuracy = EXCLUDED.accuracy,
+                photo_path = EXCLUDED.photo_path,
+                map_url = EXCLUDED.map_url;
         """, (
             int(target_user_id),
             work_date,
@@ -397,10 +459,19 @@ def mobile_attendance_approve(pending_id):
 
         conn.commit()
 
-        return mobile_api_response(ok=True, message="Absensi berhasil disetujui.", data={}, status_code=200)
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil disetujui.",
+            data={},
+            status_code=200
+        )
     except Exception as e:
         conn.rollback()
-        return mobile_api_response(ok=False, message=f"Gagal approve absensi: {str(e)}", status_code=500)
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal approve absensi: {str(e)}",
+            status_code=500
+        )
     finally:
         cur.close()
         conn.close()
@@ -433,13 +504,26 @@ def mobile_attendance_reject(pending_id):
 
         if cur.rowcount == 0:
             conn.rollback()
-            return mobile_api_response(ok=False, message="Data pending tidak ditemukan.", status_code=404)
+            return mobile_api_response(
+                ok=False,
+                message="Data pending tidak ditemukan.",
+                status_code=404
+            )
 
         conn.commit()
-        return mobile_api_response(ok=True, message="Absensi berhasil ditolak.", data={}, status_code=200)
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil ditolak.",
+            data={},
+            status_code=200
+        )
     except Exception as e:
         conn.rollback()
-        return mobile_api_response(ok=False, message=f"Gagal reject absensi: {str(e)}", status_code=500)
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal reject absensi: {str(e)}",
+            status_code=500
+        )
     finally:
         cur.close()
         conn.close()
