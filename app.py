@@ -46,7 +46,7 @@ from routes.mobile.invoice import mobile_invoice_bp
 from routes.mobile.payroll import mobile_payroll_bp
 from routes.mobile.stats import mobile_stats_bp
 from routes.mobile.points import mobile_points_bp
-
+from routes.mobile.device import mobile_device_bp
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -106,7 +106,7 @@ app.register_blueprint(mobile_invoice_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_payroll_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_stats_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_points_bp, url_prefix="/api/mobile")
-
+app.register_blueprint(mobile_device_bp, url_prefix="/api/mobile")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
