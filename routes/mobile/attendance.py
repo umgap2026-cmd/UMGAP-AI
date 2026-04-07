@@ -50,7 +50,7 @@ def _row_to_attendance_dict(r):
     }
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance", methods=["GET"])
+@mobile_attendance_bp.route("/attendance", methods=["GET"])
 @mobile_required
 def api_mobile_attendance_list():
     user_id = request.user["user_id"]
@@ -119,7 +119,7 @@ def api_mobile_attendance_list():
     })
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance/me", methods=["GET"])
+@mobile_attendance_bp.route("/attendance/me", methods=["GET"])
 @mobile_required
 def api_mobile_attendance_me():
     user_id = request.user["user_id"]
@@ -163,7 +163,7 @@ def api_mobile_attendance_me():
     })
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance", methods=["POST"])
+@mobile_attendance_bp.route("/attendance", methods=["POST"])
 @mobile_required
 def api_mobile_submit_attendance():
     user_id = request.user["user_id"]
@@ -233,7 +233,7 @@ def api_mobile_submit_attendance():
     })
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance/pending", methods=["GET"])
+@mobile_attendance_bp.route("/attendance/pending", methods=["GET"])
 @mobile_required
 def api_mobile_pending_attendance():
     role = request.user["role"]
@@ -305,7 +305,7 @@ def api_mobile_pending_attendance():
     })
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance/pending/<int:pending_id>/approve", methods=["POST"])
+@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/approve", methods=["POST"])
 @mobile_required
 def api_mobile_approve_pending_attendance(pending_id):
     role = request.user["role"]
@@ -392,7 +392,7 @@ def api_mobile_approve_pending_attendance(pending_id):
     return jsonify({"ok": True, "message": "Absensi berhasil disetujui"})
 
 
-@mobile_attendance_bp.route("/api/mobile/attendance/pending/<int:pending_id>/reject", methods=["POST"])
+@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/reject", methods=["POST"])
 @mobile_required
 def api_mobile_reject_pending_attendance(pending_id):
     role = request.user["role"]
