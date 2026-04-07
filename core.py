@@ -666,3 +666,27 @@ def get_notif_count():
     finally:
         cur.close()
         conn.close()
+
+def ensure_mobile_device_tokens_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mobile_device_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                fcm_token TEXT NOT NULL UNIQUE,
+                platform VARCHAR(20) NOT NULL DEFAULT 'android',
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mobile_device_tokens_user_id
+            ON mobile_device_tokens(user_id);
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
