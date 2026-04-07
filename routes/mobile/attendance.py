@@ -10,6 +10,7 @@ from core import (
     mobile_api_response,
     mobile_api_login_required,
     _public_ip,
+    _now_wib_naive,
     _now_wib_naive_from_form,
     get_admin_fcm_tokens,
     send_fcm_to_tokens,
@@ -528,15 +529,7 @@ def mobile_attendance_reject(pending_id):
         cur.close()
         conn.close()
 
-# ============================================================
-# TAMBAHKAN KODE INI KE BAGIAN BAWAH FILE:
-# routes/mobile/attendance.py
-# ============================================================
-#
-# Endpoint baru: POST /api/mobile/attendance/admin-add
-# Fungsi: Admin mengabsenkan karyawan tertentu secara manual
-# Setara dengan fitur "Absen Karyawan" di web admin panel
-# ============================================================
+
 
 @mobile_attendance_bp.route("/attendance/admin-add", methods=["POST", "OPTIONS"])
 @mobile_api_login_required
@@ -546,97 +539,63 @@ def mobile_attendance_admin_add():
 
     user = request.mobile_user
     if user.get("role") != "admin":
-        return mobile_api_response(
-            ok=False,
-            message="Akses ditolak. Hanya admin.",
-            status_code=403
-        )
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
 
-    payload = request.get_json(silent=True) or {}
-
-    user_id_raw   = payload.get("user_id")
-    arrival_type  = (payload.get("arrival_type") or "ONTIME").strip().upper()
-    note          = (payload.get("note") or "").strip()
-    # Format: "HH:MM" — kosong berarti pakai jam WIB sekarang
-    manual_checkin = (payload.get("manual_checkin") or "").strip()
+    payload        = request.get_json(silent=True) or {}
+    user_id_raw    = payload.get("user_id")
+    arrival_type   = (payload.get("arrival_type") or "ONTIME").strip().upper()
+    note           = (payload.get("note") or "").strip()
+    manual_checkin = (payload.get("manual_checkin") or "").strip()  # format "HH:MM"
 
     if not user_id_raw:
-        return mobile_api_response(
-            ok=False,
-            message="user_id wajib diisi.",
-            status_code=400
-        )
+        return mobile_api_response(ok=False, message="user_id wajib diisi.", status_code=400)
 
     try:
         target_user_id = int(user_id_raw)
     except (ValueError, TypeError):
-        return mobile_api_response(
-            ok=False,
-            message="user_id tidak valid.",
-            status_code=400
-        )
+        return mobile_api_response(ok=False, message="user_id tidak valid.", status_code=400)
 
-    if arrival_type in ("SICK", "LEAVE", "ABSENT"):
-        status = arrival_type
-    else:
-        status = "PRESENT"
+    status = arrival_type if arrival_type in ("SICK", "LEAVE", "ABSENT") else "PRESENT"
 
-    # Tentukan waktu checkin
-    now = _now_wib_naive_from_form()
+    # Pakai _now_wib_naive() — langsung ambil waktu WIB, tidak perlu baca form
+    now = _now_wib_naive()
 
     if manual_checkin:
         try:
-            # Gabungkan tanggal hari ini dengan jam yang dipilih admin
-            from datetime import datetime as _dt
             parts = manual_checkin.split(":")
             now = now.replace(hour=int(parts[0]), minute=int(parts[1]), second=0, microsecond=0)
         except Exception:
-            pass  # Gagal parse → pakai jam sekarang
+            pass
 
     work_date = now.date()
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Cek apakah sudah ada absensi hari ini untuk karyawan ini
+        # ON CONFLICT DO UPDATE — atomic, mengikuti pola endpoint approve
         cur.execute("""
-            SELECT id FROM attendance
-            WHERE user_id = %s AND work_date = %s
-            LIMIT 1;
-        """, (target_user_id, work_date))
-        existing = cur.fetchone()
-
-        if existing:
-            cur.execute("""
-                UPDATE attendance
-                SET status = %s,
-                    arrival_type = %s,
-                    note = %s,
-                    checkin_at = %s
-                WHERE id = %s;
-            """, (status, arrival_type, note, now, existing["id"]))
-        else:
-            cur.execute("""
-                INSERT INTO attendance
-                (user_id, work_date, status, arrival_type, note, checkin_at, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """, (target_user_id, work_date, status, arrival_type, note, now, now))
+            INSERT INTO attendance
+            (user_id, work_date, status, arrival_type, note, checkin_at, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, work_date)
+            DO UPDATE SET
+                status       = EXCLUDED.status,
+                arrival_type = EXCLUDED.arrival_type,
+                note         = EXCLUDED.note,
+                checkin_at   = EXCLUDED.checkin_at;
+        """, (target_user_id, work_date, status, arrival_type, note, now, now))
 
         conn.commit()
 
         return mobile_api_response(
             ok=True,
             message="Absensi karyawan berhasil dicatat.",
-            data={},
+            data={"user_id": target_user_id, "work_date": str(work_date), "arrival_type": arrival_type},
             status_code=200
         )
     except Exception as e:
         conn.rollback()
-        return mobile_api_response(
-            ok=False,
-            message=f"Gagal catat absensi: {str(e)}",
-            status_code=500
-        )
+        return mobile_api_response(ok=False, message=f"Gagal catat absensi: {str(e)}", status_code=500)
     finally:
         cur.close()
         conn.close()
