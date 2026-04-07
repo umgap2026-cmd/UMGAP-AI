@@ -6,11 +6,15 @@ import smtplib
 import hmac
 import hashlib
 import uuid
+import requests
 from datetime import datetime, date, timedelta
 from email.message import EmailMessage
 from functools import wraps
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request as GoogleAuthRequest
+
 
 import pytz
 from flask import session, request, redirect, abort, jsonify, url_for, flash
@@ -687,6 +691,84 @@ def ensure_mobile_device_tokens_schema():
             ON mobile_device_tokens(user_id);
         """)
         conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+def _get_firebase_access_token():
+    service_account_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+    if not service_account_path:
+        raise RuntimeError("FIREBASE_SERVICE_ACCOUNT_JSON belum diisi")
+
+    scopes = ["https://www.googleapis.com/auth/firebase.messaging"]
+    creds = service_account.Credentials.from_service_account_file(
+        service_account_path,
+        scopes=scopes,
+    )
+    creds.refresh(GoogleAuthRequest())
+    return creds.token
+
+def send_fcm_to_tokens(tokens, title, body, data=None):
+    if not tokens:
+        return {"ok": True, "sent": 0}
+
+    project_id = (os.getenv("FIREBASE_PROJECT_ID") or "").strip()
+    if not project_id:
+        raise RuntimeError("FIREBASE_PROJECT_ID belum diisi")
+
+    access_token = _get_firebase_access_token()
+    url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    sent = 0
+    failed = 0
+
+    for token in tokens:
+        payload = {
+            "message": {
+                "token": token,
+                "notification": {
+                    "title": title,
+                    "body": body,
+                },
+                "data": {k: str(v) for k, v in (data or {}).items()},
+                "android": {
+                    "priority": "high"
+                }
+            }
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
+            if 200 <= resp.status_code < 300:
+                sent += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+
+    return {"ok": True, "sent": sent, "failed": failed}
+
+def get_admin_fcm_tokens():
+    ensure_mobile_device_tokens_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT DISTINCT d.fcm_token
+            FROM mobile_device_tokens d
+            JOIN users u ON u.id = d.user_id
+            WHERE d.is_active = TRUE
+              AND u.role = 'admin'
+              AND COALESCE(d.fcm_token, '') <> '';
+        """)
+        rows = cur.fetchall()
+        return [r["fcm_token"] for r in rows if r.get("fcm_token")]
     finally:
         cur.close()
         conn.close()
