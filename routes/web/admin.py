@@ -301,30 +301,83 @@ def quick_attendance_submit(token):
         photo.save(save_path)
         photo_path = f"uploads/quick_attendance/{filename}"
 
+    now = _now_wib_naive()
+    work_date = now.date()
+
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute("""
-            INSERT INTO attendance_pending
-            (user_id, work_date, arrival_type, note, name_input,
-             device_id, latitude, longitude, accuracy, photo_path,
-             ip_address, status, created_at)
-            VALUES (NULL, %s, 'ONTIME', %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, 'PENDING', %s);
-        """, (
-            date.today(),
-            f"Quick attendance from token {token}",
-            name_input,
-            device_id or None,
-            lat,
-            lng,
-            acc,
-            photo_path,
-            _public_ip(),
-            _now_wib_naive()
-        ))
+        # Cek apakah device_id ini sudah submit pending hari ini
+        # (sama seperti logika di routes/web/attendance.py dan mobile/attendance.py)
+        if device_id:
+            cur.execute("""
+                SELECT id
+                FROM attendance_pending
+                WHERE device_id = %s
+                  AND created_at::date = %s
+                ORDER BY id DESC
+                LIMIT 1;
+            """, (device_id, work_date))
+            existing = cur.fetchone()
+        else:
+            existing = None
+
+        if existing:
+            # Sudah ada → UPDATE supaya tidak kena unique constraint
+            cur.execute("""
+                UPDATE attendance_pending
+                SET
+                    work_date   = %s,
+                    arrival_type = 'ONTIME',
+                    note        = %s,
+                    name_input  = %s,
+                    latitude    = %s,
+                    longitude   = %s,
+                    accuracy    = %s,
+                    photo_path  = %s,
+                    ip_address  = %s,
+                    status      = 'PENDING',
+                    created_at  = %s
+                WHERE id = %s;
+            """, (
+                work_date,
+                f"Quick attendance from token {token}",
+                name_input,
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now,
+                existing[0],
+            ))
+        else:
+            # Belum ada → INSERT baru
+            cur.execute("""
+                INSERT INTO attendance_pending
+                (user_id, work_date, arrival_type, note, name_input,
+                 device_id, latitude, longitude, accuracy, photo_path,
+                 ip_address, status, created_at)
+                VALUES (NULL, %s, 'ONTIME', %s, %s,
+                        %s, %s, %s, %s, %s,
+                        %s, 'PENDING', %s);
+            """, (
+                work_date,
+                f"Quick attendance from token {token}",
+                name_input,
+                device_id or None,
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now,
+            ))
+
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cur.close()
         conn.close()
