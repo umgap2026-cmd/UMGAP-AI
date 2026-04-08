@@ -47,6 +47,7 @@ from routes.mobile.payroll import mobile_payroll_bp
 from routes.mobile.stats import mobile_stats_bp
 from routes.mobile.points import mobile_points_bp
 from routes.mobile.device import mobile_device_bp
+from routes.mobile.announcements import mobile_announcements_bp  # ← BARU
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -94,19 +95,20 @@ app.register_blueprint(export_bp)
 app.register_blueprint(buy_prices_bp)
 
 # ------ REGISTER MOBILE -----
-app.register_blueprint(mobile_auth_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_attendance_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_hpp_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_dashboard_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_auth_bp,          url_prefix="/api/mobile")
+app.register_blueprint(mobile_attendance_bp,    url_prefix="/api/mobile")
+app.register_blueprint(mobile_hpp_bp,           url_prefix="/api/mobile")
+app.register_blueprint(mobile_dashboard_bp,     url_prefix="/api/mobile")
 app.register_blueprint(mobile_notifications_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_products_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_sales_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_admin_users_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_invoice_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_payroll_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_stats_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_points_bp, url_prefix="/api/mobile")
-app.register_blueprint(mobile_device_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_products_bp,      url_prefix="/api/mobile")
+app.register_blueprint(mobile_sales_bp,         url_prefix="/api/mobile")
+app.register_blueprint(mobile_admin_users_bp,   url_prefix="/api/mobile")
+app.register_blueprint(mobile_invoice_bp,       url_prefix="/api/mobile")
+app.register_blueprint(mobile_payroll_bp,       url_prefix="/api/mobile")
+app.register_blueprint(mobile_stats_bp,         url_prefix="/api/mobile")
+app.register_blueprint(mobile_points_bp,        url_prefix="/api/mobile")
+app.register_blueprint(mobile_device_bp,        url_prefix="/api/mobile")
+app.register_blueprint(mobile_announcements_bp, url_prefix="/api/mobile")  # ← BARU
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
