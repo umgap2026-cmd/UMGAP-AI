@@ -366,29 +366,38 @@ def mobile_stats_export():
             status_code=500,
         )
 
-    month = request.args.get("month")
-    if not month:
-        today = date.today()
-        month = f"{today.year:04d}-{today.month:02d}"
+    from datetime import datetime, timedelta
+
+    # Support date_from/date_to (rentang tanggal) ATAU month (bulan)
+    date_from_str = request.args.get("date_from")
+    date_to_str   = request.args.get("date_to")
+    month         = request.args.get("month")
 
     try:
-        year = int(month.split("-")[0])
-        mon  = int(month.split("-")[1])
-    except Exception:
-        return mobile_api_response(ok=False, message="Format bulan tidak valid (YYYY-MM).", status_code=400)
+        if date_from_str and date_to_str:
+            start_date  = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            end_date_inc = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            end_date    = end_date_inc + timedelta(days=1)
+            month_label = f"{start_date.strftime('%d %b')} s.d. {end_date_inc.strftime('%d %b %Y')}"
+            filename_tag = f"{date_from_str}_sd_{date_to_str}"
+        else:
+            if not month:
+                today = date.today()
+                month = f"{today.year:04d}-{today.month:02d}"
+            year = int(month.split("-")[0])
+            mon  = int(month.split("-")[1])
+            start_date = date(year, mon, 1)
+            end_date   = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+            month_names = ["","Januari","Februari","Maret","April","Mei","Juni",
+                           "Juli","Agustus","September","Oktober","November","Desember"]
+            month_label  = f"{month_names[mon]} {year}"
+            filename_tag = f"{year}_{mon:02d}"
+    except Exception as e:
+        return mobile_api_response(ok=False, message=f"Format tanggal tidak valid: {e}", status_code=400)
 
-    start_date = date(year, mon, 1)
-    end_date   = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
-
-    import calendar
-    month_names = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-                   "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-    month_label = f"{month_names[mon]} {year}"
-
-    rows = _fetch_data(start_date, end_date)
-
+    rows     = _fetch_data(start_date, end_date)
     buf      = _build_excel(rows, month_label)
-    filename = f"UMGAP_Statistik_{year}_{mon:02d}.xlsx"
+    filename = f"UMGAP_Statistik_{filename_tag}.xlsx"
 
     return send_file(
         buf,
