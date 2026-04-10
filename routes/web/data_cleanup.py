@@ -26,70 +26,25 @@ data_cleanup_bp = Blueprint("data_cleanup", __name__)
 # ── Konfigurasi tabel yang boleh dihapus ─────────────────────────
 CLEANUP_TARGETS = {
     "attendance": {
-        "label":      "Absensi",
-        "table":      "attendance",
-        "date_col":   "work_date",
-        "desc":       "Riwayat absensi karyawan (check-in, check-out, status)",
-        "icon":       "👆",
-        "warn":       "Data absensi yang dihapus tidak bisa dikembalikan.",
-        "join_label": "u.name AS detail",
-        "join":       "LEFT JOIN users u ON u.id = attendance.user_id",
-        "count_col":  "attendance.id",
+        "label":     "Absensi",
+        "table":     "attendance",
+        "date_col":  "work_date",
+        "join":      "",
+        "count_col": "id",
     },
     "sales": {
-        "label":      "Penjualan",
-        "table":      "sales_submissions",
-        "date_col":   "created_at",
-        "desc":       "Riwayat pengajuan & approval penjualan",
-        "icon":       "🛍️",
-        "warn":       "Data penjualan yang dihapus berpengaruh ke statistik.",
-        "join_label": "u.name AS detail",
-        "join":       "LEFT JOIN users u ON u.id = sales_submissions.user_id",
-        "count_col":  "sales_submissions.id",
-    },
-    "biofinger_logs": {
-        "label":      "Log Fingerprint",
-        "table":      "biofinger_logs",
-        "date_col":   "tran_dt",
-        "desc":       "Log raw data dari mesin fingerprint",
-        "icon":       "🔏",
-        "warn":       "Ini hanya log mentah, tidak berpengaruh ke absensi.",
-        "join_label": "pin_mesin AS detail",
-        "join":       "",
-        "count_col":  "id",
-    },
-    "announcements": {
-        "label":      "Pengumuman",
-        "table":      "announcements",
-        "date_col":   "created_at",
-        "desc":       "Pengumuman yang sudah dibuat admin",
-        "icon":       "📢",
-        "warn":       "Pengumuman yang dihapus tidak bisa dibaca lagi.",
-        "join_label": "'pengumuman' AS detail",
-        "join":       "",
-        "count_col":  "id",
-    },
-    "invoices": {
-        "label":      "Nota/Invoice",
-        "table":      "invoices",
-        "date_col":   "created_at",
-        "desc":       "Riwayat nota dan invoice yang dibuat",
-        "icon":       "🧾",
-        "warn":       "Invoice items terkait juga akan ikut terhapus.",
-        "join_label": "invoice_no AS detail",
-        "join":       "",
-        "count_col":  "id",
+        "label":     "Penjualan",
+        "table":     "sales_submissions",
+        "date_col":  "created_at",
+        "join":      "",
+        "count_col": "id",
     },
     "points_logs": {
-        "label":      "Log Poin",
-        "table":      "points_logs",
-        "date_col":   "created_at",
-        "desc":       "Riwayat pemberian/pengurangan poin karyawan",
-        "icon":       "⭐",
-        "warn":       "Log poin dihapus, tapi saldo poin karyawan tidak berubah.",
-        "join_label": "u.name AS detail",
-        "join":       "LEFT JOIN users u ON u.id = points_logs.user_id",
-        "count_col":  "points_logs.id",
+        "label":     "Log Poin",
+        "table":     "points_logs",
+        "date_col":  "created_at",
+        "join":      "",
+        "count_col": "id",
     },
 }
 
@@ -146,10 +101,29 @@ def data_cleanup_page():
         cur.close()
         conn.close()
 
+    # KPI counts
+    conn2 = get_conn()
+    cur2  = conn2.cursor(cursor_factory=RealDictCursor)
+    kpi   = {"absen": 0, "sales": 0, "poin": 0}
+    try:
+        cur2.execute("SELECT COUNT(*) AS n FROM attendance;")
+        kpi["absen"] = (cur2.fetchone() or {}).get("n", 0)
+        cur2.execute("SELECT COUNT(*) AS n FROM sales_submissions;")
+        kpi["sales"] = (cur2.fetchone() or {}).get("n", 0)
+        try:
+            cur2.execute("SELECT COUNT(*) AS n FROM points_logs;")
+            kpi["poin"] = (cur2.fetchone() or {}).get("n", 0)
+        except Exception:
+            pass
+    finally:
+        cur2.close()
+        conn2.close()
+
     return render_template(
         "admin_data_cleanup.html",
         targets     = CLEANUP_TARGETS,
         logs        = logs,
+        kpi         = kpi,
         user_name   = session.get("user_name", "Admin"),
         notif_count = get_notif_count(),
     )
