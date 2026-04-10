@@ -49,6 +49,7 @@ from routes.mobile.points import mobile_points_bp
 from routes.mobile.device import mobile_device_bp
 from routes.mobile.announcements import mobile_announcements_bp  # ← BARU
 from routes.mobile.biofinger import biofinger_bp  # ← BARU
+from routes.web.data_cleanup import data_cleanup_bp  # ← BARU
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -111,6 +112,7 @@ app.register_blueprint(mobile_points_bp,        url_prefix="/api/mobile")
 app.register_blueprint(mobile_device_bp,        url_prefix="/api/mobile")
 app.register_blueprint(mobile_announcements_bp, url_prefix="/api/mobile")  # ← BARU
 app.register_blueprint(biofinger_bp, url_prefix="/api/mobile")  # ← BARU
+app.register_blueprint(data_cleanup_bp)  # ← BARU
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
