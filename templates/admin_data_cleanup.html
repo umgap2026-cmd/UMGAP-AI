@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Kelola Data — UMGAP Admin</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #eef1f7;
+        --card: #f4f6fb;
+        --text: #1a2740;
+        --muted: #7d8aa6;
+        --shadow-out: 0 20px 40px rgba(18, 32, 62, 0.11);
+        --shadow-in:
+          inset 10px 10px 20px rgba(20, 40, 80, 0.13),
+          inset -10px -10px 20px rgba(255, 255, 255, 0.92);
+        --soft-in:
+          inset 6px 6px 12px rgba(20, 40, 80, 0.1),
+          inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+        --radius: 24px;
+        --pill: 999px;
+        --blue: #2f5f8f;
+        --nav-h: 88px;
+        --red: #c0392b;
+        --green: #1e7e34;
+        --orange: #d97706;
+      }
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100svh;
+        padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+      }
+
+      /* ── header ── */
+      .topbar {
+        background: linear-gradient(135deg, #1a3a6b, #2f5f8f, #4a8fc1);
+        color: #fff;
+        padding: 20px 20px 14px;
+        border-radius: 0 0 28px 28px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+      }
+      .topbar-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .topbar a {
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        font-size: 13px;
+      }
+      .topbar a:hover {
+        color: #fff;
+      }
+      .topbar h1 {
+        font-size: 20px;
+        font-weight: 800;
+        flex: 1;
+      }
+      .badge-muted {
+        background: rgba(255, 255, 255, 0.18);
+        border-radius: var(--pill);
+        padding: 3px 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      /* ── wrap ── */
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 20px 16px;
+      }
+
+      /* ── card ── */
+      .card {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        padding: 22px;
+        margin-bottom: 18px;
+      }
+      .card-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .card-title span.icon {
+        font-size: 20px;
+      }
+
+      /* ── target grid ── */
+      .target-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
+      }
+      .target-btn {
+        background: var(--bg);
+        border: none;
+        border-radius: 16px;
+        padding: 14px 10px;
+        cursor: pointer;
+        text-align: center;
+        transition: 0.15s;
+        box-shadow:
+          6px 6px 12px rgba(20, 40, 80, 0.08),
+          -6px -6px 12px rgba(255, 255, 255, 0.9);
+      }
+      .target-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-out);
+      }
+      .target-btn.active {
+        box-shadow: var(--soft-in);
+        background: var(--card);
+      }
+      .target-btn .t-icon {
+        font-size: 26px;
+        margin-bottom: 6px;
+      }
+      .target-btn .t-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .target-btn .t-desc {
+        font-size: 9px;
+        color: var(--muted);
+        margin-top: 3px;
+        line-height: 1.4;
+      }
+
+      /* ── form row ── */
+      .form-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        flex: 1;
+        min-width: 140px;
+      }
+      .form-group label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .form-group input,
+      .form-group textarea {
+        background: var(--bg);
+        border: none;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--text);
+        box-shadow: var(--soft-in);
+        outline: none;
+        width: 100%;
+      }
+      .form-group textarea {
+        resize: vertical;
+        min-height: 70px;
+      }
+
+      /* ── info box ── */
+      .info-box {
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-size: 13px;
+        margin: 14px 0;
+        display: none;
+      }
+      .info-box.warn {
+        background: #fff3cd;
+        color: #856404;
+        border-left: 4px solid #ffc107;
+      }
+      .info-box.err {
+        background: #f8d7da;
+        color: #721c24;
+        border-left: 4px solid var(--red);
+      }
+      .info-box.ok {
+        background: #d4edda;
+        color: #155724;
+        border-left: 4px solid var(--green);
+      }
+      .info-box.show {
+        display: block;
+      }
+
+      /* ── preview count ── */
+      .preview-count {
+        background: var(--bg);
+        border-radius: 16px;
+        padding: 16px 20px;
+        box-shadow: var(--soft-in);
+        margin: 16px 0;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .preview-count.show {
+        display: flex;
+      }
+      .preview-count .pc-num {
+        font-size: 32px;
+        font-weight: 900;
+        color: var(--red);
+      }
+      .preview-count .pc-label {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .preview-count .pc-detail {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      /* ── confirm area ── */
+      .confirm-area {
+        display: none;
+        margin-top: 14px;
+      }
+      .confirm-area.show {
+        display: block;
+      }
+      .confirm-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--red);
+        margin-bottom: 6px;
+      }
+      .confirm-input {
+        background: var(--bg);
+        border: 2px solid var(--red);
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--text);
+        box-shadow: var(--soft-in);
+        outline: none;
+        width: 100%;
+        max-width: 300px;
+      }
+
+      /* ── buttons ── */
+      .btn {
+        border: none;
+        border-radius: var(--pill);
+        padding: 11px 22px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #1a3a6b, #2f5f8f);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(47, 95, 143, 0.35);
+      }
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(47, 95, 143, 0.4);
+      }
+      .btn-danger {
+        background: linear-gradient(135deg, #9b1e1e, var(--red));
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(192, 57, 43, 0.35);
+      }
+      .btn-danger:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+      .btn-ghost {
+        background: var(--bg);
+        color: var(--text);
+        box-shadow: var(--soft-in);
+      }
+      .btn-sm {
+        padding: 7px 14px;
+        font-size: 11px;
+      }
+
+      /* ── spinner ── */
+      .spin {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ── audit log table ── */
+      .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .log-table th {
+        background: var(--bg);
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 700;
+        color: var(--muted);
+        box-shadow: var(--soft-in);
+      }
+      .log-table th:first-child {
+        border-radius: 10px 0 0 10px;
+      }
+      .log-table th:last-child {
+        border-radius: 0 10px 10px 0;
+      }
+      .log-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        vertical-align: middle;
+        color: var(--text);
+      }
+      .log-table tr:hover td {
+        background: rgba(47, 95, 143, 0.03);
+      }
+      .log-table .badge {
+        border-radius: var(--pill);
+        padding: 3px 10px;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .badge-red {
+        background: #fde8e7;
+        color: var(--red);
+      }
+      .badge-blue {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+
+      /* ── empty state ── */
+      .empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--muted);
+      }
+      .empty .e-icon {
+        font-size: 40px;
+        margin-bottom: 10px;
+      }
+      .empty p {
+        font-size: 13px;
+      }
+
+      /* ── nav ── */
+      nav.bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: var(--nav-h);
+        background: var(--card);
+        border-top: 1px solid rgba(0, 0, 0, 0.06);
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        padding-bottom: env(safe-area-inset-bottom);
+        z-index: 100;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.07);
+      }
+      nav.bottom a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        text-decoration: none;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 600;
+        transition: 0.15s;
+        padding: 8px 14px;
+        border-radius: 14px;
+      }
+      nav.bottom a.active,
+      nav.bottom a:hover {
+        color: var(--blue);
+        background: rgba(47, 95, 143, 0.08);
+      }
+
+      /* ── toast ── */
+      #toast {
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1a2740;
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: var(--pill);
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0;
+        transition: 0.3s;
+        pointer-events: none;
+        white-space: nowrap;
+        z-index: 999;
+      }
+      #toast.show {
+        opacity: 1;
+      }
+
+      /* ── divider ── */
+      .divider {
+        height: 1px;
+        background: rgba(0, 0, 0, 0.06);
+        margin: 16px 0;
+      }
+
+      @media (max-width: 480px) {
+        .form-row {
+          flex-direction: column;
+        }
+        .target-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="topbar">
+      <div class="topbar-row">
+        <a href="/admin/dashboard">← Dashboard</a>
+        <h1>🗂️ Kelola Data</h1>
+        <span class="badge-muted">{{ user_name }}</span>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <!-- ── PANEL HAPUS DATA ── -->
+      <div class="card">
+        <div class="card-title">
+          <span class="icon">🗑️</span> Hapus Riwayat Data
+        </div>
+
+        <!-- Step 1: Pilih target -->
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px">
+          1. Pilih jenis data yang akan dihapus:
+        </p>
+        <div class="target-grid" id="targetGrid">
+          {% for key, cfg in targets.items() %}
+          <button
+            class="target-btn"
+            data-key="{{ key }}"
+            data-warn="{{ cfg.warn }}"
+            onclick="selectTarget(this)"
+            type="button"
+          >
+            <div class="t-icon">{{ cfg.icon }}</div>
+            <div class="t-label">{{ cfg.label }}</div>
+            <div class="t-desc">{{ cfg.desc }}</div>
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Step 2: Pilih rentang tanggal -->
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px">
+          2. Pilih rentang tanggal:
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Dari Tanggal</label>
+            <input type="date" id="dateFrom" onchange="resetPreview()" />
+          </div>
+          <div class="form-group">
+            <label>Sampai Tanggal</label>
+            <input type="date" id="dateTo" onchange="resetPreview()" />
+          </div>
+          <div>
+            <button
+              class="btn btn-ghost"
+              onclick="previewDelete()"
+              id="btnPreview"
+              disabled
+            >
+              🔍 Cek Jumlah Data
+            </button>
+          </div>
+        </div>
+
+        <!-- Info warning -->
+        <div class="info-box warn show" id="infoWarn">
+          ⚠️ Pilih jenis data dan rentang tanggal terlebih dahulu.
+        </div>
+
+        <!-- Preview count -->
+        <div class="preview-count" id="previewBox">
+          <div>
+            <div class="pc-num" id="pcNum">0</div>
+            <div class="pc-label">baris data ditemukan</div>
+            <div class="pc-detail" id="pcDetail"></div>
+          </div>
+          <div>
+            <div
+              id="pcZero"
+              style="
+                display: none;
+                font-size: 13px;
+                color: var(--green);
+                font-weight: 700;
+              "
+            >
+              ✓ Tidak ada data yang perlu dihapus.
+            </div>
+            <div id="pcHasData" style="display: none">
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--red);
+                  font-weight: 700;
+                  margin-bottom: 8px;
+                "
+              >
+                Data ini akan PERMANEN terhapus!
+              </div>
+              <button
+                class="btn btn-danger btn-sm"
+                onclick="showConfirm()"
+                id="btnShowConfirm"
+              >
+                🗑️ Lanjut Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Konfirmasi -->
+        <div class="confirm-area" id="confirmArea">
+          <div class="divider"></div>
+          <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px">
+            3. Tulis catatan dan konfirmasi:
+          </p>
+          <div class="form-group" style="margin-bottom: 12px">
+            <label>Catatan / Alasan Penghapusan (opsional)</label>
+            <textarea
+              id="deleteNote"
+              placeholder="Contoh: Penghapusan data absensi bulan lalu karena sudah diarsipkan"
+            ></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px">
+            <label class="confirm-label"
+              >Ketik <strong>HAPUS</strong> untuk konfirmasi:</label
+            >
+            <input
+              class="confirm-input"
+              type="text"
+              id="confirmInput"
+              placeholder="Ketik HAPUS"
+              oninput="checkConfirm()"
+            />
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap">
+            <button class="btn btn-ghost" onclick="cancelConfirm()">
+              ✕ Batal
+            </button>
+            <button
+              class="btn btn-danger"
+              id="btnExecute"
+              disabled
+              onclick="executeDelete()"
+            >
+              <span id="btnExecuteText">🗑️ Hapus Sekarang</span>
+              <span
+                id="btnExecuteSpin"
+                class="spin"
+                style="display: none"
+              ></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AUDIT LOG ── -->
+      <div class="card">
+        <div class="card-title">
+          <span class="icon">📋</span> Log Riwayat Penghapusan
+        </div>
+
+        {% if logs %}
+        <div style="overflow-x: auto">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>Admin</th>
+                <th>Jenis Data</th>
+                <th>Periode</th>
+                <th>Dihapus</th>
+                <th>Catatan</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr id="logrow-{{ log.id }}">
+                <td style="white-space: nowrap; color: var(--muted)">
+                  {{ log.deleted_at }}
+                </td>
+                <td style="font-weight: 700">{{ log.admin_name }}</td>
+                <td>
+                  <span class="badge badge-blue">{{ log.target_label }}</span>
+                </td>
+                <td style="font-size: 11px; color: var(--muted)">
+                  {{ log.date_from }} s.d. {{ log.date_to }}
+                </td>
+                <td>
+                  <span class="badge badge-red"
+                    >{{ log.rows_deleted }} baris</span
+                  >
+                </td>
+                <td
+                  style="
+                    color: var(--muted);
+                    font-size: 11px;
+                    max-width: 160px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  "
+                  title="{{ log.note }}"
+                >
+                  {{ log.note or '-' }}
+                </td>
+                <td>
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    onclick="deleteLog({{ log.id }})"
+                    title="Hapus entri log ini"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty">
+          <div class="e-icon">📋</div>
+          <p>Belum ada riwayat penghapusan data.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- /wrap -->
+
+    <!-- Bottom Nav -->
+    <nav class="bottom">
+      <a href="/admin/dashboard">🏠<span>Dashboard</span></a>
+      <a href="/admin/attendance">👆<span>Absensi</span></a>
+      <a href="/admin/users">👥<span>Karyawan</span></a>
+      <a href="/admin/data-cleanup" class="active">🗂️<span>Data</span></a>
+    </nav>
+
+    <div id="toast"></div>
+
+    <script>
+      // ── State ───────────────────────────────────────────────
+      var selectedKey = null;
+      var previewDone = false;
+      var previewTotal = 0;
+
+      // ── Toast ────────────────────────────────────────────────
+      function toast(msg, dur) {
+        var t = document.getElementById("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(function () {
+          t.classList.remove("show");
+        }, dur || 2500);
+      }
+
+      // ── Select target ─────────────────────────────────────────
+      function selectTarget(el) {
+        document.querySelectorAll(".target-btn").forEach(function (b) {
+          b.classList.remove("active");
+        });
+        el.classList.add("active");
+        selectedKey = el.dataset.key;
+        var warn = el.dataset.warn;
+        var box = document.getElementById("infoWarn");
+        box.textContent = "⚠️ " + warn;
+        box.className = "info-box warn show";
+        resetPreview();
+        updatePreviewBtn();
+      }
+
+      // ── Date change ───────────────────────────────────────────
+      document.addEventListener("DOMContentLoaded", function () {
+        var today = new Date().toISOString().split("T")[0];
+        document.getElementById("dateFrom").value = today;
+        document.getElementById("dateTo").value = today;
+      });
+
+      function updatePreviewBtn() {
+        var df = document.getElementById("dateFrom").value;
+        var dt = document.getElementById("dateTo").value;
+        document.getElementById("btnPreview").disabled = !(
+          selectedKey &&
+          df &&
+          dt
+        );
+      }
+      document
+        .getElementById("dateFrom")
+        .addEventListener("change", updatePreviewBtn);
+      document
+        .getElementById("dateTo")
+        .addEventListener("change", updatePreviewBtn);
+
+      // ── Reset preview ─────────────────────────────────────────
+      function resetPreview() {
+        previewDone = false;
+        previewTotal = 0;
+        document.getElementById("previewBox").classList.remove("show");
+        document.getElementById("confirmArea").classList.remove("show");
+        document.getElementById("confirmInput").value = "";
+        document.getElementById("btnExecute").disabled = true;
+      }
+
+      // ── Preview ───────────────────────────────────────────────
+      function previewDelete() {
+        if (!selectedKey) {
+          toast("Pilih jenis data dulu");
+          return;
+        }
+        var df = document.getElementById("dateFrom").value;
+        var dt = document.getElementById("dateTo").value;
+        if (!df || !dt) {
+          toast("Isi tanggal dulu");
+          return;
+        }
+        if (df > dt) {
+          toast("Tanggal awal harus ≤ tanggal akhir");
+          return;
+        }
+
+        var btn = document.getElementById("btnPreview");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> Memeriksa...';
+
+        fetch("/admin/data-cleanup/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: selectedKey,
+            date_from: df,
+            date_to: dt,
+          }),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            btn.disabled = false;
+            btn.innerHTML = "🔍 Cek Jumlah Data";
+            if (!d.ok) {
+              toast("⚠ " + d.message);
+              return;
+            }
+
+            previewTotal = d.total;
+            previewDone = true;
+
+            document.getElementById("pcNum").textContent = d.total;
+            document.getElementById("pcDetail").textContent =
+              d.label + " · " + df + " s.d. " + dt;
+
+            var hasData = document.getElementById("pcHasData");
+            var zero = document.getElementById("pcZero");
+            if (d.total > 0) {
+              hasData.style.display = "block";
+              zero.style.display = "none";
+            } else {
+              hasData.style.display = "none";
+              zero.style.display = "block";
+            }
+            document.getElementById("previewBox").classList.add("show");
+
+            var box = document.getElementById("infoWarn");
+            if (d.total > 0) {
+              box.className = "info-box err show";
+              box.textContent =
+                "⛔ " +
+                d.total +
+                " baris data akan PERMANEN terhapus. Pastikan sudah diarsipkan!";
+            } else {
+              box.className = "info-box ok show";
+              box.textContent = "✓ Tidak ada data dalam rentang tanggal ini.";
+            }
+          })
+          .catch(function (e) {
+            btn.disabled = false;
+            btn.innerHTML = "🔍 Cek Jumlah Data";
+            toast("Gagal memeriksa data");
+          });
+      }
+
+      // ── Show confirm ──────────────────────────────────────────
+      function showConfirm() {
+        if (!previewDone || previewTotal === 0) return;
+        document.getElementById("confirmArea").classList.add("show");
+        document.getElementById("confirmInput").focus();
+      }
+
+      function cancelConfirm() {
+        document.getElementById("confirmArea").classList.remove("show");
+        document.getElementById("confirmInput").value = "";
+        document.getElementById("btnExecute").disabled = true;
+      }
+
+      function checkConfirm() {
+        var val = document.getElementById("confirmInput").value.trim();
+        document.getElementById("btnExecute").disabled = val !== "HAPUS";
+      }
+
+      // ── Execute delete ─────────────────────────────────────────
+      function executeDelete() {
+        var confirmVal = document.getElementById("confirmInput").value.trim();
+        if (confirmVal !== "HAPUS") {
+          toast("Ketik HAPUS untuk konfirmasi");
+          return;
+        }
+        if (!previewDone || previewTotal === 0) return;
+
+        var df = document.getElementById("dateFrom").value;
+        var dt = document.getElementById("dateTo").value;
+        var note = document.getElementById("deleteNote").value.trim();
+
+        var btn = document.getElementById("btnExecute");
+        btn.disabled = true;
+        document.getElementById("btnExecuteText").style.display = "none";
+        document.getElementById("btnExecuteSpin").style.display =
+          "inline-block";
+
+        fetch("/admin/data-cleanup/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: selectedKey,
+            date_from: df,
+            date_to: dt,
+            note: note,
+            confirm: "HAPUS",
+          }),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            btn.disabled = false;
+            document.getElementById("btnExecuteText").style.display = "inline";
+            document.getElementById("btnExecuteSpin").style.display = "none";
+
+            if (d.ok) {
+              toast(
+                "✓ " +
+                  d.rows_deleted +
+                  " baris " +
+                  d.label +
+                  " berhasil dihapus!",
+                3000,
+              );
+              setTimeout(function () {
+                window.location.reload();
+              }, 1800);
+            } else {
+              toast("⚠ " + (d.message || "Gagal menghapus"));
+            }
+          })
+          .catch(function () {
+            btn.disabled = false;
+            document.getElementById("btnExecuteText").style.display = "inline";
+            document.getElementById("btnExecuteSpin").style.display = "none";
+            toast("Gagal terhubung ke server");
+          });
+      }
+
+      // ── Delete log entry ──────────────────────────────────────
+      function deleteLog(id) {
+        if (!confirm("Hapus entri log ini?")) return;
+        fetch("/admin/data-cleanup/log/" + id + "/delete", { method: "POST" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (d.ok) {
+              var row = document.getElementById("logrow-" + id);
+              if (row) {
+                row.style.opacity = "0";
+                row.style.transition = ".3s";
+                setTimeout(function () {
+                  row.remove();
+                }, 300);
+              }
+              toast("Log dihapus");
+            }
+          });
+      }
+    </script>
+  </body>
+</html>
