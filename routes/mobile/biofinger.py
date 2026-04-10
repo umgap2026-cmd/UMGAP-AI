@@ -24,6 +24,19 @@ def _ensure_schema():
     conn = get_conn()
     cur  = conn.cursor()
     try:
+        # Pastikan kolom attendance tersedia
+        cur.execute("""
+            ALTER TABLE attendance
+            ADD COLUMN IF NOT EXISTS check_in  TIMESTAMP;
+        """)
+        cur.execute("""
+            ALTER TABLE attendance
+            ADD COLUMN IF NOT EXISTS check_out TIMESTAMP;
+        """)
+        cur.execute("""
+            ALTER TABLE attendance
+            ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS biofinger_mappings (
                 id          SERIAL PRIMARY KEY,
@@ -154,11 +167,12 @@ def biofinger_webhook():
             else:
                 cur.execute("""
                     INSERT INTO attendance
-                        (user_id, work_date, check_in, status, arrival_type, note, device_id)
-                    VALUES (%s,%s,%s,'PRESENT','ONTIME',%s,'FINGERPRINT')
+                        (user_id, work_date, check_in, status, arrival_type, note)
+                    VALUES (%s,%s,%s,'PRESENT','ONTIME',%s)
                     ON CONFLICT (user_id, work_date) DO UPDATE
-                    SET check_in = LEAST(attendance.check_in, EXCLUDED.check_in),
-                        note     = CONCAT(COALESCE(attendance.note,''), ' | FP-in:', %s);
+                    SET check_in     = LEAST(attendance.check_in, EXCLUDED.check_in),
+                        arrival_type = 'ONTIME',
+                        note         = CONCAT(COALESCE(attendance.note,''), ' | FP-in:', %s);
                 """, (user_id, work_date, tran_dt,
                       f"Check-in fingerprint {tran_dt_str}", tran_dt_str))
         else:
@@ -172,12 +186,13 @@ def biofinger_webhook():
             else:
                 cur.execute("""
                     INSERT INTO attendance
-                        (user_id, work_date, check_in, check_out, status, arrival_type, note, device_id)
-                    VALUES (%s,%s,%s,%s,'PRESENT','ONTIME',%s,'FINGERPRINT')
+                        (user_id, work_date, check_in, check_out, status, arrival_type, note)
+                    VALUES (%s,%s,%s,%s,'PRESENT','ONTIME',%s)
                     ON CONFLICT (user_id, work_date) DO UPDATE
-                    SET check_out = GREATEST(COALESCE(attendance.check_out,EXCLUDED.check_out), EXCLUDED.check_out);
+                    SET check_out = GREATEST(COALESCE(attendance.check_out,EXCLUDED.check_out), EXCLUDED.check_out),
+                        note      = CONCAT(COALESCE(attendance.note,''), ' | FP-out:', %s);
                 """, (user_id, work_date, tran_dt, tran_dt,
-                      f"Check-out fingerprint {tran_dt_str}"))
+                      f"Check-out fingerprint {tran_dt_str}", tran_dt_str))
 
         # Catat log
         cur.execute("""
