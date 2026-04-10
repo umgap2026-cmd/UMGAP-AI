@@ -676,7 +676,8 @@
                 <td>
                   <button
                     class="btn btn-ghost btn-sm"
-                    onclick="deleteLog({{ log.id }})"
+                    data-lid="{{ log.id }}"
+                    onclick="deleteLog(this.dataset.lid)"
                     title="Hapus entri log ini"
                   >
                     ✕
@@ -931,6 +932,7 @@
 
       // ── Delete log entry ──────────────────────────────────────
       function deleteLog(id) {
+        id = String(id);
         if (!confirm("Hapus entri log ini?")) return;
         fetch("/admin/data-cleanup/log/" + id + "/delete", { method: "POST" })
           .then(function (r) {
