@@ -1,247 +1,325 @@
-#!/usr/bin/env python3
 """
-biofinger_bridge.py
-====================
-TCP Bridge: Menerima data dari mesin fingerprint BioFinger TM-501
-lalu forward ke UMGAP API di Render.
+routes/mobile/biofinger.py
 
-Jalankan: python3 biofinger_bridge.py
-Auto-start: sudah dikonfigurasi via systemd
+Endpoint webhook - menerima data absensi dari VPS bridge
+yang terhubung ke mesin fingerprint BioFinger TM-501.
+
+Flow:
+  Mesin → VPS TCP Bridge → POST ke endpoint ini → Simpan ke DB
 """
 
-import socket
-import threading
-import json
-import http.client
-import urllib.parse
-import datetime
-import time
-import logging
-import re
+from datetime import datetime
+from flask import Blueprint, request
+from psycopg2.extras import RealDictCursor
 
-# ── Konfigurasi ──────────────────────────────────────────────────
-TCP_HOST    = "0.0.0.0"   # Dengarkan semua interface
-TCP_PORT    = 8081         # Port yang sama dengan biofinger.id
-UMGAP_HOST  = "umgap-ai.onrender.com"
-UMGAP_PATH  = "/api/mobile/biofinger/webhook"
-UMGAP_TOKEN = ""  # Kosong - webhook tidak perlu auth
+from db import get_conn
+from core import mobile_api_response, _safe_int
 
-LOG_FILE = "/home/ubuntu/biofinger_bridge.log"
-
-# ── Setup logging ─────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ]
-)
-log = logging.getLogger(__name__)
+biofinger_bp = Blueprint("biofinger", __name__)
 
 
-# ── Forward ke UMGAP ─────────────────────────────────────────────
-def forward_to_umgap(payload: dict):
-    """Kirim data absensi ke UMGAP API via HTTPS."""
+# ── Buat tabel jika belum ada ─────────────────────────────────────
+
+def _ensure_schema():
+    conn = get_conn()
+    cur  = conn.cursor()
     try:
-        body = json.dumps(payload).encode("utf-8")
-        conn = http.client.HTTPSConnection(UMGAP_HOST, timeout=15)
-        headers = {
-            "Content-Type":  "application/json",
-            "Content-Length": str(len(body)),
-            "User-Agent":    "BioFinger-Bridge/1.0",
-        }
-        conn.request("POST", UMGAP_PATH, body=body, headers=headers)
-        resp = conn.getresponse()
-        resp_body = resp.read().decode("utf-8", errors="ignore")
-        log.info(f"UMGAP response {resp.status}: {resp_body[:200]}")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS biofinger_mappings (
+                id          SERIAL PRIMARY KEY,
+                pin_mesin   VARCHAR(50)  NOT NULL UNIQUE,
+                user_id     INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                snmesin     VARCHAR(100) DEFAULT '',
+                nama_mesin  VARCHAR(100) DEFAULT '',
+                is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+                created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS biofinger_logs (
+                id             SERIAL PRIMARY KEY,
+                tran_id        VARCHAR(100) UNIQUE,
+                pin_mesin      VARCHAR(50),
+                disp_nm        VARCHAR(100),
+                snmesin        VARCHAR(100),
+                tran_dt        TIMESTAMP,
+                stateid        VARCHAR(10) DEFAULT '0',
+                verify         VARCHAR(10) DEFAULT '0',
+                workcod        VARCHAR(50) DEFAULT '',
+                mapped_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                status         VARCHAR(20) DEFAULT 'PENDING',
+                notes          TEXT DEFAULT '',
+                received_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+    finally:
+        cur.close()
         conn.close()
-        return resp.status
-    except Exception as e:
-        log.error(f"Forward error: {e}")
-        return 0
 
 
-# ── Parse data dari mesin ─────────────────────────────────────────
-def parse_machine_data(raw: str) -> list:
-    """
-    Mesin BioFinger TM mengirim data dalam format:
-    
-    Format 1 (ADMS HTTP-like):
-    POST /iclock/cdata?SN=XXXX&table=ATTLOG&Stamp=XXX HTTP/1.1
-    ...
-    PIN\tTime\tStatus\tVerify\tWorkCode\tReserved
-    
-    Format 2 (JSON):
-    {"biohook":"sdatareco","user_id":"123","tran_dt":"..."}
-    
-    Return list of attendance records
-    """
-    records = []
-    raw = raw.strip()
-
-    # ── Format JSON langsung ──────────────────────────────────────
-    if raw.startswith("{"):
-        try:
-            data = json.loads(raw)
-            if data.get("biohook") == "sdatareco" or "user_id" in data:
-                records.append(data)
-            return records
-        except Exception:
-            pass
-
-    # ── Format ADMS (HTTP POST dari mesin) ───────────────────────
-    # Header: POST /iclock/cdata?SN=XXXXXX&table=ATTLOG
-    sn_match = re.search(r"SN=([A-Z0-9]+)", raw)
-    sn = sn_match.group(1) if sn_match else "UNKNOWN"
-
-    # Cari baris data setelah header HTTP
-    # Format baris: PIN\tDateTime\tStatus\tVerify\tWorkCode
-    lines = raw.split("\n")
-    for line in lines:
-        line = line.strip()
-        parts = line.split("\t")
-        if len(parts) >= 2:
-            # Validasi: parts[0] = PIN (angka), parts[1] = datetime
-            if parts[0].isdigit() and len(parts[0]) > 0:
-                try:
-                    # Validasi format tanggal
-                    dt_str = parts[1].strip()
-                    # Format: "2026-04-10 09:41:12"
-                    datetime.datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
-
-                    record = {
-                        "biohook":  "sdatareco",
-                        "tran_id":  f"{sn}_{parts[0]}_{dt_str.replace(' ','_').replace(':','')}",
-                        "snmesin":  sn,
-                        "tran_dt":  dt_str[:19],
-                        "user_id":  parts[0],
-                        "disp_nm":  "",
-                        "stateid":  parts[2].strip() if len(parts) > 2 else "0",
-                        "verify":   parts[3].strip() if len(parts) > 3 else "0",
-                        "workcod":  parts[4].strip() if len(parts) > 4 else "",
-                    }
-                    records.append(record)
-                    log.info(f"Parsed: PIN={parts[0]} time={dt_str} status={record['stateid']}")
-                except Exception as e:
-                    log.debug(f"Skip line '{line}': {e}")
-
-    # ── Format heartbeat / info mesin (abaikan) ───────────────────
-    if not records and ("iclock" in raw or "Heartbeat" in raw or "GetRequest" in raw):
-        log.debug(f"Heartbeat/Info packet from {sn} - ignored")
-
-    return records
-
-
-# ── Buat response untuk mesin ─────────────────────────────────────
-def make_response(status: int = 200) -> bytes:
-    """
-    Mesin mengharapkan response HTTP standar.
-    Harus reply agar mesin tahu data diterima.
-    """
-    now = datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
-    if status == 200:
-        body = "OK"
-    else:
-        body = "ERROR"
-
-    response = (
-        f"HTTP/1.1 {status} {'OK' if status==200 else 'Error'}\r\n"
-        f"Date: {now}\r\n"
-        f"Content-Type: text/plain\r\n"
-        f"Content-Length: {len(body)}\r\n"
-        f"Connection: close\r\n"
-        f"\r\n"
-        f"{body}"
-    )
-    return response.encode("utf-8")
-
-
-# ── Handle koneksi dari mesin ─────────────────────────────────────
-def handle_client(conn, addr):
-    """Handle satu koneksi TCP dari mesin fingerprint."""
-    log.info(f"Koneksi dari {addr[0]}:{addr[1]}")
+def _parse_tran_dt(s: str):
     try:
-        # Terima data
-        data_chunks = []
-        conn.settimeout(10)
-        while True:
-            try:
-                chunk = conn.recv(4096)
-                if not chunk:
-                    break
-                data_chunks.append(chunk)
-                # Berhenti jika sudah ada data lengkap
-                if len(chunk) < 4096:
-                    break
-            except socket.timeout:
-                break
+        return datetime.strptime(s.strip()[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return datetime.now()
 
-        if not data_chunks:
-            return
 
-        raw = b"".join(data_chunks).decode("utf-8", errors="ignore")
-        log.debug(f"Raw data:\n{raw[:500]}")
+def _is_checkin(stateid: str) -> bool:
+    return str(stateid) in ("0", "4")
 
-        # Parse records
-        records = parse_machine_data(raw)
 
-        if records:
-            log.info(f"Ditemukan {len(records)} record absensi")
-            for rec in records:
-                status = forward_to_umgap(rec)
-                if status == 200:
-                    log.info(f"✓ Forwarded PIN={rec.get('user_id')} ke UMGAP")
-                else:
-                    log.warning(f"✗ Gagal forward PIN={rec.get('user_id')} (status={status})")
+# ── Webhook utama ─────────────────────────────────────────────────
+
+@biofinger_bp.route("/biofinger/webhook", methods=["POST", "GET", "OPTIONS"])
+def biofinger_webhook():
+    if request.method in ("GET", "OPTIONS"):
+        return mobile_api_response(ok=True, message="UMGAP BioFinger Webhook Active", data={}, status_code=200)
+
+    _ensure_schema()
+
+    payload     = request.get_json(silent=True) or {}
+    biohook     = payload.get("biohook", "sdatareco")
+    tran_id     = payload.get("tran_id", "")
+    snmesin     = payload.get("snmesin", "")
+    tran_dt_str = payload.get("tran_dt", "")
+    pin_mesin   = str(payload.get("user_id", "")).strip()
+    disp_nm     = payload.get("disp_nm", "")
+    stateid     = str(payload.get("stateid", "0")).strip()
+    verify      = str(payload.get("verify", "0")).strip()
+    workcod     = payload.get("workcod", "") or ""
+
+    if not pin_mesin:
+        return mobile_api_response(ok=False, message="user_id kosong", data={}, status_code=400)
+
+    tran_dt   = _parse_tran_dt(tran_dt_str)
+    work_date = tran_dt.date()
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Cek duplikat
+        if tran_id:
+            cur.execute("SELECT id, status FROM biofinger_logs WHERE tran_id = %s LIMIT 1;", (tran_id,))
+            existing = cur.fetchone()
+            if existing:
+                return mobile_api_response(ok=True, message="Sudah diproses.",
+                                           data={"status": existing["status"]}, status_code=200)
+
+        # Cari mapping PIN → user
+        cur.execute("""
+            SELECT bm.user_id, u.name AS user_name
+            FROM biofinger_mappings bm
+            JOIN users u ON u.id = bm.user_id
+            WHERE bm.pin_mesin = %s AND bm.is_active = TRUE
+            LIMIT 1;
+        """, (pin_mesin,))
+        mapping = cur.fetchone()
+
+        if not mapping:
+            # Simpan sebagai UNMAPPED
+            cur.execute("""
+                INSERT INTO biofinger_logs
+                    (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
+                     stateid, verify, workcod, status, notes)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'UNMAPPED','PIN belum di-mapping')
+                ON CONFLICT (tran_id) DO NOTHING;
+            """, (tran_id or None, pin_mesin, disp_nm, snmesin, tran_dt,
+                  stateid, verify, workcod))
+            conn.commit()
+            return mobile_api_response(ok=True,
+                message=f"PIN {pin_mesin} ({disp_nm}) belum di-mapping.",
+                data={"pin": pin_mesin, "nama": disp_nm}, status_code=200)
+
+        user_id   = mapping["user_id"]
+        user_name = mapping["user_name"]
+        is_ci     = _is_checkin(stateid)
+
+        # Cek attendance hari ini
+        cur.execute("""
+            SELECT id, check_in, check_out FROM attendance
+            WHERE user_id = %s AND work_date = %s LIMIT 1;
+        """, (user_id, work_date))
+        att = cur.fetchone()
+
+        if is_ci:
+            if att:
+                cur.execute("""
+                    UPDATE attendance SET
+                        check_in = LEAST(check_in, %s),
+                        note     = CONCAT(COALESCE(note,''), ' | FP-in:', %s)
+                    WHERE id = %s;
+                """, (tran_dt, tran_dt_str, att["id"]))
+            else:
+                cur.execute("""
+                    INSERT INTO attendance
+                        (user_id, work_date, check_in, status, arrival_type, note, device_id)
+                    VALUES (%s,%s,%s,'PRESENT','ONTIME',%s,'FINGERPRINT')
+                    ON CONFLICT (user_id, work_date) DO UPDATE
+                    SET check_in = LEAST(attendance.check_in, EXCLUDED.check_in),
+                        note     = CONCAT(COALESCE(attendance.note,''), ' | FP-in:', %s);
+                """, (user_id, work_date, tran_dt,
+                      f"Check-in fingerprint {tran_dt_str}", tran_dt_str))
         else:
-            log.debug(f"Tidak ada record dari {addr[0]} (heartbeat/info)")
+            if att:
+                cur.execute("""
+                    UPDATE attendance SET
+                        check_out = GREATEST(COALESCE(check_out,%s), %s),
+                        note      = CONCAT(COALESCE(note,''), ' | FP-out:', %s)
+                    WHERE id = %s;
+                """, (tran_dt, tran_dt, tran_dt_str, att["id"]))
+            else:
+                cur.execute("""
+                    INSERT INTO attendance
+                        (user_id, work_date, check_in, check_out, status, arrival_type, note, device_id)
+                    VALUES (%s,%s,%s,%s,'PRESENT','ONTIME',%s,'FINGERPRINT')
+                    ON CONFLICT (user_id, work_date) DO UPDATE
+                    SET check_out = GREATEST(COALESCE(attendance.check_out,EXCLUDED.check_out), EXCLUDED.check_out);
+                """, (user_id, work_date, tran_dt, tran_dt,
+                      f"Check-out fingerprint {tran_dt_str}"))
 
-        # Kirim response OK ke mesin
-        conn.send(make_response(200))
+        # Catat log
+        cur.execute("""
+            INSERT INTO biofinger_logs
+                (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
+                 stateid, verify, workcod, mapped_user_id, status, notes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'RECORDED',%s)
+            ON CONFLICT (tran_id) DO NOTHING;
+        """, (tran_id or None, pin_mesin, disp_nm, snmesin, tran_dt,
+              stateid, verify, workcod, user_id,
+              f"{'Check-in' if is_ci else 'Check-out'} fingerprint"))
+
+        conn.commit()
+        action = "Check-in" if is_ci else "Check-out"
+        return mobile_api_response(ok=True,
+            message=f"{action} {user_name} berhasil ({tran_dt_str})",
+            data={"user_id": user_id, "user_name": user_name,
+                  "action": action, "time": tran_dt_str}, status_code=200)
 
     except Exception as e:
-        log.error(f"Error handle_client {addr}: {e}")
-        try:
-            conn.send(make_response(500))
-        except Exception:
-            pass
+        conn.rollback()
+        print(f"[BioFinger ERROR] {e}")
+        return mobile_api_response(ok=True, message=f"Error: {str(e)}", data={}, status_code=200)
     finally:
+        cur.close()
         conn.close()
 
 
-# ── Main TCP Server ───────────────────────────────────────────────
-def start_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+# ── List PIN belum di-mapping ─────────────────────────────────────
 
+@biofinger_bp.route("/biofinger/unmapped", methods=["GET", "OPTIONS"])
+def biofinger_unmapped():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    _ensure_schema()
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        server.bind((TCP_HOST, TCP_PORT))
-        server.listen(10)
-        log.info(f"🟢 BioFinger Bridge listening on {TCP_HOST}:{TCP_PORT}")
-        log.info(f"🔗 Forwarding to https://{UMGAP_HOST}{UMGAP_PATH}")
-        log.info(f"📋 Log: {LOG_FILE}")
-        log.info("Menunggu koneksi dari mesin fingerprint...")
-
-        while True:
-            try:
-                conn, addr = server.accept()
-                t = threading.Thread(
-                    target=handle_client,
-                    args=(conn, addr),
-                    daemon=True
-                )
-                t.start()
-            except KeyboardInterrupt:
-                log.info("Server dihentikan.")
-                break
-            except Exception as e:
-                log.error(f"Accept error: {e}")
-                time.sleep(1)
-
+        cur.execute("""
+            SELECT pin_mesin, disp_nm, snmesin,
+                   MAX(tran_dt) AS last_scan,
+                   COUNT(*) AS scan_count
+            FROM biofinger_logs
+            WHERE status = 'UNMAPPED'
+            GROUP BY pin_mesin, disp_nm, snmesin
+            ORDER BY last_scan DESC;
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            if r.get("last_scan"):
+                r["last_scan"] = r["last_scan"].strftime("%Y-%m-%d %H:%M:%S")
+        return mobile_api_response(ok=True, message="OK",
+                                   data={"unmapped": rows}, status_code=200)
     finally:
-        server.close()
+        cur.close()
+        conn.close()
 
 
-if __name__ == "__main__":
-    start_server()
+# ── CRUD Mapping PIN → User ───────────────────────────────────────
+
+@biofinger_bp.route("/biofinger/mapping", methods=["GET", "POST", "DELETE", "OPTIONS"])
+def biofinger_mapping():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    _ensure_schema()
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == "GET":
+            cur.execute("""
+                SELECT bm.id, bm.pin_mesin, bm.nama_mesin, bm.snmesin,
+                       bm.is_active, bm.created_at,
+                       u.id AS user_id, u.name AS user_name, u.email
+                FROM biofinger_mappings bm
+                JOIN users u ON u.id = bm.user_id
+                ORDER BY u.name ASC;
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+
+            cur.execute("""
+                SELECT u.id, u.name, u.email FROM users u
+                WHERE u.role = 'employee'
+                  AND u.id NOT IN (SELECT user_id FROM biofinger_mappings WHERE is_active = TRUE)
+                ORDER BY u.name ASC;
+            """)
+            unmapped_users = [dict(r) for r in cur.fetchall()]
+            return mobile_api_response(ok=True, message="OK",
+                data={"mappings": rows, "unmapped_users": unmapped_users}, status_code=200)
+
+        elif request.method == "POST":
+            data       = request.get_json(silent=True) or {}
+            pin_mesin  = str(data.get("pin_mesin", "")).strip()
+            user_id    = _safe_int(data.get("user_id"), 0)
+            nama_mesin = data.get("nama_mesin", "") or ""
+            snmesin    = data.get("snmesin", "") or ""
+
+            if not pin_mesin or not user_id:
+                return mobile_api_response(ok=False, message="pin_mesin dan user_id wajib diisi",
+                                           data={}, status_code=400)
+            cur.execute("""
+                INSERT INTO biofinger_mappings (pin_mesin, user_id, nama_mesin, snmesin)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (pin_mesin) DO UPDATE
+                SET user_id=EXCLUDED.user_id, nama_mesin=EXCLUDED.nama_mesin,
+                    snmesin=EXCLUDED.snmesin, is_active=TRUE,
+                    updated_at=CURRENT_TIMESTAMP
+                RETURNING id;
+            """, (pin_mesin, user_id, nama_mesin, snmesin))
+            row = cur.fetchone()
+            cur.execute("""
+                UPDATE biofinger_logs SET status='REMAPPED', mapped_user_id=%s
+                WHERE pin_mesin=%s AND status='UNMAPPED';
+            """, (user_id, pin_mesin))
+            conn.commit()
+            return mobile_api_response(ok=True, message="Mapping berhasil disimpan.",
+                                       data={"id": row["id"]}, status_code=200)
+
+        elif request.method == "DELETE":
+            data       = request.get_json(silent=True) or {}
+            mapping_id = _safe_int(data.get("id"), 0)
+            if not mapping_id:
+                return mobile_api_response(ok=False, message="id wajib diisi",
+                                           data={}, status_code=400)
+            cur.execute("""
+                UPDATE biofinger_mappings SET is_active=FALSE, updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s RETURNING id;
+            """, (mapping_id,))
+            row = cur.fetchone()
+            conn.commit()
+            if not row:
+                return mobile_api_response(ok=False, message="Mapping tidak ditemukan",
+                                           data={}, status_code=404)
+            return mobile_api_response(ok=True, message="Mapping dihapus.", data={}, status_code=200)
+
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), data={}, status_code=500)
+    finally:
+        cur.close()
+        conn.close()
