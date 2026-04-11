@@ -71,3 +71,12 @@ def init_products():
 def init_hr_v2():
     ensure_hr_v2_schema()
     return "OK: HR v2 tables/columns ensured."
+
+@system_bp.route("/check-fcm-env")
+def check_fcm_env():
+    import os
+    return {
+        "project_id": bool(os.getenv("FIREBASE_PROJECT_ID")),
+        "sa_json": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
+        "sa_path": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_PATH")),
+    }
