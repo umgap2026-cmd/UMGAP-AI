@@ -108,3 +108,37 @@ def clean_fcm_tokens():
     finally:
         cur.close()
         conn.close()
+
+@system_bp.route("/test-fcm-detail")
+def test_fcm_detail():
+    try:
+        from core import _get_firebase_access_token, get_admin_fcm_tokens
+        import os, requests as req
+
+        token = _get_firebase_access_token()
+        project_id = os.getenv("FIREBASE_PROJECT_ID")
+        fcm_tokens = get_admin_fcm_tokens()
+
+        if not fcm_tokens:
+            return {"ok": False, "message": "Tidak ada token"}
+
+        url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+        payload = {
+            "message": {
+                "token": fcm_tokens[0],
+                "notification": {"title": "Test", "body": "Test FCM"},
+                "android": {"priority": "high"}
+            }
+        }
+        resp = req.post(url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload, timeout=15)
+
+        return {
+            "ok": resp.status_code == 200,
+            "status": resp.status_code,
+            "response": resp.json(),
+            "project_id": project_id,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
