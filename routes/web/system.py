@@ -80,3 +80,18 @@ def check_fcm_env():
         "sa_json": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
         "sa_path": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_PATH")),
     }
+@system_bp.route("/test-fcm")
+def test_fcm():
+    try:
+        from core import get_admin_fcm_tokens, send_fcm_to_tokens
+        tokens = get_admin_fcm_tokens()
+        if not tokens:
+            return {"ok": False, "message": "Tidak ada FCM token admin", "tokens": 0}
+        result = send_fcm_to_tokens(
+            tokens=tokens,
+            title="Test FCM UMGAP",
+            body="Notifikasi test dari server berhasil!",
+        )
+        return {"ok": True, "result": result, "token_count": len(tokens)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
