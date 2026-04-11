@@ -15,6 +15,26 @@ from psycopg2.extras import RealDictCursor
 from db import get_conn
 from core import mobile_api_response, _safe_int
 
+# FCM - import lazy agar tidak error jika belum setup
+def _notify_admin_fp(pin, user_name, action, time_str):
+    try:
+        from core import get_admin_fcm_tokens, send_fcm_to_tokens
+        import threading
+        def _send():
+            try:
+                tokens = get_admin_fcm_tokens()
+                if not tokens: return
+                emoji = "✅" if action == "Check-in" else "👋"
+                send_fcm_to_tokens(tokens,
+                    f"{emoji} Fingerprint — {user_name}",
+                    f"{user_name} {action.lower()} via fingerprint pukul {time_str}",
+                    {"type": "fingerprint", "action": action})
+            except Exception as ex:
+                print(f"[FCM] {ex}")
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception as e:
+        print(f"[FCM import] {e}")
+
 biofinger_bp = Blueprint("biofinger", __name__)
 
 
@@ -207,6 +227,8 @@ def biofinger_webhook():
 
         conn.commit()
         action = "Check-in" if is_ci else "Check-out"
+        # Kirim FCM ke admin (background)
+        _notify_admin_fp(pin_mesin, user_name, action, tran_dt_str)
         return mobile_api_response(ok=True,
             message=f"{action} {user_name} berhasil ({tran_dt_str})",
             data={"user_id": user_id, "user_name": user_name,
