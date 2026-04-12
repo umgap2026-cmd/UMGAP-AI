@@ -116,6 +116,7 @@ def mobile_buy_prices_add():
     unit = (data.get("unit") or "kg").strip()
     note = (data.get("note") or "").strip()
     price = max(0.0, float(data.get("price") or 0))
+    is_active = bool(data.get("is_active", True))
 
     if not material:
         return mobile_api_response(False, "Material wajib diisi", status_code=400)
@@ -128,10 +129,10 @@ def mobile_buy_prices_add():
 
     try:
         cur.execute("""
-            INSERT INTO buy_prices (material, grade, unit, price, note, sort_order)
-            VALUES (%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(sort_order),0)+1 FROM buy_prices))
+            INSERT INTO buy_prices (material, grade, unit, price, note, is_active, sort_order)
+            VALUES (%s,%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(sort_order),0)+1 FROM buy_prices))
             RETURNING *;
-        """, (material, grade, unit, price, note))
+        """, (material, grade, unit, price, note, is_active))
 
         row = cur.fetchone()
         conn.commit()
@@ -164,9 +165,18 @@ def mobile_buy_prices_update(pid):
 
     data = request.get_json() or {}
 
+    material = (data.get("material") or "").strip()
+    grade = (data.get("grade") or "").strip()
+    unit = (data.get("unit") or "kg").strip()
     price = max(0.0, float(data.get("price") or 0))
     note = (data.get("note") or "").strip()
     is_active = bool(data.get("is_active", True))
+
+    if not material:
+        return mobile_api_response(False, "Material wajib diisi", status_code=400)
+
+    if not grade:
+        return mobile_api_response(False, "Grade wajib diisi", status_code=400)
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -174,10 +184,16 @@ def mobile_buy_prices_update(pid):
     try:
         cur.execute("""
             UPDATE buy_prices
-            SET price=%s, note=%s, is_active=%s, updated_at=CURRENT_TIMESTAMP
+            SET material=%s,
+                grade=%s,
+                unit=%s,
+                price=%s,
+                note=%s,
+                is_active=%s,
+                updated_at=CURRENT_TIMESTAMP
             WHERE id=%s
             RETURNING *;
-        """, (price, note, is_active, pid))
+        """, (material, grade, unit, price, note, is_active, pid))
 
         row = cur.fetchone()
         conn.commit()
