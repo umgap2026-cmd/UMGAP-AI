@@ -51,6 +51,7 @@ from routes.mobile.announcements import mobile_announcements_bp  # ← BARU
 from routes.mobile.biofinger import biofinger_bp  # ← BARU
 from routes.web.data_cleanup import data_cleanup_bp  # ← BARU
 from routes.mobile.stats_export import mobile_stats_export_bp
+from routes.mobile.buy_prices import mobile_buy_prices_bp
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -115,6 +116,7 @@ app.register_blueprint(mobile_announcements_bp, url_prefix="/api/mobile")  # ←
 app.register_blueprint(biofinger_bp, url_prefix="/api/mobile")  # ← BARU
 app.register_blueprint(data_cleanup_bp)  # ← BARU
 app.register_blueprint(mobile_stats_export_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_buy_prices_bp, url_prefix="/api/mobile")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
