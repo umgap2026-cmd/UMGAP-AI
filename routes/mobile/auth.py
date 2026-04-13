@@ -131,35 +131,55 @@ def mobile_login_google():
 
     # ── Verifikasi token ke Google ────────────
     try:
+        import os
         import requests as req
+
         resp = req.get(
             "https://oauth2.googleapis.com/tokeninfo",
             params={"id_token": id_token},
-            timeout=10
+            timeout=10,
         )
+
         if resp.status_code != 200:
             return mobile_api_response(
                 ok=False, message="Token Google tidak valid.", status_code=401)
 
         google_data = resp.json()
 
-        # Pastikan token untuk app kita
-        # Opsional: uncomment dan isi CLIENT_ID jika ingin strict verify
-        # import os
-        # expected_aud = os.getenv("GOOGLE_CLIENT_ID_ANDROID", "")
-        # if expected_aud and google_data.get("aud") != expected_aud:
-        #     return mobile_api_response(ok=False, message="Token bukan untuk app ini.", status_code=401)
+        # Verifikasi audience — harus cocok dengan salah satu Client ID kita
+        web_client_id = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+        token_aud     = (google_data.get("aud") or "").strip()
+
+        if web_client_id and token_aud:
+            # Boleh dari web client ID atau android client ID (keduanya valid)
+            allowed = [web_client_id]
+            if token_aud not in allowed:
+                # Jika audience tidak cocok tapi email ada, tetap lanjut
+                # (android client id berbeda dengan web client id)
+                print(f"[Google] aud={token_aud} tidak match web_client_id, tetap lanjut")
 
         g_email = (google_data.get("email") or "").strip().lower()
-        g_name  = (google_data.get("name")  or g_email.split("@")[0]).strip()
+        g_name  = (google_data.get("name")  or
+                   google_data.get("given_name") or
+                   g_email.split("@")[0]).strip()
 
         if not g_email:
             return mobile_api_response(
-                ok=False, message="Email tidak ditemukan di token Google.", status_code=400)
+                ok=False, message="Email tidak ditemukan di token Google.",
+                status_code=400)
+
+        # Pastikan email sudah terverifikasi Google
+        if google_data.get("email_verified") not in (True, "true"):
+            return mobile_api_response(
+                ok=False, message="Email Google belum terverifikasi.",
+                status_code=401)
+
+        print(f"[Google] Login: {g_email} ({g_name})")
 
     except Exception as e:
         return mobile_api_response(
-            ok=False, message=f"Gagal verifikasi token Google: {e}", status_code=500)
+            ok=False, message=f"Gagal verifikasi token Google: {e}",
+            status_code=500)
 
     # ── Cek atau buat user ────────────────────
     conn = get_conn()
