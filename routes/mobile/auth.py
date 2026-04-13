@@ -34,6 +34,31 @@ def ensure_mobile_api_schema():
         conn.close()
 
 
+def _issue_token(user_id: int) -> str:
+    """Nonaktifkan token lama, buat token baru, return token string."""
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE mobile_api_tokens SET is_active=FALSE WHERE user_id=%s;",
+            (user_id,)
+        )
+        token = secrets.token_urlsafe(48)
+        cur.execute(
+            """INSERT INTO mobile_api_tokens (user_id, token, is_active, last_used_at)
+               VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP);""",
+            (user_id, token)
+        )
+        conn.commit()
+        return token
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#  EMAIL / PASSWORD LOGIN
+# ─────────────────────────────────────────────
 @mobile_auth_bp.route("/login", methods=["POST", "OPTIONS"])
 def mobile_login():
     if request.method == "OPTIONS":
@@ -41,60 +66,135 @@ def mobile_login():
 
     ensure_mobile_api_schema()
 
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
+    data     = request.get_json(silent=True) or {}
+    email    = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
 
     if not email or not password:
         return mobile_api_response(
-            ok=False,
-            message="Email dan password wajib diisi.",
-            status_code=400
-        )
+            ok=False, message="Email dan password wajib diisi.", status_code=400)
 
     conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("""
-            SELECT id, name, email, password_hash, role
-            FROM users
-            WHERE lower(email)=%s
-            LIMIT 1;
-        """, (email,))
+        cur.execute(
+            "SELECT id, name, email, password_hash, role FROM users WHERE lower(email)=%s LIMIT 1;",
+            (email,)
+        )
         user = cur.fetchone()
 
         if not user or not check_password_hash(user["password_hash"], password):
             return mobile_api_response(
-                ok=False,
-                message="Email atau password salah.",
-                status_code=401
-            )
+                ok=False, message="Email atau password salah.", status_code=401)
 
-        cur.execute("""
-            UPDATE mobile_api_tokens
-            SET is_active=FALSE
-            WHERE user_id=%s;
-        """, (user["id"],))
-
-        token = secrets.token_urlsafe(48)
-
-        cur.execute("""
-            INSERT INTO mobile_api_tokens (user_id, token, is_active, last_used_at)
-            VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP);
-        """, (user["id"], token))
-
-        conn.commit()
-
+        token = _issue_token(user["id"])
         return mobile_api_response(
-            ok=True,
-            message="Login berhasil.",
+            ok=True, message="Login berhasil.",
             data={
                 "token": token,
                 "user": {
-                    "id": user["id"],
-                    "name": user["name"],
+                    "id":    user["id"],
+                    "name":  user["name"],
                     "email": user["email"],
-                    "role": user["role"],
+                    "role":  user["role"],
+                }
+            },
+            status_code=200
+        )
+    except Exception as e:
+        return mobile_api_response(ok=False, message=f"Gagal login: {e}", status_code=500)
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#  GOOGLE LOGIN
+# ─────────────────────────────────────────────
+@mobile_auth_bp.route("/login/google", methods=["POST", "OPTIONS"])
+def mobile_login_google():
+    """
+    Menerima Google ID token dari Flutter,
+    verifikasi ke Google, lalu login / daftarkan user otomatis.
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    ensure_mobile_api_schema()
+
+    data     = request.get_json(silent=True) or {}
+    id_token = (data.get("id_token") or "").strip()
+
+    if not id_token:
+        return mobile_api_response(
+            ok=False, message="id_token wajib diisi.", status_code=400)
+
+    # ── Verifikasi token ke Google ────────────
+    try:
+        import requests as req
+        resp = req.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": id_token},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            return mobile_api_response(
+                ok=False, message="Token Google tidak valid.", status_code=401)
+
+        google_data = resp.json()
+
+        # Pastikan token untuk app kita
+        # Opsional: uncomment dan isi CLIENT_ID jika ingin strict verify
+        # import os
+        # expected_aud = os.getenv("GOOGLE_CLIENT_ID_ANDROID", "")
+        # if expected_aud and google_data.get("aud") != expected_aud:
+        #     return mobile_api_response(ok=False, message="Token bukan untuk app ini.", status_code=401)
+
+        g_email = (google_data.get("email") or "").strip().lower()
+        g_name  = (google_data.get("name")  or g_email.split("@")[0]).strip()
+
+        if not g_email:
+            return mobile_api_response(
+                ok=False, message="Email tidak ditemukan di token Google.", status_code=400)
+
+    except Exception as e:
+        return mobile_api_response(
+            ok=False, message=f"Gagal verifikasi token Google: {e}", status_code=500)
+
+    # ── Cek atau buat user ────────────────────
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT id, name, email, role FROM users WHERE lower(email)=%s LIMIT 1;",
+            (g_email,)
+        )
+        user = cur.fetchone()
+
+        if not user:
+            # Auto-register sebagai employee
+            from werkzeug.security import generate_password_hash
+            dummy_pw = generate_password_hash(secrets.token_urlsafe(32))
+            cur.execute(
+                """INSERT INTO users (name, email, password_hash, role)
+                   VALUES (%s, %s, %s, 'employee')
+                   RETURNING id, name, email, role;""",
+                (g_name, g_email, dummy_pw)
+            )
+            conn.commit()
+            user = cur.fetchone()
+
+        token = _issue_token(user["id"])
+
+        return mobile_api_response(
+            ok=True, message="Login Google berhasil.",
+            data={
+                "token": token,
+                "user": {
+                    "id":    user["id"],
+                    "name":  user["name"],
+                    "email": user["email"],
+                    "role":  user["role"],
                 }
             },
             status_code=200
@@ -102,15 +202,15 @@ def mobile_login():
     except Exception as e:
         conn.rollback()
         return mobile_api_response(
-            ok=False,
-            message=f"Gagal login: {str(e)}",
-            status_code=500
-        )
+            ok=False, message=f"Gagal login Google: {e}", status_code=500)
     finally:
         cur.close()
         conn.close()
 
 
+# ─────────────────────────────────────────────
+#  ME
+# ─────────────────────────────────────────────
 @mobile_auth_bp.route("/me", methods=["GET", "OPTIONS"])
 def mobile_me():
     from core import get_mobile_api_user
@@ -121,21 +221,17 @@ def mobile_me():
     user = get_mobile_api_user()
     if not user:
         return mobile_api_response(
-            ok=False,
-            message="Unauthorized. Token tidak valid atau belum login.",
-            status_code=401
-        )
+            ok=False, message="Unauthorized.", status_code=401)
 
     return mobile_api_response(
-        ok=True,
-        message="OK",
+        ok=True, message="OK",
         data={
             "user": {
-                "id": user["user_id"],
-                "name": user["name"],
-                "email": user["email"],
-                "role": user["role"],
-                "points": int(user.get("points") or 0),
+                "id":           user["user_id"],
+                "name":         user["name"],
+                "email":        user["email"],
+                "role":         user["role"],
+                "points":       int(user.get("points") or 0),
                 "points_admin": int(user.get("points_admin") or 0),
             }
         },
@@ -143,6 +239,9 @@ def mobile_me():
     )
 
 
+# ─────────────────────────────────────────────
+#  LOGOUT
+# ─────────────────────────────────────────────
 @mobile_auth_bp.route("/logout", methods=["POST", "OPTIONS"])
 def mobile_logout():
     from core import get_bearer_token
@@ -155,13 +254,10 @@ def mobile_logout():
         return mobile_api_response(ok=True, message="Logout berhasil.", data={}, status_code=200)
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur  = conn.cursor()
     try:
-        cur.execute("""
-            UPDATE mobile_api_tokens
-            SET is_active=FALSE
-            WHERE token=%s;
-        """, (token,))
+        cur.execute(
+            "UPDATE mobile_api_tokens SET is_active=FALSE WHERE token=%s;", (token,))
         conn.commit()
     finally:
         cur.close()
