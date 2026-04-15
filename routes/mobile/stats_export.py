@@ -1,25 +1,22 @@
 """
 routes/mobile/stats_export.py
-
-Endpoint:
-  GET /api/mobile/stats/export?month=YYYY-MM
-  → Download file Excel (.xlsx) laporan statistik bulanan
-
-Package yang dibutuhkan di requirements.txt:
-  openpyxl>=3.1.2
+GET /api/mobile/stats/export?month=YYYY-MM
+GET /api/mobile/stats/export?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+→ Download .xlsx (2 sheet)
+  Sheet 1 : Detail kehadiran per record (waktu masuk/keluar + gaji)
+  Sheet 2 : Ringkasan per karyawan + statistik eksekutif
 """
-
-from datetime import date
+from datetime import date, timedelta, datetime
+from calendar import monthrange
 from io import BytesIO
+from collections import defaultdict
 
 from flask import Blueprint, request, send_file
 from psycopg2.extras import RealDictCursor
 
 try:
     import openpyxl
-    from openpyxl.styles import (
-        Font, PatternFill, Alignment, Border, Side, GradientFill
-    )
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     HAS_OPENPYXL = True
 except ImportError:
@@ -30,378 +27,283 @@ from core import mobile_api_response, mobile_api_login_required
 
 mobile_stats_export_bp = Blueprint("mobile_stats_export", __name__)
 
+MONTH_ID = ["","Januari","Februari","Maret","April","Mei","Juni",
+            "Juli","Agustus","September","Oktober","November","Desember"]
 
-# ── Color palette ────────────────────────────────────────────────
-_BLUE_HDR   = "1565C0"   # Header utama
-_BLUE_SUBHDR= "1E88E5"   # Sub-header
-_BLUE_LIGHT = "E3F0FF"   # Baris genap
-_BLUE_MED   = "BBDEFB"   # Summary row
-_WHITE      = "FFFFFF"
-_GREY_LIGHT = "F5F5F5"
-_GREEN      = "2E7D32"
-_ORANGE     = "E65100"
-_RED        = "C62828"
-_PURPLE     = "6A1B9A"
-_TEAL       = "00838F"
-_DARK       = "0D1B3E"
+C = {
+    "navy":"0B1733","blue":"1565C0","blue_mid":"1E88E5",
+    "blue_lite":"E3F2FD","cyan_lite":"F0F7FF","white":"FFFFFF",
+    "grey_bg":"F5F5F5","grey_txt":"616161",
+    "green":"2E7D32","green_bg":"E8F5E9",
+    "yellow":"E65100","yellow_bg":"FFF8E1",
+    "red":"C62828","red_bg":"FFEBEE",
+    "purple":"6A1B9A","purple_bg":"F3E5F5",
+}
 
-
-def _border(style="thin"):
-    s = Side(style=style, color="BDBDBD")
-    return Border(left=s, right=s, top=s, bottom=s)
-
-
-def _fill(hex_color):
-    return PatternFill("solid", fgColor=hex_color)
+STATUS_MAP = {
+    "PRESENT": ("Tepat Waktu","green","green_bg"),
+    "LATE":    ("Terlambat","yellow","yellow_bg"),
+    "SICK":    ("Sakit","blue","blue_lite"),
+    "LEAVE":   ("Izin","purple","purple_bg"),
+    "ABSENT":  ("Absen","red","red_bg"),
+}
 
 
-def _font(bold=False, color=_DARK, size=10):
-    return Font(bold=bold, color=color, size=size, name="Calibri")
+def _ft(bold=False,size=10,color="000000"):
+    return Font(bold=bold,size=size,color=color,name="Calibri")
 
+def _fill(k):
+    return PatternFill("solid",fgColor=C.get(k,k))
 
-def _align(h="left", v="center", wrap=False):
-    return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
+def _aln(h="left",v="center",wrap=False):
+    return Alignment(horizontal=h,vertical=v,wrap_text=wrap)
 
+def _bdr(color="D0D0D0"):
+    s=Side(style="thin",color=color)
+    return Border(left=s,right=s,top=s,bottom=s)
 
-# ── Fetch data ───────────────────────────────────────────────────
-def _fetch_data(start_date, end_date):
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+def _rp(v):
     try:
-        # Absensi per karyawan
+        n=int(v or 0)
+        return f"Rp {n:,}".replace(",",".")
+    except Exception:
+        return "Rp 0"
+
+def _wib(dt):
+    if not dt: return "-"
+    try: return (dt+timedelta(hours=7)).strftime("%H:%M")
+    except: return "-"
+
+def _dur(ci,co):
+    if not ci or not co: return "-"
+    s=int((co-ci).total_seconds())
+    if s<0: return "-"
+    h,r=divmod(s,3600); return f"{h}j {r//60:02d}m"
+
+def _fmtd(d):
+    if not d: return "-"
+    days=["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"]
+    return f"{days[d.weekday()]}, {d.day} {MONTH_ID[d.month]} {d.year}"
+
+def _resolve(params):
+    df=params.get("date_from","").strip()
+    dt=params.get("date_to","").strip()
+    mo=params.get("month","").strip()
+    if df and dt:
+        s=datetime.strptime(df,"%Y-%m-%d").date()
+        e=datetime.strptime(dt,"%Y-%m-%d").date()
+        lbl=f"{s.day} {MONTH_ID[s.month]} {s.year} - {e.day} {MONTH_ID[e.month]} {e.year}"
+        fn=f"UMGAP_Kehadiran_{df}_sd_{dt}.xlsx"
+        return s,e+timedelta(days=1),lbl,fn
+    if not mo:
+        t=date.today(); mo=f"{t.year:04d}-{t.month:02d}"
+    y,m=int(mo[:4]),int(mo[5:7])
+    s=date(y,m,1); e=date(y,m,monthrange(y,m)[1])
+    return s,e+timedelta(days=1),f"{MONTH_ID[m]} {y}",f"UMGAP_Kehadiran_{y}_{m:02d}.xlsx"
+
+def _fetch_detail(s,e):
+    conn=get_conn(); cur=conn.cursor(cursor_factory=RealDictCursor)
+    try:
         cur.execute("""
-            SELECT
-                u.id,
-                u.name  AS employee_name,
-                COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS present_days,
-                COALESCE(SUM(CASE WHEN a.arrival_type='LATE' THEN 1 ELSE 0 END), 0) AS late_days,
-                COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0)    AS sick_days,
-                COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0)   AS leave_days,
-                COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0)  AS absent_days
+            SELECT u.name AS employee_name,
+                   COALESCE(ps.daily_salary,u.daily_salary,0) AS daily_salary,
+                   COALESCE(ps.monthly_salary,0) AS monthly_salary,
+                   COALESCE(ps.salary_type,'daily') AS salary_type,
+                   a.work_date, a.status, a.arrival_type,
+                   a.checkin_time, a.checkout_time, a.note
+            FROM attendance a
+            JOIN users u ON u.id=a.user_id
+            LEFT JOIN payroll_settings ps ON ps.user_id=a.user_id
+            WHERE u.role='employee' AND a.work_date>=%s AND a.work_date<%s
+            ORDER BY u.name ASC, a.work_date ASC;
+        """,(s,e))
+        return [dict(r) for r in cur.fetchall()]
+    finally: cur.close(); conn.close()
+
+def _fetch_summary(s,e):
+    conn=get_conn(); cur=conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT u.id, u.name AS employee_name,
+                   COALESCE(ps.daily_salary,u.daily_salary,0) AS daily_salary,
+                   COALESCE(ps.monthly_salary,0) AS monthly_salary,
+                   COALESCE(ps.salary_type,'daily') AS salary_type,
+                   COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END),0) AS present_days,
+                   COALESCE(SUM(CASE WHEN a.arrival_type='LATE' THEN 1 ELSE 0 END),0) AS late_days,
+                   COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END),0) AS sick_days,
+                   COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END),0) AS leave_days,
+                   COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END),0) AS absent_days
             FROM users u
-            LEFT JOIN attendance a
-                ON a.user_id = u.id
-               AND a.work_date >= %s AND a.work_date < %s
-            WHERE u.role = 'employee'
-            GROUP BY u.id, u.name
+            LEFT JOIN payroll_settings ps ON ps.user_id=u.id
+            LEFT JOIN attendance a ON a.user_id=u.id
+                AND a.work_date>=%s AND a.work_date<%s
+            WHERE u.role='employee'
+            GROUP BY u.id,u.name,ps.daily_salary,ps.monthly_salary,ps.salary_type,u.daily_salary
             ORDER BY u.name ASC;
-        """, (start_date, end_date))
-        att = [dict(r) for r in cur.fetchall()]
+        """,(s,e))
+        return [dict(r) for r in cur.fetchall()]
+    finally: cur.close(); conn.close()
 
-        # Sales per karyawan
-        cur.execute("""
-            SELECT u.id, COALESCE(SUM(s.qty), 0) AS sales_qty
-            FROM users u
-            LEFT JOIN sales_submissions s
-                ON s.user_id = u.id
-               AND s.created_at >= %s AND s.created_at < %s
-               AND s.status = 'APPROVED'
-            WHERE u.role = 'employee'
-            GROUP BY u.id;
-        """, (start_date, end_date))
-        sales_map = {r["id"]: r["sales_qty"] for r in cur.fetchall()}
+def _title(ws,r1,r2,title,sub):
+    ws.merge_cells(r1); c=ws[r1.split(":")[0]]
+    c.value=title; c.font=_ft(True,13,"FFFFFF"); c.fill=_fill("navy")
+    c.alignment=_aln("center"); ws.row_dimensions[1].height=28
+    ws.merge_cells(r2); c2=ws[r2.split(":")[0]]
+    c2.value=sub; c2.font=_ft(size=9,color="FFFFFF"); c2.fill=_fill("blue_mid")
+    c2.alignment=_aln("center"); ws.row_dimensions[2].height=16
+    ws.row_dimensions[3].height=6
 
-        # Gabungkan
-        rows = []
-        for emp in att:
-            rows.append({
-                "name":         emp["employee_name"],
-                "present":      int(emp["present_days"]  or 0),
-                "late":         int(emp["late_days"]     or 0),
-                "sick":         int(emp["sick_days"]      or 0),
-                "leave":        int(emp["leave_days"]     or 0),
-                "absent":       int(emp["absent_days"]    or 0),
-                "sales_qty":    int(sales_map.get(emp["id"], 0)),
-            })
+def _hdr(ws,row,cols):
+    for i,(h,w) in enumerate(cols,1):
+        c=ws.cell(row=row,column=i,value=h)
+        c.font=_ft(True,10,"FFFFFF"); c.fill=_fill("blue")
+        c.alignment=_aln("center"); c.border=_bdr("1565C0")
+        ws.column_dimensions[get_column_letter(i)].width=w
+    ws.row_dimensions[row].height=22
 
-        return rows
-    finally:
-        cur.close()
-        conn.close()
+def _build(detail,summary,label):
+    wb=openpyxl.Workbook()
+    gen=(datetime.utcnow()+timedelta(hours=7)).strftime("%d %b %Y %H:%M WIB")
+    sub=f"Periode: {label}   |   Dicetak: {gen}"
 
+    # ═══ SHEET 1: DETAIL ═══
+    ws1=wb.active; ws1.title="Detail Kehadiran"
+    ws1.sheet_view.showGridLines=False; ws1.freeze_panes="A5"
+    _title(ws1,"A1:K1","A2:K2","LAPORAN DETAIL KEHADIRAN — UMGAP",sub)
+    C1=[("No",4),("Tanggal",22),("Nama Karyawan",24),("Status",14),
+        ("Jam Masuk",11),("Jam Keluar",11),("Durasi",10),("Catatan",18),
+        ("Gaji Harian",16),("Dihitung",10),("Total Gaji",18)]
+    _hdr(ws1,4,C1)
+    DR=5
+    for i,r in enumerate(detail,1):
+        row=DR+i-1; even="cyan_lite" if i%2==0 else "white"
+        rs=(r.get("status") or "").upper()
+        at=(r.get("arrival_type") or "").upper()
+        dk="LATE" if at=="LATE" and rs=="PRESENT" else rs
+        ls,fc,bg=STATUS_MAP.get(dk,(dk,"grey_txt","white"))
+        daily=int(r["daily_salary"] or 0); monthly=int(r["monthly_salary"] or 0)
+        st=r["salary_type"] or "daily"
+        counted=rs in ("PRESENT","SICK","LEAVE")
+        gd="-" if st=="monthly" else _rp(daily)
+        dh=1 if counted else 0
+        tg=monthly if st=="monthly" else (daily if counted else 0)
+        rd=[(i,"center","grey_txt",even),(_fmtd(r["work_date"]),"left","000000",even),
+            (r["employee_name"],"left","000000",even),(ls,"center",fc,bg),
+            (_wib(r.get("checkin_time")),"center","000000",even),
+            (_wib(r.get("checkout_time")),"center","000000",even),
+            (_dur(r.get("checkin_time"),r.get("checkout_time")),"center","grey_txt",even),
+            (r.get("note") or "","left","grey_txt",even),
+            (gd,"right","000000",even),(dh,"center","blue",even),
+            (_rp(tg),"right","blue",even)]
+        for col,(val,ha,fc2,bg2) in enumerate(rd,1):
+            c=ws1.cell(row=row,column=col,value=val)
+            c.font=_ft(size=9,color=C.get(fc2,fc2),bold=(col==11))
+            c.fill=_fill(bg2); c.alignment=_aln(ha); c.border=_bdr()
+        ws1.row_dimensions[row].height=17
+    last1=DR+len(detail)-1; tr=last1+2
+    ws1.merge_cells(f"A{tr}:H{tr}")
+    c=ws1.cell(row=tr,column=1,value="TOTAL HARI TERHITUNG")
+    c.font=_ft(True,10,"FFFFFF"); c.fill=_fill("navy"); c.alignment=_aln("right")
+    for col in [9,10,11]:
+        cl=get_column_letter(col)
+        ce=ws1.cell(row=tr,column=col,value=f"=SUM({cl}{DR}:{cl}{last1})")
+        ce.font=_ft(True,10,"FFFFFF"); ce.fill=_fill("navy"); ce.alignment=_aln("center")
+    ws1.row_dimensions[tr].height=22
+    lr=tr+2; ws1.merge_cells(f"A{lr}:K{lr}")
+    ws1.cell(row=lr,column=1,
+             value="* Hijau=Tepat Waktu | Kuning=Terlambat | Merah=Absen | Biru=Sakit | Ungu=Izin"
+             ).font=_ft(size=8,color=C["grey_txt"])
 
-# ── Build Excel ──────────────────────────────────────────────────
-def _build_excel(rows, month_label):
-    wb = openpyxl.Workbook()
+    # ═══ SHEET 2: RINGKASAN ═══
+    ws2=wb.create_sheet("Ringkasan")
+    ws2.sheet_view.showGridLines=False; ws2.freeze_panes="A5"
+    _title(ws2,"A1:L1","A2:L2","RINGKASAN PENGGAJIAN — UMGAP",sub)
+    C2=[("No",4),("Nama Karyawan",26),("Jenis Gaji",12),("Gaji Harian",16),
+        ("Tepat Waktu",12),("Terlambat",11),("Sakit",9),("Izin",9),
+        ("Absen",9),("Total Hadir",11),("Kehadiran %",12),("Total Gaji",18)]
+    _hdr(ws2,4,C2)
+    grand=defaultdict(int); SR=5
+    for i,r in enumerate(summary,1):
+        row=SR+i-1; even="cyan_lite" if i%2==0 else "white"
+        daily=int(r["daily_salary"] or 0); monthly=int(r["monthly_salary"] or 0)
+        st=r["salary_type"] or "daily"
+        p=int(r["present_days"] or 0); la=int(r["late_days"] or 0)
+        si=int(r["sick_days"] or 0); lv=int(r["leave_days"] or 0)
+        ab=int(r["absent_days"] or 0)
+        wk=p+la+si+lv; td=wk+ab
+        pct=round(wk/td*100,1) if td>0 else 0.0
+        gaji=monthly if st=="monthly" else wk*daily
+        grand["p"]+=p; grand["la"]+=la; grand["si"]+=si
+        grand["lv"]+=lv; grand["ab"]+=ab; grand["wk"]+=wk; grand["gaji"]+=gaji
+        pfc="green" if pct>=80 else ("yellow" if pct>=60 else "red")
+        rd2=[(i,"center","grey_txt"),(r["employee_name"],"left","000000"),
+             ("Bulanan" if st=="monthly" else "Harian","center","grey_txt"),
+             ("-" if st=="monthly" else _rp(daily),"right","000000"),
+             (p,"center","green"),(la,"center","yellow"),(si,"center","blue"),
+             (lv,"center","purple"),(ab,"center","red"),
+             (wk,"center","blue_mid"),(f"{pct}%","center",pfc),
+             (_rp(gaji),"right","blue")]
+        for col,(val,ha,fc2) in enumerate(rd2,1):
+            c=ws2.cell(row=row,column=col,value=val)
+            c.font=_ft(size=9,color=C.get(fc2,fc2),bold=(col==12))
+            c.fill=_fill(even); c.alignment=_aln(ha); c.border=_bdr()
+        ws2.row_dimensions[row].height=17
+    last2=SR+len(summary)-1; gr=last2+2
+    ws2.merge_cells(f"A{gr}:C{gr}")
+    c=ws2.cell(row=gr,column=1,value="GRAND TOTAL")
+    c.font=_ft(True,11,"FFFFFF"); c.fill=_fill("navy"); c.alignment=_aln("center")
+    for col,val in [(4,"-"),(5,grand["p"]),(6,grand["la"]),(7,grand["si"]),
+                   (8,grand["lv"]),(9,grand["ab"]),(10,grand["wk"]),(11,""),
+                   (12,_rp(grand["gaji"]))]:
+        c=ws2.cell(row=gr,column=col,value=val)
+        c.font=_ft(True,10,"FFFFFF"); c.fill=_fill("navy")
+        c.alignment=_aln("right" if col==12 else "center")
+    ws2.row_dimensions[gr].height=24
+    te=len(summary); td2=grand["wk"]+grand["ab"]
+    avg=round(grand["wk"]/td2*100,1) if td2>0 else 0
+    sr2=gr+2; ws2.merge_cells(f"A{sr2}:D{sr2}")
+    h=ws2.cell(row=sr2,column=1,value="STATISTIK PERIODE")
+    h.font=_ft(True,10,"FFFFFF"); h.fill=_fill("blue"); h.alignment=_aln("center")
+    ws2.row_dimensions[sr2].height=20
+    stats=[("Total Karyawan",te,"blue"),("Total Hari Hadir",grand["p"],"green"),
+           ("Total Hari Terlambat",grand["la"],"yellow"),
+           ("Total Hari Sakit",grand["si"],"blue_mid"),
+           ("Total Hari Izin",grand["lv"],"purple"),
+           ("Total Hari Absen",grand["ab"],"red"),
+           (f"Rata-rata Kehadiran %",f"{avg}%","blue"),
+           ("Total Estimasi Gaji",_rp(grand["gaji"]),"blue")]
+    for j,(lbl,val,fc2) in enumerate(stats):
+        rr=sr2+1+j; ev="grey_bg" if j%2==0 else "white"
+        ws2.merge_cells(f"A{rr}:C{rr}")
+        lc=ws2.cell(row=rr,column=1,value=lbl)
+        lc.font=_ft(size=9); lc.fill=_fill(ev)
+        lc.alignment=_aln("left"); lc.border=_bdr()
+        vc=ws2.cell(row=rr,column=4,value=val)
+        vc.font=_ft(True,10,C.get(fc2,fc2)); vc.fill=_fill(ev)
+        vc.alignment=_aln("center"); vc.border=_bdr()
+        ws2.row_dimensions[rr].height=17
 
-    # ════ Sheet 1: Rekap Absensi ════
-    ws = wb.active
-    ws.title = "Rekap Absensi"
-    ws.sheet_view.showGridLines = False
-
-    # -- Baris judul utama --
-    ws.merge_cells("A1:I1")
-    c = ws["A1"]
-    c.value    = "UMGAP — Laporan Statistik Bulanan"
-    c.font     = _font(bold=True, color=_WHITE, size=14)
-    c.fill     = _fill(_BLUE_HDR)
-    c.alignment= _align("center")
-
-    ws.merge_cells("A2:I2")
-    c2 = ws["A2"]
-    c2.value     = f"Periode: {month_label}     |     Dicetak: {date.today().strftime('%d %B %Y')}"
-    c2.font      = _font(color=_WHITE, size=10)
-    c2.fill      = _fill(_BLUE_SUBHDR)
-    c2.alignment = _align("center")
-
-    ws.append([])  # baris 3 kosong
-
-    # -- Header tabel --
-    headers = ["No", "Nama Karyawan", "Hadir", "Terlambat", "Sakit", "Izin", "Absen", "Total Kerja", "Kehadiran %"]
-    header_colors = [_BLUE_HDR, _BLUE_HDR, _GREEN, _ORANGE, _PURPLE, _TEAL, _RED, _BLUE_SUBHDR, _BLUE_SUBHDR]
-
-    ws.append(headers)
-    for col_idx, (hdr, color) in enumerate(zip(headers, header_colors), start=1):
-        cell = ws.cell(row=4, column=col_idx)
-        cell.value     = hdr
-        cell.font      = _font(bold=True, color=_WHITE, size=10)
-        cell.fill      = _fill(color)
-        cell.alignment = _align("center")
-        cell.border    = _border()
-
-    # -- Data rows --
-    total_present = total_late = total_sick = total_leave = total_absent = 0
-
-    for i, row in enumerate(rows, start=1):
-        r_idx   = 4 + i
-        work    = row["present"] + row["late"] + row["sick"] + row["leave"]
-        total   = work + row["absent"]
-        pct     = round(work / total * 100, 1) if total > 0 else 0
-        bg      = _BLUE_LIGHT if i % 2 == 0 else _WHITE
-
-        cells = [
-            i,
-            row["name"],
-            row["present"],
-            row["late"],
-            row["sick"],
-            row["leave"],
-            row["absent"],
-            work,
-            f"{pct}%",
-        ]
-        col_fmts = [
-            (_align("center"), None),
-            (_align("left"),   None),
-            (_align("center"), _GREEN   if row["present"] > 0 else None),
-            (_align("center"), _ORANGE  if row["late"]    > 0 else None),
-            (_align("center"), _PURPLE  if row["sick"]    > 0 else None),
-            (_align("center"), _TEAL    if row["leave"]   > 0 else None),
-            (_align("center"), _RED     if row["absent"]  > 0 else None),
-            (_align("center"), None),
-            (_align("center"), _GREEN   if pct >= 80 else (_ORANGE if pct >= 60 else _RED)),
-        ]
-
-        for col_idx, (val, (aln, fc)) in enumerate(zip(cells, col_fmts), start=1):
-            cell           = ws.cell(row=r_idx, column=col_idx, value=val)
-            cell.fill      = _fill(bg)
-            cell.alignment = aln
-            cell.border    = _border()
-            cell.font      = _font(bold=(col_idx == 2), color=(fc or _DARK))
-
-        total_present += row["present"]
-        total_late    += row["late"]
-        total_sick    += row["sick"]
-        total_leave   += row["leave"]
-        total_absent  += row["absent"]
-
-    # -- Summary row --
-    s_row = 4 + len(rows) + 1
-    ws.append([])  # spacer
-
-    total_work = total_present + total_late + total_sick + total_leave
-    total_all  = total_work + total_absent
-    avg_pct    = round(total_work / total_all * 100, 1) if total_all > 0 else 0
-
-    summary = ["", "TOTAL / RATA-RATA", total_present, total_late, total_sick,
-               total_leave, total_absent, total_work, f"{avg_pct}%"]
-    for col_idx, val in enumerate(summary, start=1):
-        cell           = ws.cell(row=s_row + 1, column=col_idx, value=val)
-        cell.font      = _font(bold=True, color=_WHITE)
-        cell.fill      = _fill(_BLUE_HDR)
-        cell.alignment = _align("center")
-        cell.border    = _border()
-
-    # -- Legend box --
-    legend_start = s_row + 3
-    ws.cell(row=legend_start, column=1, value="Keterangan:").font = _font(bold=True)
-    legend_items = [
-        ("Hijau", "Hadir / Tepat waktu"),
-        ("Oranye", "Terlambat"),
-        ("Ungu", "Sakit"),
-        ("Teal", "Izin / Cuti"),
-        ("Merah", "Absen tanpa keterangan"),
-        ("Kehadiran % ≥ 80%", "Baik"),
-        ("Kehadiran % 60–79%", "Perlu perhatian"),
-        ("Kehadiran % < 60%", "Kritis"),
-    ]
-    for j, (key, val) in enumerate(legend_items):
-        ws.cell(row=legend_start + j + 1, column=1, value=f"• {key}:").font = _font(size=9)
-        ws.cell(row=legend_start + j + 1, column=2, value=val).font = _font(size=9, color="555555")
-
-    # -- Column widths --
-    col_widths = [5, 28, 10, 12, 10, 8, 10, 13, 14]
-    for idx, w in enumerate(col_widths, start=1):
-        ws.column_dimensions[get_column_letter(idx)].width = w
-
-    # -- Row heights --
-    ws.row_dimensions[1].height = 30
-    ws.row_dimensions[2].height = 20
-    ws.row_dimensions[4].height = 22
-    for r in range(5, 5 + len(rows)):
-        ws.row_dimensions[r].height = 18
-
-    # ════ Sheet 2: Data Sales ════
-    ws2 = wb.create_sheet("Data Sales")
-    ws2.sheet_view.showGridLines = False
-
-    ws2.merge_cells("A1:D1")
-    c = ws2["A1"]
-    c.value     = "UMGAP — Data Sales Karyawan"
-    c.font      = _font(bold=True, color=_WHITE, size=13)
-    c.fill      = _fill(_TEAL)
-    c.alignment = _align("center")
-
-    ws2.merge_cells("A2:D2")
-    c2 = ws2["A2"]
-    c2.value     = f"Periode: {month_label}"
-    c2.font      = _font(color=_WHITE)
-    c2.fill      = _fill("00838F")
-    c2.alignment = _align("center")
-
-    ws2.append([])
-
-    sales_headers = ["No", "Nama Karyawan", "Total Qty Terjual", "Keterangan"]
-    for col_idx, hdr in enumerate(sales_headers, start=1):
-        cell           = ws2.cell(row=4, column=col_idx, value=hdr)
-        cell.font      = _font(bold=True, color=_WHITE)
-        cell.fill      = _fill(_TEAL)
-        cell.alignment = _align("center")
-        cell.border    = _border()
-
-    rows_sorted = sorted(rows, key=lambda x: x["sales_qty"], reverse=True)
-    for i, row in enumerate(rows_sorted, start=1):
-        r_idx   = 4 + i
-        bg      = "E0F7FA" if i % 2 == 0 else _WHITE
-        keterangan = "Top Sales 🏆" if i == 1 and row["sales_qty"] > 0 else (
-            "Tinggi" if row["sales_qty"] >= 50 else (
-            "Sedang" if row["sales_qty"] >= 20 else (
-            "Rendah" if row["sales_qty"] > 0  else "Belum ada")))
-
-        for col_idx, val in enumerate([i, row["name"], row["sales_qty"], keterangan], start=1):
-            cell           = ws2.cell(row=r_idx, column=col_idx, value=val)
-            cell.fill      = _fill(bg)
-            cell.border    = _border()
-            cell.alignment = _align("center" if col_idx != 2 else "left")
-            cell.font      = _font(bold=(col_idx == 2))
-
-    ws2.column_dimensions["A"].width = 5
-    ws2.column_dimensions["B"].width = 28
-    ws2.column_dimensions["C"].width = 20
-    ws2.column_dimensions["D"].width = 18
-    ws2.row_dimensions[1].height = 28
-    ws2.row_dimensions[4].height = 20
-
-    # ════ Sheet 3: Ringkasan Eksekutif ════
-    ws3 = wb.create_sheet("Ringkasan")
-    ws3.sheet_view.showGridLines = False
-    ws3.merge_cells("A1:C1")
-    c = ws3["A1"]
-    c.value     = "Ringkasan Eksekutif"
-    c.font      = _font(bold=True, color=_WHITE, size=13)
-    c.fill      = _fill(_DARK)
-    c.alignment = _align("center")
-    ws3.row_dimensions[1].height = 28
-
-    total_emp = len(rows)
-    avg_present = round(total_present / total_emp, 1) if total_emp else 0
-
-    summary_items = [
-        ("Total Karyawan",            total_emp,    _BLUE_HDR),
-        ("Total Hari Hadir",          total_present,_GREEN),
-        ("Total Hari Terlambat",      total_late,   _ORANGE),
-        ("Total Hari Sakit",          total_sick,   _PURPLE),
-        ("Total Hari Izin",           total_leave,  _TEAL),
-        ("Total Hari Absen",          total_absent, _RED),
-        ("Rata-rata Hadir/Orang",     avg_present,  _BLUE_HDR),
-        ("Rata-rata Kehadiran %",     f"{avg_pct}%",_BLUE_HDR),
-    ]
-
-    for j, (label, val, color) in enumerate(summary_items, start=2):
-        ws3.cell(row=j, column=1, value=label).font = _font(bold=True)
-        c = ws3.cell(row=j, column=2, value=val)
-        c.font      = _font(bold=True, color=color, size=12)
-        c.alignment = _align("center")
-        ws3.cell(row=j, column=1).fill = _fill(_GREY_LIGHT if j % 2 == 0 else _WHITE)
-        ws3.cell(row=j, column=2).fill = _fill(_GREY_LIGHT if j % 2 == 0 else _WHITE)
-
-    ws3.column_dimensions["A"].width = 28
-    ws3.column_dimensions["B"].width = 16
-
-    # ── Freeze panes di semua sheet
-    for sheet in [ws, ws2, ws3]:
-        sheet.freeze_panes = sheet["A5"] if sheet != ws3 else None
-
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    buf=BytesIO(); wb.save(buf); buf.seek(0)
     return buf
 
 
-# ── Endpoint ─────────────────────────────────────────────────────
-
-@mobile_stats_export_bp.route("/stats/export", methods=["GET", "OPTIONS"])
+@mobile_stats_export_bp.route("/stats/export",methods=["GET","OPTIONS"])
 @mobile_api_login_required
 def mobile_stats_export():
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
-
-    if request.mobile_user.get("role") != "admin":
-        return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
-
+    if request.method=="OPTIONS":
+        return mobile_api_response(ok=True,message="OK",data={},status_code=200)
+    if request.mobile_user.get("role")!="admin":
+        return mobile_api_response(ok=False,message="Akses ditolak.",status_code=403)
     if not HAS_OPENPYXL:
-        return mobile_api_response(
-            ok=False,
-            message="openpyxl belum terinstall. Jalankan: pip install openpyxl",
-            status_code=500,
-        )
-
-    from datetime import datetime, timedelta
-
-    # Support date_from/date_to (rentang tanggal) ATAU month (bulan)
-    date_from_str = request.args.get("date_from")
-    date_to_str   = request.args.get("date_to")
-    month         = request.args.get("month")
-
+        return mobile_api_response(ok=False,
+            message="openpyxl belum terinstall. Tambahkan openpyxl>=3.1.2 ke requirements.txt",
+            status_code=500)
     try:
-        if date_from_str and date_to_str:
-            start_date  = datetime.strptime(date_from_str, "%Y-%m-%d").date()
-            end_date_inc = datetime.strptime(date_to_str, "%Y-%m-%d").date()
-            end_date    = end_date_inc + timedelta(days=1)
-            month_label = f"{start_date.strftime('%d %b')} s.d. {end_date_inc.strftime('%d %b %Y')}"
-            filename_tag = f"{date_from_str}_sd_{date_to_str}"
-        else:
-            if not month:
-                today = date.today()
-                month = f"{today.year:04d}-{today.month:02d}"
-            year = int(month.split("-")[0])
-            mon  = int(month.split("-")[1])
-            start_date = date(year, mon, 1)
-            end_date   = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
-            month_names = ["","Januari","Februari","Maret","April","Mei","Juni",
-                           "Juli","Agustus","September","Oktober","November","Desember"]
-            month_label  = f"{month_names[mon]} {year}"
-            filename_tag = f"{year}_{mon:02d}"
+        start,end_exc,label,filename=_resolve(request.args)
     except Exception as e:
-        return mobile_api_response(ok=False, message=f"Format tanggal tidak valid: {e}", status_code=400)
-
-    rows     = _fetch_data(start_date, end_date)
-    buf      = _build_excel(rows, month_label)
-    filename = f"UMGAP_Statistik_{filename_tag}.xlsx"
-
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+        return mobile_api_response(ok=False,message=f"Format tanggal tidak valid: {e}",status_code=400)
+    detail=_fetch_detail(start,end_exc)
+    summ=_fetch_summary(start,end_exc)
+    buf=_build(detail,summ,label)
+    return send_file(buf,as_attachment=True,download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
