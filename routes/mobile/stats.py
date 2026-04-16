@@ -66,7 +66,7 @@ def mobile_stats():
     try:
         # ── Cek kolom yang mungkin tidak ada ──────────────────────
         has_payroll   = _col_exists(cur, "payroll_settings", "daily_salary")
-        has_sal_type  = has_payroll and _col_exists(cur, "payroll_settings", "salary_type")
+        has_sal_type  = False
         has_monthly   = has_payroll and _col_exists(cur, "payroll_settings", "monthly_salary")
 
         # ── Bangun ekspresi gaji sesuai kolom yang tersedia ───────
