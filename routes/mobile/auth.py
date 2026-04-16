@@ -243,16 +243,39 @@ def mobile_me():
         return mobile_api_response(
             ok=False, message="Unauthorized.", status_code=401)
 
+    # Ambil data gaji dari payroll_settings
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                COALESCE(ps.daily_salary,   0) AS daily_salary,
+                COALESCE(ps.monthly_salary, 0) AS monthly_salary,
+                COALESCE(ps.salary_type, 'daily') AS salary_type
+            FROM payroll_settings ps
+            WHERE ps.user_id = %s
+            LIMIT 1;
+        """, (user["user_id"],))
+        ps = cur.fetchone() or {}
+    except Exception:
+        ps = {}
+    finally:
+        cur.close()
+        conn.close()
+
     return mobile_api_response(
         ok=True, message="OK",
         data={
             "user": {
-                "id":           user["user_id"],
-                "name":         user["name"],
-                "email":        user["email"],
-                "role":         user["role"],
-                "points":       int(user.get("points") or 0),
-                "points_admin": int(user.get("points_admin") or 0),
+                "id":             user["user_id"],
+                "name":           user["name"],
+                "email":          user["email"],
+                "role":           user["role"],
+                "points":         int(user.get("points")       or 0),
+                "points_admin":   int(user.get("points_admin") or 0),
+                "daily_salary":   int(ps.get("daily_salary")   or 0),
+                "monthly_salary": int(ps.get("monthly_salary") or 0),
+                "salary_type":    ps.get("salary_type") or "daily",
             }
         },
         status_code=200
