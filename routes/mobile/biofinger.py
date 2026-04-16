@@ -1,13 +1,8 @@
 """
 routes/mobile/biofinger.py
-
-Endpoint webhook - menerima data absensi dari VPS bridge
-yang terhubung ke mesin fingerprint BioFinger TM-501.
-
-Flow:
-  Mesin → VPS TCP Bridge → POST ke endpoint ini → Simpan ke DB
+Webhook dari VPS bridge → mesin fingerprint BioFinger TM-501.
+Flow: Mesin → VPS TCP Bridge → POST ke endpoint ini → Simpan DB + FCM
 """
-
 from datetime import datetime
 from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
@@ -15,58 +10,104 @@ from psycopg2.extras import RealDictCursor
 from db import get_conn
 from core import mobile_api_response, _safe_int
 
-# FCM - import lazy agar tidak error jika belum setup
-def _notify_admin_fp(pin, user_name, action, time_str):
-    try:
-        from core import get_admin_fcm_tokens, send_fcm_to_tokens
-        import threading
-        def _send():
-            try:
-                tokens = get_admin_fcm_tokens()
-                if not tokens: return
-                emoji = "✅" if action == "Check-in" else "👋"
-                send_fcm_to_tokens(tokens,
-                    f"{emoji} Fingerprint — {user_name}",
-                    f"{user_name} {action.lower()} via fingerprint pukul {time_str}",
-                    {"type": "fingerprint", "action": action})
-            except Exception as ex:
-                print(f"[FCM] {ex}")
-        threading.Thread(target=_send, daemon=True).start()
-    except Exception as e:
-        print(f"[FCM import] {e}")
-
 biofinger_bp = Blueprint("biofinger", __name__)
 
 
-# ── Buat tabel jika belum ada ─────────────────────────────────────
+# ── FCM helpers (lazy import, jalan di thread terpisah) ──────────────
+
+def _get_user_fcm_tokens(user_id: int) -> list:
+    try:
+        conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("""
+                SELECT fcm_token FROM mobile_device_tokens
+                WHERE user_id=%s AND is_active=TRUE
+                  AND COALESCE(fcm_token,'') <> '';
+            """, (user_id,))
+            return [r["fcm_token"] for r in cur.fetchall()]
+        finally:
+            cur.close(); conn.close()
+    except Exception:
+        return []
+
+
+def _notify_fp(user_id: int, user_name: str, action: str, time_str: str):
+    """
+    Kirim FCM ke:
+    - Admin  : ada check-in/out fingerprint karyawan
+    - Karyawan: konfirmasi absensi fingerprint berhasil tercatat
+    Dijalankan di background thread agar tidak blocking webhook.
+    """
+    import threading
+
+    def _send():
+        try:
+            from core import get_admin_fcm_tokens, send_fcm_to_tokens
+
+            is_ci  = (action == "Check-in")
+            emoji  = "✅" if is_ci else "👋"
+            action_id = "attendance_checkin" if is_ci else "attendance_checkout"
+
+            # ── Notif ke ADMIN ───────────────────────────────────
+            admin_tokens = get_admin_fcm_tokens()
+            if admin_tokens:
+                send_fcm_to_tokens(
+                    admin_tokens,
+                    title=f"{emoji} Fingerprint — {user_name}",
+                    body=f"{user_name} {action.lower()} via fingerprint pukul {time_str}",
+                    data={
+                        "type":      "fingerprint",
+                        "action":    action,
+                        "screen":    "attendance_history",
+                        "user_id":   str(user_id),
+                        "time":      time_str,
+                    }
+                )
+
+            # ── Notif ke KARYAWAN ────────────────────────────────
+            emp_tokens = _get_user_fcm_tokens(user_id)
+            if emp_tokens:
+                if is_ci:
+                    title = "✅ Check-in Tercatat"
+                    body  = f"Check-in kamu pukul {time_str} berhasil direkam via fingerprint."
+                else:
+                    title = "👋 Check-out Tercatat"
+                    body  = f"Check-out kamu pukul {time_str} berhasil direkam via fingerprint."
+
+                send_fcm_to_tokens(
+                    emp_tokens,
+                    title=title,
+                    body=body,
+                    data={
+                        "type":   action_id,
+                        "screen": "attendance_history",
+                        "time":   time_str,
+                    }
+                )
+        except Exception as ex:
+            print(f"[FCM biofinger] {ex}")
+
+    threading.Thread(target=_send, daemon=True).start()
+
+
+# ── Schema ───────────────────────────────────────────────────────────
 
 def _ensure_schema():
-    conn = get_conn()
-    cur  = conn.cursor()
+    conn = get_conn(); cur = conn.cursor()
     try:
-        # Pastikan kolom attendance tersedia
-        cur.execute("""
-            ALTER TABLE attendance
-            ADD COLUMN IF NOT EXISTS check_in  TIMESTAMP;
-        """)
-        cur.execute("""
-            ALTER TABLE attendance
-            ADD COLUMN IF NOT EXISTS check_out TIMESTAMP;
-        """)
-        cur.execute("""
-            ALTER TABLE attendance
-            ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
-        """)
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in  TIMESTAMP;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out TIMESTAMP;")
+        cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS biofinger_mappings (
-                id          SERIAL PRIMARY KEY,
-                pin_mesin   VARCHAR(50)  NOT NULL UNIQUE,
-                user_id     INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                snmesin     VARCHAR(100) DEFAULT '',
-                nama_mesin  VARCHAR(100) DEFAULT '',
-                is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
-                created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                id         SERIAL PRIMARY KEY,
+                pin_mesin  VARCHAR(50)  NOT NULL UNIQUE,
+                user_id    INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                snmesin    VARCHAR(100) DEFAULT '',
+                nama_mesin VARCHAR(100) DEFAULT '',
+                is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
         cur.execute("""
@@ -88,32 +129,28 @@ def _ensure_schema():
         """)
         conn.commit()
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
 
 def _parse_tran_dt(s: str):
-    try:
-        return datetime.strptime(s.strip()[:19], "%Y-%m-%d %H:%M:%S")
-    except Exception:
-        return datetime.now()
-
+    try:    return datetime.strptime(s.strip()[:19], "%Y-%m-%d %H:%M:%S")
+    except: return datetime.now()
 
 def _is_checkin(stateid: str) -> bool:
     return str(stateid) in ("0", "4")
 
 
-# ── Webhook utama ─────────────────────────────────────────────────
+# ── Webhook utama ─────────────────────────────────────────────────────
 
 @biofinger_bp.route("/biofinger/webhook", methods=["POST", "GET", "OPTIONS"])
 def biofinger_webhook():
     if request.method in ("GET", "OPTIONS"):
-        return mobile_api_response(ok=True, message="UMGAP BioFinger Webhook Active", data={}, status_code=200)
+        return mobile_api_response(ok=True,
+            message="UMGAP BioFinger Webhook Active", data={}, status_code=200)
 
     _ensure_schema()
 
     payload     = request.get_json(silent=True) or {}
-    biohook     = payload.get("biohook", "sdatareco")
     tran_id     = payload.get("tran_id", "")
     snmesin     = payload.get("snmesin", "")
     tran_dt_str = payload.get("tran_dt", "")
@@ -124,34 +161,33 @@ def biofinger_webhook():
     workcod     = payload.get("workcod", "") or ""
 
     if not pin_mesin:
-        return mobile_api_response(ok=False, message="user_id kosong", data={}, status_code=400)
+        return mobile_api_response(ok=False, message="user_id kosong",
+                                   data={}, status_code=400)
 
     tran_dt   = _parse_tran_dt(tran_dt_str)
     work_date = tran_dt.date()
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Cek duplikat
+        # Cek duplikat tran_id
         if tran_id:
-            cur.execute("SELECT id, status FROM biofinger_logs WHERE tran_id = %s LIMIT 1;", (tran_id,))
+            cur.execute("SELECT id, status FROM biofinger_logs WHERE tran_id=%s LIMIT 1;",
+                        (tran_id,))
             existing = cur.fetchone()
             if existing:
                 return mobile_api_response(ok=True, message="Sudah diproses.",
-                                           data={"status": existing["status"]}, status_code=200)
+                    data={"status": existing["status"]}, status_code=200)
 
         # Cari mapping PIN → user
         cur.execute("""
             SELECT bm.user_id, u.name AS user_name
             FROM biofinger_mappings bm
             JOIN users u ON u.id = bm.user_id
-            WHERE bm.pin_mesin = %s AND bm.is_active = TRUE
-            LIMIT 1;
+            WHERE bm.pin_mesin=%s AND bm.is_active=TRUE LIMIT 1;
         """, (pin_mesin,))
         mapping = cur.fetchone()
 
         if not mapping:
-            # Simpan sebagai UNMAPPED
             cur.execute("""
                 INSERT INTO biofinger_logs
                     (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
@@ -172,7 +208,7 @@ def biofinger_webhook():
         # Cek attendance hari ini
         cur.execute("""
             SELECT id, check_in, check_out FROM attendance
-            WHERE user_id = %s AND work_date = %s LIMIT 1;
+            WHERE user_id=%s AND work_date=%s LIMIT 1;
         """, (user_id, work_date))
         att = cur.fetchone()
 
@@ -180,20 +216,23 @@ def biofinger_webhook():
             if att:
                 cur.execute("""
                     UPDATE attendance SET
-                        check_in = LEAST(check_in, %s),
+                        check_in = LEAST(COALESCE(check_in,%s), %s),
+                        checkin_at = LEAST(COALESCE(checkin_at,%s), %s),
                         note     = CONCAT(COALESCE(note,''), ' | FP-in:', %s)
-                    WHERE id = %s;
-                """, (tran_dt, tran_dt_str, att["id"]))
+                    WHERE id=%s;
+                """, (tran_dt, tran_dt, tran_dt, tran_dt, tran_dt_str, att["id"]))
             else:
                 cur.execute("""
                     INSERT INTO attendance
-                        (user_id, work_date, check_in, status, arrival_type, note)
-                    VALUES (%s,%s,%s,'PRESENT','ONTIME',%s)
-                    ON CONFLICT (user_id, work_date) DO UPDATE
-                    SET check_in     = LEAST(attendance.check_in, EXCLUDED.check_in),
+                        (user_id, work_date, check_in, checkin_at,
+                         status, arrival_type, note)
+                    VALUES (%s,%s,%s,%s,'PRESENT','ONTIME',%s)
+                    ON CONFLICT (user_id, work_date) DO UPDATE SET
+                        check_in   = LEAST(COALESCE(attendance.check_in,EXCLUDED.check_in), EXCLUDED.check_in),
+                        checkin_at = LEAST(COALESCE(attendance.checkin_at,EXCLUDED.checkin_at), EXCLUDED.checkin_at),
                         arrival_type = 'ONTIME',
-                        note         = CONCAT(COALESCE(attendance.note,''), ' | FP-in:', %s);
-                """, (user_id, work_date, tran_dt,
+                        note = CONCAT(COALESCE(attendance.note,''), ' | FP-in:', %s);
+                """, (user_id, work_date, tran_dt, tran_dt,
                       f"Check-in fingerprint {tran_dt_str}", tran_dt_str))
         else:
             if att:
@@ -201,20 +240,22 @@ def biofinger_webhook():
                     UPDATE attendance SET
                         check_out = GREATEST(COALESCE(check_out,%s), %s),
                         note      = CONCAT(COALESCE(note,''), ' | FP-out:', %s)
-                    WHERE id = %s;
+                    WHERE id=%s;
                 """, (tran_dt, tran_dt, tran_dt_str, att["id"]))
             else:
                 cur.execute("""
                     INSERT INTO attendance
-                        (user_id, work_date, check_in, check_out, status, arrival_type, note)
-                    VALUES (%s,%s,%s,%s,'PRESENT','ONTIME',%s)
-                    ON CONFLICT (user_id, work_date) DO UPDATE
-                    SET check_out = GREATEST(COALESCE(attendance.check_out,EXCLUDED.check_out), EXCLUDED.check_out),
-                        note      = CONCAT(COALESCE(attendance.note,''), ' | FP-out:', %s);
-                """, (user_id, work_date, tran_dt, tran_dt,
+                        (user_id, work_date, check_in, check_out, checkin_at,
+                         status, arrival_type, note)
+                    VALUES (%s,%s,%s,%s,%s,'PRESENT','ONTIME',%s)
+                    ON CONFLICT (user_id, work_date) DO UPDATE SET
+                        check_out = GREATEST(COALESCE(attendance.check_out,EXCLUDED.check_out), EXCLUDED.check_out),
+                        note = CONCAT(COALESCE(attendance.note,''), ' | FP-out:', %s);
+                """, (user_id, work_date, tran_dt, tran_dt, tran_dt,
                       f"Check-out fingerprint {tran_dt_str}", tran_dt_str))
 
         # Catat log
+        action = "Check-in" if is_ci else "Check-out"
         cur.execute("""
             INSERT INTO biofinger_logs
                 (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
@@ -223,12 +264,13 @@ def biofinger_webhook():
             ON CONFLICT (tran_id) DO NOTHING;
         """, (tran_id or None, pin_mesin, disp_nm, snmesin, tran_dt,
               stateid, verify, workcod, user_id,
-              f"{'Check-in' if is_ci else 'Check-out'} fingerprint"))
+              f"{action} fingerprint"))
 
         conn.commit()
-        action = "Check-in" if is_ci else "Check-out"
-        # Kirim FCM ke admin (background)
-        _notify_admin_fp(pin_mesin, user_name, action, tran_dt_str)
+
+        # ── FCM ke admin + karyawan (background thread) ──────────
+        _notify_fp(user_id, user_name, action, tran_dt_str)
+
         return mobile_api_response(ok=True,
             message=f"{action} {user_name} berhasil ({tran_dt_str})",
             data={"user_id": user_id, "user_name": user_name,
@@ -237,31 +279,26 @@ def biofinger_webhook():
     except Exception as e:
         conn.rollback()
         print(f"[BioFinger ERROR] {e}")
-        return mobile_api_response(ok=True, message=f"Error: {str(e)}", data={}, status_code=200)
+        return mobile_api_response(ok=True, message=f"Error: {str(e)}",
+                                   data={}, status_code=200)
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
 
-# ── List PIN belum di-mapping ─────────────────────────────────────
+# ── Unmapped list ─────────────────────────────────────────────────────
 
 @biofinger_bp.route("/biofinger/unmapped", methods=["GET", "OPTIONS"])
 def biofinger_unmapped():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
-
     _ensure_schema()
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
             SELECT pin_mesin, disp_nm, snmesin,
-                   MAX(tran_dt) AS last_scan,
-                   COUNT(*) AS scan_count
-            FROM biofinger_logs
-            WHERE status = 'UNMAPPED'
-            GROUP BY pin_mesin, disp_nm, snmesin
-            ORDER BY last_scan DESC;
+                   MAX(tran_dt) AS last_scan, COUNT(*) AS scan_count
+            FROM biofinger_logs WHERE status='UNMAPPED'
+            GROUP BY pin_mesin, disp_nm, snmesin ORDER BY last_scan DESC;
         """)
         rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
@@ -270,20 +307,17 @@ def biofinger_unmapped():
         return mobile_api_response(ok=True, message="OK",
                                    data={"unmapped": rows}, status_code=200)
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
 
-# ── CRUD Mapping PIN → User ───────────────────────────────────────
+# ── CRUD Mapping ──────────────────────────────────────────────────────
 
 @biofinger_bp.route("/biofinger/mapping", methods=["GET", "POST", "DELETE", "OPTIONS"])
 def biofinger_mapping():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
-
     _ensure_schema()
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         if request.method == "GET":
             cur.execute("""
@@ -291,18 +325,16 @@ def biofinger_mapping():
                        bm.is_active, bm.created_at,
                        u.id AS user_id, u.name AS user_name, u.email
                 FROM biofinger_mappings bm
-                JOIN users u ON u.id = bm.user_id
-                ORDER BY u.name ASC;
+                JOIN users u ON u.id = bm.user_id ORDER BY u.name ASC;
             """)
             rows = [dict(r) for r in cur.fetchall()]
             for r in rows:
                 if r.get("created_at"):
                     r["created_at"] = r["created_at"].strftime("%Y-%m-%d %H:%M:%S")
-
             cur.execute("""
                 SELECT u.id, u.name, u.email FROM users u
-                WHERE u.role = 'employee'
-                  AND u.id NOT IN (SELECT user_id FROM biofinger_mappings WHERE is_active = TRUE)
+                WHERE u.role='employee'
+                  AND u.id NOT IN (SELECT user_id FROM biofinger_mappings WHERE is_active=TRUE)
                 ORDER BY u.name ASC;
             """)
             unmapped_users = [dict(r) for r in cur.fetchall()]
@@ -311,19 +343,19 @@ def biofinger_mapping():
 
         elif request.method == "POST":
             data       = request.get_json(silent=True) or {}
-            pin_mesin  = str(data.get("pin_mesin", "")).strip()
+            pin_mesin  = str(data.get("pin_mesin","")).strip()
             user_id    = _safe_int(data.get("user_id"), 0)
-            nama_mesin = data.get("nama_mesin", "") or ""
-            snmesin    = data.get("snmesin", "") or ""
-
+            nama_mesin = data.get("nama_mesin","") or ""
+            snmesin    = data.get("snmesin","") or ""
             if not pin_mesin or not user_id:
-                return mobile_api_response(ok=False, message="pin_mesin dan user_id wajib diisi",
-                                           data={}, status_code=400)
+                return mobile_api_response(ok=False,
+                    message="pin_mesin dan user_id wajib diisi",
+                    data={}, status_code=400)
             cur.execute("""
                 INSERT INTO biofinger_mappings (pin_mesin, user_id, nama_mesin, snmesin)
                 VALUES (%s,%s,%s,%s)
-                ON CONFLICT (pin_mesin) DO UPDATE
-                SET user_id=EXCLUDED.user_id, nama_mesin=EXCLUDED.nama_mesin,
+                ON CONFLICT (pin_mesin) DO UPDATE SET
+                    user_id=EXCLUDED.user_id, nama_mesin=EXCLUDED.nama_mesin,
                     snmesin=EXCLUDED.snmesin, is_active=TRUE,
                     updated_at=CURRENT_TIMESTAMP
                 RETURNING id;
@@ -352,11 +384,10 @@ def biofinger_mapping():
             if not row:
                 return mobile_api_response(ok=False, message="Mapping tidak ditemukan",
                                            data={}, status_code=404)
-            return mobile_api_response(ok=True, message="Mapping dihapus.", data={}, status_code=200)
-
+            return mobile_api_response(ok=True, message="Mapping dihapus.",
+                                       data={}, status_code=200)
     except Exception as e:
         conn.rollback()
         return mobile_api_response(ok=False, message=str(e), data={}, status_code=500)
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
