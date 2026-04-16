@@ -243,17 +243,16 @@ def mobile_me():
         return mobile_api_response(
             ok=False, message="Unauthorized.", status_code=401)
 
-    # Ambil data gaji dari payroll_settings
+    # Ambil data gaji — tanpa salary_type karena kolom belum ada di DB
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
             SELECT
-                COALESCE(ps.daily_salary,   0) AS daily_salary,
-                COALESCE(ps.monthly_salary, 0) AS monthly_salary,
-                COALESCE(ps.salary_type, 'daily') AS salary_type
-            FROM payroll_settings ps
-            WHERE ps.user_id = %s
+                COALESCE(daily_salary,   0) AS daily_salary,
+                COALESCE(monthly_salary, 0) AS monthly_salary
+            FROM payroll_settings
+            WHERE user_id = %s
             LIMIT 1;
         """, (user["user_id"],))
         ps = cur.fetchone() or {}
@@ -262,6 +261,11 @@ def mobile_me():
     finally:
         cur.close()
         conn.close()
+
+    daily   = int(ps.get("daily_salary")   or 0)
+    monthly = int(ps.get("monthly_salary") or 0)
+    # salary_type: kalau monthly > 0 = bulanan, else harian
+    sal_type = "monthly" if monthly > 0 else "daily"
 
     return mobile_api_response(
         ok=True, message="OK",
@@ -273,9 +277,9 @@ def mobile_me():
                 "role":           user["role"],
                 "points":         int(user.get("points")       or 0),
                 "points_admin":   int(user.get("points_admin") or 0),
-                "daily_salary":   int(ps.get("daily_salary")   or 0),
-                "monthly_salary": int(ps.get("monthly_salary") or 0),
-                "salary_type":    ps.get("salary_type") or "daily",
+                "daily_salary":   daily,
+                "monthly_salary": monthly,
+                "salary_type":    sal_type,
             }
         },
         status_code=200
