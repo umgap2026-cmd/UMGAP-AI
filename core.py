@@ -696,15 +696,32 @@ def ensure_mobile_device_tokens_schema():
         conn.close()
 
 def _get_firebase_access_token():
-    service_account_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
-    if not service_account_path:
-        raise RuntimeError("FIREBASE_SERVICE_ACCOUNT_JSON belum diisi")
+    import json as _json
 
-    scopes = ["https://www.googleapis.com/auth/firebase.messaging"]
-    creds = service_account.Credentials.from_service_account_file(
-        service_account_path,
-        scopes=scopes,
-    )
+    sa_env = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+
+    if sa_env:
+        # Env var berisi JSON string langsung — parse dulu jangan dibuka sebagai file
+        try:
+            sa_info = _json.loads(sa_env)
+        except Exception as e:
+            raise RuntimeError(f"FIREBASE_SERVICE_ACCOUNT_JSON bukan JSON valid: {e}")
+
+        creds = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+    else:
+        # Fallback: baca dari path file
+        sa_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") or "").strip()
+        if not sa_path:
+            raise RuntimeError(
+                "FIREBASE_SERVICE_ACCOUNT_JSON atau FIREBASE_SERVICE_ACCOUNT_PATH belum diisi")
+        creds = service_account.Credentials.from_service_account_file(
+            sa_path,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+
     creds.refresh(GoogleAuthRequest())
     return creds.token
 
@@ -743,7 +760,7 @@ def send_fcm_to_tokens(tokens, title, body, data=None):
         }
 
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=15)
+            resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
             if 200 <= resp.status_code < 300:
                 sent += 1
             else:
