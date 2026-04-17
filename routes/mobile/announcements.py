@@ -126,6 +126,8 @@ def mobile_list_announcements():
 
 # ─── POST /api/mobile/announcements ────────────────────────────────────────────
 
+# ─── POST /api/mobile/announcements ────────────────────────────────────────────
+
 @mobile_announcements_bp.route("/announcements", methods=["POST", "OPTIONS"])
 @mobile_api_login_required
 def mobile_create_announcement():
@@ -135,7 +137,8 @@ def mobile_create_announcement():
     user = request.mobile_user
     if user.get("role") != "admin":
         return mobile_api_response(
-            ok=False, message="Hanya admin yang dapat membuat pengumuman.", status_code=403
+            ok=False, message="Hanya admin yang dapat membuat pengumuman.",
+            status_code=403
         )
 
     _ensure_schema()
@@ -148,8 +151,6 @@ def mobile_create_announcement():
         return mobile_api_response(ok=False, message="Judul pengumuman wajib diisi.", status_code=400)
     if not body:
         return mobile_api_response(ok=False, message="Isi pengumuman wajib diisi.",  status_code=400)
-    if len(title) > 200:
-        return mobile_api_response(ok=False, message="Judul maksimal 200 karakter.", status_code=400)
 
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -164,6 +165,46 @@ def mobile_create_announcement():
         conn.commit()
 
         row["created_at_wib"] = _utc_naive_to_wib_string(row.pop("created_at", None))
+
+        # ── Kirim FCM ke semua karyawan (background thread) ──────────
+        import threading
+
+        def _send_fcm():
+            try:
+                from core import send_fcm_to_tokens
+                from psycopg2.extras import RealDictCursor as RDC
+                from db import get_conn as gc
+
+                c2 = gc()
+                cu = c2.cursor(cursor_factory=RDC)
+                try:
+                    cu.execute("""
+                        SELECT DISTINCT d.fcm_token
+                        FROM mobile_device_tokens d
+                        JOIN users u ON u.id = d.user_id
+                        WHERE d.is_active = TRUE
+                          AND u.role = 'employee'
+                          AND COALESCE(d.fcm_token, '') <> '';
+                    """)
+                    tokens = [r["fcm_token"] for r in cu.fetchall()]
+                finally:
+                    cu.close(); c2.close()
+
+                if tokens:
+                    send_fcm_to_tokens(
+                        tokens,
+                        title=f"📢 {title}",
+                        body=body[:120] + ("..." if len(body) > 120 else ""),
+                        data={
+                            "type":   "announcement",
+                            "screen": "notifications",
+                        }
+                    )
+                    print(f"[FCM] Pengumuman dikirim ke {len(tokens)} device")
+            except Exception as ex:
+                print(f"[FCM announcement error] {ex}")
+
+        threading.Thread(target=_send_fcm, daemon=True).start()
 
         return mobile_api_response(
             ok=True,
