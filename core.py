@@ -725,6 +725,24 @@ def _get_firebase_access_token():
     creds.refresh(GoogleAuthRequest())
     return creds.token
 
+def _deactivate_token(token: str):
+    """Nonaktifkan FCM token yang sudah tidak terdaftar."""
+    try:
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute("""
+            UPDATE mobile_device_tokens
+            SET is_active = FALSE
+            WHERE fcm_token = %s;
+        """, (token,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"[FCM] Token dinonaktifkan: ...{token[-10:]}")
+    except Exception as e:
+        print(f"[FCM] Gagal nonaktifkan token: {e}")
+
+
 def send_fcm_to_tokens(tokens, title, body, data=None):
     if not tokens:
         return {"ok": True, "sent": 0}
@@ -754,17 +772,33 @@ def send_fcm_to_tokens(tokens, title, body, data=None):
                 },
                 "data": {k: str(v) for k, v in (data or {}).items()},
                 "android": {
-                    "priority": "high"
+                    "priority": "high",
+                    "notification": {
+                        "channel_id": "umgap_main_channel",
+                        "sound": "default",
+                    }
                 }
             }
         }
 
         try:
-            resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
+            resp = requests.post(url, headers=headers,
+                                 data=json.dumps(payload), timeout=15)
             if 200 <= resp.status_code < 300:
                 sent += 1
             else:
                 failed += 1
+                # Auto-hapus token yang sudah tidak valid
+                if resp.status_code == 404:
+                    try:
+                        err = resp.json()
+                        err_code = (err.get("error", {})
+                                       .get("details", [{}])[0]
+                                       .get("errorCode", ""))
+                        if err_code == "UNREGISTERED":
+                            _deactivate_token(token)
+                    except Exception:
+                        pass
         except Exception:
             failed += 1
 
