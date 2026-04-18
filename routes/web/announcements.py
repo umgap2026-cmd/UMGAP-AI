@@ -46,7 +46,11 @@ def admin_announcements():
         return abort(403)
     conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("SELECT * FROM announcements ORDER BY created_at DESC;")
+        cur.execute("""
+            SELECT * FROM announcements 
+            WHERE is_active = TRUE 
+            ORDER BY created_at DESC;
+        """)
         data = cur.fetchall()
     finally:
         cur.close(); conn.close()
