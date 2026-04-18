@@ -16,33 +16,12 @@ def mobile_notifications():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Cek kolom dismissed_at
+        # Langsung query tanpa cek information_schema (sudah pasti ada kolom ini)
         cur.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'announcement_reads'
-              AND column_name = 'dismissed_at' LIMIT 1;
-        """)
-        has_dismissed = cur.fetchone() is not None
-
-        # Cek kolom body atau message
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'announcements'
-              AND column_name IN ('body', 'message')
-            ORDER BY column_name;
-        """)
-        cols     = [r["column_name"] for r in cur.fetchall()]
-        body_col = "body" if "body" in cols else "message"
-
-        dismissed_filter = ""
-        if has_dismissed:
-            dismissed_filter = "AND (ar.dismissed_at IS NULL OR ar.user_id IS NULL)"
-
-        cur.execute(f"""
             SELECT
                 a.id,
                 a.title,
-                a.{body_col} AS message,
+                a.body AS message,
                 a.created_at,
                 CASE WHEN ar.read_at IS NOT NULL THEN TRUE ELSE FALSE END AS is_read
             FROM announcements a
@@ -50,7 +29,7 @@ def mobile_notifications():
                 ON ar.announcement_id = a.id
                AND ar.user_id = %s
             WHERE a.is_active = TRUE
-            {dismissed_filter}
+              AND (ar.dismissed_at IS NULL OR ar.user_id IS NULL)
             ORDER BY a.created_at DESC
             LIMIT 50;
         """, (user_id,))
@@ -59,12 +38,9 @@ def mobile_notifications():
         items = []
         for r in rows:
             item = dict(r)
-            # Konversi ke WIB
-            raw_dt = item.get("created_at")
-            item["created_at"] = _utc_naive_to_wib_string(raw_dt) if raw_dt else "-"
+            item["created_at"] = _utc_naive_to_wib_string(item.get("created_at"))
             items.append(item)
 
-        # Hitung unread untuk badge
         unread = sum(1 for i in items if not i.get("is_read"))
 
         return mobile_api_response(
@@ -72,11 +48,8 @@ def mobile_notifications():
             data={"notifications": items, "unread_count": unread},
             status_code=200)
     except Exception as e:
-        import traceback
-        print(f"[notifications] ERROR: {e}\n{traceback.format_exc()}")
         return mobile_api_response(
-            ok=False, message=f"Gagal memuat notifikasi: {e}",
-            status_code=500)
+            ok=False, message=f"Gagal: {e}", status_code=500)
     finally:
         cur.close()
         conn.close()
@@ -100,7 +73,7 @@ def mobile_notifications_read(ann_id):
         """, (ann_id, user_id))
         conn.commit()
         return mobile_api_response(
-            ok=True, message="Notifikasi ditandai sudah dibaca.",
+            ok=True, message="Ditandai sudah dibaca.",
             data={}, status_code=200)
     finally:
         cur.close()
