@@ -47,7 +47,10 @@ def admin_announcements():
     conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT * FROM announcements 
+            SELECT id, title, message, body,
+                created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta' AS created_at,
+                created_by, is_active
+            FROM announcements 
             WHERE is_active = TRUE 
             ORDER BY created_at DESC;
         """)
