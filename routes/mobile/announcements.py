@@ -183,7 +183,6 @@ def mobile_create_announcement():
                         FROM mobile_device_tokens d
                         JOIN users u ON u.id = d.user_id
                         WHERE d.is_active = TRUE
-                          AND u.role = 'employee'
                           AND COALESCE(d.fcm_token, '') <> '';
                     """)
                     tokens = [r["fcm_token"] for r in cu.fetchall()]
