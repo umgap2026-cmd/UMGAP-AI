@@ -783,7 +783,7 @@ def send_fcm_to_tokens(tokens, title, body, data=None):
 
         try:
             resp = requests.post(url, headers=headers,
-                                 data=json.dumps(payload), timeout=15)
+                     json=payload, timeout=15)
             if 200 <= resp.status_code < 300:
                 sent += 1
             else:
