@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask
+from flask import Flask, request, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from core import init_oauth
@@ -117,6 +117,43 @@ app.register_blueprint(biofinger_bp, url_prefix="/api/mobile")  # ← BARU
 app.register_blueprint(data_cleanup_bp)  # ← BARU
 app.register_blueprint(mobile_stats_export_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_buy_prices_bp, url_prefix="/api/mobile")
+
+@app.route("/api/mobile/send-reminder", methods=["POST"])
+def send_daily_reminder():
+    key = request.headers.get("X-Internal-Key", "")
+    if key != os.getenv("INTERNAL_KEY", "umgap-secret-2026"):
+        from flask import jsonify
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    try:
+        from core import send_fcm_to_tokens
+        from db import get_conn
+        from psycopg2.extras import RealDictCursor
+        from flask import jsonify
+
+        conn = get_conn()
+        cur  = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT DISTINCT fcm_token FROM mobile_device_tokens
+            WHERE is_active = TRUE AND COALESCE(fcm_token, '') <> '';
+        """)
+        tokens = [r["fcm_token"] for r in cur.fetchall()]
+        cur.close(); conn.close()
+
+        if tokens:
+            send_fcm_to_tokens(
+                tokens,
+                title="⏰ Waktunya Absen!",
+                body="Jangan lupa check-in hari ini. Buka UMGAP sekarang.",
+                data={"type": "reminder", "screen": "attendance"}
+            )
+            print(f"[REMINDER] Dikirim ke {len(tokens)} device")
+
+        return jsonify({"ok": True, "sent": len(tokens)})
+    except Exception as e:
+        from flask import jsonify
+        return jsonify({"ok": False, "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
