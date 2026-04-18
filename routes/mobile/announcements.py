@@ -67,10 +67,10 @@ def mobile_announcements():
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            INSERT INTO announcements (title, body, created_by)
-            VALUES (%s, %s, %s)
+            INSERT INTO announcements (title, body, message, created_by)
+            VALUES (%s, %s, %s, %s)
             RETURNING id, title, body, created_at;
-        """, (title, body, user["user_id"]))
+        """, (title, body, body, user["user_id"]))
         row = dict(cur.fetchone())
         conn.commit()
         row["created_at_wib"] = _utc_naive_to_wib_string(row.pop("created_at", None))
