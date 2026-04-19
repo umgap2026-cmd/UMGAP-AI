@@ -52,6 +52,8 @@ from routes.mobile.biofinger import biofinger_bp  # ← BARU
 from routes.web.data_cleanup import data_cleanup_bp  # ← BARU
 from routes.mobile.stats_export import mobile_stats_export_bp
 from routes.mobile.buy_prices import mobile_buy_prices_bp
+from routes.mobile.profile import mobile_profile_bp
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -117,6 +119,7 @@ app.register_blueprint(biofinger_bp, url_prefix="/api/mobile")  # ← BARU
 app.register_blueprint(data_cleanup_bp)  # ← BARU
 app.register_blueprint(mobile_stats_export_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_buy_prices_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_profile_bp, url_prefix="/api/mobile")
 
 @app.route("/api/mobile/send-reminder", methods=["POST"])
 def send_daily_reminder():
