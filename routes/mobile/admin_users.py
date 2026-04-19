@@ -29,9 +29,11 @@ def mobile_admin_users_list():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary
+            SELECT u.id, u.name, u.email, u.role,
+                   COALESCE(p.daily_salary, 0) AS daily_salary,
+                   u.avatar
             FROM users u
-            LEFT JOIN payroll_settings p ON p.user_id=u.id
+            LEFT JOIN payroll_settings p ON p.user_id = u.id
             ORDER BY u.id DESC;
         """)
         rows = [dict(r) for r in cur.fetchall()]
@@ -117,14 +119,12 @@ def mobile_admin_users_update(uid):
         if new_password:
             pw_hash = generate_password_hash(new_password)
             cur.execute("""
-                UPDATE users
-                SET name=%s, email=%s, role=%s, password_hash=%s
+                UPDATE users SET name=%s, email=%s, role=%s, password_hash=%s
                 WHERE id=%s;
             """, (name, email, role, pw_hash, uid))
         else:
             cur.execute("""
-                UPDATE users
-                SET name=%s, email=%s, role=%s
+                UPDATE users SET name=%s, email=%s, role=%s
                 WHERE id=%s;
             """, (name, email, role, uid))
 
