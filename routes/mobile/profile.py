@@ -5,7 +5,7 @@ dan admin lihat profil karyawan.
 """
 from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
-from core import mobile_api_response, mobile_api_login_required, _utc_naive_to_wib_string
+from core import mobile_api_response, mobile_api_login_required
 from db import get_conn
 
 mobile_profile_bp = Blueprint("mobile_profile", __name__)
@@ -21,9 +21,7 @@ def _ensure_schema():
             ("birth_date", "DATE"),
             ("join_date",  "DATE"),
         ]:
-            cur.execute(f"""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {typ};
-            """)
+            cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {typ};")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -52,7 +50,7 @@ def mobile_profile():
                        ps.daily_salary, ps.monthly_salary
                 FROM users u
                 LEFT JOIN (
-                    SELECT user_id, SUM(points) AS total_points
+                    SELECT user_id, SUM(delta) AS total_points
                     FROM points_logs GROUP BY user_id
                 ) pl ON pl.user_id = u.id
                 LEFT JOIN payroll_settings ps ON ps.user_id = u.id
@@ -76,7 +74,6 @@ def mobile_profile():
     if not updates:
         return mobile_api_response(ok=False, message="Tidak ada data yang diupdate.", status_code=400)
 
-    # Validasi avatar size (max 2MB base64)
     if "avatar" in updates and updates["avatar"] and len(updates["avatar"]) > 2_800_000:
         return mobile_api_response(ok=False, message="Foto terlalu besar. Maksimal 2MB.", status_code=400)
 
@@ -94,7 +91,7 @@ def mobile_profile():
         cur.close(); conn.close()
 
 
-# ── GET /api/mobile/profile/<user_id> — admin lihat profil karyawan ─────
+# ── GET /api/mobile/profile/<uid> — admin lihat profil karyawan ─────────
 @mobile_profile_bp.route("/profile/<int:uid>", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
 def mobile_profile_user(uid):
@@ -116,7 +113,7 @@ def mobile_profile_user(uid):
                    att.total_hadir, att.hadir_bulan_ini
             FROM users u
             LEFT JOIN (
-                SELECT user_id, SUM(points) AS total_points
+                SELECT user_id, SUM(delta) AS total_points
                 FROM points_logs GROUP BY user_id
             ) pl ON pl.user_id = u.id
             LEFT JOIN payroll_settings ps ON ps.user_id = u.id
