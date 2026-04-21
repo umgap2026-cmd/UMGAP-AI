@@ -1,0 +1,1779 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panduan Pengguna UMGAP</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+
+      :root {
+        --navy: #0b1733;
+        --blue: #1565c0;
+        --bluemid: #1e88e5;
+        --cyan: #29b6f6;
+        --green: #2e7d32;
+        --orange: #e65100;
+        --red: #c62828;
+        --purple: #6a1b9a;
+        --amber: #f59e0b;
+        --surface: #f2f5fc;
+        --white: #ffffff;
+        --text: #0d1b3e;
+        --mid: #4a5568;
+        --soft: #8fa3bf;
+        --border: rgba(21, 101, 192, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--surface);
+        color: var(--text);
+        line-height: 1.7;
+      }
+
+      /* ── COVER ── */
+      .cover {
+        background: linear-gradient(
+          135deg,
+          var(--navy) 0%,
+          #14275c 50%,
+          var(--blue) 100%
+        );
+        padding: 80px 40px 70px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .cover::before {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -60px;
+        width: 280px;
+        height: 280px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .cover::after {
+        content: "";
+        position: absolute;
+        bottom: -40px;
+        left: -40px;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        background: rgba(41, 182, 246, 0.08);
+      }
+      .cover-badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        padding: 6px 18px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--cyan);
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }
+      .cover h1 {
+        font-size: 48px;
+        font-weight: 900;
+        color: #fff;
+        letter-spacing: -1px;
+        margin-bottom: 12px;
+      }
+      .cover h1 span {
+        color: var(--cyan);
+      }
+      .cover p {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.55);
+        max-width: 480px;
+        margin: 0 auto 28px;
+      }
+      .cover-chips {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .cover-chip {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        padding: 7px 16px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+      }
+
+      /* ── LAYOUT ── */
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+
+      /* ── TOC ── */
+      .toc {
+        background: var(--white);
+        border-radius: 20px;
+        padding: 28px 28px 24px;
+        margin-bottom: 36px;
+        box-shadow: 0 4px 16px rgba(11, 23, 51, 0.06);
+        border: 1px solid var(--border);
+      }
+      .toc h2 {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--soft);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 16px;
+      }
+      .toc-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 16px;
+      }
+      @media (max-width: 600px) {
+        .toc-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .toc a {
+        color: var(--blue);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 4px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .toc a:hover {
+        color: var(--navy);
+      }
+      .toc a::before {
+        content: "→";
+        font-size: 11px;
+        color: var(--cyan);
+      }
+
+      /* ── SECTION ── */
+      .section {
+        margin-bottom: 48px;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 2px solid var(--border);
+      }
+      .section-num {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, var(--navy), var(--blue));
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 900;
+        color: #fff;
+        flex: 0 0 44px;
+      }
+      .section-num.green {
+        background: linear-gradient(135deg, #1b5e20, var(--green));
+      }
+      .section-num.purple {
+        background: linear-gradient(135deg, #4a148c, var(--purple));
+      }
+      .section-num.orange {
+        background: linear-gradient(135deg, #bf360c, var(--orange));
+      }
+      .section-title h2 {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--navy);
+      }
+      .section-title p {
+        font-size: 13px;
+        color: var(--soft);
+        font-weight: 500;
+        margin-top: 2px;
+      }
+
+      /* ── ROLE BADGE ── */
+      .role-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 20px;
+      }
+      .role-badge.admin {
+        background: rgba(106, 27, 154, 0.1);
+        border: 1px solid rgba(106, 27, 154, 0.25);
+        color: var(--purple);
+      }
+      .role-badge.employee {
+        background: rgba(46, 125, 50, 0.1);
+        border: 1px solid rgba(46, 125, 50, 0.25);
+        color: var(--green);
+      }
+      .role-badge.both {
+        background: rgba(21, 101, 192, 0.1);
+        border: 1px solid rgba(21, 101, 192, 0.25);
+        color: var(--blue);
+      }
+
+      /* ── CARD ── */
+      .card {
+        background: var(--white);
+        border-radius: 18px;
+        padding: 22px 22px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 3px 12px rgba(11, 23, 51, 0.05);
+        border: 1px solid var(--border);
+      }
+      .card-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .card-ico {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex: 0 0 42px;
+      }
+      .card-ico.blue {
+        background: rgba(21, 101, 192, 0.1);
+      }
+      .card-ico.green {
+        background: rgba(46, 125, 50, 0.1);
+      }
+      .card-ico.orange {
+        background: rgba(230, 81, 0, 0.1);
+      }
+      .card-ico.purple {
+        background: rgba(106, 27, 154, 0.1);
+      }
+      .card-ico.red {
+        background: rgba(198, 40, 40, 0.1);
+      }
+      .card-ico.cyan {
+        background: rgba(41, 182, 246, 0.1);
+      }
+      .card-ico.amber {
+        background: rgba(245, 158, 11, 0.1);
+      }
+      .card h3 {
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--navy);
+        margin-bottom: 2px;
+      }
+      .card .sub {
+        font-size: 12px;
+        color: var(--soft);
+        font-weight: 500;
+      }
+
+      /* ── STEPS ── */
+      .steps {
+        list-style: none;
+      }
+      .steps li {
+        display: flex;
+        gap: 14px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: var(--mid);
+        line-height: 1.6;
+      }
+      .step-num {
+        width: 26px;
+        height: 26px;
+        background: var(--blue);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 900;
+        color: #fff;
+        flex: 0 0 26px;
+        margin-top: 1px;
+      }
+      .step-num.green {
+        background: var(--green);
+      }
+
+      /* ── INFO BOX ── */
+      .info-box {
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 14px 0;
+        font-size: 13px;
+        font-weight: 500;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .info-box.tip {
+        background: rgba(46, 125, 50, 0.07);
+        border: 1px solid rgba(46, 125, 50, 0.2);
+        color: #1b5e20;
+      }
+      .info-box.warn {
+        background: rgba(230, 81, 0, 0.07);
+        border: 1px solid rgba(230, 81, 0, 0.2);
+        color: #bf360c;
+      }
+      .info-box.info {
+        background: rgba(21, 101, 192, 0.07);
+        border: 1px solid rgba(21, 101, 192, 0.18);
+        color: var(--blue);
+      }
+      .info-box-icon {
+        font-size: 16px;
+        flex: 0 0 20px;
+      }
+
+      /* ── TABLE ── */
+      .tbl-wrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th {
+        background: var(--navy);
+        color: #fff;
+        font-weight: 700;
+        padding: 10px 14px;
+        text-align: left;
+      }
+      th:first-child {
+        border-radius: 10px 0 0 0;
+      }
+      th:last-child {
+        border-radius: 0 10px 0 0;
+      }
+      td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--mid);
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr:nth-child(even) td {
+        background: rgba(242, 245, 252, 0.6);
+      }
+      .tag {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-size: 10px;
+        font-weight: 800;
+      }
+      .tag.green {
+        background: rgba(46, 125, 50, 0.12);
+        color: var(--green);
+      }
+      .tag.purple {
+        background: rgba(106, 27, 154, 0.12);
+        color: var(--purple);
+      }
+      .tag.blue {
+        background: rgba(21, 101, 192, 0.12);
+        color: var(--blue);
+      }
+
+      /* ── DIVIDER ── */
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 12px 0;
+      }
+
+      /* ── FEATURE GRID ── */
+      .feat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .feat-item {
+        background: var(--white);
+        border-radius: 14px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        box-shadow: 0 2px 8px rgba(11, 23, 51, 0.04);
+      }
+      .feat-ico {
+        font-size: 22px;
+        flex: 0 0 28px;
+      }
+      .feat-item h4 {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--navy);
+        margin-bottom: 3px;
+      }
+      .feat-item p {
+        font-size: 11px;
+        color: var(--soft);
+        font-weight: 500;
+        line-height: 1.4;
+      }
+
+      /* ── FOOTER ── */
+      .footer {
+        text-align: center;
+        padding: 32px;
+        font-size: 12px;
+        color: var(--soft);
+        font-weight: 500;
+        border-top: 1px solid var(--border);
+        margin-top: 40px;
+      }
+
+      /* ── PRINT ── */
+      @media print {
+        body {
+          background: #fff;
+        }
+        .cover {
+          background: var(--navy) !important;
+          -webkit-print-color-adjust: exact;
+        }
+        .card,
+        .toc {
+          box-shadow: none;
+          border: 1px solid #ddd;
+        }
+      }
+
+      p {
+        font-size: 14px;
+        color: var(--mid);
+        margin-bottom: 10px;
+      }
+      strong {
+        color: var(--navy);
+      }
+      ul {
+        padding-left: 20px;
+        color: var(--mid);
+        font-size: 14px;
+      }
+      ul li {
+        margin-bottom: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- COVER -->
+    <div class="cover">
+      <div class="cover-badge">Panduan Pengguna Resmi</div>
+      <h1>UMGAP <span>App</span></h1>
+      <p>
+        Panduan lengkap untuk karyawan dan administrator sistem manajemen
+        karyawan UMGAP.
+      </p>
+      <div class="cover-chips">
+        <div class="cover-chip">👤 Karyawan</div>
+        <div class="cover-chip">🛡️ Administrator</div>
+        <div class="cover-chip">📱 Web & Mobile</div>
+        <div class="cover-chip">✦ Versi 1.1 2026</div>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- DAFTAR ISI -->
+      <div class="toc">
+        <h2>📋 Daftar Isi</h2>
+        <div class="toc-grid">
+          <a href="#akun">1. Akun & Login</a>
+          <a href="#karyawan">2. Panduan Karyawan</a>
+          <a href="#absensi">3. Absensi (Karyawan)</a>
+          <a href="#penjualan">4. Penjualan & Nota</a>
+          <a href="#caption">5. AI Caption</a>
+          <a href="#admin">6. Panduan Administrator</a>
+          <a href="#admin-absensi">7. Kelola Absensi (Admin)</a>
+          <a href="#admin-payroll">8. Payroll & Statistik</a>
+          <a href="#admin-fitur">9. Fitur Lanjutan Admin</a>
+          <a href="#roles">10. Perbandingan Akses</a>
+          <a href="#faq">11. FAQ & Troubleshooting</a>
+        </div>
+      </div>
+
+      <!-- SECTION 1: AKUN -->
+      <div class="section" id="akun">
+        <div class="section-header">
+          <div class="section-num">1</div>
+          <div class="section-title">
+            <h2>Akun & Login</h2>
+            <p>Cara masuk, daftar, dan reset password</p>
+          </div>
+        </div>
+
+        <span class="role-badge both">👥 Semua Pengguna</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico blue">🔑</div>
+            <div>
+              <h3>Login ke UMGAP</h3>
+              <p class="sub">
+                Gunakan email dan password yang telah didaftarkan
+              </p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka browser dan akses <strong>umgap-ai.onrender.com</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Masukkan <strong>Email</strong> dan <strong>Password</strong>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Klik tombol <strong>Masuk</strong>
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Sistem otomatis mengarahkan ke dashboard sesuai role (Admin →
+              Dashboard Admin, Karyawan → Dashboard)
+            </li>
+          </ul>
+          <div class="info-box tip">
+            <span class="info-box-icon">💡</span>
+            Tersedia juga login dengan akun Google. Klik tombol
+            <strong>Masuk dengan Google</strong> untuk opsi lebih cepat.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico green">📝</div>
+            <div>
+              <h3>Daftar Akun Baru</h3>
+              <p class="sub">Akun baru otomatis mendapat role Karyawan</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Klik <strong>Daftar</strong> di halaman login
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Isi <strong>Nama Lengkap</strong>, <strong>Email</strong>, dan
+              <strong>Password</strong> (min. 6 karakter)
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Klik <strong>Daftar</strong> — langsung masuk otomatis
+            </li>
+          </ul>
+          <div class="info-box warn">
+            <span class="info-box-icon">⚠️</span>
+            Akun baru mendapat role <strong>Karyawan</strong>. Untuk role Admin,
+            minta admin yang ada untuk mengubahnya di halaman Kelola User.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico amber">🔒</div>
+            <div>
+              <h3>Lupa Password</h3>
+              <p class="sub">Reset via email OTP</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Klik <strong>Lupa Password</strong> di halaman login
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Masukkan <strong>Email</strong> terdaftar, klik Kirim OTP
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Buka email, cari kode <strong>OTP 6 digit</strong> dari UMGAP
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Masukkan OTP + password baru, klik <strong>Reset</strong>
+            </li>
+          </ul>
+          <div class="info-box warn">
+            <span class="info-box-icon">⏰</span>
+            Kode OTP berlaku <strong>10 menit</strong> saja. Jika kadaluarsa,
+            ulangi dari awal.
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: KARYAWAN -->
+      <div class="section" id="karyawan">
+        <div class="section-header">
+          <div class="section-num green">2</div>
+          <div class="section-title">
+            <h2>Panduan Karyawan</h2>
+            <p>Gambaran umum fitur yang tersedia untuk karyawan</p>
+          </div>
+        </div>
+
+        <span class="role-badge employee">👤 Karyawan</span>
+
+        <p>
+          Setelah login, karyawan diarahkan ke <strong>Dashboard</strong>. Dari
+          sini bisa mengakses semua fitur karyawan.
+        </p>
+
+        <div class="feat-grid">
+          <div class="feat-item">
+            <div class="feat-ico">📊</div>
+            <div>
+              <h4>Dashboard</h4>
+              <p>Lihat poin, pengumuman terbaru, dan ringkasan aktivitas</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">👆</div>
+            <div>
+              <h4>Absensi</h4>
+              <p>Submit kehadiran harian dengan GPS + foto selfie</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">🛍️</div>
+            <div>
+              <h4>Penjualan</h4>
+              <p>Input laporan penjualan produk harian</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">📦</div>
+            <div>
+              <h4>Produk Global</h4>
+              <p>Lihat daftar produk yang tersedia</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">🧾</div>
+            <div>
+              <h4>Nota / Invoice</h4>
+              <p>Buat nota penjualan untuk pelanggan</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">🔔</div>
+            <div>
+              <h4>Pengumuman</h4>
+              <p>Lihat pengumuman dari admin</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">✨</div>
+            <div>
+              <h4>AI Caption</h4>
+              <p>Generate caption media sosial dengan AI</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">⭐</div>
+            <div>
+              <h4>Poin</h4>
+              <p>Lihat poin yang diberikan admin</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: ABSENSI KARYAWAN -->
+      <div class="section" id="absensi">
+        <div class="section-header">
+          <div class="section-num green">3</div>
+          <div class="section-title">
+            <h2>Absensi Harian</h2>
+            <p>Cara submit kehadiran setiap hari</p>
+          </div>
+        </div>
+
+        <span class="role-badge employee">👤 Karyawan</span>
+
+        <p>
+          Absensi dilakukan sekali sehari. Diperlukan
+          <strong>GPS aktif</strong> dan <strong>kamera</strong> untuk foto
+          selfie.
+        </p>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico blue">📍</div>
+            <div>
+              <h3>Cara Submit Absensi</h3>
+              <p class="sub">Via aplikasi mobile atau web browser</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka menu <strong>Absensi</strong> dari dashboard
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Pilih <strong>Tipe Kehadiran</strong> yang sesuai
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Isi <strong>Catatan</strong> jika ada (opsional)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Tap <strong>Ambil Lokasi GPS</strong> — tunggu hingga koordinat
+              muncul
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Tap area kamera untuk ambil
+              <strong>Foto Selfie</strong> menggunakan kamera depan
+            </li>
+            <li>
+              <div class="step-num">6</div>
+              Semua syarat terpenuhi ✓ → tap <strong>Kirim Absensi</strong>
+            </li>
+          </ul>
+          <div class="info-box tip">
+            <span class="info-box-icon">✅</span>
+            Setelah berhasil, sistem otomatis berpindah ke tab
+            <strong>Riwayat</strong> untuk konfirmasi.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico orange">📋</div>
+            <div>
+              <h3>Tipe Kehadiran</h3>
+              <p class="sub">Pilih sesuai kondisi hari itu</p>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <tr>
+                <th>Tipe</th>
+                <th>Kapan Digunakan</th>
+              </tr>
+              <tr>
+                <td><strong>Hadir</strong></td>
+                <td>Masuk tepat waktu sesuai jadwal</td>
+              </tr>
+              <tr>
+                <td><strong>Terlambat</strong></td>
+                <td>Datang melebihi jam kerja yang ditentukan</td>
+              </tr>
+              <tr>
+                <td><strong>Sakit</strong></td>
+                <td>
+                  Tidak masuk karena sakit (bisa lampirkan keterangan di
+                  catatan)
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Izin</strong></td>
+                <td>
+                  Tidak masuk dengan alasan tertentu dan sudah izin sebelumnya
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Tidak Hadir</strong></td>
+                <td>Tidak masuk tanpa keterangan</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico cyan">📈</div>
+            <div>
+              <h3>Riwayat & Estimasi Gaji</h3>
+              <p class="sub">Tab Riwayat di halaman Absensi</p>
+            </div>
+          </div>
+          <p>Tab <strong>Riwayat</strong> menampilkan:</p>
+          <ul>
+            <li>Rekap absensi bulan ini (Hadir, Sakit, Izin, Absen, Telat)</li>
+            <li>Estimasi gaji berdasarkan kehadiran</li>
+            <li>List detail absensi per hari</li>
+          </ul>
+          <div class="info-box info">
+            <span class="info-box-icon">ℹ️</span>
+            Estimasi gaji bersifat <strong>perkiraan</strong>. Gaji resmi
+            ditetapkan admin melalui modul Payroll.
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: PENJUALAN -->
+      <div class="section" id="penjualan">
+        <div class="section-header">
+          <div class="section-num green">4</div>
+          <div class="section-title">
+            <h2>Penjualan & Nota</h2>
+            <p>Input laporan penjualan dan buat nota untuk pelanggan</p>
+          </div>
+        </div>
+
+        <span class="role-badge employee">👤 Karyawan</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico orange">🛍️</div>
+            <div>
+              <h3>Input Laporan Penjualan</h3>
+              <p class="sub">Setiap penjualan perlu persetujuan admin</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka menu <strong>Penjualan</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Pilih <strong>Produk</strong> dari daftar (hanya produk global
+              yang tampil)
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Isi <strong>Jumlah (Qty)</strong> yang terjual
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Tambahkan <strong>Catatan</strong> jika diperlukan
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Klik <strong>Submit</strong> — status awal adalah PENDING
+            </li>
+          </ul>
+          <div class="info-box warn">
+            <span class="info-box-icon">⏳</span>
+            Laporan berstatus <strong>PENDING</strong> hingga admin menyetujui.
+            Setelah disetujui menjadi <strong>APPROVED</strong>.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico cyan">🧾</div>
+            <div>
+              <h3>Buat Nota / Invoice</h3>
+              <p class="sub">Nota digital untuk pelanggan</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka menu <strong>Nota</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Pilih produk dan tentukan jumlah
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Isi data pelanggan (nama, telepon — opsional)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Tambahkan diskon jika ada
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Klik <strong>Buat Nota</strong> → nota tampil dengan nomor unik
+            </li>
+            <li>
+              <div class="step-num">6</div>
+              Bisa <strong>Print</strong> atau <strong>Download PDF</strong>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- SECTION 5: CAPTION AI -->
+      <div class="section" id="caption">
+        <div class="section-header">
+          <div class="section-num purple">5</div>
+          <div class="section-title">
+            <h2>AI Caption Generator</h2>
+            <p>Generate caption media sosial otomatis dengan GPT</p>
+          </div>
+        </div>
+
+        <span class="role-badge both">👥 Semua Pengguna</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico purple">✨</div>
+            <div>
+              <h3>Cara Generate Caption</h3>
+              <p class="sub">Menghasilkan 3 variasi caption siap pakai</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka menu <strong>AI Caption</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Isi <strong>Nama Produk</strong> (wajib)
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Isi <strong>Harga</strong> dan <strong>Brand</strong> (opsional,
+              tapi makin bagus hasilnya)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Pilih <strong>Platform</strong>: Instagram / TikTok / WhatsApp
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Pilih <strong>Gaya</strong>: Santai / Promo / Storytelling /
+              Serius
+            </li>
+            <li>
+              <div class="step-num">6</div>
+              Isi <strong>Catatan Pendukung</strong> untuk hasil lebih spesifik
+              (COD, bonus, jam buka, dll.)
+            </li>
+            <li>
+              <div class="step-num">7</div>
+              Klik <strong>Generate Caption</strong> — tunggu beberapa detik
+            </li>
+            <li>
+              <div class="step-num">8</div>
+              Pilih variasi favorit, klik <strong>Copy Semua</strong>
+            </li>
+          </ul>
+          <div class="info-box tip">
+            <span class="info-box-icon">💡</span>
+            Semakin lengkap info yang diisi (terutama catatan pendukung),
+            semakin natural dan relevan hasilnya. Gunakan
+            <strong>Regenerate</strong> untuk mendapat variasi baru.
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 6: ADMIN -->
+      <div class="section" id="admin">
+        <div class="section-header">
+          <div class="section-num purple">6</div>
+          <div class="section-title">
+            <h2>Panduan Administrator</h2>
+            <p>Gambaran fitur eksklusif admin</p>
+          </div>
+        </div>
+
+        <span class="role-badge admin">🛡️ Admin</span>
+
+        <p>
+          Admin memiliki akses penuh ke semua fitur. Setelah login, admin
+          diarahkan ke <strong>Dashboard Admin</strong>.
+        </p>
+
+        <div class="feat-grid">
+          <div class="feat-item">
+            <div class="feat-ico">👥</div>
+            <div>
+              <h4>Kelola User</h4>
+              <p>Tambah, edit, hapus karyawan. Ubah role dan data profil</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">📢</div>
+            <div>
+              <h4>Pengumuman</h4>
+              <p>Buat pengumuman yang otomatis dikirim via notifikasi push</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">👆</div>
+            <div>
+              <h4>Absensi Admin</h4>
+              <p>Absen sendiri, absenkan karyawan, lihat semua riwayat</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">✅</div>
+            <div>
+              <h4>Persetujuan Absensi</h4>
+              <p>Approve atau reject request absensi karyawan</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">💰</div>
+            <div>
+              <h4>Payroll</h4>
+              <p>Hitung gaji karyawan berdasarkan kehadiran</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">📊</div>
+            <div>
+              <h4>Statistik</h4>
+              <p>Rekap absensi dan penjualan per bulan semua karyawan</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">⭐</div>
+            <div>
+              <h4>Input Poin</h4>
+              <p>Berikan poin reward kepada karyawan</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">📉</div>
+            <div>
+              <h4>HPP AI</h4>
+              <p>Hitung Harga Pokok Produksi dengan bantuan AI</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">💲</div>
+            <div>
+              <h4>Harga Beli</h4>
+              <p>Kelola daftar harga beli bahan baku / material</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">📤</div>
+            <div>
+              <h4>Export Excel</h4>
+              <p>Export laporan absensi & gaji ke file .xlsx</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">🗑️</div>
+            <div>
+              <h4>Data Cleanup</h4>
+              <p>Hapus data lama dengan rentang tanggal, ada audit log</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <div class="feat-ico">🖐️</div>
+            <div>
+              <h4>Fingerprint</h4>
+              <p>Mapping perangkat fingerprint ke akun karyawan</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 7: ABSENSI ADMIN -->
+      <div class="section" id="admin-absensi">
+        <div class="section-header">
+          <div class="section-num purple">7</div>
+          <div class="section-title">
+            <h2>Kelola Absensi (Admin)</h2>
+            <p>Tiga sub-menu absensi untuk admin</p>
+          </div>
+        </div>
+
+        <span class="role-badge admin">🛡️ Admin</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico blue">👤</div>
+            <div>
+              <h3>Absen Saya</h3>
+              <p class="sub">Admin bisa absen untuk diri sendiri</p>
+            </div>
+          </div>
+          <p>
+            Sama seperti karyawan — perlu GPS dan selfie. Admin tetap tercatat
+            dalam rekap absensi.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico cyan">👥</div>
+            <div>
+              <h3>Absen Karyawan</h3>
+              <p class="sub">Absenkan karyawan yang tidak punya HP</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Masuk ke <strong>Absensi → Absen Karyawan</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Pilih nama karyawan dari dropdown
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Pilih <strong>Tipe Kehadiran</strong>
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Atur <strong>Jam Kehadiran</strong> manual (opsional — jika
+              kosong, pakai waktu sekarang)
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Tambahkan catatan, klik <strong>Submit Absensi</strong>
+            </li>
+            <li>
+              <div class="step-num">6</div>
+              Akan muncul dialog konfirmasi — bisa langsung lihat riwayat untuk
+              verifikasi
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico orange">📋</div>
+            <div>
+              <h3>Riwayat Absensi</h3>
+              <p class="sub">Semua rekap absensi karyawan</p>
+            </div>
+          </div>
+          <p>Fitur di halaman ini:</p>
+          <ul>
+            <li><strong>Cari</strong> berdasarkan nama karyawan</li>
+            <li>
+              <strong>Filter</strong> berdasarkan tipe (Ontime, Telat, Sakit,
+              Izin, Absen)
+            </li>
+            <li>
+              Lihat foto selfie dengan tap
+              <strong>Lihat Foto</strong> (collapsible)
+            </li>
+            <li>
+              Buka lokasi GPS di Maps dengan tombol
+              <strong>Lihat Lokasi</strong>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico green">✅</div>
+            <div>
+              <h3>Persetujuan Absensi</h3>
+              <p class="sub">Approve atau reject request dari karyawan</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka <strong>Persetujuan Absensi</strong> dari menu admin
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Lihat daftar request yang berstatus <strong>PENDING</strong>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Tambahkan catatan admin (opsional)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Klik <strong>Setujui</strong> atau <strong>Tolak</strong>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- SECTION 8: PAYROLL -->
+      <div class="section" id="admin-payroll">
+        <div class="section-header">
+          <div class="section-num purple">8</div>
+          <div class="section-title">
+            <h2>Payroll & Statistik</h2>
+            <p>Hitung gaji dan pantau performa karyawan</p>
+          </div>
+        </div>
+
+        <span class="role-badge admin">🛡️ Admin</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico amber">💰</div>
+            <div>
+              <h3>Hitung Payroll Bulanan</h3>
+              <p class="sub">Menu: Admin → Payroll</p>
+            </div>
+          </div>
+          <p>Sistem otomatis menghitung gaji berdasarkan:</p>
+          <ul>
+            <li>
+              Data <strong>kehadiran bulan tersebut</strong> (jumlah hari hadir)
+            </li>
+            <li>
+              Setting <strong>gaji harian</strong> atau
+              <strong>gaji bulanan</strong> per karyawan
+            </li>
+            <li>
+              Jumlah <strong>hari kerja efektif</strong> (Senin–Sabtu, Minggu
+              libur)
+            </li>
+          </ul>
+          <div class="info-box info">
+            <span class="info-box-icon">ℹ️</span>
+            Setting gaji per karyawan diatur di
+            <strong>Kelola User → Edit User</strong>. Bisa diisi gaji harian
+            atau gaji bulanan.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico blue">📊</div>
+            <div>
+              <h3>Statistik Bulanan</h3>
+              <p class="sub">Menu: Admin → Statistik</p>
+            </div>
+          </div>
+          <p>Tabel rekap per karyawan yang menampilkan:</p>
+          <ul>
+            <li>Hari hadir, terlambat, sakit, izin, absen</li>
+            <li>Total penjualan yang disetujui</li>
+            <li>Bisa pilih bulan tertentu via filter</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico green">📤</div>
+            <div>
+              <h3>Export Laporan Excel</h3>
+              <p class="sub">Menu: Admin → Export</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Pilih <strong>Tanggal Mulai</strong> dan
+              <strong>Tanggal Selesai</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Klik <strong>Download Excel</strong>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              File <code>.xlsx</code> otomatis terunduh
+            </li>
+          </ul>
+          <p>File Excel berisi <strong>2 sheet</strong>:</p>
+          <ul>
+            <li>
+              <strong>Sheet Absensi</strong> — detail per karyawan per hari
+            </li>
+            <li>
+              <strong>Sheet Rekap Gaji</strong> — ringkasan gaji semua karyawan
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- SECTION 9: FITUR LANJUTAN -->
+      <div class="section" id="admin-fitur">
+        <div class="section-header">
+          <div class="section-num purple">9</div>
+          <div class="section-title">
+            <h2>Fitur Lanjutan Administrator</h2>
+            <p>HPP AI, Harga Beli, Poin, dan Data Cleanup</p>
+          </div>
+        </div>
+
+        <span class="role-badge admin">🛡️ Admin</span>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico purple">🧮</div>
+            <div>
+              <h3>Kalkulator HPP AI</h3>
+              <p class="sub">Hitung Harga Pokok Produksi + analisis AI</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka <strong>HPP AI</strong> dari menu admin
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Isi <strong>Nama Produk</strong>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Tambahkan <strong>Bahan Baku</strong> (nama, satuan, biaya per
+              item)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Isi <strong>Biaya Tenaga Kerja</strong> dan
+              <strong>Biaya Overhead</strong>
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Tentukan <strong>Jumlah Produk Jadi</strong> per batch
+            </li>
+            <li>
+              <div class="step-num">6</div>
+              Klik <strong>Hitung HPP</strong>
+            </li>
+          </ul>
+          <p>
+            Sistem akan menampilkan <strong>HPP per unit</strong> beserta
+            <strong>analisis AI</strong> yang mencakup:
+          </p>
+          <ul>
+            <li>Biaya yang mungkin terlewat</li>
+            <li>Evaluasi realistis HPP</li>
+            <li>Saran harga jual optimal</li>
+            <li>Potensi efisiensi biaya</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico amber">💲</div>
+            <div>
+              <h3>Kelola Harga Beli</h3>
+              <p class="sub">Daftar harga beli material/bahan baku</p>
+            </div>
+          </div>
+          <p>
+            Admin bisa <strong>tambah, edit harga, tambahkan catatan</strong>,
+            atau <strong>nonaktifkan</strong> item harga beli. Data ini juga
+            diakses oleh aplikasi mobile karyawan.
+          </p>
+          <div class="info-box tip">
+            <span class="info-box-icon">💡</span>
+            Data default sudah terisi dengan ratusan jenis material (Tembaga,
+            Kuningan, Aluminium, Stainless, Timah). Tinggal update harga sesuai
+            kondisi pasar.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico amber">⭐</div>
+            <div>
+              <h3>Input Poin Karyawan</h3>
+              <p class="sub">Sistem reward untuk motivasi karyawan</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka <strong>Input Poin</strong> dari menu admin
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Pilih <strong>Karyawan</strong> yang mendapat poin
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Masukkan <strong>jumlah poin</strong> (bisa negatif untuk
+              pengurangan)
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Tambahkan <strong>keterangan</strong>, klik Simpan
+            </li>
+          </ul>
+          <p>
+            Riwayat pemberian poin tercatat dan bisa dilihat di halaman yang
+            sama.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico red">🗑️</div>
+            <div>
+              <h3>Data Cleanup</h3>
+              <p class="sub">Hapus data lama dengan rentang tanggal</p>
+            </div>
+          </div>
+          <div class="info-box warn">
+            <span class="info-box-icon">⚠️</span>
+            Fitur ini <strong>menghapus data secara permanen</strong>. Gunakan
+            hanya jika benar-benar diperlukan. Semua penghapusan dicatat di
+            audit log.
+          </div>
+          <p>Data yang bisa dihapus:</p>
+          <ul>
+            <li>Riwayat Absensi</li>
+            <li>Riwayat Penjualan</li>
+            <li>Log Poin Karyawan</li>
+          </ul>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Pilih <strong>Jenis Data</strong> yang akan dihapus
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Tentukan rentang tanggal
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Klik <strong>Preview</strong> untuk lihat berapa baris yang akan
+              terhapus
+            </li>
+            <li>
+              <div class="step-num">4</div>
+              Ketik <strong>HAPUS</strong> untuk konfirmasi
+            </li>
+            <li>
+              <div class="step-num">5</div>
+              Klik <strong>Eksekusi</strong>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-ico blue">📢</div>
+            <div>
+              <h3>Buat Pengumuman</h3>
+              <p class="sub">Otomatis dikirim sebagai notifikasi push</p>
+            </div>
+          </div>
+          <ul class="steps">
+            <li>
+              <div class="step-num">1</div>
+              Buka <strong>Admin → Pengumuman</strong>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              Isi <strong>Judul</strong> dan <strong>Isi Pengumuman</strong>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              Klik <strong>Kirim</strong>
+            </li>
+          </ul>
+          <p>
+            Pengumuman otomatis tampil di dashboard karyawan dan
+            <strong>dikirim sebagai push notification</strong> ke semua
+            perangkat karyawan yang login di aplikasi mobile.
+          </p>
+        </div>
+      </div>
+
+      <!-- SECTION 10: PERBANDINGAN AKSES -->
+      <div class="section" id="roles">
+        <div class="section-header">
+          <div class="section-num">10</div>
+          <div class="section-title">
+            <h2>Perbandingan Akses</h2>
+            <p>Fitur yang tersedia untuk setiap role</p>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <table>
+            <tr>
+              <th>Fitur</th>
+              <th>Karyawan</th>
+              <th>Admin</th>
+            </tr>
+            <tr>
+              <td>Dashboard</td>
+              <td><span class="tag green">✓</span></td>
+              <td><span class="tag blue">✓ Admin</span></td>
+            </tr>
+            <tr>
+              <td>Absensi (diri sendiri)</td>
+              <td><span class="tag green">✓</span></td>
+              <td><span class="tag green">✓</span></td>
+            </tr>
+            <tr>
+              <td>Absenkan karyawan lain</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Riwayat Absensi Semua</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Persetujuan Absensi</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Input Penjualan</td>
+              <td><span class="tag green">✓</span></td>
+              <td><span class="tag green">✓</span></td>
+            </tr>
+            <tr>
+              <td>Approve/Reject Penjualan</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Monitor Penjualan</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Nota / Invoice</td>
+              <td><span class="tag green">✓</span></td>
+              <td><span class="tag green">✓</span></td>
+            </tr>
+            <tr>
+              <td>Produk Global</td>
+              <td><span class="tag green">Lihat</span></td>
+              <td><span class="tag blue">Kelola</span></td>
+            </tr>
+            <tr>
+              <td>Payroll</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Statistik Semua Karyawan</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Export Excel</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Input Poin Karyawan</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>HPP AI</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Harga Beli</td>
+              <td><span class="tag green">Lihat</span></td>
+              <td><span class="tag blue">Kelola</span></td>
+            </tr>
+            <tr>
+              <td>AI Caption</td>
+              <td><span class="tag green">✓</span></td>
+              <td><span class="tag green">✓</span></td>
+            </tr>
+            <tr>
+              <td>Pengumuman</td>
+              <td><span class="tag green">Lihat</span></td>
+              <td><span class="tag blue">Buat & Hapus</span></td>
+            </tr>
+            <tr>
+              <td>Kelola User</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Data Cleanup</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+            <tr>
+              <td>Fingerprint Mapping</td>
+              <td>—</td>
+              <td><span class="tag blue">✓</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 11: FAQ -->
+      <div class="section" id="faq">
+        <div class="section-header">
+          <div class="section-num orange">11</div>
+          <div class="section-title">
+            <h2>FAQ & Troubleshooting</h2>
+            <p>Jawaban untuk masalah yang sering ditemui</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>❓ GPS tidak terdeteksi saat absensi</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>Pastikan <strong>GPS / Lokasi</strong> aktif di perangkat</li>
+            <li>
+              Buka pengaturan browser → izinkan akses lokasi untuk situs ini
+            </li>
+            <li>
+              Coba di luar ruangan atau dekat jendela untuk sinyal GPS lebih
+              kuat
+            </li>
+            <li>
+              Tap tombol <strong>Perbarui Lokasi</strong> untuk coba ulang
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>❓ Kamera tidak bisa dibuka untuk selfie</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>Periksa izin kamera di pengaturan browser</li>
+            <li>
+              Pastikan tidak ada aplikasi lain yang sedang menggunakan kamera
+            </li>
+            <li>Coba refresh halaman dan izinkan akses kamera saat diminta</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>❓ Absensi sudah disubmit tapi tidak muncul di riwayat</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>
+              Tarik ke bawah untuk <strong>refresh</strong> halaman riwayat
+            </li>
+            <li>
+              Absensi masuk ke <strong>antrian pending</strong> terlebih dahulu
+              sebelum diproses admin
+            </li>
+            <li>Hubungi admin jika lebih dari 1 jam tidak muncul</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>❓ AI Caption tidak keluar / error</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>Pastikan sudah terisi minimal <strong>Nama Produk</strong></li>
+            <li>Cek koneksi internet</li>
+            <li>
+              Jika pesan error "timeout", coba klik
+              <strong>Generate</strong> ulang
+            </li>
+            <li>
+              Admin: pastikan <strong>OPENAI_API_KEY</strong> sudah diset di
+              environment Render
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>❓ Tidak bisa login / password salah</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>Pastikan tidak ada spasi di awal/akhir email</li>
+            <li>
+              Email <strong>tidak case-sensitive</strong>, tapi password
+              <strong>case-sensitive</strong>
+            </li>
+            <li>
+              Gunakan fitur <strong>Lupa Password</strong> untuk reset via OTP
+              email
+            </li>
+            <li>Jika OTP tidak datang, cek folder Spam/Junk email</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>❓ Laporan penjualan tidak disetujui-setujui</h3>
+          <div class="divider"></div>
+          <p>
+            Laporan dengan status <strong>PENDING</strong> berarti menunggu
+            admin. Hubungi admin untuk melakukan persetujuan di menu
+            <strong>Penjualan Admin</strong>.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>❓ Admin: Karyawan tidak muncul di dropdown absen karyawan</h3>
+          <div class="divider"></div>
+          <p>
+            Pastikan akun karyawan tersebut sudah terdaftar dan role-nya diset
+            sebagai <strong>employee</strong> (bukan admin) di menu
+            <strong>Kelola User</strong>.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>❓ Export Excel kosong atau data tidak lengkap</h3>
+          <div class="divider"></div>
+          <ul>
+            <li>Pastikan rentang tanggal sudah benar</li>
+            <li>
+              Karyawan baru yang belum pernah absen akan tetap muncul tapi
+              dengan data kosong
+            </li>
+            <li>
+              Setting gaji harus diisi dulu di <strong>Kelola User</strong> agar
+              kolom gaji terisi
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <p><strong>UMGAP</strong> — Sistem Manajemen Karyawan Modern</p>
+        <p style="margin-top: 6px">
+          Panduan ini berlaku untuk versi 2026. Untuk bantuan lebih lanjut,
+          hubungi administrator sistem.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
