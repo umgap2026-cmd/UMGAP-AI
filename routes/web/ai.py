@@ -20,7 +20,7 @@ def api_chat():
     })
 
 
-@ai_bp.route("/api/caption", methods=["POST"])
+@ai_bp.route("/api/caption-ai", methods=["POST"])
 def api_caption():
     if not is_logged_in():
         return jsonify({"ok": False}), 401
