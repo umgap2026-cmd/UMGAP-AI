@@ -1,159 +1,139 @@
 import os
-import random
-from flask import Blueprint, request, jsonify, session
-from core import is_logged_in
+import requests
+from flask import Blueprint, request, jsonify
+from core import is_logged_in, rupiah
 
 ai_bp = Blueprint("ai", __name__)
 
-
-# ── Helper ────────────────────────────────────────────────────────────────────
-def _pick(lst):
-    return random.choice(lst)
-
-def _rupiah(s):
-    try:
-        n = int("".join(filter(str.isdigit, str(s))))
-        return f"Rp {n:,}".replace(",", ".")
-    except Exception:
-        return s or ""
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 
-# ── Caption generator — 3 variasi ─────────────────────────────────────────────
-def _build_captions(product, price, wa, location, notes, template, style):
-    harga   = _rupiah(price) if price else ""
-    loc_str = f"\n📍 {location}"   if location else ""
-    note_str = f"\nℹ️ {notes}"     if notes    else ""
-    wa_str   = f" {wa}"           if wa       else ""
+# ── OpenAI helper ─────────────────────────────────────────────────────────────
+def _ask_openai(prompt: str, max_tokens: int = 900) -> str:
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY belum diisi di environment.")
 
-    hooks = {
-        "Santai":       ["Eh, ada yang menarik nih 👀", "Lagi cari yang pas buat kamu?", "Psst… ini buat kamu 🤫"],
-        "Promo":        ["🔥 JANGAN SKIP!", "⚡ Buruan sebelum kehabisan!", "🚨 Promo terbatas!"],
-        "Storytelling": ["Cerita di balik produk ini bikin kamu penasaran…", "Ada yang bilang ini beda dari yang lain.", "Bukan sekadar produk — ini cerita."],
-        "Serius":       ["Solusi tepat untuk kebutuhan Anda.", "Kualitas yang bicara sendiri.", "Pilihan profesional untuk hasil terbaik."],
+    resp = requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type":  "application/json",
+        },
+        json={
+            "model":      "gpt-4o-mini",   # cepat & murah, ganti ke gpt-4o jika mau lebih bagus
+            "max_tokens": max_tokens,
+            "temperature": 0.85,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Kamu adalah copywriter profesional Indonesia yang ahli membuat "
+                        "caption media sosial yang engaging, natural, dan mengkonversi. "
+                        "Selalu tulis dalam Bahasa Indonesia yang alami, hindari terasa seperti template."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+        },
+        timeout=30,
+    )
+
+    if resp.status_code != 200:
+        raise RuntimeError(f"OpenAI error {resp.status_code}: {resp.text[:200]}")
+
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip()
+
+
+# ── Prompt builder ────────────────────────────────────────────────────────────
+def _build_prompt(product, price, brand, platform, style, notes):
+    harga_str = rupiah(price) if price else ""
+
+    detail_lines = [f"- Nama produk: {product}"]
+    if brand:    detail_lines.append(f"- Brand / toko: {brand}")
+    if harga_str: detail_lines.append(f"- Harga: {harga_str}")
+    if notes:    detail_lines.append(f"- Catatan pendukung: {notes}")
+
+    detail = "\n".join(detail_lines)
+
+    platform_guide = {
+        "Instagram": (
+            "Instagram — gunakan emoji secukupnya, tambahkan 4–6 hashtag relevan di akhir, "
+            "CTA mengarah ke DM atau bio link."
+        ),
+        "TikTok": (
+            "TikTok — hook kuat di baris pertama, singkat dan energetik, "
+            "tambahkan #fyp dan hashtag viral, CTA mengarah ke link bio atau kolom komentar."
+        ),
+        "WhatsApp": (
+            "WhatsApp (broadcast/status) — tone personal, tidak pakai hashtag, "
+            "CTA langsung chat WA atau telepon."
+        ),
     }
-    ctas = {
-        "Santai":       ["Hubungi kami ya 👉", "Chat sekarang 👉", "DM/WA aja langsung 👉"],
-        "Promo":        ["ORDER SEKARANG 👉", "Klaim promo 👉", "Chat kami sebelum kehabisan 👉"],
-        "Storytelling": ["Yuk, cerita lebih lanjut 👉", "Mau tau lebih? Hubungi kami 👉", "Temukan cerita lengkapnya 👉"],
-        "Serius":       ["Hubungi kami untuk informasi lebih lanjut 👉", "Konsultasikan kebutuhan Anda 👉", "Dapatkan penawaran terbaik 👉"],
+
+    style_guide = {
+        "Santai":       "Gaya santai, friendly, seperti ngobrol sama teman.",
+        "Promo":        "Gaya promo agresif, urgent, penuh semangat, dorong pembaca beli sekarang.",
+        "Storytelling": "Gaya storytelling, bangun emosi dulu baru tawarkan produk secara halus.",
+        "Serius":       "Gaya profesional dan terpercaya, tone formal namun tetap hangat.",
     }
-    benefits = [
-        "✅ Kualitas terjamin",
-        "✅ Cocok untuk semua kebutuhan",
-        "✅ Praktis & mudah digunakan",
-        "✅ Bisa dijadikan hadiah",
-        "✅ Stok terbatas, jangan sampai ketinggalan",
-        "✅ Sudah dipercaya banyak pelanggan",
-    ]
 
-    hook_pool = hooks.get(style, hooks["Santai"])
-    cta_pool  = ctas.get(style, ctas["Santai"])
+    platform_desc = platform_guide.get(platform, platform_guide["Instagram"])
+    style_desc    = style_guide.get(style, style_guide["Santai"])
 
-    results = []
+    prompt = f"""Buatkan 3 variasi caption untuk postingan {platform} berdasarkan detail berikut:
 
-    for i in range(3):
-        hook    = hook_pool[i % len(hook_pool)]
-        cta     = cta_pool[i % len(cta_pool)]
-        benefit = benefits[i % len(benefits)]
-        hashtags = _hashtags(product, style, i)
+{detail}
 
-        if template == "promo":
-            body = (
-                f"{hook}\n\n"
-                f"🎯 *{product}*\n"
-                + (f"💰 Harga: {harga}\n" if harga else "")
-                + f"{benefit}{loc_str}{note_str}\n\n"
-                f"{cta}{wa_str}\n\n"
-                f"{hashtags}"
-            )
+Platform: {platform_desc}
+Gaya penulisan: {style_desc}
 
-        elif template == "new":
-            body = (
-                f"✨ Produk Baru Hadir!\n\n"
-                f"🆕 *{product}*\n"
-                + (f"💰 {harga}\n" if harga else "")
-                + f"{benefit}{loc_str}{note_str}\n\n"
-                f"{cta}{wa_str}\n\n"
-                f"{hashtags}"
-            )
-
-        elif template == "testi":
-            testis = [
-                "\"Pelayanannya cepat dan responsif, recommended!\"",
-                "\"Hasilnya melebihi ekspektasi, worth it banget!\"",
-                "\"Sudah order berkali-kali, selalu puas!\""
-            ]
-            body = (
-                f"{hook}\n\n"
-                f"⭐ Testimoni pelanggan:\n"
-                f"{testis[i % 3]}\n\n"
-                f"🛍️ *{product}*\n"
-                + (f"💰 Mulai {harga}\n" if harga else "")
-                + f"{benefit}{loc_str}{note_str}\n\n"
-                f"{cta}{wa_str}\n\n"
-                f"{hashtags}"
-            )
-
-        else:  # reminder
-            body = (
-                f"⏰ Jangan lupa!\n\n"
-                f"📌 *{product}*\n"
-                + (f"💰 Mulai {harga}\n" if harga else "")
-                + f"{benefit}\n🔔 Slot/stok terbatas!{loc_str}{note_str}\n\n"
-                f"{cta}{wa_str}\n\n"
-                f"{hashtags}"
-            )
-
-        results.append(body.strip())
-
-    separator = "\n\n" + ("─" * 30) + "\n\n"
-    return separator.join([f"[ Versi {i+1} ]\n{r}" for i, r in enumerate(results)])
-
-
-def _hashtags(product, style, variant):
-    base = ["#jualan", "#produk", "#jualanOnline", "#bisnisOnline"]
-    style_tags = {
-        "Promo":        ["#promoHariIni", "#diskon", "#buruan"],
-        "Santai":       ["#rekomen", "#yukOrder", "#cobaDulu"],
-        "Storytelling": ["#ceritaProduk", "#behind", "#kisahNyata"],
-        "Serius":       ["#profesional", "#terpercaya", "#kualitas"],
-    }
-    extras = style_tags.get(style, [])
-    pool   = base + extras
-    chosen = random.sample(pool, min(4, len(pool)))
-    return " ".join(chosen)
+Ketentuan:
+- Pisahkan setiap variasi dengan baris: ─────────────────────────────────
+- Awali setiap variasi dengan label: [ Versi 1 ], [ Versi 2 ], [ Versi 3 ]
+- Setiap variasi HARUS berbeda pendekatan (bukan hanya ganti kata)
+- Jangan tambahkan penjelasan, langsung tulis 3 caption saja
+- Bahasa Indonesia yang natural, tidak kaku
+"""
+    return prompt
 
 
 # ── ROUTE UTAMA ───────────────────────────────────────────────────────────────
 @ai_bp.route("/api/caption-ai", methods=["POST"])
 def api_caption_ai():
-    """
-    Dipanggil oleh caption.html via fetch FormData.
-    Mengembalikan 3 variasi caption siap pakai.
-    """
     if not is_logged_in():
         return jsonify({"ok": False, "error": "Silakan login terlebih dahulu."}), 401
 
-    # ── Baca FormData (bukan JSON) ────────────────────────────────────────────
+    # Baca FormData — sesuai field di caption.html
     product  = (request.form.get("product")  or "").strip()
     price    = (request.form.get("price")    or "").strip()
-    wa       = (request.form.get("wa")       or "").strip()
-    location = (request.form.get("location") or "").strip()
-    notes    = (request.form.get("notes")    or "").strip()
-    template = (request.form.get("template") or "promo").strip()
+    brand    = (request.form.get("brand")    or "").strip()
+    platform = (request.form.get("platform") or "Instagram").strip()
     style    = (request.form.get("style")    or "Santai").strip()
+    notes    = (request.form.get("notes")    or "").strip()
 
     if not product:
         return jsonify({"ok": False, "error": "Nama produk wajib diisi."}), 400
 
+    if not OPENAI_API_KEY:
+        return jsonify({
+            "ok":    False,
+            "error": "OpenAI API key belum dikonfigurasi di server.",
+        }), 500
+
     try:
-        caption = _build_captions(product, price, wa, location, notes, template, style)
+        prompt  = _build_prompt(product, price, brand, platform, style, notes)
+        caption = _ask_openai(prompt)
         return jsonify({"ok": True, "caption": caption})
+
+    except requests.exceptions.Timeout:
+        return jsonify({"ok": False, "error": "OpenAI timeout, coba lagi."}), 504
+
     except Exception as e:
         return jsonify({"ok": False, "error": f"Gagal generate: {str(e)}"}), 500
 
 
-# ── Route lama — tetap ada agar tidak breaking ────────────────────────────────
+# ── Route lama (tidak dihapus agar tidak breaking) ────────────────────────────
 @ai_bp.route("/api/caption", methods=["POST"])
 def api_caption():
     if not is_logged_in():
