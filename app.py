@@ -33,6 +33,7 @@ from routes.web.ai import ai_bp
 from routes.web.buy_prices import buy_prices_bp
 from routes.web.export import export_bp
 
+
 # ------ MOBILE -----
 from routes.mobile.auth import mobile_auth_bp
 from routes.mobile.attendance import mobile_attendance_bp
@@ -157,6 +158,9 @@ def send_daily_reminder():
         from flask import jsonify
         return jsonify({"ok": False, "message": str(e)}), 500
 
+@app.route("/panduan")
+def panduan():
+    return app.send_static_file("panduan_umgap.html")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
