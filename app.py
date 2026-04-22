@@ -158,6 +158,16 @@ def send_daily_reminder():
         from flask import jsonify
         return jsonify({"ok": False, "message": str(e)}), 500
 
+@app.route("/api/mobile/version")
+def app_version():
+    return jsonify({
+        "latest_version": "1.1.0",      # update ini tiap rilis baru
+        "min_version": "1.1.0",         # versi minimum yang boleh jalan
+        "force_update": True,           # True = wajib update, False = opsional
+        "update_url": "https://drive.google.com/file/d/1-wwfCybCskSeujVfs9AwWRuxzsnSjOeA/view?usp=drive_link",
+        "message": "Versi baru tersedia! Silakan update aplikasi."
+    })
+
 @app.route("/panduan")
 def panduan():
     return app.send_static_file("panduan_umgap.html")
