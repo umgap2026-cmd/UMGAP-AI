@@ -122,7 +122,10 @@ def mobile_my_payslip():
                 u.email,
                 COALESCE(p.daily_salary,   0) AS daily_salary,
                 COALESCE(p.monthly_salary, 0) AS monthly_salary,
-                COALESCE(p.salary_type, 'daily') AS salary_type
+                CASE
+                    WHEN COALESCE(p.monthly_salary, 0) > 0 THEN 'monthly'
+                    ELSE 'daily'
+                END AS salary_type
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
             WHERE u.id = %s
