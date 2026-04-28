@@ -157,6 +157,89 @@ def send_daily_reminder():
     except Exception as e:
         from flask import jsonify
         return jsonify({"ok": False, "message": str(e)}), 500
+    
+
+@app.route("/api/mobile/send-daily-summary", methods=["POST"])
+def send_daily_summary():
+    key = request.headers.get("X-Internal-Key", "")
+    if key != os.getenv("INTERNAL_KEY", "umgap-secret-2026"):
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    try:
+        from core import send_fcm_to_tokens
+        from db import get_conn
+        from psycopg2.extras import RealDictCursor
+        from datetime import date
+
+        conn  = get_conn()
+        cur   = conn.cursor(cursor_factory=RealDictCursor)
+        today = date.today()
+
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE a.status = 'PRESENT')             AS hadir,
+                COUNT(*) FILTER (WHERE a.status = 'ABSENT')              AS absen,
+                COUNT(*) FILTER (WHERE a.status = 'SICK')                AS sakit,
+                COUNT(*) FILTER (WHERE a.status = 'LEAVE')               AS izin,
+                COUNT(*) FILTER (WHERE a.arrival_type = 'LATE'
+                                   AND a.status = 'PRESENT')             AS terlambat,
+                COUNT(DISTINCT u.id)                                      AS total_karyawan
+            FROM users u
+            LEFT JOIN attendance a ON a.user_id = u.id AND a.work_date = %s
+            WHERE u.role = 'employee';
+        """, (today,))
+        rekap = cur.fetchone()
+
+        hadir     = int(rekap['hadir']          or 0)
+        absen     = int(rekap['absen']          or 0)
+        sakit     = int(rekap['sakit']          or 0)
+        izin      = int(rekap['izin']           or 0)
+        terlambat = int(rekap['terlambat']      or 0)
+        total     = int(rekap['total_karyawan'] or 0)
+        belum     = total - hadir - absen - sakit - izin
+
+        cur.execute("SELECT COUNT(*) AS p FROM sales_submissions WHERE status = 'PENDING';")
+        pending = int((cur.fetchone() or {}).get('p', 0))
+
+        cur.execute("""
+            SELECT DISTINCT d.fcm_token
+            FROM mobile_device_tokens d
+            JOIN users u ON u.id = d.user_id
+            WHERE u.role = 'admin' AND d.is_active = TRUE
+              AND COALESCE(d.fcm_token, '') <> '';
+        """)
+        tokens = [r["fcm_token"] for r in cur.fetchall()]
+        cur.close(); conn.close()
+
+        if not tokens:
+            return jsonify({"ok": True, "message": "Tidak ada admin FCM token", "sent": 0})
+
+        lines = [f"✅ Hadir: {hadir}"]
+        if terlambat > 0: lines.append(f"⏰ Terlambat: {terlambat}")
+        if sakit     > 0: lines.append(f"🤒 Sakit: {sakit}")
+        if izin      > 0: lines.append(f"📋 Izin: {izin}")
+        if absen     > 0: lines.append(f"❌ Absen: {absen}")
+        if belum     > 0: lines.append(f"⚠️ Belum absen: {belum}")
+
+        body = " • ".join(lines)
+        if pending > 0:
+            body += f"\n📦 {pending} penjualan menunggu approval"
+
+        send_fcm_to_tokens(
+            tokens,
+            title=f"📊 Rekap Harian — {today.strftime('%d/%m/%Y')}",
+            body=body,
+            data={"type": "daily_summary", "screen": "attendance", "date": str(today)}
+        )
+
+        print(f"[SUMMARY] {today} → {len(tokens)} admin | {body}")
+        return jsonify({"ok": True, "sent": len(tokens),
+                        "rekap": {"hadir": hadir, "absen": absen, "sakit": sakit,
+                                  "izin": izin, "terlambat": terlambat,
+                                  "belum": belum, "pending_sales": pending}})
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 500
+
 
 @app.route("/api/mobile/version")
 def app_version():
