@@ -106,7 +106,7 @@ def _update_stock_avco(cur, material_id, qty_kg, price_per_kg,
 def get_materials():
     """Daftar material aktif beserta stok saat ini"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -134,7 +134,7 @@ def get_materials():
         return mobile_api_response(ok=True, message="OK", data=_clean({
             "materials":   rows,
             "total_value": total_value,
-        })
+        }))
     finally:
         cur.close(); conn.close()
 
@@ -159,7 +159,7 @@ def kasir_beli():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -249,7 +249,7 @@ def kasir_jual():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -370,7 +370,7 @@ def kasir_pengeluaran():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -431,7 +431,7 @@ def report_daily():
     Laporan keuangan harian.
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -513,7 +513,7 @@ def report_daily():
                 "laba_kotor":  laba_kotor,
                 "nilai_stok":  nilai_stok,
             }
-        })
+        }))
     finally:
         cur.close(); conn.close()
 
@@ -527,7 +527,7 @@ def report_daily():
 def report_weekly():
     """GET /api/mobile/finance/report/weekly?week=2026-04-21"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -604,7 +604,7 @@ def report_weekly():
                 "piutang_masuk": masuk,
             },
             "per_hari": per_hari,
-        })
+        }))
     finally:
         cur.close(); conn.close()
 
@@ -618,7 +618,7 @@ def report_weekly():
 def get_debts():
     """Daftar hutang & piutang yang belum lunas"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -645,7 +645,7 @@ def get_debts():
             "piutang":       piutang,
             "total_hutang":  total_hutang,
             "total_piutang": total_piutang,
-        })
+        }))
     finally:
         cur.close(); conn.close()
 
@@ -655,7 +655,7 @@ def get_debts():
 def pay_debt(debt_id):
     """Tandai hutang/piutang sebagai lunas atau sebagian bayar"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -715,7 +715,7 @@ def pay_debt(debt_id):
 def stock_history(material_id):
     """Riwayat pergerakan stok per material"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({})
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -742,6 +742,6 @@ def stock_history(material_id):
         return mobile_api_response(ok=True, message="OK", data=_clean({
             "current": summary,
             "history": rows,
-        })
+        }))
     finally:
         cur.close(); conn.close()
