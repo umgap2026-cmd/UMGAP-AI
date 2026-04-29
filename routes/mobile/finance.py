@@ -15,6 +15,18 @@ from core import mobile_api_response, mobile_api_login_required
 mobile_finance_bp = Blueprint("mobile_finance", __name__)
 
 
+# ── Helper: convert Decimal/str ke float agar JSON bersih ────────────
+def _clean(obj):
+    """Rekursif konversi Decimal → float agar tidak ada String cast error di Flutter."""
+    if isinstance(obj, list):
+        return [_clean(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: _clean(v) for k, v in obj.items()}
+    if isinstance(obj, Decimal):
+        return float(obj)
+    return obj
+
+
 # ── Helper: hanya owner & admin yang bisa akses ───────────────
 def _check_access(mobile_user):
     role = mobile_user.get("role", "")
@@ -94,7 +106,7 @@ def _update_stock_avco(cur, material_id, qty_kg, price_per_kg,
 def get_materials():
     """Daftar material aktif beserta stok saat ini"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -114,12 +126,12 @@ def get_materials():
             WHERE m.is_active = TRUE
             ORDER BY m.sort_order, m.name;
         """)
-        rows = [dict(r) for r in cur.fetchall()]
+        rows = _clean([dict(r) for r in cur.fetchall()])
 
         # Total nilai gudang
         total_value = sum(float(r['total_value'] or 0) for r in rows)
 
-        return mobile_api_response(ok=True, message="OK", data={
+        return mobile_api_response(ok=True, message="OK", data=_clean({
             "materials":   rows,
             "total_value": total_value,
         })
@@ -147,7 +159,7 @@ def kasir_beli():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -237,7 +249,7 @@ def kasir_jual():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -358,7 +370,7 @@ def kasir_pengeluaran():
     }
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -419,7 +431,7 @@ def report_daily():
     Laporan keuangan harian.
     """
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -490,7 +502,7 @@ def report_daily():
         """)
         nilai_stok = float((cur.fetchone() or {}).get("total", 0))
 
-        return mobile_api_response(ok=True, message="OK", data={
+        return mobile_api_response(ok=True, message="OK", data=_clean({
             "date":         str(report_date),
             "transactions": transactions,
             "summary": {
@@ -515,7 +527,7 @@ def report_daily():
 def report_weekly():
     """GET /api/mobile/finance/report/weekly?week=2026-04-21"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -578,7 +590,7 @@ def report_weekly():
         """, (week_start, week_end))
         per_hari = [dict(r) for r in cur.fetchall()]
 
-        return mobile_api_response(ok=True, message="OK", data={
+        return mobile_api_response(ok=True, message="OK", data=_clean({
             "week_start":   str(week_start),
             "week_end":     str(week_end),
             "week_label":   f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}",
@@ -606,7 +618,7 @@ def report_weekly():
 def get_debts():
     """Daftar hutang & piutang yang belum lunas"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -621,14 +633,14 @@ def get_debts():
             WHERE is_settled = FALSE
             ORDER BY type, created_at DESC;
         """)
-        rows = [dict(r) for r in cur.fetchall()]
+        rows = _clean([dict(r) for r in cur.fetchall()])
 
         hutang   = [r for r in rows if r["type"] == "HUTANG"]
         piutang  = [r for r in rows if r["type"] == "PIUTANG"]
         total_hutang  = sum(float(r["remaining"]) for r in hutang)
         total_piutang = sum(float(r["remaining"]) for r in piutang)
 
-        return mobile_api_response(ok=True, message="OK", data={
+        return mobile_api_response(ok=True, message="OK", data=_clean({
             "hutang":        hutang,
             "piutang":       piutang,
             "total_hutang":  total_hutang,
@@ -643,7 +655,7 @@ def get_debts():
 def pay_debt(debt_id):
     """Tandai hutang/piutang sebagai lunas atau sebagian bayar"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -703,7 +715,7 @@ def pay_debt(debt_id):
 def stock_history(material_id):
     """Riwayat pergerakan stok per material"""
     if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
+        return mobile_api_response(ok=True, message="OK", data=_clean({})
 
     deny = _check_access(request.mobile_user)
     if deny: return deny
@@ -719,7 +731,7 @@ def stock_history(material_id):
             ORDER BY l.created_at DESC
             LIMIT 50;
         """, (material_id,))
-        rows = [dict(r) for r in cur.fetchall()]
+        rows = _clean([dict(r) for r in cur.fetchall()])
 
         cur.execute("""
             SELECT qty_kg, avg_cost_per_kg, total_value
@@ -727,7 +739,7 @@ def stock_history(material_id):
         """, (material_id,))
         summary = dict(cur.fetchone() or {})
 
-        return mobile_api_response(ok=True, message="OK", data={
+        return mobile_api_response(ok=True, message="OK", data=_clean({
             "current": summary,
             "history": rows,
         })
