@@ -38,12 +38,14 @@ def ensure_buy_prices_schema():
         conn.close()
 
 
-def _admin_only():
+def _admin_or_owner():
     user = getattr(request, "mobile_user", None) or {}
-    if str(user.get("role") or "").lower() != "admin":
+    role = str(user.get("role") or "").lower()
+
+    if role not in ("admin", "owner"):
         return mobile_api_response(
             ok=False,
-            message="Akses ditolak. Hanya admin.",
+            message="Akses ditolak. Hanya admin/owner.",
             status_code=403
         )
     return None
