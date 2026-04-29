@@ -40,8 +40,7 @@ def ensure_buy_prices_schema():
 
 def _admin_or_owner():
     user = getattr(request, "mobile_user", None) or {}
-    role = str(user.get("role") or "").lower()
-
+    role = str(user.get("role") or "").strip().lower()
     if role not in ("admin", "owner"):
         return mobile_api_response(
             ok=False,
