@@ -71,7 +71,7 @@ def _row_payload(r):
 @mobile_buy_prices_bp.route("/buy-prices", methods=["GET"])
 @mobile_api_login_required
 def mobile_buy_prices_list():
-    deny = _admin_only()
+    deny = _admin_or_owner()
     if deny:
         return deny
 
@@ -105,7 +105,7 @@ def mobile_buy_prices_list():
 @mobile_buy_prices_bp.route("/buy-prices", methods=["POST"])
 @mobile_api_login_required
 def mobile_buy_prices_add():
-    deny = _admin_only()
+    deny = _admin_or_owner()
     if deny:
         return deny
 
@@ -161,7 +161,7 @@ def mobile_buy_prices_add():
 @mobile_buy_prices_bp.route("/buy-prices/<int:pid>", methods=["PUT"])
 @mobile_api_login_required
 def mobile_buy_prices_update(pid):
-    deny = _admin_only()
+    deny = _admin_or_owner()
     if deny:
         return deny
 
@@ -225,7 +225,7 @@ def mobile_buy_prices_update(pid):
 @mobile_buy_prices_bp.route("/buy-prices/<int:pid>", methods=["DELETE"])
 @mobile_api_login_required
 def mobile_buy_prices_delete(pid):
-    deny = _admin_only()
+    deny = _admin_or_owner()
     if deny:
         return deny
 
