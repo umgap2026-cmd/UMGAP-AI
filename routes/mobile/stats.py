@@ -32,9 +32,10 @@ def mobile_stats():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
-    if request.mobile_user.get("role") != "admin":
+    role = str(request.mobile_user.get("role") or "").strip().lower()
+    if role not in ("admin", "owner"):
         return mobile_api_response(
-            ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+            ok=False, message="Akses ditolak. Hanya admin/owner.", status_code=403)
 
     date_from_str = request.args.get("date_from")
     date_to_str   = request.args.get("date_to")
