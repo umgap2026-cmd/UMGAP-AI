@@ -445,7 +445,7 @@ def report_daily():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Semua transaksi hari ini
+        # Semua transaksi kasir gudang hari ini
         cur.execute("""
             SELECT
                 t.id, t.type, t.party_name, t.total_amount,
@@ -467,21 +467,65 @@ def report_daily():
         """, (report_date,))
         transactions = [dict(r) for r in cur.fetchall()]
 
-        # Ringkasan
+        # Transaksi perjalanan Jakarta hari ini (dari fin_trip_items)
+        cur.execute("""
+            SELECT
+                ti.id, ti.type AS trip_item_type,
+                ti.subtotal, ti.qty_kg, ti.expense_name,
+                ti.payment_type,
+                m.name AS material_name,
+                p.name AS party_name,
+                t.note AS trip_note,
+                t.id   AS trip_id,
+                ti.created_at
+            FROM fin_trip_items ti
+            JOIN fin_trips t ON t.id = ti.trip_id
+            LEFT JOIN fin_materials m ON m.id = ti.material_id
+            LEFT JOIN fin_trip_parties p ON p.id = ti.party_id
+            WHERE ti.created_at::date = %s
+            ORDER BY ti.created_at DESC;
+        """, (report_date,))
+        trip_items = [dict(r) for r in cur.fetchall()]
+
+        # Gabungkan trip items sebagai transaksi virtual
+        for ti in trip_items:
+            type_map = {
+                'JUAL':    'JUAL_TRIP',
+                'BELI':    'BELI_TRIP',
+                'EXPENSE': 'PENGELUARAN_TRIP',
+                'RETURN':  'RETURN_TRIP',
+            }
+            transactions.append({
+                "id":           f"trip-{ti['id']}",
+                "type":         type_map.get(ti['trip_item_type'], ti['trip_item_type']),
+                "party_name":   ti.get('party_name') or ti.get('trip_note') or f"Trip #{ti['trip_id']}",
+                "total_amount": float(ti['subtotal'] or 0),
+                "note":         ti.get('expense_name') or ti.get('material_name'),
+                "created_at":   str(ti['created_at']),
+                "is_trip":      True,
+                "items": [],
+            })
+
+        # Ringkasan — kasir gudang
         pemasukan   = sum(float(t["total_amount"] or 0)
                          for t in transactions
-                         if t["type"] in ("JUAL_GUDANG", "BELI_JAKARTA",
-                                          "TERIMA_HUTANG"))
+                         if t["type"] in ("JUAL_GUDANG", "TERIMA_HUTANG"))
         pengeluaran = sum(float(t["total_amount"] or 0)
                          for t in transactions
                          if t["type"] in ("BELI_GUDANG", "PENGELUARAN",
                                           "PEMBAYARAN_DP", "BAYAR_HUTANG"))
 
-        # HPP barang yang terjual hari ini
+        # Ringkasan — trip Jakarta
+        trip_jual    = sum(float(t["total_amount"] or 0)
+                          for t in transactions if t["type"] == "JUAL_TRIP")
+        trip_beli    = sum(float(t["total_amount"] or 0)
+                          for t in transactions if t["type"] == "BELI_TRIP")
+        trip_expense = sum(float(t["total_amount"] or 0)
+                          for t in transactions if t["type"] == "PENGELUARAN_TRIP")
+
+        # HPP barang terjual hari ini (gudang + trip)
         cur.execute("""
-            SELECT COALESCE(SUM(
-                i.qty_kg * s.avg_cost_per_kg
-            ), 0) AS hpp_total
+            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
             JOIN fin_stock_summary s ON s.material_id = i.material_id
@@ -489,29 +533,40 @@ def report_daily():
               AND t.type = 'JUAL_GUDANG'
               AND i.material_id IS NOT NULL;
         """, (report_date,))
-        hpp_total = float((cur.fetchone() or {}).get("hpp_total", 0))
+        hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
 
+        # HPP trip jual
+        cur.execute("""
+            SELECT COALESCE(SUM(ti.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
+            FROM fin_trip_items ti
+            JOIN fin_stock_summary s ON s.material_id = ti.material_id
+            WHERE ti.created_at::date = %s AND ti.type = 'JUAL';
+        """, (report_date,))
+        hpp_trip = float((cur.fetchone() or {}).get("hpp_total", 0))
+
+        hpp_total  = hpp_gudang + hpp_trip
         omzet_jual = sum(float(t["total_amount"] or 0)
-                        for t in transactions if t["type"] == "JUAL_GUDANG")
-        laba_kotor = omzet_jual - hpp_total
+                        for t in transactions
+                        if t["type"] in ("JUAL_GUDANG", "JUAL_TRIP"))
+        laba_kotor = omzet_jual - hpp_total - trip_expense
 
         # Nilai stok gudang saat ini
-        cur.execute("""
-            SELECT COALESCE(SUM(total_value), 0) AS total
-            FROM fin_stock_summary;
-        """)
+        cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
         nilai_stok = float((cur.fetchone() or {}).get("total", 0))
 
         return mobile_api_response(ok=True, message="OK", data=_clean({
             "date":         str(report_date),
             "transactions": transactions,
             "summary": {
-                "pemasukan":   pemasukan,
-                "pengeluaran": pengeluaran,
-                "omzet_jual":  omzet_jual,
-                "hpp":         hpp_total,
-                "laba_kotor":  laba_kotor,
-                "nilai_stok":  nilai_stok,
+                "pemasukan":     pemasukan,
+                "pengeluaran":   pengeluaran,
+                "omzet_jual":    omzet_jual,
+                "hpp":           hpp_total,
+                "laba_kotor":    laba_kotor,
+                "nilai_stok":    nilai_stok,
+                "trip_jual":     trip_jual,
+                "trip_beli":     trip_beli,
+                "trip_expense":  trip_expense,
             }
         }))
     finally:
