@@ -29,7 +29,7 @@ def _clean(obj):
 
 # ── Helper: hanya owner & admin yang bisa akses ───────────────
 def _check_access(mobile_user):
-    role = mobile_user.get("role", "")
+    role = (mobile_user.get("role") or "").strip().lower()
     if role not in ("admin", "owner"):
         return mobile_api_response(
             ok=False, message="Akses ditolak.", status_code=403)
