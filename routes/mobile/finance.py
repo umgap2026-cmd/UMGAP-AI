@@ -1290,3 +1290,58 @@ def trip_close(trip_id):
         return mobile_api_response(ok=False, message=str(e), status_code=500)
     finally:
         cur.close(); conn.close()
+
+# ════════════════════════════════════════════════
+#  TAMBAHKAN ke finance.py — setelah trip_close
+# ════════════════════════════════════════════════
+ 
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/cancel", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_cancel(trip_id):
+    """Batalkan perjalanan (ubah status jadi CANCELLED)"""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+ 
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t:
+            return mobile_api_response(ok=False, message="Tidak ditemukan.", status_code=404)
+        if t["status"] == "CLOSED":
+            return mobile_api_response(ok=False, message="Tidak bisa batalkan perjalanan yang sudah selesai.", status_code=400)
+ 
+        cur.execute("UPDATE fin_trips SET status = 'CANCELLED' WHERE id = %s;", (trip_id,))
+        conn.commit()
+        return mobile_api_response(ok=True, message="Perjalanan dibatalkan.")
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+ 
+ 
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>", methods=["DELETE", "OPTIONS"])
+@mobile_api_login_required
+def trip_delete(trip_id):
+    """Hapus perjalanan beserta semua item-nya"""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+ 
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Items akan auto-delete karena ON DELETE CASCADE
+        cur.execute("DELETE FROM fin_trips WHERE id = %s;", (trip_id,))
+        conn.commit()
+        return mobile_api_response(ok=True, message="Perjalanan dihapus.")
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
