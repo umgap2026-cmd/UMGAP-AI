@@ -745,3 +745,493 @@ def stock_history(material_id):
         }))
     finally:
         cur.close(); conn.close()
+
+# ════════════════════════════════════════════════════════════════
+#  FASE 2 — PERJALANAN JAKARTA
+# ════════════════════════════════════════════════════════════════
+
+# ── Buka perjalanan baru ──────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/new", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_new():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data      = request.get_json(silent=True) or {}
+    note      = (data.get("note") or "").strip()
+    trip_date = data.get("trip_date") or str(date.today())
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO fin_trips (trip_date, note, status, created_by)
+            VALUES (%s, %s, 'OPEN', %s)
+            RETURNING id, trip_date, note, status, created_at;
+        """, (trip_date, note or None, request.mobile_user.get("id")))
+        trip = _clean(dict(cur.fetchone()))
+        conn.commit()
+        return mobile_api_response(ok=True, message="Perjalanan dibuka.", data=trip)
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── List semua perjalanan ─────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def trip_list():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT t.*,
+                COUNT(DISTINCT i.id) AS total_items
+            FROM fin_trips t
+            LEFT JOIN fin_trip_items i ON i.trip_id = t.id
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            LIMIT 30;
+        """)
+        rows = _clean([dict(r) for r in cur.fetchall()])
+        return mobile_api_response(ok=True, message="OK", data={"trips": rows})
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Detail 1 perjalanan ───────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def trip_detail(trip_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Header
+        cur.execute("SELECT * FROM fin_trips WHERE id = %s;", (trip_id,))
+        trip = cur.fetchone()
+        if not trip:
+            return mobile_api_response(ok=False, message="Tidak ditemukan.", status_code=404)
+
+        # Lapak
+        cur.execute("""
+            SELECT * FROM fin_trip_parties
+            WHERE trip_id = %s ORDER BY created_at;
+        """, (trip_id,))
+        parties = _clean([dict(r) for r in cur.fetchall()])
+
+        # Items
+        cur.execute("""
+            SELECT i.*, m.name AS material_name,
+                   p.name AS party_name
+            FROM fin_trip_items i
+            LEFT JOIN fin_materials m ON m.id = i.material_id
+            LEFT JOIN fin_trip_parties p ON p.id = i.party_id
+            WHERE i.trip_id = %s
+            ORDER BY i.created_at;
+        """, (trip_id,))
+        items = _clean([dict(r) for r in cur.fetchall()])
+
+        # Ringkasan
+        total_jual    = sum(float(i['subtotal'] or 0) for i in items if i['type'] == 'JUAL')
+        total_beli    = sum(float(i['subtotal'] or 0) for i in items if i['type'] == 'BELI')
+        total_expense = sum(float(i['subtotal'] or 0) for i in items if i['type'] == 'EXPENSE')
+        net           = total_jual - total_beli - total_expense
+
+        return mobile_api_response(ok=True, message="OK", data=_clean({
+            "trip":    dict(trip),
+            "parties": parties,
+            "items":   items,
+            "summary": {
+                "total_jual":    total_jual,
+                "total_beli":    total_beli,
+                "total_expense": total_expense,
+                "net_result":    net,
+            }
+        }))
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Tambah lapak ──────────────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/party", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_add_party(trip_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return mobile_api_response(ok=False, message="Nama lapak wajib diisi.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO fin_trip_parties (trip_id, name, note)
+            VALUES (%s, %s, %s) RETURNING *;
+        """, (trip_id, name, (data.get("note") or "").strip() or None))
+        party = _clean(dict(cur.fetchone()))
+        conn.commit()
+        return mobile_api_response(ok=True, message="Lapak ditambahkan.", data=party)
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Jual ke lapak Jakarta ─────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/sell", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_sell(trip_id):
+    """
+    {
+        "party_id": 1,
+        "payment_type": "CASH",   // CASH / TRANSFER / HUTANG
+        "party_name": "Lapak A",  // opsional jika party_id ada
+        "items": [
+            {"material_id": 1, "qty_kg": 50, "price_per_kg": 205000}
+        ]
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data         = request.get_json(silent=True) or {}
+    party_id     = data.get("party_id")
+    payment_type = (data.get("payment_type") or "CASH").upper()
+    items        = data.get("items", [])
+    note         = (data.get("note") or "").strip()
+
+    if not items:
+        return mobile_api_response(ok=False, message="Minimal 1 item.", status_code=400)
+    if payment_type not in ("CASH", "TRANSFER", "HUTANG"):
+        payment_type = "CASH"
+
+    is_debt = payment_type == "HUTANG"
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Pastikan trip masih OPEN
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t or t["status"] != "OPEN":
+            return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        # Auto-buat party jika party_name dikirim tanpa party_id
+        if not party_id and data.get("party_name"):
+            cur.execute("""
+                INSERT INTO fin_trip_parties (trip_id, name)
+                VALUES (%s, %s) RETURNING id;
+            """, (trip_id, data["party_name"].strip()))
+            party_id = cur.fetchone()["id"]
+
+        total = 0.0
+        for item in items:
+            mat_id   = int(item["material_id"])
+            qty      = float(item["qty_kg"])
+            price    = float(item["price_per_kg"])
+            subtotal = qty * price
+            total   += subtotal
+
+            # Ambil HPP rata-rata saat ini untuk hitung laba
+            cur.execute("""
+                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
+                FROM fin_stock_summary WHERE material_id = %s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, party_id, type, material_id,
+                     qty_kg, price_per_kg, subtotal,
+                     payment_type, is_debt, note)
+                VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s);
+            """, (trip_id, party_id, mat_id, qty, price, subtotal,
+                  payment_type, is_debt, note or None))
+
+            # Update stok — stok keluar saat dijual
+            _update_stock_avco(cur, mat_id, qty, avg, 'OUT', None,
+                               note=f"Jual perjalanan trip#{trip_id}")
+
+        # Catat piutang jika hutang
+        if is_debt and party_id:
+            cur.execute("SELECT name FROM fin_trip_parties WHERE id = %s;", (party_id,))
+            prow = cur.fetchone()
+            pname = prow["name"] if prow else "Lapak Jakarta"
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, note)
+                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s);
+            """, (pname, total, total, f"Jual perjalanan trip#{trip_id}"))
+
+        conn.commit()
+        return mobile_api_response(ok=True, message="Penjualan dicatat.", data={"total": total})
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Beli barang di Jakarta ────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/buy", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_buy(trip_id):
+    """
+    {
+        "party_name": "Supplier Jakarta",
+        "items": [
+            {"material_id": 1, "qty_kg": 30, "price_per_kg": 190000}
+        ]
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data  = request.get_json(silent=True) or {}
+    items = data.get("items", [])
+    note  = (data.get("note") or "").strip()
+
+    if not items:
+        return mobile_api_response(ok=False, message="Minimal 1 item.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t or t["status"] != "OPEN":
+            return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        total = 0.0
+        for item in items:
+            mat_id   = int(item["material_id"])
+            qty      = float(item["qty_kg"])
+            price    = float(item["price_per_kg"])
+            subtotal = qty * price
+            total   += subtotal
+
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, type, material_id, qty_kg,
+                     price_per_kg, subtotal, note)
+                VALUES (%s, 'BELI', %s, %s, %s, %s, %s);
+            """, (trip_id, mat_id, qty, price, subtotal, note or None))
+
+            # Stok masuk
+            _update_stock_avco(cur, mat_id, qty, price, 'IN', None,
+                               note=f"Beli Jakarta trip#{trip_id}")
+
+        conn.commit()
+        return mobile_api_response(ok=True, message="Pembelian dicatat.", data={"total": total})
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Pengeluaran perjalanan ────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/expense", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_expense(trip_id):
+    """
+    {
+        "items": [
+            {"expense_name": "Ongkir", "subtotal": 2500000},
+            {"expense_name": "Makan",  "subtotal": 300000}
+        ]
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data  = request.get_json(silent=True) or {}
+    items = data.get("items", [])
+
+    if not items:
+        return mobile_api_response(ok=False, message="Minimal 1 pengeluaran.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t or t["status"] != "OPEN":
+            return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        total = 0.0
+        for item in items:
+            subtotal = float(item.get("subtotal", 0))
+            total   += subtotal
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, type, expense_name, subtotal)
+                VALUES (%s, 'EXPENSE', %s, %s);
+            """, (trip_id,
+                  (item.get("expense_name") or "Pengeluaran").strip(),
+                  subtotal))
+
+        conn.commit()
+        return mobile_api_response(ok=True, message="Pengeluaran dicatat.", data={"total": total})
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Balikan barang ────────────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/return", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_return(trip_id):
+    """
+    {
+        "items": [
+            {
+                "material_id": 1,
+                "qty_kg": 10,
+                "return_to_stock": true,   // false = dibuang
+                "note": "barang kotor"
+            }
+        ]
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data  = request.get_json(silent=True) or {}
+    items = data.get("items", [])
+
+    if not items:
+        return mobile_api_response(ok=False, message="Minimal 1 item.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t or t["status"] != "OPEN":
+            return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        for item in items:
+            mat_id          = int(item["material_id"])
+            qty             = float(item["qty_kg"])
+            return_to_stock = bool(item.get("return_to_stock", False))
+            note            = (item.get("note") or "").strip()
+
+            # Ambil HPP rata-rata untuk valuasi balikan
+            cur.execute("""
+                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
+                FROM fin_stock_summary WHERE material_id = %s;
+            """, (mat_id,))
+            row   = cur.fetchone()
+            avg   = float(row["avg"]) if row else 0
+            value = qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, type, material_id, qty_kg,
+                     price_per_kg, subtotal,
+                     return_to_stock, note)
+                VALUES (%s, 'RETURN', %s, %s, %s, %s, %s, %s);
+            """, (trip_id, mat_id, qty, avg, value, return_to_stock, note or None))
+
+            # Jika masuk stok kembali
+            if return_to_stock:
+                _update_stock_avco(cur, mat_id, qty, avg, 'IN', None,
+                                   note=f"Balikan trip#{trip_id}")
+
+        conn.commit()
+        return mobile_api_response(ok=True, message="Balikan dicatat.")
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ── Tutup perjalanan ──────────────────────────────────────────
+@mobile_finance_bp.route("/finance/trips/<int:trip_id>/close", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def trip_close(trip_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT * FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t:
+            return mobile_api_response(ok=False, message="Tidak ditemukan.", status_code=404)
+        if t["status"] == "CLOSED":
+            return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        # Hitung total
+        cur.execute("""
+            SELECT
+                COALESCE(SUM(CASE WHEN type='JUAL'    THEN subtotal ELSE 0 END), 0) AS jual,
+                COALESCE(SUM(CASE WHEN type='BELI'    THEN subtotal ELSE 0 END), 0) AS beli,
+                COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS expense
+            FROM fin_trip_items WHERE trip_id = %s;
+        """, (trip_id,))
+        totals = cur.fetchone()
+
+        total_jual    = float(totals["jual"]    or 0)
+        total_beli    = float(totals["beli"]    or 0)
+        total_expense = float(totals["expense"] or 0)
+        net           = total_jual - total_beli - total_expense
+
+        cur.execute("""
+            UPDATE fin_trips
+            SET status       = 'CLOSED',
+                total_income  = %s,
+                total_expense = %s,
+                net_result    = %s,
+                closed_at     = NOW()
+            WHERE id = %s;
+        """, (total_jual, total_beli + total_expense, net, trip_id))
+
+        conn.commit()
+        return mobile_api_response(ok=True, message="Perjalanan ditutup.", data=_clean({
+            "total_jual":    total_jual,
+            "total_beli":    total_beli,
+            "total_expense": total_expense,
+            "net_result":    net,
+        }))
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
