@@ -165,7 +165,6 @@ def kasir_beli():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        conn.autocommit = False
 
         total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
                     for i in items)
@@ -215,7 +214,6 @@ def kasir_beli():
         return mobile_api_response(
             ok=False, message=f"Gagal: {str(e)}", status_code=500)
     finally:
-        conn.autocommit = True
         cur.close(); conn.close()
 
 
@@ -257,7 +255,6 @@ def kasir_jual():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        conn.autocommit = False
 
         total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
                     for i in items)
@@ -339,7 +336,6 @@ def kasir_jual():
         return mobile_api_response(
             ok=False, message=f"Gagal: {str(e)}", status_code=500)
     finally:
-        conn.autocommit = True
         cur.close(); conn.close()
 
 
@@ -378,7 +374,6 @@ def kasir_pengeluaran():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        conn.autocommit = False
 
         total = sum(float(i.get("subtotal", 0)) for i in items)
 
@@ -409,7 +404,6 @@ def kasir_pengeluaran():
         return mobile_api_response(
             ok=False, message=f"Gagal: {str(e)}", status_code=500)
     finally:
-        conn.autocommit = True
         cur.close(); conn.close()
 
 
