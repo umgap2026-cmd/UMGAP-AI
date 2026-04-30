@@ -201,6 +201,8 @@ def owner_insight():
                 quality_score = max(0.0, min(100.0, ((hadir / total) * 100) - (telat * 1.5) - (absen * 3)))
 
         profit = revenue - buying - expense - salary_total
+        gross_profit = revenue - buying  # Laba sebelum biaya ops & gaji
+        net_profit   = profit            # Laba bersih setelah semua biaya
 
         # Health score sederhana
         health_score = 50.0
@@ -234,6 +236,9 @@ def owner_insight():
                 "debt_total": debt_total,
                 "receivable_total": receivable_total,
                 "profit": profit,
+                "gross_profit": gross_profit,
+                "net_profit": net_profit,
+                "margin_pct": round((gross_profit / revenue * 100) if revenue > 0 else 0, 1),
 
                 "quality_score": round(quality_score, 1),
                 "health_score": round(health_score, 1),
