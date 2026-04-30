@@ -1,3 +1,9 @@
+"""
+routes/mobile/stats_export.py
+GET /api/mobile/stats/export?month=YYYY-MM
+GET /api/mobile/stats/export?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+→ Download .xlsx (2 sheet)
+"""
 from datetime import date, timedelta, datetime
 from calendar import monthrange
 from io import BytesIO
@@ -378,7 +384,7 @@ def mobile_stats_export():
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
     role = str(request.mobile_user.get("role") or "").strip().lower()
     if role not in ("admin", "owner"):
-        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin/owner.", status_code=403)
+        return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
     if not HAS_OPENPYXL:
         return mobile_api_response(
             ok=False,
