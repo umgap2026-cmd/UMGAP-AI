@@ -60,7 +60,8 @@ def mobile_invoice_products():
         products = [dict(r) for r in cur.fetchall()]
 
         data = {"products": products}
-        if request.mobile_user.get("role") == "admin":
+        role = str(request.mobile_user.get("role") or "").strip().lower()
+        if role in ("admin", "owner"):
             cur.execute("""
                 SELECT id, name, email
                 FROM users
@@ -95,19 +96,29 @@ def mobile_invoice_create():
     paid_at = datetime.utcnow() if is_paid else None
 
     logo_file = request.files.get("company_logo")
-    company_logo_path = _save_company_logo(logo_file)
+    company_logo_path = None
+    if logo_file and logo_file.filename:
+        try:
+            company_logo_path = _save_company_logo(logo_file)
+        except Exception:
+            company_logo_path = None
 
     target_user_id = user["user_id"]
-    if user.get("role") == "admin":
-        target_user_id = _safe_int(request.form.get("employee_id"), user["user_id"])
+    role = str(user.get("role") or "").strip().lower()
+    if role in ("admin", "owner"):
+        emp_id = _safe_int(request.form.get("employee_id"), 0)
+        if emp_id > 0:
+            target_user_id = emp_id
 
     # items[] dikirim sebagai JSON string atau field product_id[] / qty[]
-    items = request.form.get("items_json")
     import json
-    if items:
+    items_json_str = request.form.get("items_json")
+    if items_json_str:
         try:
-            item_rows = _invoice_rows_from_json(json.loads(items))
-        except Exception:
+            parsed = json.loads(items_json_str)
+            item_rows = _invoice_rows_from_json(parsed)
+        except Exception as e:
+            print(f"[invoice] items_json parse error: {e}")
             item_rows = []
     else:
         product_ids = request.form.getlist("product_id[]")
