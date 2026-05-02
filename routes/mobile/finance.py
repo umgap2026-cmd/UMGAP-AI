@@ -802,6 +802,181 @@ def stock_history(material_id):
         cur.close(); conn.close()
 
 # ════════════════════════════════════════════════════════════════
+#  INVOICE — Buat nota dari stok gudang
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/invoice", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def create_invoice():
+    """
+    Buat invoice dari stok fin_materials (bukan products global).
+    Body JSON:
+    {
+        "header": {
+            "customer_name":  "Bu Sari",
+            "customer_phone": "081234567890",
+            "payment_method": "CASH",
+            "notes":          "...",
+            "discount":       0,
+            "is_paid":        "1"
+        },
+        "items": [
+            {"material_id": 1, "qty": 2.5, "price": 200000}
+        ]
+    }
+    Returns: { "invoice_id": ..., "invoice_no": "INV-20260502-0001" }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data   = request.get_json(silent=True) or {}
+    header = data.get("header", {})
+    items  = data.get("items", [])
+
+    customer_name  = (header.get("customer_name")  or "").strip()
+    customer_phone = (header.get("customer_phone") or "").strip()
+    payment_method = (header.get("payment_method") or "CASH").strip().upper()
+    notes          = (header.get("notes")          or "").strip()
+    discount       = float(header.get("discount", 0) or 0)
+    is_paid        = str(header.get("is_paid", "1")) == "1"
+
+    if not customer_name:
+        return mobile_api_response(
+            ok=False, message="Nama customer wajib diisi.", status_code=400)
+    if not items:
+        return mobile_api_response(
+            ok=False, message="Minimal 1 item barang.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # ── Validasi semua material_id ada di fin_materials ──────────
+        for item in items:
+            mat_id = item.get("material_id")
+            if not mat_id:
+                return mobile_api_response(
+                    ok=False, message="material_id wajib di setiap item.", status_code=400)
+            cur.execute(
+                "SELECT id, name FROM fin_materials WHERE id = %s AND is_active = TRUE;",
+                (int(mat_id),))
+            if not cur.fetchone():
+                return mobile_api_response(
+                    ok=False,
+                    message=f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.",
+                    status_code=400)
+
+        # ── Cek stok cukup ───────────────────────────────────────────
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty    = float(item.get("qty", 0))
+            cur.execute("""
+                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                FROM fin_materials m
+                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                WHERE m.id = %s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            if not row or float(row["qty"]) < qty:
+                stok_ada = float(row["qty"]) if row else 0
+                return mobile_api_response(
+                    ok=False,
+                    message=f"Stok {row['name'] if row else mat_id} tidak cukup. "
+                            f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg",
+                    status_code=400)
+
+        # ── Hitung total & subtotal ──────────────────────────────────
+        subtotal_bruto = sum(
+            float(i.get("qty", 0)) * float(i.get("price", 0))
+            for i in items)
+        grand_total = max(0.0, subtotal_bruto - discount)
+
+        # ── Generate invoice_no: INV-YYYYMMDD-XXXX ──────────────────
+        cur.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM fin_transactions
+            WHERE created_at::date = CURRENT_DATE
+              AND type = 'JUAL_INVOICE';
+        """)
+        seq = (cur.fetchone()["cnt"] or 0) + 1
+        from datetime import datetime
+        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
+
+        # ── Insert header transaksi ──────────────────────────────────
+        is_debt = not is_paid
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt,
+                 total_amount, created_by)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s)
+            RETURNING id;
+        """, (customer_name,
+              f"[{invoice_no}] {payment_method}"
+              + (f" | {notes}" if notes else ""),
+              is_debt, grand_total,
+              request.mobile_user.get("id")))
+        txn_id = cur.fetchone()["id"]
+
+        # ── Insert items + kurangi stok AVCO ────────────────────────
+        hpp_total = 0.0
+        for item in items:
+            mat_id   = int(item["material_id"])
+            qty      = float(item.get("qty", 0))
+            price    = float(item.get("price", 0))
+            subtotal = qty * price
+
+            # Ambil HPP rata-rata saat ini
+            cur.execute("""
+                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
+                FROM fin_stock_summary WHERE material_id = %s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            hpp_total += qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(
+                cur, mat_id, qty, avg, 'OUT', txn_id,
+                note=f"Invoice {invoice_no} — {customer_name}")
+
+        # ── Catat piutang jika belum lunas ──────────────────────────
+        if is_debt and customer_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining,
+                     transaction_id, note)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (customer_name, grand_total, grand_total, txn_id,
+                  f"Invoice {invoice_no} — belum dibayar"))
+
+        conn.commit()
+
+        laba = grand_total - hpp_total
+        return mobile_api_response(ok=True, message="Invoice berhasil dibuat.", data=_clean({
+            "invoice_id": txn_id,
+            "invoice_no": invoice_no,
+            "subtotal":   subtotal_bruto,
+            "discount":   discount,
+            "total":      grand_total,
+            "hpp":        hpp_total,
+            "laba":       laba,
+        }))
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False, message=f"Gagal buat invoice: {str(e)}", status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ════════════════════════════════════════════════════════════════
 #  FASE 2 — PERJALANAN JAKARTA
 # ════════════════════════════════════════════════════════════════
 
