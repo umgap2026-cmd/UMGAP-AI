@@ -140,6 +140,118 @@ def get_materials():
 
 
 # ════════════════════════════════════════════════════════════════
+#  TAMBAH MATERIAL BARU KE GUDANG
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/materials", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def add_material():
+    """
+    Buat material baru di fin_materials.
+    Opsional: tambah stok awal sekaligus via AVCO.
+    Body JSON:
+    {
+        "name":          "BC",
+        "unit":          "kg",          // opsional, default "kg"
+        "init_qty":      100.0,         // opsional, stok awal
+        "init_price":    185000,        // opsional, HPP awal (wajib jika init_qty > 0)
+        "note":          "..."          // opsional
+    }
+    Returns: { "material_id": ..., "name": "BC" }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data      = request.get_json(silent=True) or {}
+    name      = (data.get("name") or "").strip()
+    unit      = (data.get("unit") or "kg").strip() or "kg"
+    init_qty  = float(data.get("init_qty") or 0)
+    init_price = int(data.get("init_price") or 0)
+    note      = (data.get("note") or "").strip()
+
+    if not name:
+        return mobile_api_response(
+            ok=False, message="Nama barang wajib diisi.", status_code=400)
+    if init_qty > 0 and init_price <= 0:
+        return mobile_api_response(
+            ok=False, message="Harga beli wajib diisi jika ada stok awal.",
+            status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Cek duplikat nama (case-insensitive)
+        cur.execute(
+            "SELECT id FROM fin_materials WHERE LOWER(name)=LOWER(%s) AND is_active=TRUE;",
+            (name,))
+        if cur.fetchone():
+            return mobile_api_response(
+                ok=False, message=f"Barang '{name}' sudah ada di gudang.",
+                status_code=409)
+
+        # Ambil sort_order berikutnya
+        cur.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS nxt FROM fin_materials;")
+        sort_order = cur.fetchone()["nxt"]
+
+        # Insert material
+        cur.execute("""
+            INSERT INTO fin_materials (name, unit, sort_order, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            RETURNING id;
+        """, (name, unit, sort_order))
+        material_id = cur.fetchone()["id"]
+
+        # Buat baris fin_stock_summary kosong
+        cur.execute("""
+            INSERT INTO fin_stock_summary
+                (material_id, qty_kg, avg_cost_per_kg, total_value, updated_at)
+            VALUES (%s, 0, 0, 0, NOW())
+            ON CONFLICT (material_id) DO NOTHING;
+        """, (material_id,))
+
+        # Jika ada stok awal → transaksi BELI awal
+        if init_qty > 0:
+            cur.execute("""
+                INSERT INTO fin_transactions
+                    (type, party_name, party_type, note, is_debt,
+                     total_amount, created_by)
+                VALUES ('BELI', 'Stok Awal', 'SUPPLIER', %s, FALSE, %s, %s)
+                RETURNING id;
+            """, (
+                note or f"Stok awal {name}",
+                init_qty * init_price,
+                request.mobile_user.get("id"),
+            ))
+            txn_id = cur.fetchone()["id"]
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, material_id, init_qty, init_price,
+                  init_qty * init_price))
+
+            _update_stock_avco(
+                cur, material_id, init_qty, init_price, 'IN', txn_id,
+                note=note or f"Stok awal {name}")
+
+        conn.commit()
+        return mobile_api_response(ok=True,
+            message=f"Barang '{name}' berhasil ditambahkan.",
+            data=_clean({"material_id": material_id, "name": name,
+                         "unit": unit, "init_qty": init_qty}))
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False, message=f"Gagal tambah barang: {str(e)}", status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ════════════════════════════════════════════════════════════════
 #  KASIR — BELI DARI ORANG (stok masuk)
 # ════════════════════════════════════════════════════════════════
 
