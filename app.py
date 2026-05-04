@@ -249,11 +249,11 @@ def send_daily_summary():
 @app.route("/api/mobile/version")
 def app_version():
     return jsonify({
-        "latest_version": "1.1.0",      # update ini tiap rilis baru
-        "min_version": "1.1.0",         # versi minimum yang boleh jalan
-        "force_update": True,           # True = wajib update, False = opsional
-        "update_url": "https://drive.google.com/file/d/1-wwfCybCskSeujVfs9AwWRuxzsnSjOeA/view?usp=drive_link",
-        "message": "Versi baru tersedia! Silakan update aplikasi."
+        "latest_version": "1.2.0",      # ← update tiap rilis baru
+        "min_version":    "1.2.0",      # versi minimum yang boleh jalan
+        "force_update":   True,         # True = wajib update, False = opsional
+        "update_url":     "https://drive.google.com/file/d/1kgr6QjWecWE6_VbokvEyayrFbubM_j9T/view?usp=drive_link",
+        "message":        "Versi baru v1.2.0 tersedia!\n• Cache lebih cepat\n• Fitur nota beli & jual\n• Bug fix overflow"
     })
 
 @app.route("/panduan")
