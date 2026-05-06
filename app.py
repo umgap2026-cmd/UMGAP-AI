@@ -3,9 +3,6 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from flask_compress import Compress
-Compress(app)
-
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -63,6 +60,9 @@ from routes.mobile.owner_stats import mobile_owner_stats_bp
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
+from flask_compress import Compress
+Compress(app)
 
 IS_PROD = os.getenv("RENDER") == "true" or os.getenv("FLASK_ENV") == "production"
 
