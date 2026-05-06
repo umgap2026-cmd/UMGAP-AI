@@ -18,4 +18,4 @@ numpy
 PyJWT==2.8.0
 pytz
 google-auth
-flask-compress
+flask-compress==1.15.0
