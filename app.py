@@ -256,6 +256,10 @@ def app_version():
         "message":        "Versi baru v1.2.0 tersedia!\n• Cache lebih cepat\n• Fitur nota beli & jual\n• Bug fix overflow"
     })
 
+@app.route("/ping")
+def ping():
+    return "ok", 200
+
 @app.route("/panduan")
 def panduan():
     return app.send_static_file("panduan_umgap.html")
