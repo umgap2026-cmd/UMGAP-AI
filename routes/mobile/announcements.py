@@ -49,10 +49,11 @@ def mobile_announcements():
             cur.close()
             conn.close()
 
-    # ── POST (admin only) ────────────────────────────────────────
+    # ── POST (admin & owner) ─────────────────────────────────────
     user = request.mobile_user
-    if user.get("role") != "admin":
-        return mobile_api_response(ok=False, message="Hanya admin.", status_code=403)
+    role = user.get("role", "")
+    if role not in ("admin", "owner"):
+        return mobile_api_response(ok=False, message="Hanya admin/owner.", status_code=403)
 
     payload = request.get_json(silent=True) or {}
     title   = (payload.get("title") or "").strip()
@@ -114,8 +115,8 @@ def mobile_announcements():
 def mobile_delete_announcement(ann_id):
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
-    if request.mobile_user.get("role") != "admin":
-        return mobile_api_response(ok=False, message="Hanya admin.", status_code=403)
+    if request.mobile_user.get("role") not in ("admin", "owner"):
+        return mobile_api_response(ok=False, message="Hanya admin/owner.", status_code=403)
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
