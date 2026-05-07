@@ -621,7 +621,7 @@ def report_daily():
         # Ringkasan — kasir gudang
         pemasukan   = sum(float(t["total_amount"] or 0)
                          for t in transactions
-                         if t["type"] in ("JUAL_GUDANG", "TERIMA_HUTANG"))
+                         if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "TERIMA_HUTANG"))
         pengeluaran = sum(float(t["total_amount"] or 0)
                          for t in transactions
                          if t["type"] in ("BELI_GUDANG", "PENGELUARAN",
@@ -642,7 +642,7 @@ def report_daily():
             JOIN fin_transaction_items i ON i.transaction_id = t.id
             JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date = %s
-              AND t.type = 'JUAL_GUDANG'
+              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
               AND i.material_id IS NOT NULL;
         """, (report_date,))
         hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
@@ -659,7 +659,7 @@ def report_daily():
         hpp_total  = hpp_gudang + hpp_trip
         omzet_jual = sum(float(t["total_amount"] or 0)
                         for t in transactions
-                        if t["type"] in ("JUAL_GUDANG", "JUAL_TRIP"))
+                        if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "JUAL_TRIP"))
         laba_kotor = omzet_jual - hpp_total - trip_expense
 
         # Nilai stok gudang saat ini
@@ -725,7 +725,7 @@ def report_weekly():
         def _sum(types):
             return sum(float((by_type.get(t) or {}).get("total", 0)) for t in types)
 
-        omzet    = _sum(["JUAL_GUDANG"])
+        omzet    = _sum(["JUAL_GUDANG", "JUAL_INVOICE"])
         modal    = _sum(["BELI_GUDANG"])
         biaya    = _sum(["PENGELUARAN", "PEMBAYARAN_DP"])
         masuk    = _sum(["TERIMA_HUTANG"])
@@ -737,7 +737,8 @@ def report_weekly():
             JOIN fin_transaction_items i ON i.transaction_id = t.id
             JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date >= %s AND t.created_at::date <= %s
-              AND t.type = 'JUAL_GUDANG' AND i.material_id IS NOT NULL;
+              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
+              AND i.material_id IS NOT NULL;
         """, (week_start, week_end))
         hpp = float((cur.fetchone() or {}).get("hpp", 0))
 
@@ -748,7 +749,7 @@ def report_weekly():
         cur.execute("""
             SELECT
                 created_at::date AS hari,
-                SUM(CASE WHEN type = 'JUAL_GUDANG'  THEN total_amount ELSE 0 END) AS jual,
+                SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END) AS jual,
                 SUM(CASE WHEN type = 'BELI_GUDANG'  THEN total_amount ELSE 0 END) AS beli,
                 SUM(CASE WHEN type = 'PENGELUARAN'  THEN total_amount ELSE 0 END) AS biaya
             FROM fin_transactions
