@@ -51,7 +51,8 @@ def mobile_announcements():
 
     # ── POST (admin & owner) ─────────────────────────────────────
     user = request.mobile_user
-    role = user.get("role", "")
+    role = (user.get("role") or "").strip().lower()
+
     if role not in ("admin", "owner"):
         return mobile_api_response(ok=False, message="Hanya admin/owner.", status_code=403)
 
@@ -115,7 +116,8 @@ def mobile_announcements():
 def mobile_delete_announcement(ann_id):
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
-    if request.mobile_user.get("role") not in ("admin", "owner"):
+    role = (request.mobile_user.get("role") or "").strip().lower()
+    if role not in ("admin", "owner"):
         return mobile_api_response(ok=False, message="Hanya admin/owner.", status_code=403)
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
