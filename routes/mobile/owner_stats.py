@@ -84,7 +84,7 @@ def owner_stats():
         if _table_exists(cur, "fin_transactions"):
             cur.execute("""
                 SELECT
-                    COALESCE(SUM(CASE WHEN type='JUAL_GUDANG' THEN total_amount ELSE 0 END), 0) AS revenue,
+                    COALESCE(SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END), 0) AS revenue,
                     COALESCE(SUM(CASE WHEN type='BELI_GUDANG' THEN total_amount ELSE 0 END), 0) AS buying,
                     COALESCE(SUM(CASE WHEN type='PENGELUARAN' THEN total_amount ELSE 0 END), 0) AS expense
                 FROM fin_transactions
@@ -126,7 +126,7 @@ def owner_stats():
         if _table_exists(cur, "fin_transactions"):
             cur.execute("""
                 SELECT
-                    COALESCE(SUM(CASE WHEN type='JUAL_GUDANG' THEN total_amount ELSE 0 END), 0) AS revenue,
+                    COALESCE(SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END), 0) AS revenue,
                     COALESCE(SUM(CASE WHEN type='BELI_GUDANG' THEN total_amount ELSE 0 END), 0) AS buying,
                     COALESCE(SUM(CASE WHEN type='PENGELUARAN' THEN total_amount ELSE 0 END), 0) AS expense
                 FROM fin_transactions
