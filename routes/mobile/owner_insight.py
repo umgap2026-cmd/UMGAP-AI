@@ -76,7 +76,7 @@ def owner_insight():
             cur.execute("""
                 SELECT
                     COALESCE(SUM(CASE
-                        WHEN type IN ('JUAL_GUDANG', 'TERIMA_HUTANG')
+                        WHEN type IN ('JUAL_GUDANG', 'JUAL_INVOICE', 'TERIMA_HUTANG')
                         THEN total_amount ELSE 0 END), 0) AS revenue,
 
                     COALESCE(SUM(CASE
