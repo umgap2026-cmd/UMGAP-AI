@@ -255,7 +255,7 @@ def test_wa():
     try:
         res = requests.post("http://208.76.40.98:3000/send",
             json={"phone":"087827730791","message":"Test dari Render"},
-            timeout=5)
+            timeout=15)
         return jsonify({"ok": True, "result": res.json()})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
