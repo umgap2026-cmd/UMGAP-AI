@@ -1,5 +1,7 @@
 import os
 import uuid
+import threading
+import requests as http_requests
 from datetime import date
 
 from flask import Blueprint, request
@@ -17,6 +19,46 @@ from core import (
 )
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
+
+# ── WA Bot helper ─────────────────────────────────────────────
+WA_BOT_URL = "http://localhost:3000/send"
+
+def _send_wa(phone: str, message: str):
+    """Kirim WA via Baileys bot — fire and forget di background thread."""
+    def _do():
+        try:
+            # Normalisasi nomor: hapus karakter non-angka, ganti 0 di depan → 62
+            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+            if num.startswith("0"):
+                num = "62" + num[1:]
+            http_requests.post(
+                WA_BOT_URL,
+                json={"phone": num, "message": message},
+                timeout=5
+            )
+        except Exception as ex:
+            print(f"[WA] Gagal kirim ke {phone}: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
+
+def _notify_admins_wa(message: str):
+    """Ambil semua nomor HP admin & owner lalu kirim WA."""
+    def _do():
+        try:
+            conn = get_conn()
+            cur  = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT phone FROM users
+                WHERE role IN ('admin', 'owner')
+                  AND COALESCE(phone, '') != ''
+                ORDER BY id;
+            """)
+            phones = [r["phone"] for r in cur.fetchall()]
+            cur.close(); conn.close()
+            for phone in phones:
+                _send_wa(phone, message)
+        except Exception as ex:
+            print(f"[WA] _notify_admins_wa error: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def _to_float(v):
@@ -279,6 +321,24 @@ def mobile_attendance_submit():
         except Exception as push_err:
             print("FCM admin notify error:", push_err)
 
+        # ── Notif WA ke semua admin & owner ──────────────────────
+        karyawan_name = user.get("name", "Karyawan")
+        status_emoji  = {"ONTIME": "✅", "LATE": "⏰",
+                         "SICK": "🤒", "LEAVE": "📋",
+                         "ABSENT": "❌"}.get(arrival_type, "📋")
+        status_label  = {"ONTIME": "Tepat Waktu", "LATE": "Terlambat",
+                         "SICK": "Sakit", "LEAVE": "Izin",
+                         "ABSENT": "Tidak Hadir"}.get(arrival_type, arrival_type)
+        _notify_admins_wa(
+            f"{status_emoji} *Absensi Masuk*\n\n"
+            f"👤 Karyawan: {karyawan_name}\n"
+            f"📋 Status: {status_label}\n"
+            f"📅 Tanggal: {work_date}\n"
+            f"🕐 Waktu: {now.strftime('%H:%M')} WIB\n"
+            f"⚠️ _Menunggu persetujuan admin_\n\n"
+            f"_UMGAP — Sistem Manajemen Karyawan_"
+        )
+
         return mobile_api_response(
             ok=True,
             message="Absensi berhasil dikirim dan menunggu verifikasi admin.",
@@ -459,6 +519,32 @@ def mobile_attendance_approve(pending_id):
         ))
 
         conn.commit()
+
+        # ── Notif WA ke semua admin & owner ──────────────────────
+        try:
+            # Ambil nama karyawan
+            cur2 = get_conn().cursor(cursor_factory=RealDictCursor)
+            cur2.execute("SELECT name FROM users WHERE id=%s;", (int(target_user_id),))
+            emp = cur2.fetchone()
+            cur2.close()
+            karyawan_name = emp["name"] if emp else f"User #{target_user_id}"
+        except Exception:
+            karyawan_name = f"User #{target_user_id}"
+
+        status_emoji = {"PRESENT": "✅", "SICK": "🤒",
+                        "LEAVE": "📋", "ABSENT": "❌"}.get(status, "✅")
+        arrival_label = {"ONTIME": "Tepat Waktu", "LATE": "Terlambat",
+                         "SICK": "Sakit", "LEAVE": "Izin",
+                         "ABSENT": "Tidak Hadir"}.get(arrival_type, arrival_type)
+
+        _notify_admins_wa(
+            f"{status_emoji} *Absensi Disetujui*\n\n"
+            f"👤 Karyawan: {karyawan_name}\n"
+            f"📋 Status: {arrival_label}\n"
+            f"📅 Tanggal: {work_date}\n"
+            f"✅ _Absensi telah disetujui oleh admin_\n\n"
+            f"_UMGAP — Sistem Manajemen Karyawan_"
+        )
 
         return mobile_api_response(
             ok=True,
