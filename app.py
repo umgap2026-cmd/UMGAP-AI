@@ -249,17 +249,6 @@ def send_daily_summary():
         return jsonify({"ok": False, "message": str(e)}), 500
 
 
-@app.route("/api/test-wa")
-def test_wa():
-    import requests
-    try:
-        res = requests.post("http://208.76.40.98:3000/send",
-            json={"phone":"087827730791","message":"Test dari Render"},
-            timeout=15)
-        return jsonify({"ok": True, "result": res.json()})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
 
 @app.route("/api/mobile/version")
 def app_version():
