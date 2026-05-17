@@ -90,6 +90,63 @@ def _notify_fp(user_id: int, user_name: str, action: str, time_str: str):
     threading.Thread(target=_send, daemon=True).start()
 
 
+def _notify_fp_wa(user_id: int, user_name: str, action: str, time_str: str):
+    """
+    Kirim WA ke semua admin & owner saat fingerprint check-in/out.
+    Dijalankan di background thread terpisah.
+    """
+    import threading, requests as _req
+
+    def _send_wa():
+        try:
+            WA_BOT_URL = "http://208.76.40.98:3000/send"
+
+            # Ambil nomor HP admin & owner
+            conn = get_conn()
+            cur  = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT phone FROM users
+                WHERE role IN ('admin', 'owner')
+                  AND COALESCE(phone, '') != '';
+            """)
+            phones = [r["phone"] for r in cur.fetchall()]
+            cur.close(); conn.close()
+
+            if not phones:
+                return
+
+            is_ci  = (action == "Check-in")
+            emoji  = "✅" if is_ci else "👋"
+            label  = "Check-in" if is_ci else "Check-out"
+
+            message = (
+                f"{emoji} *Fingerprint {label}*\n\n"
+                f"👤 Karyawan: {user_name}\n"
+                f"🕐 Waktu: {time_str}\n"
+                f"📟 Via: Mesin Fingerprint Gudang\n\n"
+                f"_UMGAP — Sistem Manajemen Karyawan_"
+            )
+
+            for phone in phones:
+                try:
+                    # Normalisasi: 0xxx → 62xxx
+                    num = phone.strip().replace(" ", "")
+                    if num.startswith("0"):
+                        num = "62" + num[1:]
+                    _req.post(
+                        WA_BOT_URL,
+                        json={"phone": num, "message": message},
+                        timeout=5
+                    )
+                except Exception as e:
+                    print(f"[WA biofinger] Gagal kirim ke {phone}: {e}")
+
+        except Exception as ex:
+            print(f"[WA biofinger] Error: {ex}")
+
+    threading.Thread(target=_send_wa, daemon=True).start()
+
+
 # ── Schema ───────────────────────────────────────────────────────────
 
 def _ensure_schema():
@@ -270,6 +327,7 @@ def biofinger_webhook():
 
         # ── FCM ke admin + karyawan (background thread) ──────────
         _notify_fp(user_id, user_name, action, tran_dt_str)
+        _notify_fp_wa(user_id, user_name, action, tran_dt_str)
 
         return mobile_api_response(ok=True,
             message=f"{action} {user_name} berhasil ({tran_dt_str})",
