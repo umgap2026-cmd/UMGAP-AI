@@ -1382,12 +1382,16 @@ def trip_new():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        import random as _rand
+        pin = ''.join(_rand.choices('0123456789', k=4))
+
         cur.execute("""
-            INSERT INTO fin_trips (trip_date, note, status, created_by)
-            VALUES (%s, %s, 'OPEN', %s)
+            INSERT INTO fin_trips (trip_date, note, status, created_by, pin)
+            VALUES (%s, %s, 'OPEN', %s, %s)
             RETURNING id, trip_date, note, status, created_at;
-        """, (trip_date, note or None, request.mobile_user.get("id")))
+        """, (trip_date, note or None, request.mobile_user.get("id"), pin))
         trip = _clean(dict(cur.fetchone()))
+        trip['pin'] = pin
         conn.commit()
         return mobile_api_response(ok=True, message="Perjalanan dibuka.", data=trip)
     except Exception as e:
