@@ -6,11 +6,15 @@ Kasir Gudang + Stok AVCO + Laporan Harian
 """
 from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+import threading
+import requests as http_requests
 from decimal import Decimal
 
 from db import get_conn
 from core import mobile_api_response, mobile_api_login_required
+import random
+import string
 
 mobile_finance_bp = Blueprint("mobile_finance", __name__)
 
@@ -95,6 +99,207 @@ def _update_stock_avco(cur, material_id, qty_kg, price_per_kg,
           price, new_avg, new_qty, new_value, note))
 
     return new_avg  # kembalikan HPP rata-rata baru
+
+
+
+# ── WA Bot ────────────────────────────────────────────────────
+WA_BOT_URL = "http://208.76.40.98:3000/send"
+
+def _send_wa(phone: str, message: str):
+    """Kirim WA via Baileys bot — fire and forget di background thread."""
+    def _do():
+        try:
+            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+            if num.startswith("0"):
+                num = "62" + num[1:]
+            http_requests.post(
+                WA_BOT_URL,
+                json={"phone": num, "message": message},
+                timeout=5
+            )
+        except Exception as ex:
+            print(f"[WA] Gagal kirim ke {phone}: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
+
+
+# ── OTP Store ────────────────────────────────────────────────
+_otp_store: dict = {}
+
+def _cleanup_otp():
+    """Hapus OTP expired dari store."""
+    now = datetime.utcnow()
+    expired = [k for k, v in _otp_store.items() if v['expires_at'] < now]
+    for k in expired:
+        del _otp_store[k]
+
+def _consume_otp(otp: str):
+    """Validasi OTP dan tandai used. Raise ValueError jika tidak valid."""
+    entry = _otp_store.get(otp)
+    if not entry:
+        raise ValueError('OTP tidak valid')
+    if entry['used']:
+        raise ValueError('OTP sudah digunakan')
+    if datetime.utcnow() > entry['expires_at']:
+        del _otp_store[otp]
+        raise ValueError('OTP sudah kedaluwarsa')
+    entry['used'] = True
+
+
+# ════════════════════════════════════════════════════════════════
+#  OTP ENDPOINTS
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/otp/request", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def finance_otp_request():
+    """Generate OTP 6 digit, simpan, kirim ke WA nomor admin/owner."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    _cleanup_otp()
+
+    otp = ''.join(random.choices(string.digits, k=6))
+    from datetime import timedelta as _td
+    _otp_store[otp] = {
+        'expires_at': datetime.utcnow() + _td(minutes=5),
+        'used': False,
+    }
+
+    msg = (
+        f"🔐 *Kode OTP UMGAP*\n\n"
+        f"Kode: *{otp}*\n\n"
+        f"Berlaku *5 menit*. Jangan bagikan ke siapapun.\n"
+        f"Jika tidak merasa meminta OTP, abaikan pesan ini."
+    )
+
+    # Kirim ke semua admin & owner
+    def _send_to_admins():
+        try:
+            conn = get_conn()
+            cur  = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT phone FROM users
+                WHERE role IN ('admin', 'owner')
+                  AND COALESCE(phone, '') != ''
+                ORDER BY id;
+            """)
+            phones = [r['phone'] for r in cur.fetchall()]
+            cur.close(); conn.close()
+            for phone in phones:
+                _send_wa(phone, msg)
+        except Exception as ex:
+            print(f"[OTP] Gagal kirim WA: {ex}")
+    threading.Thread(target=_send_to_admins, daemon=True).start()
+
+    return mobile_api_response(ok=True, message="OTP dikirim ke WhatsApp admin", data={})
+
+
+@mobile_finance_bp.route("/finance/otp/verify", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def finance_otp_verify():
+    """Verifikasi OTP (pre-check). OTP belum di-consume."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data = request.get_json(silent=True) or {}
+    otp  = str(data.get('otp', '')).strip()
+
+    entry = _otp_store.get(otp)
+    if not entry:
+        return mobile_api_response(ok=False, message="OTP tidak valid", status_code=400)
+    if entry['used']:
+        return mobile_api_response(ok=False, message="OTP sudah digunakan", status_code=400)
+    if datetime.utcnow() > entry['expires_at']:
+        del _otp_store[otp]
+        return mobile_api_response(ok=False, message="OTP sudah kedaluwarsa", status_code=400)
+
+    return mobile_api_response(ok=True, message="OTP valid", data={})
+
+
+@mobile_finance_bp.route("/finance/materials/<int:material_id>/edit", methods=["PUT", "OPTIONS"])
+@mobile_api_login_required
+def finance_edit_material(material_id):
+    """Edit nama & satuan material. Butuh OTP valid."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    otp  = str(data.get('otp', '')).strip()
+    name = str(data.get('name', '')).strip()
+    unit = str(data.get('unit', 'kg')).strip() or 'kg'
+
+    if not name:
+        return mobile_api_response(ok=False, message="Nama barang wajib diisi", status_code=400)
+
+    try:
+        _consume_otp(otp)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "UPDATE fin_materials SET name = %s, unit = %s WHERE id = %s RETURNING id, name",
+            (name, unit, material_id)
+        )
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            return mobile_api_response(ok=False, message="Barang tidak ditemukan", status_code=404)
+        conn.commit()
+        return mobile_api_response(ok=True, message=f"Barang berhasil diperbarui", data=dict(row))
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+@mobile_finance_bp.route("/finance/materials/<int:material_id>/delete", methods=["DELETE", "OPTIONS"])
+@mobile_api_login_required
+def finance_delete_material(material_id):
+    """Hapus material + semua ledger & summary-nya. Butuh OTP valid."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    otp  = str(data.get('otp', '')).strip()
+
+    try:
+        _consume_otp(otp)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Ambil nama dulu untuk pesan konfirmasi
+        cur.execute("SELECT name FROM fin_materials WHERE id = %s", (material_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            return mobile_api_response(ok=False, message="Barang tidak ditemukan", status_code=404)
+        mat_name = row['name']
+
+        # Hapus ledger & summary dulu (foreign key)
+        cur.execute("DELETE FROM fin_stock_ledger WHERE material_id = %s", (material_id,))
+        cur.execute("DELETE FROM fin_stock_summary WHERE material_id = %s", (material_id,))
+        cur.execute("DELETE FROM fin_materials WHERE id = %s", (material_id,))
+        conn.commit()
+        return mobile_api_response(
+            ok=True, message=f"Barang \"{mat_name}\" berhasil dihapus", data={})
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
 
 
 # ════════════════════════════════════════════════════════════════
