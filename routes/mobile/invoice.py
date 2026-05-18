@@ -326,3 +326,146 @@ def mobile_invoice_mark_paid(invoice_id):
     finally:
         cur.close()
         conn.close()
+
+@mobile_invoice_bp.route("/invoice/history", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def mobile_invoice_history():
+    """
+    Ambil semua riwayat nota dengan items-nya.
+    Query params (opsional):
+      - q          : search nomor nota / nama pelanggan
+      - type       : JUAL | BELI | (kosong = semua)
+      - status     : LUNAS | BELUM | (kosong = semua)
+      - date_from  : YYYY-MM-DD
+      - date_to    : YYYY-MM-DD
+      - limit      : default 100
+      - offset     : default 0
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    ensure_invoice_schema()
+
+    q         = (request.args.get("q")         or "").strip()
+    type_f    = (request.args.get("type")      or "").strip().upper()
+    status_f  = (request.args.get("status")    or "").strip().upper()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to   = (request.args.get("date_to")   or "").strip()
+    limit     = min(int(request.args.get("limit",  100)), 500)
+    offset    = int(request.args.get("offset", 0))
+
+    conditions = []
+    params     = []
+
+    if q:
+        conditions.append("(i.invoice_no ILIKE %s OR i.customer_name ILIKE %s OR u.name ILIKE %s)")
+        like = f"%{q}%"
+        params += [like, like, like]
+
+    if type_f == "JUAL":
+        conditions.append("i.invoice_no NOT ILIKE 'BELI%'")
+    elif type_f == "BELI":
+        conditions.append("i.invoice_no ILIKE 'BELI%'")
+
+    if status_f == "LUNAS":
+        conditions.append("i.is_paid = TRUE")
+    elif status_f == "BELUM":
+        conditions.append("i.is_paid = FALSE")
+
+    if date_from:
+        conditions.append("i.created_at >= %s::date")
+        params.append(date_from)
+    if date_to:
+        conditions.append("i.created_at < (%s::date + INTERVAL '1 day')")
+        params.append(date_to)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Total count
+        cur.execute(f"""
+            SELECT COUNT(*) AS cnt
+            FROM invoices i
+            JOIN users u ON u.id = i.created_by
+            {where};
+        """, params)
+        total = (cur.fetchone() or {}).get("cnt", 0)
+
+        # Fetch invoices
+        cur.execute(f"""
+            SELECT
+                i.id,
+                i.invoice_no,
+                i.customer_name,
+                i.customer_phone,
+                i.company_name,
+                i.payment_method,
+                i.subtotal,
+                i.discount,
+                i.grand_total,
+                i.is_paid,
+                i.notes,
+                i.created_at,
+                u.name AS created_by_name,
+                TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                CASE WHEN i.paid_at IS NOT NULL
+                    THEN TO_CHAR(i.paid_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                                 'YYYY-MM-DD HH24:MI:SS')
+                    ELSE NULL
+                END AS paid_at_wib
+            FROM invoices i
+            JOIN users u ON u.id = i.created_by
+            {where}
+            ORDER BY i.created_at DESC
+            LIMIT %s OFFSET %s;
+        """, params + [limit, offset])
+        invoices = [dict(r) for r in cur.fetchall()]
+
+        # Fetch items untuk semua invoice sekaligus
+        if invoices:
+            inv_ids = [inv["id"] for inv in invoices]
+            cur.execute("""
+                SELECT id, invoice_id, product_id, product_name, qty, price, subtotal
+                FROM invoice_items
+                WHERE invoice_id = ANY(%s)
+                ORDER BY invoice_id ASC, id ASC;
+            """, (inv_ids,))
+            all_items = cur.fetchall()
+
+            # Group items by invoice_id
+            from collections import defaultdict
+            items_map = defaultdict(list)
+            for item in all_items:
+                items_map[item["invoice_id"]].append(dict(item))
+
+            for inv in invoices:
+                inv["items"] = items_map.get(inv["id"], [])
+                # Serialize Decimal fields
+                for key in ("subtotal", "discount", "grand_total"):
+                    if inv.get(key) is not None:
+                        inv[key] = float(inv[key])
+        else:
+            for inv in invoices:
+                inv["items"] = []
+
+        return mobile_api_response(
+            ok=True,
+            message="OK",
+            data={
+                "invoices": invoices,
+                "total":    int(total),
+                "limit":    limit,
+                "offset":   offset,
+            },
+            status_code=200
+        )
+    except Exception as e:
+        import traceback
+        print(f"[INVOICE HISTORY] Error: {traceback.format_exc()}")
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close()
+        conn.close()
