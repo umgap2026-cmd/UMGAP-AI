@@ -1382,16 +1382,12 @@ def trip_new():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        import random as _rand
-        pin = ''.join(_rand.choices('0123456789', k=4))
-
         cur.execute("""
-            INSERT INTO fin_trips (trip_date, note, status, created_by, pin)
-            VALUES (%s, %s, 'OPEN', %s, %s)
+            INSERT INTO fin_trips (trip_date, note, status, created_by)
+            VALUES (%s, %s, 'OPEN', %s)
             RETURNING id, trip_date, note, status, created_at;
-        """, (trip_date, note or None, request.mobile_user.get("id"), pin))
+        """, (trip_date, note or None, request.mobile_user.get("id")))
         trip = _clean(dict(cur.fetchone()))
-        trip['pin'] = pin
         conn.commit()
         return mobile_api_response(ok=True, message="Perjalanan dibuka.", data=trip)
     except Exception as e:
@@ -2030,11 +2026,14 @@ def trip_add_item_pin(trip_id):
     material_id  = data.get("material_id")
     qty_kg       = float(data.get("qty_kg") or 1)
     total_amount = float(data.get("total_amount") or 0)
+    note         = (data.get("note") or "").strip() or "Input via PIN karyawan"
 
-    if txn_type not in ("JUAL", "BELI", "BIAYA"):
+    if txn_type not in ("JUAL", "BELI", "BIAYA", "BALIKAN"):
         return mobile_api_response(ok=False, message="Tipe tidak valid.", status_code=400)
-    if total_amount <= 0:
+    if txn_type != "BALIKAN" and total_amount <= 0:
         return mobile_api_response(ok=False, message="Jumlah uang wajib diisi.", status_code=400)
+    if txn_type == "BALIKAN" and not material_id:
+        return mobile_api_response(ok=False, message="Pilih barang yang dikembalikan.", status_code=400)
 
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -2069,25 +2068,51 @@ def trip_add_item_pin(trip_id):
         # Hitung price_per_kg
         price_per_kg = (total_amount / qty_kg) if qty_kg > 0 else total_amount
 
-        cur.execute("""
-            INSERT INTO fin_trip_items
-                (trip_id, party_id, type, material_id,
-                 qty_kg, price_per_kg, subtotal, payment_type, is_debt, note)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'CASH', FALSE, 'Input via PIN karyawan')
-            RETURNING id;
-        """, (trip_id, party_id, txn_type,
-              int(material_id) if material_id else None,
-              qty_kg, price_per_kg, total_amount))
-        new_id = cur.fetchone()["id"]
+        if txn_type == "BALIKAN":
+            # Barang balikan — masuk stok kembali
+            cur.execute("SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id = %s;", (int(material_id),))
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            value = qty_kg * avg
 
-        # Update stok jika JUAL (stok keluar)
-        if txn_type == "JUAL" and material_id:
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, type, material_id, qty_kg,
+                     price_per_kg, subtotal, return_to_stock, note)
+                VALUES (%s, 'RETURN', %s, %s, %s, %s, TRUE, %s)
+                RETURNING id;
+            """, (trip_id, int(material_id), qty_kg, avg, value, note))
+            new_id = cur.fetchone()["id"]
+
+            # Masukkan stok kembali
             try:
-                _update_stock_avco(cur, int(material_id), qty_kg,
-                                   price_per_kg, "OUT", None,
-                                   note=f"Jual perjalanan trip#{trip_id} via PIN")
+                _update_stock_avco(cur, int(material_id), qty_kg, avg, "IN", None,
+                                   note=f"Balikan trip#{trip_id} via PIN")
             except Exception as se:
-                print(f"[TRIP PIN] Stok update warning: {se}")
+                print(f"[TRIP PIN] Stok balikan warning: {se}")
+        else:
+            cur.execute("""
+                INSERT INTO fin_trip_items
+                    (trip_id, party_id, type, material_id,
+                     qty_kg, price_per_kg, subtotal, payment_type, is_debt,
+                     expense_name, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'CASH', FALSE, %s, %s)
+                RETURNING id;
+            """, (trip_id, party_id, txn_type,
+                  int(material_id) if material_id else None,
+                  qty_kg, price_per_kg, total_amount,
+                  party_name if txn_type == "BIAYA" else None,
+                  note))
+            new_id = cur.fetchone()["id"]
+
+            # Update stok jika JUAL (stok keluar)
+            if txn_type == "JUAL" and material_id:
+                try:
+                    _update_stock_avco(cur, int(material_id), qty_kg,
+                                       price_per_kg, "OUT", None,
+                                       note=f"Jual perjalanan trip#{trip_id} via PIN")
+                except Exception as se:
+                    print(f"[TRIP PIN] Stok update warning: {se}")
 
         conn.commit()
         return mobile_api_response(
