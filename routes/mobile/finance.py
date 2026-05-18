@@ -1906,3 +1906,193 @@ def trip_delete(trip_id):
         return mobile_api_response(ok=False, message=str(e), status_code=500)
     finally:
         cur.close(); conn.close()
+
+
+@mobile_finance_bp.route("/finance/trip/verify-pin", methods=["POST", "OPTIONS"])
+def trip_verify_pin():
+    """
+    Verifikasi PIN trip — TIDAK butuh login.
+    Body: { "pin": "1234" }
+    Return: trip_id, trip_note, materials list
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data = request.get_json(silent=True) or {}
+    pin  = str(data.get("pin", "")).strip()
+
+    if len(pin) != 4 or not pin.isdigit():
+        return mobile_api_response(ok=False, message="PIN tidak valid.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, note, status, pin_expires_at
+            FROM fin_trips
+            WHERE pin = %s AND status = 'OPEN'
+            LIMIT 1;
+        """, (pin,))
+        trip = cur.fetchone()
+
+        if not trip:
+            return mobile_api_response(
+                ok=False, message="PIN salah atau perjalanan sudah selesai.",
+                status_code=400)
+
+        # Cek expired (opsional — kalau NULL berarti berlaku selama trip OPEN)
+        if trip["pin_expires_at"]:
+            if datetime.utcnow() > trip["pin_expires_at"].replace(tzinfo=None):
+                return mobile_api_response(
+                    ok=False, message="PIN sudah kedaluwarsa.", status_code=400)
+
+        # Ambil daftar barang aktif untuk dropdown
+        cur.execute("""
+            SELECT id, name, unit
+            FROM fin_materials
+            WHERE is_active = TRUE
+            ORDER BY sort_order ASC, name ASC;
+        """)
+        materials = [dict(r) for r in cur.fetchall()]
+
+        return mobile_api_response(ok=True, message="PIN valid.", data={
+            "trip_id":   trip["id"],
+            "trip_note": trip["note"] or f"Perjalanan #{trip['id']}",
+            "materials": materials,
+        })
+    finally:
+        cur.close(); conn.close()
+
+
+@mobile_finance_bp.route("/finance/trip/<int:trip_id>/items-pin", methods=["GET", "OPTIONS"])
+def trip_items_pin(trip_id):
+    """
+    Ambil item transaksi trip — TIDAK butuh login, cukup trip_id valid & OPEN.
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t:
+            return mobile_api_response(ok=False, message="Trip tidak ditemukan.", status_code=404)
+
+        cur.execute("""
+            SELECT
+                i.id,
+                i.type,
+                i.qty_kg,
+                i.price_per_kg,
+                i.subtotal       AS total_amount,
+                i.note,
+                p.name           AS party_name,
+                m.name           AS material_name,
+                i.created_at
+            FROM fin_trip_items i
+            LEFT JOIN fin_trip_parties p ON p.id = i.party_id
+            LEFT JOIN fin_materials    m ON m.id = i.material_id
+            WHERE i.trip_id = %s
+            ORDER BY i.created_at DESC
+            LIMIT 50;
+        """, (trip_id,))
+        items = _clean([dict(r) for r in cur.fetchall()])
+        return mobile_api_response(ok=True, message="OK", data={"items": items})
+    finally:
+        cur.close(); conn.close()
+
+
+@mobile_finance_bp.route("/finance/trip/<int:trip_id>/add-item-pin",
+                         methods=["POST", "OPTIONS"])
+def trip_add_item_pin(trip_id):
+    """
+    Input transaksi dari karyawan via PIN — TIDAK butuh login.
+    Body: {
+        type:         'JUAL' | 'BELI' | 'BIAYA',
+        party_name:   str | null,
+        material_id:  int | null,
+        qty_kg:       float,
+        total_amount: float,
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data         = request.get_json(silent=True) or {}
+    txn_type     = str(data.get("type", "")).upper()
+    party_name   = (data.get("party_name") or "").strip() or None
+    material_id  = data.get("material_id")
+    qty_kg       = float(data.get("qty_kg") or 1)
+    total_amount = float(data.get("total_amount") or 0)
+
+    if txn_type not in ("JUAL", "BELI", "BIAYA"):
+        return mobile_api_response(ok=False, message="Tipe tidak valid.", status_code=400)
+    if total_amount <= 0:
+        return mobile_api_response(ok=False, message="Jumlah uang wajib diisi.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Pastikan trip masih OPEN
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t or t["status"] != "OPEN":
+            return mobile_api_response(
+                ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+
+        # Auto-buat party jika ada nama
+        party_id = None
+        if party_name:
+            cur.execute("""
+                INSERT INTO fin_trip_parties (trip_id, name)
+                VALUES (%s, %s)
+                ON CONFLICT DO NOTHING
+                RETURNING id;
+            """, (trip_id, party_name))
+            row = cur.fetchone()
+            if row:
+                party_id = row["id"]
+            else:
+                cur.execute("""
+                    SELECT id FROM fin_trip_parties
+                    WHERE trip_id = %s AND name = %s LIMIT 1;
+                """, (trip_id, party_name))
+                r2 = cur.fetchone()
+                if r2: party_id = r2["id"]
+
+        # Hitung price_per_kg
+        price_per_kg = (total_amount / qty_kg) if qty_kg > 0 else total_amount
+
+        cur.execute("""
+            INSERT INTO fin_trip_items
+                (trip_id, party_id, type, material_id,
+                 qty_kg, price_per_kg, subtotal, payment_type, is_debt, note)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'CASH', FALSE, 'Input via PIN karyawan')
+            RETURNING id;
+        """, (trip_id, party_id, txn_type,
+              int(material_id) if material_id else None,
+              qty_kg, price_per_kg, total_amount))
+        new_id = cur.fetchone()["id"]
+
+        # Update stok jika JUAL (stok keluar)
+        if txn_type == "JUAL" and material_id:
+            try:
+                _update_stock_avco(cur, int(material_id), qty_kg,
+                                   price_per_kg, "OUT", None,
+                                   note=f"Jual perjalanan trip#{trip_id} via PIN")
+            except Exception as se:
+                print(f"[TRIP PIN] Stok update warning: {se}")
+
+        conn.commit()
+        return mobile_api_response(
+            ok=True, message="Transaksi berhasil dicatat.",
+            data={"item_id": new_id})
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        print(f"[TRIP PIN ADD] {traceback.format_exc()}")
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
