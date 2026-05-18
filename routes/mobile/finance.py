@@ -316,7 +316,11 @@ def finance_edit_material(material_id):
                          methods=["DELETE", "OPTIONS"])
 @mobile_api_login_required
 def finance_delete_material(material_id):
-    """Hapus material + ledger + summary. Butuh OTP valid."""
+    """
+    Hapus material beserta semua data terkait. Butuh OTP valid.
+    Urutan DELETE mengikuti foreign key:
+      fin_stock_ledger → fin_transaction_items (set null) → fin_stock_summary → fin_materials
+    """
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={})
 
@@ -339,9 +343,18 @@ def finance_delete_material(material_id):
             return mobile_api_response(ok=False, message="Barang tidak ditemukan", status_code=404)
         mat_name = row["name"]
 
-        cur.execute("DELETE FROM fin_stock_ledger  WHERE material_id = %s;", (material_id,))
+        # Hapus/nullify semua referensi sebelum hapus parent
+        cur.execute("DELETE FROM fin_stock_ledger WHERE material_id = %s;", (material_id,))
+
+        # fin_transaction_items mungkin punya FK ke fin_materials — set null dulu
+        cur.execute("""
+            UPDATE fin_transaction_items
+            SET material_id = NULL
+            WHERE material_id = %s;
+        """, (material_id,))
+
         cur.execute("DELETE FROM fin_stock_summary WHERE material_id = %s;", (material_id,))
-        cur.execute("DELETE FROM fin_materials     WHERE id = %s;",          (material_id,))
+        cur.execute("UPDATE fin_materials SET is_active = FALSE WHERE id = %s;", (material_id,))
         conn.commit()
         return mobile_api_response(
             ok=True, message=f'Barang "{mat_name}" berhasil dihapus', data={})
@@ -350,6 +363,8 @@ def finance_delete_material(material_id):
         return mobile_api_response(ok=False, message=str(e), status_code=400)
     except Exception as e:
         conn.rollback()
+        import traceback
+        print(f"[DELETE MATERIAL] Error: {traceback.format_exc()}")
         return mobile_api_response(ok=False, message=str(e), status_code=500)
     finally:
         cur.close(); conn.close()
