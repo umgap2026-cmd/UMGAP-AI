@@ -345,7 +345,10 @@ def _ensure_reset_table(cur):
             expires_at  TIMESTAMPTZ NOT NULL,
             used        BOOLEAN     NOT NULL DEFAULT FALSE
         );
-        CREATE INDEX IF NOT EXISTS idx_reset_otp ON password_reset_otps(otp);
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_reset_otp
+        ON password_reset_otps(otp);
     """)
 
 def _mask_wa(phone: str) -> str:
@@ -392,10 +395,14 @@ def forgot_password_request():
                 norm62 = norm
             cur.execute("""
                 SELECT id, name, phone FROM users
-                WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g')
-                    IN (%s, %s)
+                WHERE phone IS NOT NULL
+                  AND (
+                    REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
+                        IN (%s, %s)
+                    OR phone IN (%s, %s)
+                  )
                 LIMIT 1;
-            """, (norm, norm62))
+            """, (norm, norm62, norm, norm62))
 
         user = cur.fetchone()
 
@@ -439,8 +446,10 @@ def forgot_password_request():
         )
     except Exception as e:
         conn.rollback()
-        import traceback; print(traceback.format_exc())
-        return mobile_api_response(ok=False, message=str(e), status_code=500)
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[FORGOT PW REQUEST] {tb}")
+        return mobile_api_response(ok=False, message=f"Server error: {str(e)}", status_code=500)
     finally:
         cur.close(); conn.close()
 
