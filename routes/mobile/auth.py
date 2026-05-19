@@ -336,6 +336,7 @@ def _send_wa_reset(phone: str, message: str):
     _threading.Thread(target=_do, daemon=True).start()
 
 def _ensure_reset_table(cur):
+    # Buat tabel fresh
     cur.execute("""
         CREATE TABLE IF NOT EXISTS password_reset_otps (
             id          SERIAL PRIMARY KEY,
@@ -346,10 +347,22 @@ def _ensure_reset_table(cur):
             used        BOOLEAN     NOT NULL DEFAULT FALSE
         );
     """)
-    cur.execute("""
-        CREATE INDEX IF NOT EXISTS idx_reset_otp
-        ON password_reset_otps(otp);
-    """)
+    # Tambah kolom yang mungkin kurang (jika tabel sudah ada tapi schema lama)
+    for col_sql in [
+        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS otp CHAR(6)",
+        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS reset_token TEXT",
+        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS used BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
+    ]:
+        try:
+            cur.execute(col_sql)
+        except Exception:
+            pass
+    # Buat index terpisah
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reset_otp ON password_reset_otps(otp);")
+    except Exception:
+        pass
 
 def _mask_wa(phone: str) -> str:
     """Samarkan nomor: 0812****5678"""
