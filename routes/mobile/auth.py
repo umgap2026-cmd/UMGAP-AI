@@ -311,3 +311,265 @@ def mobile_logout():
         conn.close()
 
     return mobile_api_response(ok=True, message="Logout berhasil.", data={}, status_code=200)
+
+# ─────────────────────────────────────────────
+#  FORGOT PASSWORD — OTP via WhatsApp
+# ─────────────────────────────────────────────
+
+import random as _rand
+import string as _string
+import threading as _threading
+import requests as _req
+from datetime  import datetime, timedelta
+
+WA_BOT_URL = "http://208.76.40.98:3000/send"
+
+def _send_wa_reset(phone: str, message: str):
+    def _do():
+        try:
+            num = phone.strip().replace(" ","").replace("-","").replace("+","")
+            if num.startswith("0"):
+                num = "62" + num[1:]
+            _req.post(WA_BOT_URL, json={"phone": num, "message": message}, timeout=5)
+        except Exception as ex:
+            print(f"[WA RESET] Gagal kirim ke {phone}: {ex}")
+    _threading.Thread(target=_do, daemon=True).start()
+
+def _ensure_reset_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_otps (
+            id          SERIAL PRIMARY KEY,
+            user_id     INT         NOT NULL,
+            otp         CHAR(6)     NOT NULL,
+            reset_token TEXT        UNIQUE,
+            expires_at  TIMESTAMPTZ NOT NULL,
+            used        BOOLEAN     NOT NULL DEFAULT FALSE
+        );
+        CREATE INDEX IF NOT EXISTS idx_reset_otp ON password_reset_otps(otp);
+    """)
+
+def _mask_wa(phone: str) -> str:
+    """Samarkan nomor: 0812****5678"""
+    p = phone.strip().replace("+","").replace(" ","")
+    if len(p) <= 6: return p
+    return p[:4] + "****" + p[-4:]
+
+
+@mobile_auth_bp.route("/forgot-password/request", methods=["POST", "OPTIONS"])
+def forgot_password_request():
+    """
+    Terima email atau nomor WA → cari user → kirim OTP ke WA.
+    Body: { "identifier": "email@x.com" | "081234567890" }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data       = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip()
+
+    if not identifier:
+        return mobile_api_response(
+            ok=False, message="Email atau nomor WhatsApp wajib diisi.",
+            status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_reset_table(cur)
+
+        # Cari user berdasarkan email atau nomor HP
+        is_email = "@" in identifier
+        if is_email:
+            cur.execute(
+                "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
+                (identifier,))
+        else:
+            # Normalisasi: 08xx → 628xx
+            norm = identifier.replace(" ","").replace("-","").replace("+","")
+            if norm.startswith("0"):
+                norm62 = "62" + norm[1:]
+            else:
+                norm62 = norm
+            cur.execute("""
+                SELECT id, name, phone FROM users
+                WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g')
+                    IN (%s, %s)
+                LIMIT 1;
+            """, (norm, norm62))
+
+        user = cur.fetchone()
+
+        # Selalu return sukses untuk keamanan (tidak bocorkan apakah akun ada)
+        if not user or not (user.get("phone") or "").strip():
+            conn.commit()
+            return mobile_api_response(
+                ok=True,
+                message="Jika akun ditemukan, OTP akan dikirim ke WhatsApp.",
+                data={"masked_wa": ""}
+            )
+
+        phone = user["phone"].strip()
+
+        # Hapus OTP lama user ini
+        cur.execute("DELETE FROM password_reset_otps WHERE user_id = %s;", (user["id"],))
+
+        # Generate OTP 6 digit
+        otp = "".join(_rand.choices(_string.digits, k=6))
+        cur.execute("""
+            INSERT INTO password_reset_otps (user_id, otp, expires_at)
+            VALUES (%s, %s, NOW() + INTERVAL '10 minutes');
+        """, (user["id"], otp))
+        conn.commit()
+
+        msg = (
+            f"🔐 *Reset Password UMGAP*\n\n"
+            f"Halo {user['name']},\n\n"
+            f"Kode OTP reset password kamu:\n\n"
+            f"*{otp}*\n\n"
+            f"Berlaku *10 menit*.\n"
+            f"Jangan bagikan ke siapapun.\n\n"
+            f"Jika tidak merasa meminta reset password, abaikan pesan ini."
+        )
+        _send_wa_reset(phone, msg)
+
+        return mobile_api_response(
+            ok=True,
+            message="OTP dikirim ke WhatsApp kamu.",
+            data={"masked_wa": _mask_wa(phone)}
+        )
+    except Exception as e:
+        conn.rollback()
+        import traceback; print(traceback.format_exc())
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+@mobile_auth_bp.route("/forgot-password/verify", methods=["POST", "OPTIONS"])
+def forgot_password_verify():
+    """
+    Verifikasi OTP → return reset_token sementara (berlaku 15 menit).
+    Body: { "otp": "123456" }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data = request.get_json(silent=True) or {}
+    otp  = str(data.get("otp", "")).strip()
+
+    if len(otp) != 6 or not otp.isdigit():
+        return mobile_api_response(
+            ok=False, message="OTP tidak valid.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_reset_table(cur)
+        cur.execute("""
+            SELECT id, user_id, used, expires_at
+            FROM password_reset_otps
+            WHERE otp = %s
+            FOR UPDATE;
+        """, (otp,))
+        row = cur.fetchone()
+
+        if not row:
+            return mobile_api_response(
+                ok=False, message="OTP tidak valid.", status_code=400)
+        if row["used"]:
+            return mobile_api_response(
+                ok=False, message="OTP sudah digunakan.", status_code=400)
+        if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+            return mobile_api_response(
+                ok=False, message="OTP sudah kedaluwarsa.", status_code=400)
+
+        # Buat reset_token
+        reset_token = secrets.token_urlsafe(32)
+        cur.execute("""
+            UPDATE password_reset_otps
+            SET used = TRUE,
+                reset_token = %s,
+                expires_at  = NOW() + INTERVAL '15 minutes'
+            WHERE id = %s;
+        """, (reset_token, row["id"]))
+        conn.commit()
+
+        return mobile_api_response(
+            ok=True, message="OTP valid.",
+            data={"reset_token": reset_token}
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+@mobile_auth_bp.route("/forgot-password/reset", methods=["POST", "OPTIONS"])
+def forgot_password_reset():
+    """
+    Reset password pakai reset_token dari step verify.
+    Body: { "reset_token": "...", "new_password": "..." }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={})
+
+    data         = request.get_json(silent=True) or {}
+    reset_token  = (data.get("reset_token")  or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+
+    if not reset_token or not new_password:
+        return mobile_api_response(
+            ok=False, message="reset_token dan new_password wajib diisi.",
+            status_code=400)
+    if len(new_password) < 6:
+        return mobile_api_response(
+            ok=False, message="Password minimal 6 karakter.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_reset_table(cur)
+        cur.execute("""
+            SELECT user_id, expires_at
+            FROM password_reset_otps
+            WHERE reset_token = %s
+            FOR UPDATE;
+        """, (reset_token,))
+        row = cur.fetchone()
+
+        if not row:
+            return mobile_api_response(
+                ok=False, message="Token tidak valid.", status_code=400)
+        if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+            return mobile_api_response(
+                ok=False, message="Token sudah kedaluwarsa. Mulai ulang.", status_code=400)
+
+        from werkzeug.security import generate_password_hash
+        new_hash = generate_password_hash(new_password)
+
+        cur.execute(
+            "UPDATE users SET password_hash = %s WHERE id = %s;",
+            (new_hash, row["user_id"])
+        )
+        # Hapus token setelah dipakai
+        cur.execute(
+            "DELETE FROM password_reset_otps WHERE user_id = %s;",
+            (row["user_id"],)
+        )
+        # Nonaktifkan semua token login lama (paksa login ulang)
+        cur.execute(
+            "UPDATE mobile_api_tokens SET is_active = FALSE WHERE user_id = %s;",
+            (row["user_id"],)
+        )
+        conn.commit()
+
+        return mobile_api_response(
+            ok=True, message="Password berhasil diubah. Silakan login kembali.",
+            data={}
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=str(e), status_code=500)
+    finally:
+        cur.close(); conn.close()
