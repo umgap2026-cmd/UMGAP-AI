@@ -1,3 +1,4 @@
+import io
 from datetime import date, timedelta, datetime
 from calendar import monthrange
 from io import BytesIO
@@ -188,6 +189,44 @@ def _fetch_summary(s, e):
         cur.close(); conn.close()
 
 
+
+# ── Fetch semua scan fingerprint per hari (biofinger_logs) ───────────
+def _fetch_bio_logs(s, e):
+    """Ambil semua scan fingerprint dalam periode, group per user per hari."""
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                u.name          AS employee_name,
+                bl.tran_dt::date AS scan_date,
+                COUNT(*)        AS total_scan,
+                MIN(bl.tran_dt) AS first_scan,
+                MAX(bl.tran_dt) AS last_scan,
+                STRING_AGG(
+                    TO_CHAR(bl.tran_dt AT TIME ZONE 'UTC', 'HH24:MI'),
+                    ', ' ORDER BY bl.tran_dt
+                ) AS all_scans,
+                a.status        AS att_status,
+                a.arrival_type  AS arrival_type
+            FROM biofinger_logs bl
+            JOIN users u ON u.id = bl.mapped_user_id
+            LEFT JOIN attendance a
+                ON a.user_id = bl.mapped_user_id
+               AND a.work_date = bl.tran_dt::date
+            WHERE bl.mapped_user_id IS NOT NULL
+              AND bl.tran_dt >= %s AND bl.tran_dt < %s
+            GROUP BY u.name, bl.tran_dt::date, a.status, a.arrival_type
+            ORDER BY u.name ASC, bl.tran_dt::date ASC;
+        """, (s, e))
+        return [dict(r) for r in cur.fetchall()]
+    except Exception as ex:
+        import traceback
+        print(f"[export._fetch_bio_logs] {ex}\n{traceback.format_exc()}")
+        return []  # tidak crash kalau tabel belum ada
+    finally:
+        cur.close(); conn.close()
+
+
 # ── Build Excel ──────────────────────────────────────────────────────
 def _title(ws, r1, r2, title, sub):
     ws.merge_cells(r1); c = ws[r1.split(":")[0]]
@@ -208,7 +247,8 @@ def _hdr(ws, row, cols):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.row_dimensions[row].height = 22
 
-def _build(detail, summary, label):
+def _build(detail, summary, label, bio=None):
+    if bio is None: bio = []
     wb  = openpyxl.Workbook()
     gen = (datetime.utcnow() + timedelta(hours=7)).strftime("%d %b %Y %H:%M WIB")
     sub = f"Periode: {label}   |   Dicetak: {gen}"
@@ -368,6 +408,66 @@ def _build(detail, summary, label):
         vc.fill = _fill(ev); vc.alignment = _aln("center"); vc.border = _bdr()
         ws2.row_dimensions[rr].height = 17
 
+    # ════ SHEET 3: LOG FINGERPRINT (SEMUA SCAN) ════
+    ws3 = wb.create_sheet("Log Fingerprint")
+    ws3.sheet_view.showGridLines = False
+    ws3.freeze_panes = "A5"
+    _title(ws3, "A1:I1", "A2:I2",
+           "LOG SCAN FINGERPRINT — UMGAP", sub)
+
+    C3 = [("No",4), ("Tanggal",22), ("Nama Karyawan",24), ("Status",14),
+          ("Jam Masuk (Pertama)",18), ("Jam Keluar (Terakhir)",18),
+          ("Semua Scan",30), ("Total Scan",10), ("Keterangan",16)]
+    _hdr(ws3, 4, C3)
+
+    BR = 5
+    for i, r in enumerate(bio, 1):
+        row  = BR + i - 1
+        even = "cyan_lite" if i % 2 == 0 else "white"
+        rs   = (r.get("att_status")   or "").upper()
+        at   = (r.get("arrival_type") or "").upper()
+        dk   = "LATE" if at == "LATE" and rs == "PRESENT" else (rs or "PRESENT")
+        ls, fc, bg = STATUS_MAP.get(dk, (dk or "-", "grey_txt", "white"))
+
+        first = r.get("first_scan")
+        last  = r.get("last_scan")
+        jam_in  = first.strftime("%H:%M") if first else "-"
+        jam_out = last.strftime("%H:%M")  if last  else "-"
+        # Kalau hanya 1 scan, jam keluar = "-"
+        if r.get("total_scan", 0) <= 1:
+            jam_out = "-"
+
+        rd3 = [
+            (i,                           "center", "grey_txt", even),
+            (_fmtd(r["scan_date"]),        "left",   "000000",   even),
+            (r["employee_name"],           "left",   "000000",   even),
+            (ls,                           "center", fc,          bg),
+            (jam_in,                       "center", "green",    even),
+            (jam_out,                      "center", "blue_mid", even),
+            (r.get("all_scans") or "-",    "left",   "grey_txt", even),
+            (r.get("total_scan") or 0,     "center", "blue",     even),
+            ("Terlambat" if at=="LATE" else "", "center", "yellow", even),
+        ]
+        for col, (val, ha, fc2, bg2) in enumerate(rd3, 1):
+            cl = ws3.cell(row=row, column=col, value=val)
+            cl.font      = _ft(size=9, color=C.get(fc2, fc2))
+            cl.fill      = _fill(bg2)
+            cl.alignment = _aln(ha)
+            cl.border    = _bdr()
+        ws3.row_dimensions[row].height = 17
+
+    if not bio:
+        ws3.merge_cells(f"A5:I5")
+        c3 = ws3.cell(row=5, column=1, value="Tidak ada data log fingerprint untuk periode ini.")
+        c3.font = _ft(size=9, color="grey_txt")
+        c3.alignment = _aln("center")
+
+    lr3 = BR + max(len(bio), 1) + 1
+    ws3.merge_cells(f"A{lr3}:I{lr3}")
+    ws3.cell(row=lr3, column=1,
+        value="* Kolom 'Semua Scan' menampilkan SEMUA jam scan termasuk duplikat dari mesin fingerprint"
+    ).font = _ft(size=8, color=C["grey_txt"])
+
     buf = BytesIO(); wb.save(buf); buf.seek(0)
     return buf
 
@@ -394,7 +494,8 @@ def mobile_stats_export():
     try:
         detail = _fetch_detail(start, end_exc)
         summ   = _fetch_summary(start, end_exc)
-        buf    = _build(detail, summ, label)
+        bio    = _fetch_bio_logs(start, end_exc)
+        buf    = _build(detail, summ, label, bio=bio)
     except Exception as e:
         import traceback
         print(f"[stats_export] ERROR: {e}\n{traceback.format_exc()}")
@@ -750,6 +851,112 @@ def owner_export_excel():
 
         for ci, w in enumerate([12,24,12,16,16,16], 1):
             ws4.column_dimensions[get_column_letter(ci)].width = w
+
+        # ════════════════════════════════════════
+        # SHEET 5: KESEHATAN PERUSAHAAN
+        # ════════════════════════════════════════
+        ws5 = wb.create_sheet("Kesehatan Perusahaan")
+        ws5.column_dimensions["A"].width = 30
+        ws5.column_dimensions["B"].width = 18
+        ws5.column_dimensions["C"].width = 14
+
+        ws5.merge_cells("A1:C1")
+        th = ws5["A1"]
+        th.value = f"KESEHATAN PERUSAHAAN — {period_label.upper()}"
+        th.font  = Font(bold=True, color="FFFFFF", size=13)
+        th.fill  = PatternFill("solid", fgColor="0D1B4E")
+        th.alignment = Alignment(horizontal="center", vertical="center")
+        ws5.row_dimensions[1].height = 30
+
+        def _score_row(ws, row, label, val_str, skor, max_skor, color_hex):
+            pct = min(skor / max_skor, 1.0) if max_skor > 0 else 0
+            bar = "█" * int(pct * 10) + "░" * (10 - int(pct * 10))
+            _cell(ws, row, 1, label, bold=True)
+            _cell(ws, row, 2, val_str, align="right")
+            c3 = ws.cell(row=row, column=3, value=bar)
+            c3.font = Font(color=color_hex, size=9, bold=True)
+            c3.alignment = Alignment(horizontal="left", vertical="center")
+            ws.row_dimensions[row].height = 20
+
+        row_h = 3
+        # Header kolom
+        for ci, (h, w) in enumerate([("Indikator",30),("Nilai",18),("Skor",14)], 1):
+            hc = ws5.cell(row=row_h, column=ci, value=h)
+            hc.font  = Font(bold=True, color="FFFFFF", size=10)
+            hc.fill  = PatternFill("solid", fgColor="0E7490")
+            hc.alignment = Alignment(horizontal="center", vertical="center")
+        ws5.row_dimensions[row_h].height = 22
+        row_h += 1
+
+        # Rasio laba
+        margin = (gross / revenue * 100) if revenue > 0 else 0
+        m_color = "166534" if margin >= 20 else ("92400E" if margin >= 10 else "DC2626")
+        _score_row(ws5, row_h, "Margin Laba Kotor",
+                   f"{margin:.1f}%", margin, 40, m_color)
+        row_h += 1
+
+        # Efisiensi biaya
+        cost_ratio = (expense / revenue * 100) if revenue > 0 else 100
+        cr_color = "166534" if cost_ratio < 15 else ("92400E" if cost_ratio < 30 else "DC2626")
+        _score_row(ws5, row_h, "Rasio Biaya Operasional",
+                   f"{cost_ratio:.1f}%", max(0, 30 - cost_ratio), 30, cr_color)
+        row_h += 1
+
+        # Kehadiran karyawan rata-rata
+        att_pct = 0.0
+        try:
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE status IN ('PRESENT','SICK','LEAVE')) AS hadir,
+                    COUNT(*) AS total
+                FROM attendance
+                WHERE work_date >= %s AND work_date < %s;
+            """, (start, end))
+            ar = cur.fetchone() or {}
+            hadir = int(ar.get("hadir") or 0)
+            total = int(ar.get("total") or 0)
+            att_pct = (hadir / total * 100) if total > 0 else 0
+        except: pass
+        att_color = "166534" if att_pct >= 85 else ("92400E" if att_pct >= 70 else "DC2626")
+        _score_row(ws5, row_h, "Rata-rata Kehadiran",
+                   f"{att_pct:.1f}%", att_pct, 100, att_color)
+        row_h += 1
+
+        # Laba bersih setelah gaji
+        lb_color = "166534" if net_final > 0 else "DC2626"
+        _score_row(ws5, row_h, "Laba Bersih (setelah gaji)",
+                   _rp(net_final), max(0, net_final), max(abs(net_final), 1), lb_color)
+        row_h += 1
+
+        # Hitung skor total (0-100)
+        skor_margin  = min(margin / 40 * 30, 30)
+        skor_biaya   = min(max(0, 30 - cost_ratio) / 30 * 25, 25)
+        skor_hadir   = min(att_pct / 100 * 25, 25)
+        skor_laba    = 20 if net_final > 0 else 0
+        skor_total   = int(skor_margin + skor_biaya + skor_hadir + skor_laba)
+
+        kondisi = ("🟢 SEHAT" if skor_total >= 70
+                   else "🟡 PERLU PERHATIAN" if skor_total >= 50
+                   else "🔴 KRITIS")
+        kondisi_color = ("166534" if skor_total >= 70
+                         else "92400E" if skor_total >= 50
+                         else "DC2626")
+
+        row_h += 1
+        ws5.merge_cells(f"A{row_h}:C{row_h}")
+        sc = ws5.cell(row=row_h, column=1,
+                      value=f"SKOR KESEHATAN: {skor_total}/100 — {kondisi}")
+        sc.font = Font(bold=True, color=kondisi_color, size=14)
+        sc.alignment = Alignment(horizontal="center", vertical="center")
+        sc.fill = PatternFill("solid", fgColor="F0FDF4" if skor_total >= 70
+                              else "FFFBEB" if skor_total >= 50 else "FEF2F2")
+        ws5.row_dimensions[row_h].height = 32
+
+        row_h += 2
+        ws5.merge_cells(f"A{row_h}:C{row_h}")
+        note = ws5.cell(row=row_h, column=1,
+                        value="* Skor dihitung dari: Margin Laba (30pt) + Efisiensi Biaya (25pt) + Kehadiran (25pt) + Profitabilitas (20pt)")
+        note.font = Font(color="6B7280", size=8)
 
         # ── Save ──────────────────────────────────────────────
         output = io.BytesIO()
