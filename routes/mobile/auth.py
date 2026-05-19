@@ -192,6 +192,17 @@ def mobile_login_google():
         user = cur.fetchone()
 
         if not user:
+            # Cek kode undangan sebelum auto-register
+            import os as _os
+            INVITE_CODE  = (_os.environ.get("INVITE_CODE") or "").strip().upper()
+            invite_input = (data.get("invite_code") or "").strip().upper()
+
+            if INVITE_CODE and invite_input != INVITE_CODE:
+                return mobile_api_response(
+                    ok=False,
+                    message="Kode undangan salah. Hubungi admin untuk mendapatkan kode.",
+                    status_code=403)
+
             # Auto-register sebagai employee
             from werkzeug.security import generate_password_hash
             dummy_pw = generate_password_hash(secrets.token_urlsafe(32))
