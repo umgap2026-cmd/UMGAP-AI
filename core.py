@@ -6,11 +6,15 @@ import smtplib
 import hmac
 import hashlib
 import uuid
+import requests
 from datetime import datetime, date, timedelta
 from email.message import EmailMessage
 from functools import wraps
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request as GoogleAuthRequest
+
 
 import pytz
 from flask import session, request, redirect, abort, jsonify, url_for, flash
@@ -663,6 +667,159 @@ def get_notif_count():
         """, (session.get("user_id"),))
         row = cur.fetchone() or {}
         return int(row.get("total") or 0)
+    finally:
+        cur.close()
+        conn.close()
+
+def ensure_mobile_device_tokens_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS mobile_device_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                fcm_token TEXT NOT NULL UNIQUE,
+                platform VARCHAR(20) NOT NULL DEFAULT 'android',
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mobile_device_tokens_user_id
+            ON mobile_device_tokens(user_id);
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+def _get_firebase_access_token():
+    import json as _json
+
+    sa_env = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+
+    if sa_env:
+        # Env var berisi JSON string langsung — parse dulu jangan dibuka sebagai file
+        try:
+            sa_info = _json.loads(sa_env)
+        except Exception as e:
+            raise RuntimeError(f"FIREBASE_SERVICE_ACCOUNT_JSON bukan JSON valid: {e}")
+
+        creds = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+    else:
+        # Fallback: baca dari path file
+        sa_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") or "").strip()
+        if not sa_path:
+            raise RuntimeError(
+                "FIREBASE_SERVICE_ACCOUNT_JSON atau FIREBASE_SERVICE_ACCOUNT_PATH belum diisi")
+        creds = service_account.Credentials.from_service_account_file(
+            sa_path,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+
+    creds.refresh(GoogleAuthRequest())
+    return creds.token
+
+def _deactivate_token(token: str):
+    """Nonaktifkan FCM token yang sudah tidak terdaftar."""
+    try:
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute("""
+            UPDATE mobile_device_tokens
+            SET is_active = FALSE
+            WHERE fcm_token = %s;
+        """, (token,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"[FCM] Token dinonaktifkan: ...{token[-10:]}")
+    except Exception as e:
+        print(f"[FCM] Gagal nonaktifkan token: {e}")
+
+
+def send_fcm_to_tokens(tokens, title, body, data=None):
+    if not tokens:
+        return {"ok": True, "sent": 0}
+
+    project_id = (os.getenv("FIREBASE_PROJECT_ID") or "").strip()
+    if not project_id:
+        raise RuntimeError("FIREBASE_PROJECT_ID belum diisi")
+
+    access_token = _get_firebase_access_token()
+    url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    sent = 0
+    failed = 0
+
+    for token in tokens:
+        payload = {
+            "message": {
+                "token": token,
+                "notification": {
+                    "title": title,
+                    "body": body,
+                },
+                "data": {k: str(v) for k, v in (data or {}).items()},
+                "android": {
+                    "priority": "high",
+                    "notification": {
+                        "channel_id": "umgap_main_channel",
+                        "sound": "default",
+                    }
+                }
+            }
+        }
+
+        try:
+            resp = requests.post(url, headers=headers,
+                     json=payload, timeout=15)
+            if 200 <= resp.status_code < 300:
+                sent += 1
+            else:
+                failed += 1
+                # Auto-hapus token yang sudah tidak valid
+                if resp.status_code == 404:
+                    try:
+                        err = resp.json()
+                        err_code = (err.get("error", {})
+                                       .get("details", [{}])[0]
+                                       .get("errorCode", ""))
+                        if err_code == "UNREGISTERED":
+                            _deactivate_token(token)
+                    except Exception:
+                        pass
+        except Exception:
+            failed += 1
+
+    return {"ok": True, "sent": sent, "failed": failed}
+
+def get_admin_fcm_tokens():
+    ensure_mobile_device_tokens_schema()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT DISTINCT d.fcm_token
+            FROM mobile_device_tokens d
+            JOIN users u ON u.id = d.user_id
+            WHERE d.is_active = TRUE
+              AND u.role = 'admin'
+              AND COALESCE(d.fcm_token, '') <> '';
+        """)
+        rows = cur.fetchall()
+        return [r["fcm_token"] for r in rows if r.get("fcm_token")]
     finally:
         cur.close()
         conn.close()

@@ -1,5 +1,7 @@
 import os
 import uuid
+import threading
+import requests as http_requests
 from datetime import date
 
 from flask import Blueprint, request
@@ -9,38 +11,107 @@ from db import get_conn
 from core import (
     mobile_api_response,
     mobile_api_login_required,
-    admin_required,
     _public_ip,
     _now_wib_naive,
+    _now_wib_naive_from_form,
+    get_admin_fcm_tokens,
+    send_fcm_to_tokens,
 )
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
 
+# ── WA Bot helper ─────────────────────────────────────────────
+WA_BOT_URL = "http://208.76.40.98:3000/send"
+
+def _send_wa(phone: str, message: str):
+    """Kirim WA via Baileys bot — fire and forget di background thread."""
+    def _do():
+        try:
+            # Normalisasi nomor: hapus karakter non-angka, ganti 0 di depan → 62
+            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+            if num.startswith("0"):
+                num = "62" + num[1:]
+            http_requests.post(
+                WA_BOT_URL,
+                json={"phone": num, "message": message},
+                timeout=5
+            )
+        except Exception as ex:
+            print(f"[WA] Gagal kirim ke {phone}: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
+
+def _notify_admins_wa(message: str):
+    """Ambil semua nomor HP admin & owner lalu kirim WA."""
+    def _do():
+        try:
+            conn = get_conn()
+            cur  = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT phone FROM users
+                WHERE role IN ('admin', 'owner')
+                  AND COALESCE(phone, '') != ''
+                ORDER BY id;
+            """)
+            phones = [r["phone"] for r in cur.fetchall()]
+            cur.close(); conn.close()
+            for phone in phones:
+                _send_wa(phone, message)
+        except Exception as ex:
+            print(f"[WA] _notify_admins_wa error: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
+
 
 def _to_float(v):
     try:
-        return float(v) if v not in (None, "", "null") else None
+        return float(v) if v not in (None, "") else None
     except Exception:
         return None
 
 
-@mobile_attendance_bp.route("/attendance", methods=["GET"])
+def _file_url(rel_path):
+    if not rel_path:
+        return ""
+    return request.host_url.rstrip("/") + "/static/" + str(rel_path).lstrip("/")
+
+
+def _format_dt(dt):
+    if not dt:
+        return "-"
+    try:
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return str(dt)
+
+
+def _format_attendance_row(row):
+    item = dict(row)
+    item["work_date"] = str(item.get("work_date")) if item.get("work_date") else "-"
+    item["checkin_at"] = _format_dt(item.get("checkin_at"))
+    item["photo_url"] = _file_url(item.get("photo_path"))
+    item["map_url"] = item.get("map_url") or ""
+    return item
+
+
+@mobile_attendance_bp.route("/attendance", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_list():
+def mobile_attendance_list():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
     user = request.mobile_user
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        if user["role"] == "admin":
+        if user.get("role") == "admin":
             cur.execute("""
                 SELECT
                     a.id,
                     a.user_id,
-                    u.name AS user_name,
+                    u.name AS employee_name,
                     a.work_date,
-                    a.status,
                     a.arrival_type,
+                    a.status,
                     a.note,
                     a.checkin_at,
                     a.device_id,
@@ -50,64 +121,50 @@ def api_mobile_attendance_list():
                     a.photo_path,
                     a.map_url
                 FROM attendance a
-                LEFT JOIN users u ON u.id = a.user_id
-                ORDER BY a.work_date DESC, a.id DESC
+                JOIN users u ON u.id = a.user_id
+                ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
                 LIMIT 300;
             """)
         else:
             cur.execute("""
                 SELECT
-                    a.id,
-                    a.user_id,
-                    u.name AS user_name,
-                    a.work_date,
-                    a.status,
-                    a.arrival_type,
-                    a.note,
-                    a.checkin_at,
-                    a.device_id,
-                    a.latitude,
-                    a.longitude,
-                    a.accuracy,
-                    a.photo_path,
-                    a.map_url
-                FROM attendance a
-                LEFT JOIN users u ON u.id = a.user_id
-                WHERE a.user_id=%s
-                ORDER BY a.work_date DESC, a.id DESC
+                    id,
+                    user_id,
+                    work_date,
+                    arrival_type,
+                    status,
+                    note,
+                    checkin_at,
+                    device_id,
+                    latitude,
+                    longitude,
+                    accuracy,
+                    photo_path,
+                    map_url
+                FROM attendance
+                WHERE user_id=%s
+                ORDER BY work_date DESC, checkin_at DESC NULLS LAST
                 LIMIT 100;
-            """, (user["id"],))
+            """, (user["user_id"],))
 
-        rows = cur.fetchall()
-
-        data = []
-        for r in rows:
-            data.append({
-                "id": r["id"],
-                "user_id": r["user_id"],
-                "user_name": r.get("user_name") or "",
-                "work_date": str(r["work_date"] or ""),
-                "status": r.get("status") or "",
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "checkin_at": str(r.get("checkin_at") or ""),
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "map_url": r.get("map_url") or "",
-            })
-
-        return mobile_api_response(True, "Riwayat absensi berhasil diambil.", data={"attendance": data})
+        rows = [_format_attendance_row(r) for r in cur.fetchall()]
+        return mobile_api_response(
+            ok=True,
+            message="OK",
+            data={"attendance": rows},
+            status_code=200
+        )
     finally:
         cur.close()
         conn.close()
 
 
-@mobile_attendance_bp.route("/attendance/me", methods=["GET"])
+@mobile_attendance_bp.route("/attendance/me", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_me():
+def mobile_attendance_me():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
     user = request.mobile_user
 
     conn = get_conn()
@@ -115,117 +172,200 @@ def api_mobile_attendance_me():
     try:
         cur.execute("""
             SELECT
-                a.id,
-                a.user_id,
-                u.name AS user_name,
-                a.work_date,
-                a.status,
-                a.arrival_type,
-                a.note,
-                a.checkin_at,
-                a.device_id,
-                a.latitude,
-                a.longitude,
-                a.accuracy,
-                a.photo_path,
-                a.map_url
-            FROM attendance a
-            LEFT JOIN users u ON u.id = a.user_id
-            WHERE a.user_id=%s
-            ORDER BY a.work_date DESC, a.id DESC
+                id,
+                user_id,
+                work_date,
+                arrival_type,
+                status,
+                note,
+                checkin_at,
+                device_id,
+                latitude,
+                longitude,
+                accuracy,
+                photo_path,
+                map_url
+            FROM attendance
+            WHERE user_id=%s
+            ORDER BY work_date DESC, checkin_at DESC NULLS LAST
             LIMIT 100;
-        """, (user["id"],))
-        rows = cur.fetchall()
+        """, (user["user_id"],))
 
-        data = []
-        for r in rows:
-            data.append({
-                "id": r["id"],
-                "user_id": r["user_id"],
-                "user_name": r.get("user_name") or "",
-                "work_date": str(r["work_date"] or ""),
-                "status": r.get("status") or "",
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "checkin_at": str(r.get("checkin_at") or ""),
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "map_url": r.get("map_url") or "",
-            })
-
-        return mobile_api_response(True, "Riwayat absensi saya berhasil diambil.", data={"attendance": data})
+        rows = [_format_attendance_row(r) for r in cur.fetchall()]
+        return mobile_api_response(
+            ok=True,
+            message="OK",
+            data={"attendance": rows},
+            status_code=200
+        )
     finally:
         cur.close()
         conn.close()
 
 
-@mobile_attendance_bp.route("/attendance", methods=["POST"])
+@mobile_attendance_bp.route("/attendance", methods=["POST", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_submit():
+def mobile_attendance_submit():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
     user = request.mobile_user
 
-    attendance_type = (request.form.get("attendance_type") or request.form.get("arrival_type") or "ONTIME").strip().upper()
+    # mobile submit pakai multipart/form-data dari Flutter
+    arrival_type = (request.form.get("attendance_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
-    latitude = _to_float(request.form.get("latitude"))
-    longitude = _to_float(request.form.get("longitude"))
-    accuracy = _to_float(request.form.get("accuracy"))
-    device_id = (request.form.get("device_id") or "android").strip()
-    now = _now_wib_naive()
+    device_id = (request.form.get("device_id") or "").strip()
+    lat = _to_float(request.form.get("latitude"))
+    lng = _to_float(request.form.get("longitude"))
+    acc = _to_float(request.form.get("accuracy"))
+
+    now = _now_wib_naive_from_form()
     work_date = now.date()
 
-    selfie = request.files.get("selfie")
-
-    if selfie is None:
-        return mobile_api_response(False, "Selfie wajib diupload.", status_code=400)
-
+    photo = request.files.get("selfie")
     photo_path = None
-    if selfie and selfie.filename:
+
+    if photo and photo.filename:
         os.makedirs("static/uploads/attendance_user", exist_ok=True)
-        filename = f"att_mobile_{date.today()}_{uuid.uuid4().hex}.jpg"
+        filename = f"att_{date.today()}_{uuid.uuid4().hex}.jpg"
         save_path = os.path.join("static/uploads/attendance_user", filename)
-        selfie.save(save_path)
+        photo.save(save_path)
         photo_path = f"uploads/attendance_user/{filename}"
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        # Hindari duplicate per device per hari:
+        # kalau sudah ada pending dari device yang sama hari ini, update saja.
         cur.execute("""
-            INSERT INTO attendance_pending
-            (user_id, work_date, arrival_type, note, name_input,
-             device_id, latitude, longitude, accuracy, photo_path,
-             ip_address, status, created_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s);
-        """, (
-            user["id"],
-            work_date,
-            attendance_type,
-            note,
-            user["name"],
-            device_id,
-            latitude,
-            longitude,
-            accuracy,
-            photo_path,
-            _public_ip(),
-            now
-        ))
+            SELECT id
+            FROM attendance_pending
+            WHERE device_id = %s
+              AND created_at::date = %s
+            ORDER BY id DESC
+            LIMIT 1;
+        """, (device_id or "android", work_date))
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute("""
+                UPDATE attendance_pending
+                SET
+                    user_id = %s,
+                    work_date = %s,
+                    arrival_type = %s,
+                    note = %s,
+                    name_input = %s,
+                    latitude = %s,
+                    longitude = %s,
+                    accuracy = %s,
+                    photo_path = %s,
+                    ip_address = %s,
+                    status = 'PENDING',
+                    created_at = %s
+                WHERE id = %s;
+            """, (
+                user["user_id"],
+                work_date,
+                arrival_type,
+                note,
+                user.get("name"),
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now,
+                existing["id"],
+            ))
+        else:
+            cur.execute("""
+                INSERT INTO attendance_pending
+                (
+                    user_id, work_date, arrival_type, note, name_input,
+                    device_id, latitude, longitude, accuracy, photo_path,
+                    ip_address, status, created_at
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s)
+            """, (
+                user["user_id"],
+                work_date,
+                arrival_type,
+                note,
+                user.get("name"),
+                device_id or "android",
+                lat,
+                lng,
+                acc,
+                photo_path,
+                _public_ip(),
+                now
+            ))
+
         conn.commit()
 
-        return mobile_api_response(True, "Absensi berhasil dikirim dan menunggu persetujuan admin.")
+        try:
+            admin_tokens = get_admin_fcm_tokens()
+            send_fcm_to_tokens(
+                admin_tokens,
+                title="Absensi Baru",
+                body=f"{user.get('name', 'Karyawan')} mengirim absensi dan menunggu verifikasi.",
+                data={
+                    "type": "attendance_pending",
+                    "screen": "attendance_approval",
+                    "user_id": user["user_id"],
+                    "work_date": str(work_date),
+                    "arrival_type": arrival_type,
+                }
+            )
+        except Exception as push_err:
+            print("FCM admin notify error:", push_err)
+
+        # ── Notif WA ke semua admin & owner ──────────────────────
+        karyawan_name = user.get("name", "Karyawan")
+        status_emoji  = {"ONTIME": "✅", "LATE": "⏰",
+                         "SICK": "🤒", "LEAVE": "📋",
+                         "ABSENT": "❌"}.get(arrival_type, "📋")
+        status_label  = {"ONTIME": "Tepat Waktu", "LATE": "Terlambat",
+                         "SICK": "Sakit", "LEAVE": "Izin",
+                         "ABSENT": "Tidak Hadir"}.get(arrival_type, arrival_type)
+        _notify_admins_wa(
+            f"{status_emoji} *Absensi Masuk*\n\n"
+            f"👤 Karyawan: {karyawan_name}\n"
+            f"📋 Status: {status_label}\n"
+            f"📅 Tanggal: {work_date}\n"
+            f"🕐 Waktu: {now.strftime('%H:%M')} WIB\n"
+            f"⚠️ _Menunggu persetujuan admin_\n\n"
+            f"_UMGAP — Sistem Manajemen Karyawan_"
+        )
+
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil dikirim dan menunggu verifikasi admin.",
+            data={},
+            status_code=200
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal kirim absensi: {str(e)}",
+            status_code=500
+        )
     finally:
         cur.close()
         conn.close()
 
 
-@mobile_attendance_bp.route("/attendance/pending", methods=["GET"])
+@mobile_attendance_bp.route("/attendance/pending", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_pending():
+def mobile_attendance_pending():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
     user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa mengakses data ini.", status_code=403)
+    if user.get("role") != "admin":
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -243,7 +383,8 @@ def api_mobile_attendance_pending():
                 longitude,
                 accuracy,
                 photo_path,
-                created_at
+                created_at,
+                created_at AS created_at_wib
             FROM attendance_pending
             WHERE status='PENDING'
             ORDER BY created_at DESC
@@ -251,43 +392,42 @@ def api_mobile_attendance_pending():
         """)
         rows = cur.fetchall()
 
-        data = []
+        items = []
         for r in rows:
-            map_url = ""
-            if r.get("latitude") and r.get("longitude"):
-                map_url = f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}"
+            item = dict(r)
+            item["work_date"] = str(item["work_date"]) if item.get("work_date") else "-"
+            item["created_at"] = _format_dt(item.get("created_at"))
+            item["created_at_wib"] = _format_dt(item.get("created_at_wib"))
+            item["photo_url"] = _file_url(item.get("photo_path"))
 
-            data.append({
-                "id": r["id"],
-                "name_input": r.get("name_input") or "",
-                "user_id": r.get("user_id"),
-                "work_date": str(r["work_date"] or ""),
-                "arrival_type": r.get("arrival_type") or "",
-                "note": r.get("note") or "",
-                "device_id": r.get("device_id") or "",
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "accuracy": r.get("accuracy"),
-                "photo_path": r.get("photo_path") or "",
-                "created_at": str(r.get("created_at") or ""),
-                "map_url": map_url,
-            })
+            latv = item.get("latitude")
+            lngv = item.get("longitude")
+            item["map_url"] = f"https://www.google.com/maps?q={latv},{lngv}" if latv and lngv else ""
+            items.append(item)
 
-        return mobile_api_response(True, "Pending absensi berhasil diambil.", data={"attendance": data})
+        return mobile_api_response(
+            ok=True,
+            message="OK",
+            data={"attendance": items},
+            status_code=200
+        )
     finally:
         cur.close()
         conn.close()
 
 
-@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/approve", methods=["POST"])
+@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/approve", methods=["POST", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_approve(pending_id):
-    user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa approve.", status_code=403)
+def mobile_attendance_approve(pending_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
-    data = request.get_json(silent=True) or {}
-    user_id_form = data.get("user_id")
+    user = request.mobile_user
+    if user.get("role") != "admin":
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+
+    payload = request.get_json(silent=True) or {}
+    user_id_form = payload.get("user_id")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -301,16 +441,25 @@ def api_mobile_attendance_approve(pending_id):
         p = cur.fetchone()
 
         if not p:
-            return mobile_api_response(False, "Data pending tidak ditemukan.", status_code=404)
+            return mobile_api_response(
+                ok=False,
+                message="Data pending tidak ditemukan.",
+                status_code=404
+            )
 
-        target_user_id = p.get("user_id") or user_id_form
+        target_user_id = p.get("user_id") or (int(user_id_form) if user_id_form else None)
         if not target_user_id:
-            return mobile_api_response(False, "User tujuan tidak ditemukan.", status_code=400)
+            return mobile_api_response(
+                ok=False,
+                message="User tujuan belum dipilih.",
+                status_code=400
+            )
 
-        created_at_wib = p.get("created_at")
+        created_at_wib = p.get("created_at_wib") or p.get("created_at")
         work_date = p.get("work_date") or (created_at_wib.date() if created_at_wib else date.today())
 
         arrival_type = (p.get("arrival_type") or "ONTIME").upper()
+
         if arrival_type in ("ONTIME", "LATE"):
             status = "PRESENT"
         elif arrival_type == "SICK":
@@ -333,19 +482,27 @@ def api_mobile_attendance_approve(pending_id):
                 approved_by=%s,
                 approved_at=NOW()
             WHERE id=%s;
-        """, (int(target_user_id), user["id"], pending_id))
+        """, (int(target_user_id), user["user_id"], pending_id))
 
         cur.execute("""
             INSERT INTO attendance
-            (user_id, work_date, status, arrival_type, note, checkin_at,
-             device_id, latitude, longitude, accuracy, photo_path, map_url)
+            (
+                user_id, work_date, status, arrival_type, note, checkin_at,
+                device_id, latitude, longitude, accuracy, photo_path, map_url
+            )
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (user_id, work_date)
             DO UPDATE SET
-                status=EXCLUDED.status,
-                arrival_type=EXCLUDED.arrival_type,
-                note=EXCLUDED.note,
-                checkin_at=EXCLUDED.checkin_at;
+                status = EXCLUDED.status,
+                arrival_type = EXCLUDED.arrival_type,
+                note = EXCLUDED.note,
+                checkin_at = EXCLUDED.checkin_at,
+                device_id = EXCLUDED.device_id,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                accuracy = EXCLUDED.accuracy,
+                photo_path = EXCLUDED.photo_path,
+                map_url = EXCLUDED.map_url;
         """, (
             int(target_user_id),
             work_date,
@@ -360,23 +517,65 @@ def api_mobile_attendance_approve(pending_id):
             p.get("photo_path"),
             map_url
         ))
+
         conn.commit()
 
-        return mobile_api_response(True, "Absensi berhasil disetujui.")
+        # ── Notif WA ke semua admin & owner ──────────────────────
+        try:
+            # Ambil nama karyawan
+            cur2 = get_conn().cursor(cursor_factory=RealDictCursor)
+            cur2.execute("SELECT name FROM users WHERE id=%s;", (int(target_user_id),))
+            emp = cur2.fetchone()
+            cur2.close()
+            karyawan_name = emp["name"] if emp else f"User #{target_user_id}"
+        except Exception:
+            karyawan_name = f"User #{target_user_id}"
+
+        status_emoji = {"PRESENT": "✅", "SICK": "🤒",
+                        "LEAVE": "📋", "ABSENT": "❌"}.get(status, "✅")
+        arrival_label = {"ONTIME": "Tepat Waktu", "LATE": "Terlambat",
+                         "SICK": "Sakit", "LEAVE": "Izin",
+                         "ABSENT": "Tidak Hadir"}.get(arrival_type, arrival_type)
+
+        _notify_admins_wa(
+            f"{status_emoji} *Absensi Disetujui*\n\n"
+            f"👤 Karyawan: {karyawan_name}\n"
+            f"📋 Status: {arrival_label}\n"
+            f"📅 Tanggal: {work_date}\n"
+            f"✅ _Absensi telah disetujui oleh admin_\n\n"
+            f"_UMGAP — Sistem Manajemen Karyawan_"
+        )
+
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil disetujui.",
+            data={},
+            status_code=200
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal approve absensi: {str(e)}",
+            status_code=500
+        )
     finally:
         cur.close()
         conn.close()
 
 
-@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/reject", methods=["POST"])
+@mobile_attendance_bp.route("/attendance/pending/<int:pending_id>/reject", methods=["POST", "OPTIONS"])
 @mobile_api_login_required
-def api_mobile_attendance_reject(pending_id):
-    user = request.mobile_user
-    if user["role"] != "admin":
-        return mobile_api_response(False, "Hanya admin yang bisa reject.", status_code=403)
+def mobile_attendance_reject(pending_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
-    data = request.get_json(silent=True) or {}
-    reason = (data.get("reason") or "").strip()
+    user = request.mobile_user
+    if user.get("role") != "admin":
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+
+    payload = request.get_json(silent=True) or {}
+    reason = (payload.get("reason") or "").strip()
 
     conn = get_conn()
     cur = conn.cursor()
@@ -387,11 +586,102 @@ def api_mobile_attendance_reject(pending_id):
                 rejected_by=%s,
                 rejected_at=NOW(),
                 reject_reason=%s
-            WHERE id=%s;
-        """, (user["id"], reason, pending_id))
+            WHERE id=%s AND status='PENDING';
+        """, (user["user_id"], reason, pending_id))
+
+        if cur.rowcount == 0:
+            conn.rollback()
+            return mobile_api_response(
+                ok=False,
+                message="Data pending tidak ditemukan.",
+                status_code=404
+            )
+
+        conn.commit()
+        return mobile_api_response(
+            ok=True,
+            message="Absensi berhasil ditolak.",
+            data={},
+            status_code=200
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal reject absensi: {str(e)}",
+            status_code=500
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+@mobile_attendance_bp.route("/attendance/admin-add", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_attendance_admin_add():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    user = request.mobile_user
+    if user.get("role") != "admin":
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+
+    payload        = request.get_json(silent=True) or {}
+    user_id_raw    = payload.get("user_id")
+    arrival_type   = (payload.get("arrival_type") or "ONTIME").strip().upper()
+    note           = (payload.get("note") or "").strip()
+    manual_checkin = (payload.get("manual_checkin") or "").strip()  # format "HH:MM"
+
+    if not user_id_raw:
+        return mobile_api_response(ok=False, message="user_id wajib diisi.", status_code=400)
+
+    try:
+        target_user_id = int(user_id_raw)
+    except (ValueError, TypeError):
+        return mobile_api_response(ok=False, message="user_id tidak valid.", status_code=400)
+
+    status = arrival_type if arrival_type in ("SICK", "LEAVE", "ABSENT") else "PRESENT"
+
+    # Pakai _now_wib_naive() — langsung ambil waktu WIB, tidak perlu baca form
+    now = _now_wib_naive()
+
+    if manual_checkin:
+        try:
+            parts = manual_checkin.split(":")
+            now = now.replace(hour=int(parts[0]), minute=int(parts[1]), second=0, microsecond=0)
+        except Exception:
+            pass
+
+    work_date = now.date()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # ON CONFLICT DO UPDATE — atomic, mengikuti pola endpoint approve
+        cur.execute("""
+            INSERT INTO attendance
+            (user_id, work_date, status, arrival_type, note, checkin_at, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, work_date)
+            DO UPDATE SET
+                status       = EXCLUDED.status,
+                arrival_type = EXCLUDED.arrival_type,
+                note         = EXCLUDED.note,
+                checkin_at   = EXCLUDED.checkin_at;
+        """, (target_user_id, work_date, status, arrival_type, note, now, now))
+
         conn.commit()
 
-        return mobile_api_response(True, "Absensi berhasil ditolak.")
+        return mobile_api_response(
+            ok=True,
+            message="Absensi karyawan berhasil dicatat.",
+            data={"user_id": target_user_id, "work_date": str(work_date), "arrival_type": arrival_type},
+            status_code=200
+        )
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=f"Gagal catat absensi: {str(e)}", status_code=500)
     finally:
         cur.close()
         conn.close()

@@ -19,12 +19,19 @@ def register():
     if request.method == "GET":
         return render_template("register.html", error=None)
 
-    name = (request.form.get("name") or "").strip()
-    email = (request.form.get("email") or "").strip().lower()
-    password = request.form.get("password") or ""
+    import os
+    name         = (request.form.get("name")        or "").strip()
+    email        = (request.form.get("email")       or "").strip().lower()
+    password     = request.form.get("password")     or ""
+    invite_input = (request.form.get("invite_code") or "").strip().upper()
+
+    INVITE_CODE = (os.environ.get("INVITE_CODE") or "").strip().upper()
 
     if not name or not email or not password:
         return render_template("register.html", error="Semua field wajib diisi.")
+
+    if INVITE_CODE and invite_input != INVITE_CODE:
+        return render_template("register.html", error="Kode undangan salah. Hubungi admin.")
 
     pw_hash = generate_password_hash(password)
 
@@ -99,6 +106,11 @@ def login_google():
     if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
         return "Google OAuth belum dikonfigurasi", 500
 
+    # Simpan kode undangan ke session sebelum redirect ke Google
+    invite_code = (request.args.get("invite_code") or "").strip().upper()
+    if invite_code:
+        session["invite_code"] = invite_code
+
     redirect_uri = url_for("auth.google_callback", _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -127,6 +139,14 @@ def google_callback():
         u = cur.fetchone()
 
         if not u:
+            import os
+            INVITE_CODE  = (os.environ.get("INVITE_CODE") or "").strip().upper()
+            invite_input = (session.get("invite_code")    or "").strip().upper()
+            if INVITE_CODE and invite_input != INVITE_CODE:
+                session.pop("invite_code", None)
+                return render_template("login.html",
+                    error="Kode undangan salah. Daftar via Google memerlukan kode undangan.")
+
             rand_pw = hashlib.sha256(f"{email}:{time.time()}".encode()).hexdigest()
             pw_hash = generate_password_hash(rand_pw)
 
@@ -137,6 +157,7 @@ def google_callback():
             """, (name, email, pw_hash))
             u = cur.fetchone()
 
+        session.pop("invite_code", None)
         conn.commit()
     finally:
         cur.close()

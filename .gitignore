@@ -1,0 +1,20 @@
+# Secrets / credentials
+.env
+.env.*
+*firebase-adminsdk*.json
+*serviceAccount*.json
+
+# Database dumps / backups
+*.sql
+*.dump
+
+# Caches / build artifacts
+__pycache__/
+*.pyc
+cache/
+
+# Local editor / workspace
+*.code-workspace
+
+# Runtime uploads (user-generated, not source)
+static/uploads/

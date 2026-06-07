@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, session
 from db import get_conn
-from core import is_logged_in, ensure_hr_v2_schema
+from core import is_logged_in, ensure_hr_v2_schema, admin_required
 
 system_bp = Blueprint("system", __name__)
 
@@ -12,6 +12,9 @@ def landing():
 
 @system_bp.route("/db-check")
 def db_check():
+    deny = admin_required()
+    if deny: return deny
+
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -24,6 +27,9 @@ def db_check():
 
 @system_bp.route("/init-db")
 def init_db():
+    deny = admin_required()
+    if deny: return deny
+
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -47,6 +53,9 @@ def init_db():
 
 @system_bp.route("/init-products")
 def init_products():
+    deny = admin_required()
+    if deny: return deny
+
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -69,5 +78,54 @@ def init_products():
 
 @system_bp.route("/init-hr-v2")
 def init_hr_v2():
+    deny = admin_required()
+    if deny: return deny
+
     ensure_hr_v2_schema()
     return "OK: HR v2 tables/columns ensured."
+
+@system_bp.route("/check-fcm-env")
+def check_fcm_env():
+    deny = admin_required()
+    if deny: return deny
+
+    import os
+    return {
+        "project_id": bool(os.getenv("FIREBASE_PROJECT_ID")),
+        "sa_json": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
+        "sa_path": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON_PATH")),
+    }
+@system_bp.route("/test-fcm")
+def test_fcm():
+    deny = admin_required()
+    if deny: return deny
+
+    try:
+        from core import get_admin_fcm_tokens, send_fcm_to_tokens
+        tokens = get_admin_fcm_tokens()
+        if not tokens:
+            return {"ok": False, "message": "Tidak ada FCM token admin", "tokens": 0}
+        result = send_fcm_to_tokens(
+            tokens=tokens,
+            title="Test FCM UMGAP",
+            body="Notifikasi test dari server berhasil!",
+        )
+        return {"ok": True, "result": result, "token_count": len(tokens)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    
+@system_bp.route("/clean-fcm-tokens")
+def clean_fcm_tokens():
+    deny = admin_required()
+    if deny: return deny
+
+    from db import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM mobile_device_tokens;")
+        conn.commit()
+        return {"ok": True, "message": "Semua token dihapus"}
+    finally:
+        cur.close()
+        conn.close()

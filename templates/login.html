@@ -355,12 +355,31 @@
 
         <div class="divider">or continue with</div>
 
-        <!-- Google login: aman tanpa Jinja di onclick -->
+        <!-- Input kode undangan (hanya untuk user baru via Google) -->
+        <div id="inviteWrap" style="display: none; margin: 8px 6px 4px">
+          <input
+            id="inviteInput"
+            class="input"
+            type="text"
+            placeholder="Kode Undangan (user baru)"
+            autocomplete="off"
+            style="
+              text-transform: uppercase;
+              letter-spacing: 3px;
+              font-weight: 700;
+              font-size: 13px;
+            "
+          />
+        </div>
+
+        <!-- Google login -->
         <a
           class="btn-lite"
-          href="/login/google"
+          id="googleBtn"
+          href="#"
           role="button"
           aria-label="Login dengan Google"
+          onclick="handleGoogleLogin(event)"
         >
           <img
             src="{{ url_for('static', filename='icon_goggle.png') }}"
@@ -380,7 +399,6 @@
         const btn = document.getElementById("togglePw");
         const input = document.getElementById("password");
         if (!btn || !input) return;
-
         btn.addEventListener("click", () => {
           const show = input.type === "password";
           input.type = show ? "text" : "password";
@@ -390,6 +408,25 @@
           );
         });
       })();
+
+      // Google login dengan kode undangan opsional
+      let googleClicked = false;
+      function handleGoogleLogin(e) {
+        e.preventDefault();
+        const wrap = document.getElementById("inviteWrap");
+        const input = document.getElementById("inviteInput");
+        // Tampilkan field dulu, lanjut di klik kedua
+        if (!googleClicked) {
+          wrap.style.display = "block";
+          input.focus();
+          googleClicked = true;
+          return;
+        }
+        const code = (input.value || "").trim().toUpperCase();
+        window.location.href =
+          "/login/google" +
+          (code ? "?invite_code=" + encodeURIComponent(code) : "");
+      }
     </script>
   </body>
 </html>
