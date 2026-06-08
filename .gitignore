@@ -15,6 +15,7 @@ cache/
 
 # Local editor / workspace
 *.code-workspace
+.claude/settings.local.json
 
 # Runtime uploads (user-generated, not source)
 static/uploads/
