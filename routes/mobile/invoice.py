@@ -21,6 +21,15 @@ from core import (
 mobile_invoice_bp = Blueprint("mobile_invoice", __name__)
 
 
+def _ensure_transaction_cancel_columns(cur):
+    """Lazy-migration: pastikan kolom pembatalan nota tersedia di fin_transactions."""
+    cur.execute("""
+        ALTER TABLE fin_transactions
+            ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
+    """)
+
+
 def _invoice_rows_from_json(items):
     rows = []
     if not isinstance(items, list):
@@ -389,6 +398,7 @@ def mobile_invoice_history():
     conditions = [
         "t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')",
         r"t.note ~ '(INV|BELI)-[0-9]{8}-[0-9]{4}'",
+        "t.cancelled_at IS NULL",
     ]
     params = []
 
@@ -419,6 +429,9 @@ def mobile_invoice_history():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_transaction_cancel_columns(cur)
+        conn.commit()
+
         # Total count
         cur.execute(f"""
             SELECT COUNT(*) AS cnt
@@ -495,12 +508,8 @@ def mobile_invoice_history():
             items = items_map.get(inv["id"], [])
             inv["items"] = items
             items_subtotal = sum(it["subtotal"] for it in items)
-            if inv["_type"] == "JUAL_INVOICE":
-                inv["subtotal"] = items_subtotal
-                inv["discount"] = max(0.0, items_subtotal - inv["grand_total"])
-            else:
-                inv["subtotal"] = inv["grand_total"]
-                inv["discount"] = 0.0
+            inv["subtotal"] = items_subtotal
+            inv["discount"] = max(0.0, items_subtotal - inv["grand_total"])
             del inv["_type"]
 
         return mobile_api_response(
