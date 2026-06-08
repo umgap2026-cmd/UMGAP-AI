@@ -133,6 +133,7 @@ def api_caption_ai():
         return jsonify({"ok": False, "error": f"Gagal generate: {str(e)}"}), 500
 
 
+# ── Route lama (tidak dihapus agar tidak breaking) ────────────────────────────
 @ai_bp.route("/api/caption", methods=["POST"])
 def api_caption():
     if not is_logged_in():

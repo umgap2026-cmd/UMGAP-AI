@@ -17,4 +17,4 @@ opencv-python-headless
 numpy
 pytz
 google-auth
-flask-compress
+flask-compress==1.15.0
