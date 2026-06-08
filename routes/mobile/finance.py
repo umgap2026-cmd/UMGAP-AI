@@ -101,6 +101,68 @@ def _update_stock_avco(cur, material_id, qty_kg, price_per_kg,
     return new_avg  # kembalikan HPP rata-rata baru
 
 
+def _ensure_transaction_cancel_columns(cur):
+    """Kolom penanda pembatalan nota — dibuat sekali jika belum ada."""
+    cur.execute("""
+        ALTER TABLE fin_transactions
+            ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
+    """)
+
+
+def _reverse_stock_movement(cur, material_id, qty_kg, transaction_id,
+                            original_movement, note=""):
+    """
+    Membalikkan efek stok dari sebuah nota yang dibatalkan:
+    - Nota BELI (movement asal 'IN', stok bertambah)  → dibalik dengan OUT
+    - Nota JUAL (movement asal 'OUT', stok berkurang) → dibalik dengan IN
+    avg_cost_per_kg TIDAK diutak-atik mundur (replay ledger penuh terlalu
+    kompleks untuk kebutuhan ini) — qty & nilai disesuaikan memakai avg
+    yang berlaku saat ini, sama seperti perilaku movement OUT/IN biasa.
+    """
+    cur.execute("""
+        SELECT qty_kg, avg_cost_per_kg, total_value
+        FROM fin_stock_summary
+        WHERE material_id = %s
+        FOR UPDATE;
+    """, (material_id,))
+    current = cur.fetchone()
+    old_qty = float(current["qty_kg"]          or 0) if current else 0.0
+    old_avg = float(current["avg_cost_per_kg"] or 0) if current else 0.0
+
+    qty          = float(qty_kg)
+    reverse_type = 'OUT' if original_movement == 'IN' else 'IN'
+
+    if reverse_type == 'OUT':
+        new_qty   = max(0, old_qty - qty)
+        new_avg   = old_avg
+        new_value = new_qty * new_avg
+    else:
+        new_qty   = old_qty + qty
+        new_value = (old_qty * old_avg) + (qty * old_avg)
+        new_avg   = new_value / new_qty if new_qty > 0 else old_avg
+
+    cur.execute("""
+        INSERT INTO fin_stock_summary
+            (material_id, qty_kg, avg_cost_per_kg, total_value, updated_at)
+        VALUES (%s, %s, %s, %s, NOW())
+        ON CONFLICT (material_id) DO UPDATE SET
+            qty_kg          = EXCLUDED.qty_kg,
+            avg_cost_per_kg = EXCLUDED.avg_cost_per_kg,
+            total_value     = EXCLUDED.total_value,
+            updated_at      = NOW();
+    """, (material_id, new_qty, new_avg, new_value))
+
+    cur.execute("""
+        INSERT INTO fin_stock_ledger
+            (material_id, transaction_id, movement_type,
+             qty_kg, price_per_kg, avg_cost_after, qty_after, value_after, note)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+    """, (material_id, transaction_id, reverse_type,
+          qty if reverse_type == 'IN' else -qty,
+          old_avg, new_avg, new_qty, new_value, note))
+
+
 # ══════════════════════════════════════════════════════════════
 #  WA BOT
 # ══════════════════════════════════════════════════════════════
@@ -538,10 +600,14 @@ def kasir_beli():
         "party_name": "Pak Budi",
         "is_debt": false,
         "note": "...",
+        "discount": 0,
         "items": [
             {"material_id": 1, "qty_kg": 50, "price_per_kg": 195000}
         ]
     }
+    "discount" adalah nilai potongan/DP dalam Rupiah (sudah dikonversi
+    dari % di sisi klien). total_amount & hutang dicatat sebesar
+    (total - discount), sedangkan stok/HPP tetap memakai harga asli.
     """
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data=_clean({}))
@@ -554,6 +620,7 @@ def kasir_beli():
     is_debt    = bool(data.get("is_debt", False))
     note       = (data.get("note") or "").strip()
     items      = data.get("items", [])
+    discount   = max(0.0, float(data.get("discount", 0) or 0))
 
     if not items:
         return mobile_api_response(
@@ -563,16 +630,17 @@ def kasir_beli():
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
 
-        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
-                    for i in items)
+        total       = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
+                          for i in items)
+        grand_total = max(0.0, total - discount)
 
-        # Insert transaksi header
+        # Insert transaksi header (total_amount = nilai setelah DP/diskon)
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by)
             VALUES ('BELI_GUDANG', %s, 'PELANGGAN', %s, %s, %s, %s)
             RETURNING id;
-        """, (party_name or None, note or None, is_debt, total,
+        """, (party_name or None, note or None, is_debt, grand_total,
                request.mobile_user.get("id")))
         txn_id = cur.fetchone()["id"]
 
@@ -592,24 +660,234 @@ def kasir_beli():
             _update_stock_avco(cur, mat_id, qty, price, 'IN', txn_id,
                                note=f"Beli dari {party_name or 'orang'}")
 
-        # Catat hutang jika perlu
+        # Catat hutang jika perlu (sebesar nilai setelah DP/diskon)
         if is_debt and party_name:
             cur.execute("""
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
-            """, (party_name, total, total, txn_id,
+            """, (party_name, grand_total, grand_total, txn_id,
                   f"Beli barang — belum dibayar"))
 
         conn.commit()
         return mobile_api_response(ok=True, message="Transaksi beli berhasil.", data={
             "transaction_id": txn_id,
             "total":          total,
+            "discount":       discount,
+            "grand_total":    grand_total,
         })
     except Exception as e:
         conn.rollback()
         return mobile_api_response(
             ok=False, message=f"Gagal: {str(e)}", status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ════════════════════════════════════════════════════════════════
+#  BATALKAN NOTA (Jual/Beli) — balikkan stok+HPP & hutang otomatis
+# ════════════════════════════════════════════════════════════════
+@mobile_finance_bp.route("/finance/transactions/<int:txn_id>/cancel",
+                         methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def cancel_nota_transaction(txn_id):
+    """
+    Batalkan nota Jual/Beli dari Riwayat Nota.
+    - Stok & HPP gudang dibalikkan otomatis (kebalikan arah movement asal)
+    - Hutang/piutang terkait dihapus (ditolak jika sudah ada cicilan)
+    - Nota ditandai cancelled_at sehingga hilang dari Riwayat Nota
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+
+        cur.execute("""
+            SELECT id, type, party_name, is_debt, total_amount, cancelled_at
+            FROM fin_transactions WHERE id = %s FOR UPDATE;
+        """, (txn_id,))
+        txn = cur.fetchone()
+        if not txn:
+            return mobile_api_response(
+                ok=False, message="Nota tidak ditemukan.", status_code=404)
+        if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
+            return mobile_api_response(
+                ok=False, message="Nota jenis ini tidak bisa dibatalkan dari sini.",
+                status_code=400)
+        if txn["cancelled_at"] is not None:
+            return mobile_api_response(
+                ok=False, message="Nota ini sudah pernah dibatalkan.", status_code=400)
+
+        # Tolak jika hutang/piutang terkait sudah ada cicilan tercatat
+        cur.execute("""
+            SELECT id, paid_amount FROM fin_debts WHERE transaction_id = %s;
+        """, (txn_id,))
+        debt = cur.fetchone()
+        if debt and float(debt["paid_amount"] or 0) > 0:
+            return mobile_api_response(
+                ok=False,
+                message="Nota ini tidak bisa dibatalkan karena hutang/piutangnya "
+                        "sudah memiliki cicilan/pembayaran. Batalkan pembayarannya dulu.",
+                status_code=400)
+
+        # Balikkan stok & HPP per item (BELI:'IN' → dibalik OUT, JUAL:'OUT' → dibalik IN)
+        cur.execute("""
+            SELECT material_id, qty_kg, price_per_kg
+            FROM fin_transaction_items WHERE transaction_id = %s;
+        """, (txn_id,))
+        original_movement = 'IN' if txn["type"] == 'BELI_GUDANG' else 'OUT'
+        for it in cur.fetchall():
+            _reverse_stock_movement(
+                cur, it["material_id"], float(it["qty_kg"]), txn_id,
+                original_movement, note=f"Pembatalan nota #{txn_id}")
+
+        # Hapus hutang/piutang terkait (belum ada cicilan)
+        if debt:
+            cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt["id"],))
+
+        # Tandai nota dibatalkan → otomatis hilang dari Riwayat Nota
+        cur.execute("""
+            UPDATE fin_transactions
+            SET cancelled_at = NOW(), cancelled_by = %s
+            WHERE id = %s;
+        """, (request.mobile_user.get("id"), txn_id))
+
+        conn.commit()
+        return mobile_api_response(
+            ok=True,
+            message="Nota berhasil dibatalkan, stok & HPP gudang sudah dikembalikan.",
+            data={"transaction_id": txn_id})
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False, message=f"Gagal membatalkan nota: {str(e)}", status_code=500)
+    finally:
+        cur.close(); conn.close()
+
+
+# ════════════════════════════════════════════════════════════════
+#  BALIKAN — KEMBALIKAN BARANG KE PENYETOR/SUPPLIER
+# ════════════════════════════════════════════════════════════════
+@mobile_finance_bp.route("/finance/return-to-supplier", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def kasir_balikan_supplier():
+    """
+    Balikan barang ke penyetor/supplier (mis. barang cacat / kelebihan kirim).
+    Body JSON:
+    {
+        "party_name": "Pak Budi",
+        "note": "...",
+        "items": [
+            {"material_id": 1, "qty_kg": 5, "price_per_kg": 195000}
+        ]
+    }
+    Efek:
+    - Stok gudang berkurang (movement OUT, sesuai harga balikan)
+    - Hutang ke supplier (HUTANG, jika ada & belum lunas) berkurang
+      sebesar nilai balikan, dimulai dari yang paling lama
+    - Sisa nilai balikan yang tidak tertutup hutang dicatat sebagai
+      PIUTANG — supplier berhutang refund ke kita
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data       = request.get_json(silent=True) or {}
+    party_name = (data.get("party_name") or "").strip()
+    note       = (data.get("note") or "").strip()
+    items      = data.get("items", [])
+
+    if not party_name:
+        return mobile_api_response(
+            ok=False, message="Nama penyetor/supplier wajib diisi.", status_code=400)
+    if not items:
+        return mobile_api_response(
+            ok=False, message="Minimal 1 barang yang dibalikkan.", status_code=400)
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
+                    for i in items)
+        if total <= 0:
+            return mobile_api_response(
+                ok=False, message="Nilai balikan harus lebih dari 0.", status_code=400)
+
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by)
+            VALUES ('RETUR_BELI', %s, 'PELANGGAN', %s, FALSE, %s, %s)
+            RETURNING id;
+        """, (party_name, note or "Balikan barang ke penyetor/supplier", total,
+              request.mobile_user.get("id")))
+        txn_id = cur.fetchone()["id"]
+
+        for item in items:
+            mat_id   = int(item["material_id"])
+            qty      = float(item["qty_kg"])
+            price    = float(item["price_per_kg"])
+            subtotal = qty * price
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(cur, mat_id, qty, price, 'OUT', txn_id,
+                               note=f"Balikan ke {party_name}")
+
+        # Kurangi hutang terbuka ke supplier ini, mulai dari yang paling lama
+        sisa = total
+        cur.execute("""
+            SELECT id, remaining FROM fin_debts
+            WHERE type = 'HUTANG' AND party_name = %s AND is_settled = FALSE
+            ORDER BY created_at ASC
+            FOR UPDATE;
+        """, (party_name,))
+        for debt in cur.fetchall():
+            if sisa <= 0:
+                break
+            remaining     = float(debt["remaining"] or 0)
+            potongan      = min(remaining, sisa)
+            new_remaining = remaining - potongan
+            cur.execute("""
+                UPDATE fin_debts
+                SET remaining = %s, is_settled = %s
+                WHERE id = %s;
+            """, (new_remaining, new_remaining <= 0, debt["id"]))
+            sisa -= potongan
+
+        # Sisa nilai balikan yang tidak tertutup hutang → piutang refund dari supplier
+        if sisa > 0:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (party_name, sisa, sisa, txn_id,
+                  "Refund balikan barang — supplier berhutang ke kita"))
+
+        conn.commit()
+        return mobile_api_response(
+            ok=True, message="Balikan ke supplier berhasil dicatat.",
+            data={
+                "transaction_id": txn_id,
+                "total":          total,
+                "debt_reduced":   total - sisa,
+                "refund_piutang": sisa,
+            })
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(
+            ok=False, message=f"Gagal mencatat balikan: {str(e)}", status_code=500)
     finally:
         cur.close(); conn.close()
 
