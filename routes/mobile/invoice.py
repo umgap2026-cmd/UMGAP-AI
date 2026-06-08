@@ -1,4 +1,6 @@
 import io
+import re
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -327,13 +329,45 @@ def mobile_invoice_mark_paid(invoice_id):
         cur.close()
         conn.close()
 
+_NOTA_NO_RE = re.compile(r"((?:INV|BELI)-\d{8}-\d{4})")
+
+
+def _parse_nota_note(note):
+    """
+    Ekstrak invoice_no, payment_method, dan catatan tambahan dari kolom
+    `note` di fin_transactions. Format yang dipakai saat fitur "Buat Nota"
+    mengirim transaksi ke backend (lihat create_invoice / financeBeli):
+      JUAL_INVOICE -> "[INV-YYYYMMDD-XXXX] METODE" atau "... | catatan"
+      BELI_GUDANG  -> "BELI-YYYYMMDD-XXXX - STATUS"
+    """
+    note = (note or "").strip()
+    m = _NOTA_NO_RE.search(note)
+    if not m:
+        return None, "CASH", ""
+    invoice_no = m.group(1)
+    rest = note[m.end():].strip().lstrip("]").lstrip("-").strip()
+    if "|" in rest:
+        pm, extra = rest.split("|", 1)
+        return invoice_no, (pm.strip() or "CASH"), extra.strip()
+    return invoice_no, (rest or "CASH"), ""
+
+
 @mobile_invoice_bp.route("/invoice/history", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
 def mobile_invoice_history():
     """
-    Ambil semua riwayat nota dengan items-nya.
+    Ambil semua riwayat nota beserta items-nya.
+
+    PENTING: Fitur "Buat Nota" di mobile (invoice_print_page → "Kirim ke
+    Laporan" / "Catat ke Stok Gudang") sebenarnya menyimpan datanya ke
+    fin_transactions + fin_transaction_items (type JUAL_INVOICE / BELI_GUDANG),
+    BUKAN ke tabel invoices/invoice_items — tabel itu peninggalan endpoint lama
+    (POST /api/mobile/invoice) yang sudah tidak dipanggil dari aplikasi mobile.
+    Maka riwayat di sini dibaca dari fin_transactions agar nota yang sungguhan
+    dibuat lewat aplikasi benar-benar muncul.
+
     Query params (opsional):
-      - q          : search nomor nota / nama pelanggan
+      - q          : search nomor nota / nama pelanggan / pembuat
       - type       : JUAL | BELI | (kosong = semua)
       - status     : LUNAS | BELUM | (kosong = semua)
       - date_from  : YYYY-MM-DD
@@ -344,8 +378,6 @@ def mobile_invoice_history():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
-    ensure_invoice_schema()
-
     q         = (request.args.get("q")         or "").strip()
     type_f    = (request.args.get("type")      or "").strip().upper()
     status_f  = (request.args.get("status")    or "").strip().upper()
@@ -354,32 +386,35 @@ def mobile_invoice_history():
     limit     = min(int(request.args.get("limit",  100)), 500)
     offset    = int(request.args.get("offset", 0))
 
-    conditions = []
-    params     = []
+    conditions = [
+        "t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')",
+        r"t.note ~ '(INV|BELI)-[0-9]{8}-[0-9]{4}'",
+    ]
+    params = []
 
     if q:
-        conditions.append("(i.invoice_no ILIKE %s OR i.customer_name ILIKE %s OR u.name ILIKE %s)")
+        conditions.append("(t.note ILIKE %s OR t.party_name ILIKE %s OR u.name ILIKE %s)")
         like = f"%{q}%"
         params += [like, like, like]
 
     if type_f == "JUAL":
-        conditions.append("i.invoice_no NOT ILIKE 'BELI%'")
+        conditions.append("t.type = 'JUAL_INVOICE'")
     elif type_f == "BELI":
-        conditions.append("i.invoice_no ILIKE 'BELI%'")
+        conditions.append("t.type = 'BELI_GUDANG'")
 
     if status_f == "LUNAS":
-        conditions.append("i.is_paid = TRUE")
+        conditions.append("t.is_debt = FALSE")
     elif status_f == "BELUM":
-        conditions.append("i.is_paid = FALSE")
+        conditions.append("t.is_debt = TRUE")
 
     if date_from:
-        conditions.append("i.created_at >= %s::date")
+        conditions.append("t.created_at >= %s::date")
         params.append(date_from)
     if date_to:
-        conditions.append("i.created_at < (%s::date + INTERVAL '1 day')")
+        conditions.append("t.created_at < (%s::date + INTERVAL '1 day')")
         params.append(date_to)
 
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
 
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -387,69 +422,86 @@ def mobile_invoice_history():
         # Total count
         cur.execute(f"""
             SELECT COUNT(*) AS cnt
-            FROM invoices i
-            LEFT JOIN users u ON u.id = i.created_by
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.created_by
             {where};
         """, params)
         total = (cur.fetchone() or {}).get("cnt", 0)
 
-        # Fetch invoices
+        # Fetch transactions (= nota)
         cur.execute(f"""
             SELECT
-                i.id,
-                i.invoice_no,
-                i.customer_name,
-                i.customer_phone,
-                i.company_name,
-                i.payment_method,
-                i.subtotal,
-                i.discount,
-                i.grand_total,
-                i.is_paid,
-                i.notes,
-                i.created_at,
+                t.id,
+                t.type,
+                t.note,
+                t.party_name AS customer_name,
+                t.is_debt,
+                t.total_amount,
+                t.created_at,
                 u.name AS created_by_name,
-                TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
-                CASE WHEN i.paid_at IS NOT NULL
-                    THEN TO_CHAR(i.paid_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                                 'YYYY-MM-DD HH24:MI:SS')
-                    ELSE NULL
-                END AS paid_at_wib
-            FROM invoices i
-            LEFT JOIN users u ON u.id = i.created_by
+                TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.created_by
             {where}
-            ORDER BY i.created_at DESC
+            ORDER BY t.created_at DESC
             LIMIT %s OFFSET %s;
         """, params + [limit, offset])
-        invoices = [dict(r) for r in cur.fetchall()]
+        rows = cur.fetchall()
 
-        # Fetch items untuk semua invoice sekaligus
+        invoices = []
+        for r in rows:
+            invoice_no, payment_method, extra_notes = _parse_nota_note(r.get("note"))
+            invoices.append({
+                "id":              r["id"],
+                "_type":           r["type"],
+                "invoice_no":      invoice_no or f"NOTA-{r['id']}",
+                "customer_name":   r.get("customer_name") or "",
+                "customer_phone":  "",
+                "company_name":    "",
+                "payment_method":  payment_method,
+                "grand_total":     float(r.get("total_amount") or 0),
+                "is_paid":         not bool(r.get("is_debt")),
+                "notes":           extra_notes,
+                "created_at":      r.get("created_at"),
+                "created_at_wib":  r.get("created_at_wib"),
+                "created_by_name": r.get("created_by_name"),
+            })
+
+        # Fetch items untuk semua nota sekaligus
+        items_map = defaultdict(list)
         if invoices:
             inv_ids = [inv["id"] for inv in invoices]
             cur.execute("""
-                SELECT id, invoice_id, product_id, product_name, qty, price, subtotal
-                FROM invoice_items
-                WHERE invoice_id = ANY(%s)
-                ORDER BY invoice_id ASC, id ASC;
+                SELECT ti.transaction_id AS invoice_id, ti.id, ti.material_id AS product_id,
+                       m.name AS product_name, ti.qty_kg AS qty,
+                       ti.price_per_kg AS price, ti.subtotal
+                FROM fin_transaction_items ti
+                LEFT JOIN fin_materials m ON m.id = ti.material_id
+                WHERE ti.transaction_id = ANY(%s)
+                ORDER BY ti.transaction_id ASC, ti.id ASC;
             """, (inv_ids,))
-            all_items = cur.fetchall()
+            for item in cur.fetchall():
+                items_map[item["invoice_id"]].append({
+                    "id":           item["id"],
+                    "product_id":   item["product_id"],
+                    "product_name": item.get("product_name") or "-",
+                    "qty":          float(item["qty"] or 0),
+                    "price":        int(item["price"] or 0),
+                    "subtotal":     float(item["subtotal"] or 0),
+                })
 
-            # Group items by invoice_id
-            from collections import defaultdict
-            items_map = defaultdict(list)
-            for item in all_items:
-                items_map[item["invoice_id"]].append(dict(item))
-
-            for inv in invoices:
-                inv["items"] = items_map.get(inv["id"], [])
-                # Serialize Decimal fields
-                for key in ("subtotal", "discount", "grand_total"):
-                    if inv.get(key) is not None:
-                        inv[key] = float(inv[key])
-        else:
-            for inv in invoices:
-                inv["items"] = []
+        for inv in invoices:
+            items = items_map.get(inv["id"], [])
+            inv["items"] = items
+            items_subtotal = sum(it["subtotal"] for it in items)
+            if inv["_type"] == "JUAL_INVOICE":
+                inv["subtotal"] = items_subtotal
+                inv["discount"] = max(0.0, items_subtotal - inv["grand_total"])
+            else:
+                inv["subtotal"] = inv["grand_total"]
+                inv["discount"] = 0.0
+            del inv["_type"]
 
         return mobile_api_response(
             ok=True,
