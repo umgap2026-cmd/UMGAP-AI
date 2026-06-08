@@ -294,7 +294,19 @@ def ensure_password_reset_schema():
         cur.close()
         conn.close()
 
+_mobile_api_schema_ready = False
+
 def ensure_mobile_api_schema():
+    """Buat tabel/index mobile_api_tokens kalau belum ada.
+
+    Dipanggil dari mobile_api_login_required (yaitu di setiap request mobile
+    yang butuh login), jadi hasilnya di-cache di memori per-process supaya
+    tidak menjalankan DDL berulang-ulang pada tiap request.
+    """
+    global _mobile_api_schema_ready
+    if _mobile_api_schema_ready:
+        return
+
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -309,7 +321,12 @@ def ensure_mobile_api_schema():
                 last_used_at TIMESTAMP
             );
         """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mobile_api_tokens_user_id
+            ON mobile_api_tokens(user_id);
+        """)
         conn.commit()
+        _mobile_api_schema_ready = True
     finally:
         cur.close()
         conn.close()

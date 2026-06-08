@@ -6,33 +6,9 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash
 
 from db import get_conn
-from core import mobile_api_response, _public_ip
+from core import mobile_api_response, _public_ip, ensure_mobile_api_schema
 
 mobile_auth_bp = Blueprint("mobile_auth", __name__)
-
-
-def ensure_mobile_api_schema():
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS mobile_api_tokens (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token TEXT NOT NULL UNIQUE,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                last_used_at TIMESTAMP
-            );
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_mobile_api_tokens_user_id
-            ON mobile_api_tokens(user_id);
-        """)
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
 
 
 def _issue_token(user_id: int) -> str:
