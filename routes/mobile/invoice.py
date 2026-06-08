@@ -250,7 +250,7 @@ def mobile_invoice_detail(invoice_id):
         cur.execute("""
             SELECT i.*, u.name AS created_by_name
             FROM invoices i
-            JOIN users u ON u.id = i.created_by
+            LEFT JOIN users u ON u.id = i.created_by
             WHERE i.id=%s
             LIMIT 1;
         """, (invoice_id,))
@@ -388,7 +388,7 @@ def mobile_invoice_history():
         cur.execute(f"""
             SELECT COUNT(*) AS cnt
             FROM invoices i
-            JOIN users u ON u.id = i.created_by
+            LEFT JOIN users u ON u.id = i.created_by
             {where};
         """, params)
         total = (cur.fetchone() or {}).get("cnt", 0)
@@ -417,7 +417,7 @@ def mobile_invoice_history():
                     ELSE NULL
                 END AS paid_at_wib
             FROM invoices i
-            JOIN users u ON u.id = i.created_by
+            LEFT JOIN users u ON u.id = i.created_by
             {where}
             ORDER BY i.created_at DESC
             LIMIT %s OFFSET %s;
