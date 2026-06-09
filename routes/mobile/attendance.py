@@ -21,7 +21,7 @@ from core import (
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
 
 # ── WA Bot helper ─────────────────────────────────────────────
-WA_BOT_URL = "http://208.76.40.98:3000/send"
+WA_BOT_URL = "http://13.140.161.156:3000/send"
 
 def _send_wa(phone: str, message: str):
     """Kirim WA via Baileys bot — fire and forget di background thread."""
