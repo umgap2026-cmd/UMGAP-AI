@@ -50,8 +50,8 @@ def mobile_payroll():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
-    if request.mobile_user.get("role") != "admin":
-        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+    if request.mobile_user.get("role") not in ("admin", "owner"):
+        return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
 
     month = request.args.get("month")
     if not month:
@@ -69,9 +69,11 @@ def mobile_payroll():
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT u.id, u.name,
-                COALESCE(p.daily_salary, 0)  AS daily_salary,
-                COALESCE(p.monthly_salary, 0) AS monthly_salary,
+            SELECT
+                u.id,
+                u.name,
+                COALESCE(MAX(p.daily_salary),   0) AS daily_salary,
+                COALESCE(MAX(p.monthly_salary), 0) AS monthly_salary,
                 COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
                 COALESCE(SUM(CASE WHEN a.status='SICK'    THEN 1 ELSE 0 END), 0) AS days_sick,
                 COALESCE(SUM(CASE WHEN a.status='LEAVE'   THEN 1 ELSE 0 END), 0) AS days_leave,
@@ -81,7 +83,7 @@ def mobile_payroll():
             LEFT JOIN attendance a ON a.user_id = u.id
                 AND a.work_date >= %s AND a.work_date < %s
             WHERE u.role = 'employee'
-            GROUP BY u.id, u.name, p.daily_salary, p.monthly_salary
+            GROUP BY u.id, u.name
             ORDER BY u.name ASC;
         """, (start_date, end_date))
         rows = [dict(r) for r in cur.fetchall()]
@@ -90,6 +92,12 @@ def mobile_payroll():
             ok=True, message="OK",
             data={"month": month, "workdays": workdays, "payroll": rows},
             status_code=200
+        )
+    except Exception as e:
+        return mobile_api_response(
+            ok=False,
+            message=f"Gagal memuat data payroll: {str(e)}",
+            status_code=500
         )
     finally:
         cur.close()
