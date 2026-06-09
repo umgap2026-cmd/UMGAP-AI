@@ -99,7 +99,7 @@ def _notify_fp_wa(user_id: int, user_name: str, action: str, time_str: str):
 
     def _send_wa():
         try:
-            WA_BOT_URL = "http://208.76.40.98:3000/send"
+            WA_BOT_URL = "http://13.140.161.156:3000/send"
 
             # Ambil nomor HP admin & owner
             conn = get_conn()

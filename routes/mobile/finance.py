@@ -166,7 +166,7 @@ def _reverse_stock_movement(cur, material_id, qty_kg, transaction_id,
 # ══════════════════════════════════════════════════════════════
 #  WA BOT
 # ══════════════════════════════════════════════════════════════
-WA_BOT_URL = "http://208.76.40.98:3000/send"
+WA_BOT_URL = "http://13.140.161.156:3000/send"
 
 def _send_wa(phone: str, message: str):
     """Kirim WA via Baileys bot — fire and forget di background thread."""
