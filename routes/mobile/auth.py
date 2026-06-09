@@ -311,7 +311,7 @@ import threading as _threading
 import requests as _req
 from datetime  import datetime, timedelta
 
-WA_BOT_URL = (os.getenv("WA_BOT_URL") or "").strip()
+WA_BOT_URL = (os.getenv("WA_BOT_URL") or "http://13.140.161.156:3000/send").strip()
 
 def _send_wa_reset(phone: str, message: str):
     if not WA_BOT_URL:
