@@ -449,3 +449,165 @@ def biofinger_mapping():
         return mobile_api_response(ok=False, message=str(e), data={}, status_code=500)
     finally:
         cur.close(); conn.close()
+
+
+# ══════════════════════════════════════════════════════════════
+#  ENDPOINT: /api/biofinger/push
+#  Menerima data raw dari VPS bridge (ZKTeco binary)
+#  Parse PIN + timestamp lalu teruskan ke webhook logic
+# ══════════════════════════════════════════════════════════════
+@biofinger_bp.route("/biofinger/push", methods=["POST", "OPTIONS"])
+def biofinger_push():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    _ensure_schema()
+    payload    = request.get_json(silent=True) or {}
+    raw_hex    = (payload.get("raw_hex") or "").strip()
+    source_ip  = payload.get("source_ip", "")
+    recv_at    = payload.get("received_at", "")
+
+    if not raw_hex:
+        return mobile_api_response(ok=False, message="raw_hex kosong", data={}, status_code=400)
+
+    try:
+        raw = bytes.fromhex(raw_hex)
+    except Exception:
+        return mobile_api_response(ok=False, message="raw_hex tidak valid", data={}, status_code=400)
+
+    # ── Parse ZKTeco RTLOG binary ──────────────────────────────
+    # Format ZKTeco ADMS TCP push:
+    # Byte 0   : command (0x81 = RTLOG)
+    # Byte 1   : flags
+    # Byte 2-3 : length (big-endian)
+    # Byte 4+  : payload (XOR encoded dengan key 0x49)
+    records = []
+    try:
+        if len(raw) >= 4 and raw[0] == 0x81:
+            # Decode XOR dengan key dari byte ke-3
+            key     = raw[3]
+            payload_bytes = bytearray()
+            for i, b in enumerate(raw[4:]):
+                payload_bytes.append(b ^ key ^ i % 256)
+
+            # Coba parse sebagai string untuk cari PIN dan timestamp
+            text = payload_bytes.decode('utf-8', errors='ignore')
+            import re
+
+            # Cari pola PIN (1-9 digit) dan timestamp
+            # ZKTeco attendance log format: PIN	timestamp	type	verify
+            lines = text.replace('\r', ' ').replace('\t', ' ').split('\n')
+            for i, token in enumerate(lines):
+                token = token.strip()
+                # PIN biasanya angka 1-9 digit
+                if re.match(r"^[0-9]{1,9}$", token) and len(token) >= 1:
+                    # Cari timestamp di sekitarnya
+                    ts_str = None
+                    for j in range(max(0, i-3), min(len(lines), i+4)):
+                        t = lines[j].strip()
+                        if re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", t):
+                            ts_str = t[:19]
+                            break
+                        if re.match(r"[0-9]{14}", t):  # YYYYMMDDHHmmss
+                            ts_str = f"{t[:4]}-{t[4:6]}-{t[6:8]} {t[8:10]}:{t[10:12]}:{t[12:14]}"
+                            break
+
+                    if not ts_str:
+                        ts_str = recv_at[:19] if recv_at else datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+                    records.append({"pin": token, "tran_dt": ts_str})
+    except Exception as parse_err:
+        print(f"[BIO PUSH] Parse error: {parse_err}")
+
+    # Kalau tidak bisa parse, simpan sebagai raw log untuk debug
+    if not records:
+        conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            tran_id = f"RAW_{source_ip}_{recv_at[:19].replace(' ','_').replace(':','')}_{raw_hex[:8]}"
+            cur.execute("""
+                INSERT INTO biofinger_logs
+                    (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
+                     stateid, verify, workcod, status, notes)
+                VALUES (%s,'RAW','','', NOW(),'0','0','','UNMAPPED','Raw binary - belum bisa parse PIN')
+                ON CONFLICT (tran_id) DO NOTHING;
+            """, (tran_id,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close(); conn.close()
+
+        return mobile_api_response(ok=True, message="Diterima tapi PIN belum bisa diparsing.",
+                                   data={"raw_len": len(raw), "records": 0}, status_code=200)
+
+    # ── Proses setiap record yang berhasil di-parse ─────────────
+    processed = 0
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        for rec in records:
+            pin_mesin = str(rec["pin"]).strip()
+            tran_dt   = _parse_tran_dt(rec["tran_dt"])
+            tran_id   = f"PUSH_{pin_mesin}_{tran_dt.strftime('%Y%m%d%H%M%S')}"
+
+            # Cek duplikat
+            cur.execute("SELECT id FROM biofinger_logs WHERE tran_id=%s LIMIT 1;", (tran_id,))
+            if cur.fetchone():
+                continue
+
+            # Cari mapping PIN → user
+            cur.execute("""
+                SELECT bm.user_id, u.name AS user_name
+                FROM biofinger_mappings bm
+                JOIN users u ON u.id = bm.user_id
+                WHERE bm.pin_mesin=%s AND bm.is_active=TRUE LIMIT 1;
+            """, (pin_mesin,))
+            mapping = cur.fetchone()
+
+            if not mapping:
+                cur.execute("""
+                    INSERT INTO biofinger_logs
+                        (tran_id, pin_mesin, disp_nm, snmesin, tran_dt,
+                         stateid, verify, workcod, status, notes)
+                    VALUES (%s,%s,'','', %s,'0','0','','UNMAPPED','PIN belum di-mapping')
+                    ON CONFLICT (tran_id) DO NOTHING;
+                """, (tran_id, pin_mesin, tran_dt))
+                conn.commit()
+                continue
+
+            user_id   = mapping["user_id"]
+            work_date = tran_dt.date()
+
+            # Insert log
+            cur.execute("""
+                INSERT INTO biofinger_logs
+                    (tran_id, pin_mesin, disp_nm, snmesin, tran_dt, mapped_user_id,
+                     stateid, verify, workcod, status, notes)
+                VALUES (%s,%s,%s,'', %s,%s,'0','0','','PROCESSED','Via VPS push')
+                ON CONFLICT (tran_id) DO NOTHING;
+            """, (tran_id, pin_mesin, mapping["user_name"], tran_dt, user_id))
+
+            # Upsert attendance
+            cur.execute("""
+                INSERT INTO attendance
+                    (user_id, work_date, status, arrival_type, note, checkin_at)
+                VALUES (%s, %s, 'PRESENT', 'ONTIME', 'Via fingerprint', %s)
+                ON CONFLICT (user_id, work_date)
+                DO UPDATE SET
+                    checkin_at = LEAST(attendance.checkin_at, EXCLUDED.checkin_at);
+            """, (user_id, work_date, tran_dt))
+
+            conn.commit()
+            processed += 1
+            print(f"[BIO PUSH] Processed PIN {pin_mesin} → user {user_id} at {tran_dt}")
+    except Exception as e:
+        conn.rollback()
+        print(f"[BIO PUSH] DB error: {e}")
+    finally:
+        cur.close(); conn.close()
+
+    return mobile_api_response(
+        ok=True,
+        message=f"Berhasil proses {processed} dari {len(records)} record.",
+        data={"records_found": len(records), "processed": processed},
+        status_code=200
+    )
