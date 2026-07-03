@@ -311,7 +311,8 @@ import threading as _threading
 import requests as _req
 from datetime  import datetime, timedelta
 
-WA_BOT_URL = (os.getenv("WA_BOT_URL") or "http://13.140.161.156:3000/send").strip()
+WA_BOT_URL = os.getenv("WA_BOT_URL", "").strip()
+WA_BOT_KEY = os.getenv("WA_BOT_KEY", "").strip()
 
 def _send_wa_reset(phone: str, message: str):
     if not WA_BOT_URL:
@@ -323,7 +324,8 @@ def _send_wa_reset(phone: str, message: str):
             num = phone.strip().replace(" ","").replace("-","").replace("+","")
             if num.startswith("0"):
                 num = "62" + num[1:]
-            _req.post(WA_BOT_URL, json={"phone": num, "message": message}, timeout=5)
+            headers = {"X-Bot-Key": WA_BOT_KEY} if WA_BOT_KEY else {}
+            _req.post(WA_BOT_URL, json={"phone": num, "message": message}, headers=headers, timeout=5)
         except Exception as ex:
             print(f"[WA RESET] Gagal kirim ke {phone}: {ex}")
     _threading.Thread(target=_do, daemon=True).start()
