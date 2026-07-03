@@ -96,7 +96,9 @@ def sales_user():
 # ---------- ADMIN SALES ----------
 @sales_bp.route("/admin/sales")
 def admin_sales():
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -131,7 +133,9 @@ def admin_sales():
 
 @sales_bp.route("/admin/sales/approve/<int:sid>", methods=["POST"])
 def admin_sales_approve(sid):
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     admin_note = (request.form.get("admin_note") or "").strip()
 
@@ -158,7 +162,9 @@ def admin_sales_approve(sid):
 
 @sales_bp.route("/admin/sales/reject/<int:sid>", methods=["POST"])
 def admin_sales_reject(sid):
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     admin_note = (request.form.get("admin_note") or "").strip()
 
@@ -185,7 +191,9 @@ def admin_sales_reject(sid):
 
 @sales_bp.route("/admin/sales/monitor")
 def admin_sales_monitor():
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)

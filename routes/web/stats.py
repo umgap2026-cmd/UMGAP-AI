@@ -11,7 +11,9 @@ stats_bp = Blueprint("stats", __name__)
 
 @stats_bp.route("/admin/stats")
 def admin_stats():
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     month = request.args.get("month")
     if not month:

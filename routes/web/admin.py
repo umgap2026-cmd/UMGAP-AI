@@ -67,7 +67,9 @@ def admin_dashboard():
 
 @admin_bp.route("/admin/users")
 def admin_users():
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -86,7 +88,9 @@ def admin_users():
 
 @admin_bp.route("/admin/users/create", methods=["POST"])
 def admin_users_create():
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
     password = request.form.get("password") or ""
@@ -126,7 +130,9 @@ def admin_users_create():
 
 @admin_bp.route("/admin/users/update/<int:uid>", methods=["POST"])
 def admin_users_update(uid):
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
     role = (request.form.get("role") or "employee").strip()
@@ -166,7 +172,9 @@ def admin_users_update(uid):
 
 @admin_bp.route("/admin/users/delete/<int:uid>", methods=["POST"])
 def admin_users_delete(uid):
-    admin_guard()
+    deny = admin_guard()
+    if deny:
+        return deny
 
     if uid == session.get("user_id"):
         return redirect("/admin/users")
