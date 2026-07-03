@@ -87,6 +87,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True if IS_PROD else False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PREFERRED_URL_SCHEME"] = "https" if IS_PROD else "http"
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB — cukup untuk foto selfie/logo
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
@@ -95,9 +96,13 @@ init_oauth(app)
 
 @app.after_request
 def add_mobile_api_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    # CORS hanya untuk API JSON mobile (Bearer token, bukan cookie session).
+    # Rute web (admin/login/dsb pakai session cookie) sengaja tidak diberi
+    # header ini supaya tidak bisa dibaca cross-origin oleh situs lain.
+    if request.path.startswith("/api/mobile"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
 
 

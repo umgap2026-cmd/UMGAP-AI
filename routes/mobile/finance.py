@@ -211,11 +211,50 @@ def _cleanup_otp(cur):
     """Hapus OTP expired."""
     cur.execute("DELETE FROM fin_otp_store WHERE expires_at < NOW();")
 
-def _consume_otp(cur, otp: str):
+# ── Rate limit percobaan verifikasi/consume OTP finance (anti brute-force) ──
+FIN_OTP_VERIFY_MAX_ATTEMPTS = 8
+FIN_OTP_VERIFY_WINDOW_MINUTES = 15
+
+def _ensure_fin_otp_throttle_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fin_otp_verify_throttle (
+            user_id           INT PRIMARY KEY,
+            attempt_count     INT NOT NULL DEFAULT 0,
+            window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+
+def _fin_otp_verify_rate_limited(cur, user_id: int) -> bool:
+    """Catat satu percobaan verifikasi/consume OTP untuk user ini, lalu return
+    True kalau user tersebut sudah melewati batas percobaan dalam jendela berjalan."""
+    _ensure_fin_otp_throttle_table(cur)
+    cur.execute("""
+        INSERT INTO fin_otp_verify_throttle (user_id, attempt_count, window_started_at)
+        VALUES (%s, 1, NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+            attempt_count = CASE
+                WHEN fin_otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
+                    THEN 1
+                ELSE fin_otp_verify_throttle.attempt_count + 1
+            END,
+            window_started_at = CASE
+                WHEN fin_otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
+                    THEN NOW()
+                ELSE fin_otp_verify_throttle.window_started_at
+            END
+        RETURNING attempt_count;
+    """, (user_id, FIN_OTP_VERIFY_WINDOW_MINUTES, FIN_OTP_VERIFY_WINDOW_MINUTES))
+    row = cur.fetchone()
+    count = row["attempt_count"] if row else 1
+    return count > FIN_OTP_VERIFY_MAX_ATTEMPTS
+
+def _consume_otp(cur, otp: str, actor_user_id: int):
     """
     Validasi + tandai OTP sebagai used (atomic via FOR UPDATE).
-    Raise ValueError jika tidak valid / expired / sudah dipakai.
+    Raise ValueError jika tidak valid / expired / sudah dipakai / terlalu banyak percobaan.
     """
+    if _fin_otp_verify_rate_limited(cur, actor_user_id):
+        raise ValueError("Terlalu banyak percobaan. Coba lagi beberapa menit lagi.")
     cur.execute("""
         SELECT used, expires_at
         FROM fin_otp_store
@@ -306,6 +345,9 @@ def finance_otp_verify():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={})
 
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
     data = request.get_json(silent=True) or {}
     otp  = str(data.get("otp", "")).strip()
 
@@ -313,6 +355,12 @@ def finance_otp_verify():
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_otp_table(cur)
+        if _fin_otp_verify_rate_limited(cur, request.mobile_user["user_id"]):
+            conn.commit()
+            return mobile_api_response(
+                ok=False, message="Terlalu banyak percobaan. Coba lagi beberapa menit lagi.",
+                status_code=429)
+        conn.commit()
         cur.execute("""
             SELECT used, expires_at
             FROM fin_otp_store
@@ -353,7 +401,7 @@ def finance_edit_material(material_id):
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_otp_table(cur)
-        _consume_otp(cur, otp)   # validasi + consume atomic
+        _consume_otp(cur, otp, request.mobile_user["user_id"])   # validasi + consume atomic
         cur.execute(
             "UPDATE fin_materials SET name = %s, unit = %s WHERE id = %s RETURNING id, name;",
             (name, unit, material_id)
@@ -396,7 +444,7 @@ def finance_delete_material(material_id):
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_otp_table(cur)
-        _consume_otp(cur, otp)
+        _consume_otp(cur, otp, request.mobile_user["user_id"])
 
         cur.execute("SELECT name FROM fin_materials WHERE id = %s;", (material_id,))
         row = cur.fetchone()

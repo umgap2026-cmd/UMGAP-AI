@@ -402,6 +402,33 @@ def _otp_verify_rate_limited(cur, ip_address: str) -> bool:
     return count > OTP_VERIFY_MAX_ATTEMPTS
 
 
+def _find_user_by_identifier(cur, identifier: str):
+    """Cari user berdasarkan email atau nomor HP (dipakai request & verify OTP)."""
+    is_email = "@" in identifier
+    if is_email:
+        cur.execute(
+            "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
+            (identifier,))
+    else:
+        # Normalisasi: 08xx → 628xx
+        norm = identifier.replace(" ","").replace("-","").replace("+","")
+        if norm.startswith("0"):
+            norm62 = "62" + norm[1:]
+        else:
+            norm62 = norm
+        cur.execute("""
+            SELECT id, name, phone FROM users
+            WHERE phone IS NOT NULL
+              AND (
+                REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
+                    IN (%s, %s)
+                OR phone IN (%s, %s)
+              )
+            LIMIT 1;
+        """, (norm, norm62, norm, norm62))
+    return cur.fetchone()
+
+
 @mobile_auth_bp.route("/forgot-password/request", methods=["POST", "OPTIONS"])
 def forgot_password_request():
     """
@@ -424,31 +451,7 @@ def forgot_password_request():
     try:
         _ensure_reset_table(cur)
 
-        # Cari user berdasarkan email atau nomor HP
-        is_email = "@" in identifier
-        if is_email:
-            cur.execute(
-                "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
-                (identifier,))
-        else:
-            # Normalisasi: 08xx → 628xx
-            norm = identifier.replace(" ","").replace("-","").replace("+","")
-            if norm.startswith("0"):
-                norm62 = "62" + norm[1:]
-            else:
-                norm62 = norm
-            cur.execute("""
-                SELECT id, name, phone FROM users
-                WHERE phone IS NOT NULL
-                  AND (
-                    REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
-                        IN (%s, %s)
-                    OR phone IN (%s, %s)
-                  )
-                LIMIT 1;
-            """, (norm, norm62, norm, norm62))
-
-        user = cur.fetchone()
+        user = _find_user_by_identifier(cur, identifier)
 
         # Selalu return sukses untuk keamanan (tidak bocorkan apakah akun ada)
         if not user or not (user.get("phone") or "").strip():
@@ -502,14 +505,18 @@ def forgot_password_request():
 def forgot_password_verify():
     """
     Verifikasi OTP → return reset_token sementara (berlaku 15 menit).
-    Body: { "otp": "123456" }
+    Body: { "identifier": "email@x.com" | "081234567890", "otp": "123456" }
     """
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={})
 
-    data = request.get_json(silent=True) or {}
-    otp  = str(data.get("otp", "")).strip()
+    data       = request.get_json(silent=True) or {}
+    identifier = (data.get("identifier") or "").strip()
+    otp        = str(data.get("otp", "")).strip()
 
+    if not identifier:
+        return mobile_api_response(
+            ok=False, message="Email atau nomor WhatsApp wajib diisi.", status_code=400)
     if len(otp) != 6 or not otp.isdigit():
         return mobile_api_response(
             ok=False, message="OTP tidak valid.", status_code=400)
@@ -527,12 +534,18 @@ def forgot_password_verify():
         conn.commit()
 
         _ensure_reset_table(cur)
+
+        user = _find_user_by_identifier(cur, identifier)
+        if not user:
+            return mobile_api_response(
+                ok=False, message="OTP tidak valid.", status_code=400)
+
         cur.execute("""
             SELECT id, user_id, used, expires_at
             FROM password_reset_otps
-            WHERE otp = %s
+            WHERE otp = %s AND user_id = %s
             FOR UPDATE;
-        """, (otp,))
+        """, (otp, user["id"]))
         row = cur.fetchone()
 
         if not row:
