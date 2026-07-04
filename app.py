@@ -273,8 +273,9 @@ def app_version():
         "latest_version": "1.2.0",      # ← update tiap rilis baru
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   True,         # True = wajib update, False = opsional
-        "update_url":     "https://drive.google.com/file/d/1kgr6QjWecWE6_VbokvEyayrFbubM_j9T/view?usp=drive_link",
-        "message":        "Versi baru v1.2.0 tersedia!\n• Cache lebih cepat\n• Fitur nota beli & jual\n• Bug fix overflow"
+        "update_url":     "https://github.com/umgap2026-cmd/UMGAP-AI/releases/download/mobile-v1.2.0/umgap-v1.2.0.apk",
+        "sha256":         "cb06aee2db2cf003fc3ca5ca1e650449635d2571a20e7606ab9885c5f2dc61a4",
+        "message":        "Versi baru v1.2.0 tersedia!\n• Hapus fitur fingerprint (biofinger)\n• Keamanan reset password diperkuat\n• Bug fix overflow"
     })
 
 @app.route("/ping")
