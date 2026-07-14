@@ -33,7 +33,6 @@ def _build_dsn():
     if user: parts.append(f"user={user}")
     if password: parts.append(f"password={password}")
     if sslmode: parts.append(f"sslmode={sslmode}")
-    parts.append("connect_timeout=8")
     return " ".join(parts)
 
 def _init_pool():
@@ -43,12 +42,22 @@ def _init_pool():
 
     minconn = int(os.getenv("DB_POOL_MIN", "1"))
     maxconn = int(os.getenv("DB_POOL_MAX", "6"))
+    connect_timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "8"))
+    statement_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "15000"))
 
     dsn = _build_dsn()
     _POOL = ThreadedConnectionPool(
         minconn=minconn,
         maxconn=maxconn,
         dsn=dsn,
+        # connect_timeout diset eksplisit di sini (bukan cuma di string DSN)
+        # supaya tetap berlaku walau DSN datang dari DATABASE_URL langsung
+        # (mis. di Render) — tanpa ini, koneksi yang lambat/macet bisa
+        # menggantung tanpa batas dan mengunci satu-satunya worker Gunicorn.
+        connect_timeout=connect_timeout,
+        # Batasi durasi maksimum satu query — kalau DB lagi lambat/lock,
+        # query akan di-cancel setelah sekian detik alih-alih menggantung.
+        options=f"-c statement_timeout={statement_timeout_ms}",
         keepalives=1,
         keepalives_idle=30,
         keepalives_interval=10,

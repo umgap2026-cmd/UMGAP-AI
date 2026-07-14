@@ -530,10 +530,14 @@ def mobile_attendance_approve(pending_id):
         # ── Notif WA ke semua admin & owner ──────────────────────
         try:
             # Ambil nama karyawan
-            cur2 = get_conn().cursor(cursor_factory=RealDictCursor)
-            cur2.execute("SELECT name FROM users WHERE id=%s;", (int(target_user_id),))
-            emp = cur2.fetchone()
-            cur2.close()
+            conn2 = get_conn()
+            try:
+                cur2 = conn2.cursor(cursor_factory=RealDictCursor)
+                cur2.execute("SELECT name FROM users WHERE id=%s;", (int(target_user_id),))
+                emp = cur2.fetchone()
+                cur2.close()
+            finally:
+                conn2.close()
             karyawan_name = emp["name"] if emp else f"User #{target_user_id}"
         except Exception:
             karyawan_name = f"User #{target_user_id}"
