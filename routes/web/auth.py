@@ -9,48 +9,13 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from db import get_conn
-from core import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, oauth, ensure_password_reset_schema, send_email, _otp_hash, _public_ip
+from core import (
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, oauth, ensure_password_reset_schema,
+    send_email, _otp_hash, _public_ip, _otp_verify_rate_limited,
+)
 
 
 auth_bp = Blueprint("auth", __name__)
-
-# ── Rate limit percobaan verifikasi OTP reset password (anti brute-force) ──
-# Tabel dipakai bersama dengan routes/mobile/auth.py (kunci per IP address).
-OTP_VERIFY_MAX_ATTEMPTS = 8
-OTP_VERIFY_WINDOW_MINUTES = 15
-
-def _ensure_otp_throttle_table(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS otp_verify_throttle (
-            ip_address        VARCHAR(64) PRIMARY KEY,
-            attempt_count     INT NOT NULL DEFAULT 0,
-            window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-    """)
-
-def _otp_verify_rate_limited(cur, ip_address: str) -> bool:
-    """Catat satu percobaan verifikasi OTP untuk IP ini, lalu return True
-    kalau IP tersebut sudah melewati batas percobaan dalam jendela waktu berjalan."""
-    _ensure_otp_throttle_table(cur)
-    cur.execute("""
-        INSERT INTO otp_verify_throttle (ip_address, attempt_count, window_started_at)
-        VALUES (%s, 1, NOW())
-        ON CONFLICT (ip_address) DO UPDATE SET
-            attempt_count = CASE
-                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
-                    THEN 1
-                ELSE otp_verify_throttle.attempt_count + 1
-            END,
-            window_started_at = CASE
-                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
-                    THEN NOW()
-                ELSE otp_verify_throttle.window_started_at
-            END
-        RETURNING attempt_count;
-    """, (ip_address, OTP_VERIFY_WINDOW_MINUTES, OTP_VERIFY_WINDOW_MINUTES))
-    row = cur.fetchone()
-    count = row["attempt_count"] if row else 1
-    return count > OTP_VERIFY_MAX_ATTEMPTS
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():

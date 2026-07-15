@@ -6,7 +6,10 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash
 
 from db import get_conn
-from core import mobile_api_response, _public_ip, ensure_mobile_api_schema
+from core import (
+    mobile_api_response, _public_ip, ensure_mobile_api_schema,
+    _otp_verify_rate_limited, send_wa as _send_wa_reset,
+)
 
 mobile_auth_bp = Blueprint("mobile_auth", __name__)
 
@@ -307,28 +310,7 @@ def mobile_logout():
 
 import random as _rand
 import string as _string
-import threading as _threading
-import requests as _req
 from datetime  import datetime, timedelta
-
-WA_BOT_URL = os.getenv("WA_BOT_URL", "").strip()
-WA_BOT_KEY = os.getenv("WA_BOT_KEY", "").strip()
-
-def _send_wa_reset(phone: str, message: str):
-    if not WA_BOT_URL:
-        print(f"[WA RESET] WA_BOT_URL belum diatur di .env — OTP untuk {phone} tidak terkirim via WA.")
-        return
-
-    def _do():
-        try:
-            num = phone.strip().replace(" ","").replace("-","").replace("+","")
-            if num.startswith("0"):
-                num = "62" + num[1:]
-            headers = {"X-Bot-Key": WA_BOT_KEY} if WA_BOT_KEY else {}
-            _req.post(WA_BOT_URL, json={"phone": num, "message": message}, headers=headers, timeout=5)
-        except Exception as ex:
-            print(f"[WA RESET] Gagal kirim ke {phone}: {ex}")
-    _threading.Thread(target=_do, daemon=True).start()
 
 def _ensure_reset_table(cur):
     # Buat tabel fresh
@@ -364,44 +346,6 @@ def _mask_wa(phone: str) -> str:
     p = phone.strip().replace("+","").replace(" ","")
     if len(p) <= 6: return p
     return p[:4] + "****" + p[-4:]
-
-
-# ── Rate limit percobaan verifikasi OTP (anti brute-force) ──────
-OTP_VERIFY_MAX_ATTEMPTS = 8
-OTP_VERIFY_WINDOW_MINUTES = 15
-
-def _ensure_otp_throttle_table(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS otp_verify_throttle (
-            ip_address        VARCHAR(64) PRIMARY KEY,
-            attempt_count     INT NOT NULL DEFAULT 0,
-            window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-    """)
-
-def _otp_verify_rate_limited(cur, ip_address: str) -> bool:
-    """Catat satu percobaan verifikasi OTP untuk IP ini, lalu return True
-    kalau IP tersebut sudah melewati batas percobaan dalam jendela waktu berjalan."""
-    _ensure_otp_throttle_table(cur)
-    cur.execute("""
-        INSERT INTO otp_verify_throttle (ip_address, attempt_count, window_started_at)
-        VALUES (%s, 1, NOW())
-        ON CONFLICT (ip_address) DO UPDATE SET
-            attempt_count = CASE
-                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
-                    THEN 1
-                ELSE otp_verify_throttle.attempt_count + 1
-            END,
-            window_started_at = CASE
-                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
-                    THEN NOW()
-                ELSE otp_verify_throttle.window_started_at
-            END
-        RETURNING attempt_count;
-    """, (ip_address, OTP_VERIFY_WINDOW_MINUTES, OTP_VERIFY_WINDOW_MINUTES))
-    row = cur.fetchone()
-    count = row["attempt_count"] if row else 1
-    return count > OTP_VERIFY_MAX_ATTEMPTS
 
 
 def _find_user_by_identifier(cur, identifier: str):

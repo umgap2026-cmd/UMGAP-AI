@@ -4,7 +4,7 @@ from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import mobile_api_response, mobile_api_login_required
+from core import mobile_api_response, mobile_api_login_required, _col_exists
 
 mobile_stats_bp = Blueprint("mobile_stats", __name__)
 
@@ -16,14 +16,6 @@ def _count_workdays(start_date, end_date_exc):
             n += 1
         d += timedelta(days=1)
     return n
-
-
-def _col_exists(cur, table, column):
-    cur.execute("""
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name=%s AND column_name=%s LIMIT 1;
-    """, (table, column))
-    return cur.fetchone() is not None
 
 
 @mobile_stats_bp.route("/stats", methods=["GET", "OPTIONS"])

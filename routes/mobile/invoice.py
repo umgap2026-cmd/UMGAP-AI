@@ -16,18 +16,10 @@ from core import (
     _safe_int,
     _safe_decimal,
     _save_company_logo,
+    _ensure_transaction_cancel_columns,
 )
 
 mobile_invoice_bp = Blueprint("mobile_invoice", __name__)
-
-
-def _ensure_transaction_cancel_columns(cur):
-    """Lazy-migration: pastikan kolom pembatalan nota tersedia di fin_transactions."""
-    cur.execute("""
-        ALTER TABLE fin_transactions
-            ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
-            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
-    """)
 
 
 def _invoice_rows_from_json(items):

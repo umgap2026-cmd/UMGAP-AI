@@ -4,7 +4,7 @@ from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import mobile_api_login_required, mobile_api_response
+from core import mobile_api_login_required, mobile_api_response, _table_exists, _col_exists
 
 mobile_owner_bp = Blueprint("mobile_owner", __name__)
 
@@ -14,22 +14,6 @@ def _clean_num(v):
         return float(v or 0)
     except Exception:
         return 0.0
-
-
-def _table_exists(cur, table):
-    cur.execute("""
-        SELECT 1 FROM information_schema.tables
-        WHERE table_name=%s LIMIT 1;
-    """, (table,))
-    return cur.fetchone() is not None
-
-
-def _col_exists(cur, table, col):
-    cur.execute("""
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name=%s AND column_name=%s LIMIT 1;
-    """, (table, col))
-    return cur.fetchone() is not None
 
 
 def _access_owner_admin():

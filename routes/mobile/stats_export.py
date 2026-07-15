@@ -18,7 +18,7 @@ except ImportError:
     HAS_OPENPYXL = False
 
 from db import get_conn
-from core import mobile_api_response, mobile_api_login_required
+from core import mobile_api_response, mobile_api_login_required, _col_exists
 
 mobile_stats_export_bp = Blueprint("mobile_stats_export", __name__)
 
@@ -97,13 +97,6 @@ def _resolve(params):
 
 
 # ── Deteksi kolom gaji yang tersedia ────────────────────────────────
-def _col_exists(cur, table, column):
-    cur.execute("""
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name=%s AND column_name=%s LIMIT 1;
-    """, (table, column))
-    return cur.fetchone() is not None
-
 def _salary_exprs(cur):
     has_ps      = _col_exists(cur, "payroll_settings", "daily_salary")
     has_monthly = has_ps and _col_exists(cur, "payroll_settings", "monthly_salary")

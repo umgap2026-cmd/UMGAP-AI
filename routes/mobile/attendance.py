@@ -1,7 +1,6 @@
 import os
 import uuid
 import threading
-import requests as http_requests
 from datetime import date
 
 from flask import Blueprint, request
@@ -16,36 +15,10 @@ from core import (
     _now_wib_naive_from_form,
     get_admin_fcm_tokens,
     send_fcm_to_tokens,
+    send_wa as _send_wa,
 )
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
-
-# ── WA Bot helper ─────────────────────────────────────────────
-WA_BOT_URL = os.getenv("WA_BOT_URL", "").strip()
-WA_BOT_KEY = os.getenv("WA_BOT_KEY", "").strip()
-
-def _send_wa(phone: str, message: str):
-    """Kirim WA via Baileys bot — fire and forget di background thread."""
-    if not WA_BOT_URL:
-        print(f"[WA] WA_BOT_URL belum diatur di .env — pesan untuk {phone} tidak terkirim via WA.")
-        return
-
-    def _do():
-        try:
-            # Normalisasi nomor: hapus karakter non-angka, ganti 0 di depan → 62
-            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
-            if num.startswith("0"):
-                num = "62" + num[1:]
-            headers = {"X-Bot-Key": WA_BOT_KEY} if WA_BOT_KEY else {}
-            http_requests.post(
-                WA_BOT_URL,
-                json={"phone": num, "message": message},
-                headers=headers,
-                timeout=5
-            )
-        except Exception as ex:
-            print(f"[WA] Gagal kirim ke {phone}: {ex}")
-    threading.Thread(target=_do, daemon=True).start()
 
 def _notify_admins_wa(message: str):
     """Ambil semua nomor HP admin & owner lalu kirim WA."""

@@ -6,8 +6,9 @@ import smtplib
 import hmac
 import hashlib
 import uuid
+import threading
 import requests
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from functools import wraps
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -33,8 +34,6 @@ oauth = OAuth()
 GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
 
-UPLOAD_ATT_USER_DIR = os.path.join("static", "uploads", "attendance_user")
-UPLOAD_QA_DIR = os.path.join("static", "uploads", "quick_attendance")
 UPLOAD_INVOICE_LOGO_DIR = os.path.join("static", "uploads", "invoice_logo")
 
 
@@ -78,38 +77,11 @@ def admin_required():
         return redirect(url_for("dashboard.dashboard"))
     return None
 
-def login_required():
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            if not session.get("user_id"):
-                return redirect(url_for("auth.login"))
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
 # =========================
 # FILE / DIR HELPERS
 # =========================
-def _ensure_att_user_upload_dir():
-    os.makedirs(UPLOAD_ATT_USER_DIR, exist_ok=True)
-
-def _ensure_upload_dir():
-    os.makedirs(UPLOAD_QA_DIR, exist_ok=True)
-
 def _ensure_invoice_logo_dir():
     os.makedirs(UPLOAD_INVOICE_LOGO_DIR, exist_ok=True)
-
-def cleanup_old_quick_attendance_photos():
-    _ensure_upload_dir()
-    today_prefix = "qa_" + date.today().strftime("%Y_%m_%d") + "_"
-    for fn in os.listdir(UPLOAD_QA_DIR):
-        if fn.startswith("qa_") and not fn.startswith(today_prefix):
-            try:
-                os.remove(os.path.join(UPLOAD_QA_DIR, fn))
-            except Exception as e:
-                print("cleanup error:", fn, e)
 
 def _save_company_logo(file_storage):
     if not file_storage or not file_storage.filename:
@@ -166,14 +138,6 @@ def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
     dt_wib = _utc_naive_to_wib_naive(dt)
     return dt_wib.strftime(fmt) if dt_wib else ""
 
-def _utc_naive_to_wib_string_short(dt, fmt="%d/%m/%Y %H:%M"):
-    if not dt:
-        return "-"
-    try:
-        return (dt + timedelta(hours=7)).strftime(fmt)
-    except Exception:
-        return "-"
-
 def _parse_date(s):
     if not s:
         return None
@@ -181,14 +145,6 @@ def _parse_date(s):
         return datetime.strptime(s, "%Y-%m-%d").date()
     except Exception:
         return None
-
-def _seconds_to_hms(total_seconds):
-    total_seconds = int(total_seconds or 0)
-    h = total_seconds // 3600
-    m = (total_seconds % 3600) // 60
-    s = total_seconds % 60
-    return f"{h:02d}:{m:02d}:{s:02d}"
-
 
 # =========================
 # GENERAL HELPERS
@@ -209,13 +165,6 @@ def rupiah(s):
     except Exception:
         return f"Rp {s}"
 
-def _rupiah(value):
-    try:
-        n = int(value)
-        return f"Rp {n:,}".replace(",", ".")
-    except Exception:
-        return f"Rp {value}"
-
 def _safe_int(v, default=0):
     try:
         return int(v)
@@ -231,15 +180,35 @@ def _safe_decimal(v, default="0"):
     except (InvalidOperation, ValueError, TypeError):
         return Decimal(default)
 
-def _decimal_to_display(v):
-    d = _safe_decimal(v)
-    s = format(d.normalize(), "f")
-    if "." in s:
-        s = s.rstrip("0").rstrip(".")
-    return s.replace(".", ",")
+# =========================
+# WA BOT
+# =========================
+WA_BOT_URL = os.getenv("WA_BOT_URL", "").strip()
+WA_BOT_KEY = os.getenv("WA_BOT_KEY", "").strip()
 
-def _pick(rng, items):
-    return items[rng.randrange(len(items))]
+def send_wa(phone: str, message: str):
+    """Kirim WA via Baileys bot — fire and forget di background thread.
+    Dipakai bersama oleh routes/mobile/attendance.py, finance.py, auth.py."""
+    if not WA_BOT_URL:
+        print(f"[WA] WA_BOT_URL belum diatur di .env — pesan untuk {phone} tidak terkirim via WA.")
+        return
+
+    def _do():
+        try:
+            # Normalisasi nomor: hapus karakter non-angka, ganti 0 di depan → 62
+            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+            if num.startswith("0"):
+                num = "62" + num[1:]
+            headers = {"X-Bot-Key": WA_BOT_KEY} if WA_BOT_KEY else {}
+            requests.post(
+                WA_BOT_URL,
+                json={"phone": num, "message": message},
+                headers=headers,
+                timeout=5
+            )
+        except Exception as ex:
+            print(f"[WA] Gagal kirim ke {phone}: {ex}")
+    threading.Thread(target=_do, daemon=True).start()
 
 
 # =========================
@@ -275,6 +244,67 @@ def send_email(to_email, subject, body):
 # =========================
 # SCHEMA HELPERS
 # =========================
+def _ensure_transaction_cancel_columns(cur):
+    """Lazy-migration: pastikan kolom pembatalan nota tersedia di fin_transactions.
+    Dipakai bersama oleh routes/mobile/finance.py dan routes/mobile/invoice.py."""
+    cur.execute("""
+        ALTER TABLE fin_transactions
+            ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
+    """)
+
+def _table_exists(cur, table):
+    cur.execute("""
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name=%s LIMIT 1;
+    """, (table,))
+    return cur.fetchone() is not None
+
+def _col_exists(cur, table, column):
+    cur.execute("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name=%s AND column_name=%s LIMIT 1;
+    """, (table, column))
+    return cur.fetchone() is not None
+
+# ── Rate limit percobaan verifikasi OTP (anti brute-force, per IP) ──
+# Dipakai bersama oleh routes/web/auth.py dan routes/mobile/auth.py.
+OTP_VERIFY_MAX_ATTEMPTS = 8
+OTP_VERIFY_WINDOW_MINUTES = 15
+
+def _ensure_otp_throttle_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS otp_verify_throttle (
+            ip_address        VARCHAR(64) PRIMARY KEY,
+            attempt_count     INT NOT NULL DEFAULT 0,
+            window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+
+def _otp_verify_rate_limited(cur, ip_address: str) -> bool:
+    """Catat satu percobaan verifikasi OTP untuk IP ini, lalu return True
+    kalau IP tersebut sudah melewati batas percobaan dalam jendela waktu berjalan."""
+    _ensure_otp_throttle_table(cur)
+    cur.execute("""
+        INSERT INTO otp_verify_throttle (ip_address, attempt_count, window_started_at)
+        VALUES (%s, 1, NOW())
+        ON CONFLICT (ip_address) DO UPDATE SET
+            attempt_count = CASE
+                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
+                    THEN 1
+                ELSE otp_verify_throttle.attempt_count + 1
+            END,
+            window_started_at = CASE
+                WHEN otp_verify_throttle.window_started_at < NOW() - make_interval(mins => %s)
+                    THEN NOW()
+                ELSE otp_verify_throttle.window_started_at
+            END
+        RETURNING attempt_count;
+    """, (ip_address, OTP_VERIFY_WINDOW_MINUTES, OTP_VERIFY_WINDOW_MINUTES))
+    row = cur.fetchone()
+    count = row["attempt_count"] if row else 1
+    return count > OTP_VERIFY_MAX_ATTEMPTS
+
 def ensure_password_reset_schema():
     conn = get_conn()
     cur = conn.cursor()

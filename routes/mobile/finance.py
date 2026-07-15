@@ -4,16 +4,16 @@ routes/mobile/finance.py
 UMGAP Finance — Fase 1
 Kasir Gudang + Stok AVCO + Laporan Harian
 """
-import os
 from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
 from datetime import date, timedelta, datetime
-import threading
-import requests as http_requests
 from decimal import Decimal
 
 from db import get_conn
-from core import mobile_api_response, mobile_api_login_required
+from core import (
+    mobile_api_response, mobile_api_login_required, send_wa as _send_wa,
+    _ensure_transaction_cancel_columns,
+)
 import random
 import string
 
@@ -102,15 +102,6 @@ def _update_stock_avco(cur, material_id, qty_kg, price_per_kg,
     return new_avg  # kembalikan HPP rata-rata baru
 
 
-def _ensure_transaction_cancel_columns(cur):
-    """Kolom penanda pembatalan nota — dibuat sekali jika belum ada."""
-    cur.execute("""
-        ALTER TABLE fin_transactions
-            ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
-            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
-    """)
-
-
 def _reverse_stock_movement(cur, material_id, qty_kg, transaction_id,
                             original_movement, note=""):
     """
@@ -162,35 +153,6 @@ def _reverse_stock_movement(cur, material_id, qty_kg, transaction_id,
     """, (material_id, transaction_id, reverse_type,
           qty if reverse_type == 'IN' else -qty,
           old_avg, new_avg, new_qty, new_value, note))
-
-
-# ══════════════════════════════════════════════════════════════
-#  WA BOT
-# ══════════════════════════════════════════════════════════════
-WA_BOT_URL = os.getenv("WA_BOT_URL", "").strip()
-WA_BOT_KEY = os.getenv("WA_BOT_KEY", "").strip()
-
-def _send_wa(phone: str, message: str):
-    """Kirim WA via Baileys bot — fire and forget di background thread."""
-    if not WA_BOT_URL:
-        print(f"[WA] WA_BOT_URL belum diatur di .env — pesan untuk {phone} tidak terkirim via WA.")
-        return
-
-    def _do():
-        try:
-            num = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
-            if num.startswith("0"):
-                num = "62" + num[1:]
-            headers = {"X-Bot-Key": WA_BOT_KEY} if WA_BOT_KEY else {}
-            http_requests.post(
-                WA_BOT_URL,
-                json={"phone": num, "message": message},
-                headers=headers,
-                timeout=5
-            )
-        except Exception as ex:
-            print(f"[WA] Gagal kirim ke {phone}: {ex}")
-    threading.Thread(target=_do, daemon=True).start()
 
 
 # ══════════════════════════════════════════════════════════════

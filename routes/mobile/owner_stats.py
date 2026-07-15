@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from db import get_conn
-from core import mobile_api_login_required, mobile_api_response
+from core import mobile_api_login_required, mobile_api_response, _table_exists, _col_exists
 
 mobile_owner_stats_bp = Blueprint("mobile_owner_stats", __name__)
 
@@ -27,18 +27,6 @@ def _c(v):
     if isinstance(v, Decimal): return float(v)
     try: return float(v)
     except: return 0.0
-
-
-def _table_exists(cur, table):
-    cur.execute("""SELECT 1 FROM information_schema.tables
-                   WHERE table_name=%s LIMIT 1;""", (table,))
-    return cur.fetchone() is not None
-
-
-def _col_exists(cur, table, col):
-    cur.execute("""SELECT 1 FROM information_schema.columns
-                   WHERE table_name=%s AND column_name=%s LIMIT 1;""", (table, col))
-    return cur.fetchone() is not None
 
 
 @mobile_owner_stats_bp.route("/owner/stats", methods=["GET", "OPTIONS"])
