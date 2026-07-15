@@ -274,7 +274,7 @@ def app_version():
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   True,         # True = wajib update, False = opsional
         "update_url":     "https://github.com/umgap2026-cmd/UMGAP-AI/releases/download/mobile-v1.2.0/umgap-v1.2.0.apk",
-        "sha256":         "cb06aee2db2cf003fc3ca5ca1e650449635d2571a20e7606ab9885c5f2dc61a4",
+        "sha256":         "07fb8b95c31be2f85bd38f10c0793e17b5c586473585e2a00c49053f85dca624",
         "message":        "Versi baru v1.2.0 tersedia!\n• Hapus fitur fingerprint (biofinger)\n• Keamanan reset password diperkuat\n• Bug fix overflow"
     })
 
