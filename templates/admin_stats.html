@@ -1,10 +1,10 @@
 {% extends "base.html" %} {% block topbar %}{% endblock %} {% block content %}
 <style>
   :root {
-    --bg: #f2f4f8;
-    --card: #f7f8fb;
-    --text: #1d2a44;
-    --muted: #7d8aa6;
+    --bg: #f6f8fc;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
     --shadow-out: 0 18px 35px rgba(20, 35, 65, 0.1);
     --shadow-in:
       inset 10px 10px 18px rgba(25, 45, 80, 0.12),
@@ -14,7 +14,7 @@
       inset -6px -6px 12px rgba(255, 255, 255, 0.92);
     --radius: 22px;
     --pill: 999px;
-    --blue: #2f5f8f;
+    --blue: #2563eb;
     --nav-h: 92px;
   }
   *,
@@ -234,7 +234,7 @@
     cursor: pointer;
     font-weight: 900;
     font-size: 15px;
-    background: linear-gradient(180deg, var(--blue) 0%, #2a537e 100%);
+    background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
     color: #fff;
     box-shadow: 0 10px 20px rgba(41, 83, 126, 0.22);
     margin-top: 10px;
@@ -1080,7 +1080,7 @@
             legend: {
               display: true,
               labels: {
-                color: "#1d2a44",
+                color: "#0f172a",
                 font: {
                   weight: "700",
                   size: 12,
@@ -1103,7 +1103,7 @@
               : {
                   x: {
                     ticks: {
-                      color: "#7d8aa6",
+                      color: "#64748b",
                       font: { size: 11 },
                       maxRotation: 38,
                     },
@@ -1114,7 +1114,7 @@
                   y: {
                     beginAtZero: true,
                     ticks: {
-                      color: "#7d8aa6",
+                      color: "#64748b",
                       font: { size: 11 },
                       precision: 0,
                     },

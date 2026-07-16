@@ -24,28 +24,28 @@
 
       :root {
         /* ── User palette: warm coral → violet. Beda dari admin yang navy/cold ── */
-        --bg: #f4f3f8;
-        --surface: #faf9fe;
+        --bg: #f6f8fc;
+        --surface: #ffffff;
         --white: #ffffff;
-        --text: #18182a;
-        --sub: #5a5870;
-        --muted: #9b99b8;
+        --text: #0f172a;
+        --sub: #475569;
+        --muted: #64748b;
         --border: rgba(154, 152, 184, 0.14);
 
-        --v1: #7c5cfc; /* violet primary */
+        --v1: #2563eb; /* violet primary */
         --v2: #9b7afe; /* violet light */
         --coral: #ff6b6b;
         --amber: #ffb347;
         --green: #06d6a0;
         --sky: #38bdf8;
 
-        --vs: rgba(124, 92, 252, 0.1); /* violet subtle */
-        --vg: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 60%, #c4b5fd 100%);
+        --vs: rgba(37, 99, 235, 0.1); /* violet subtle */
+        --vg: linear-gradient(135deg, #2563eb 0%, #3b82f6 60%, #93c5fd 100%);
 
         --sh1:
           0 2px 10px rgba(24, 24, 42, 0.06), 0 6px 24px rgba(24, 24, 42, 0.05);
         --sh2:
-          0 8px 30px rgba(124, 92, 252, 0.18), 0 2px 8px rgba(24, 24, 42, 0.07);
+          0 8px 30px rgba(37, 99, 235, 0.18), 0 2px 8px rgba(24, 24, 42, 0.07);
         --neu:
           inset 4px 4px 8px rgba(24, 24, 42, 0.065),
           inset -4px -4px 8px rgba(255, 255, 255, 0.88);
@@ -69,7 +69,7 @@
         background-image:
           radial-gradient(
             ellipse 70% 50% at 10% 0%,
-            rgba(124, 92, 252, 0.06) 0%,
+            rgba(37, 99, 235, 0.06) 0%,
             transparent 65%
           ),
           radial-gradient(
@@ -130,7 +130,7 @@
         height: 2.5px;
         background: linear-gradient(
           90deg,
-          #7c5cfc,
+          #2563eb,
           #ff6b6b,
           #ffb347,
           #06d6a0,
@@ -144,7 +144,7 @@
         flex: 0 0 44px;
         overflow: hidden;
         background: var(--white);
-        box-shadow: 0 3px 12px rgba(124, 92, 252, 0.18);
+        box-shadow: 0 3px 12px rgba(37, 99, 235, 0.18);
       }
       .hdr-logo img {
         width: 100%;
@@ -229,8 +229,8 @@
         padding: 24px 22px 20px;
         background: var(--vg);
         box-shadow:
-          0 16px 44px rgba(124, 92, 252, 0.28),
-          0 2px 8px rgba(124, 92, 252, 0.15);
+          0 16px 44px rgba(37, 99, 235, 0.28),
+          0 2px 8px rgba(37, 99, 235, 0.15);
         position: relative;
         overflow: hidden;
       }
@@ -515,8 +515,8 @@
         --fi: rgba(245, 158, 11, 0.08);
       } /* konten  — amber */
       .f-c {
-        --fc: #7c5cfc;
-        --fi: rgba(124, 92, 252, 0.09);
+        --fc: #2563eb;
+        --fi: rgba(37, 99, 235, 0.09);
       } /* caption — violet*/
       .f-b {
         --fc: #06d6a0;
@@ -823,12 +823,12 @@
         height: 40px;
         border-radius: 13px;
         flex: 0 0 40px;
-        background: linear-gradient(135deg, #7c5cfc, #a78bfa);
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
-        box-shadow: 0 6px 16px rgba(124, 92, 252, 0.3);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
       }
       .notif-head-text {
         flex: 1;
@@ -924,7 +924,7 @@
         transition: background 0.15s;
       }
       .notif-read-all button:hover {
-        background: rgba(124, 92, 252, 0.18);
+        background: rgba(37, 99, 235, 0.18);
       }
 
       /* scrollable list */
@@ -979,12 +979,12 @@
         top: 0;
         bottom: 0;
         width: 3px;
-        background: linear-gradient(180deg, #7c5cfc, #a78bfa);
+        background: linear-gradient(180deg, #2563eb, #3b82f6);
         border-radius: 3px 0 0 3px;
       }
       .notif-card.unread {
         background: #fff;
-        border-color: rgba(124, 92, 252, 0.14);
+        border-color: rgba(37, 99, 235, 0.14);
       }
 
       /* category icon chip */
@@ -1057,7 +1057,7 @@
         font-size: 11px;
         font-weight: 800;
         font-family: var(--font);
-        background: rgba(124, 92, 252, 0.1);
+        background: rgba(37, 99, 235, 0.1);
         color: var(--v1);
         cursor: pointer;
         display: inline-flex;
@@ -1068,7 +1068,7 @@
           transform 0.12s;
       }
       .notif-read-btn:hover {
-        background: rgba(124, 92, 252, 0.18);
+        background: rgba(37, 99, 235, 0.18);
         transform: translateY(-1px);
       }
       .notif-read-btn svg {
