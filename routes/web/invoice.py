@@ -1,92 +1,37 @@
 import io
 from datetime import datetime
 
-from flask import Blueprint, render_template, request, redirect, session, jsonify, abort, send_file
+from flask import Blueprint, render_template, request, redirect, session, jsonify, abort, send_file, flash
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import is_logged_in, admin_required, ensure_invoice_schema, save_invoice_common, _utc_naive_to_wib_string
+from core import is_logged_in, ensure_invoice_schema, _utc_naive_to_wib_string
 
 invoice_bp = Blueprint("invoice", __name__)
 
 
-# ---------- USER ----------
+# ---------- LEGACY REDIRECT ----------
+# Nota sekarang dibuat dari stok gudang (fin_materials) lewat blueprint
+# routes/web/nota.py, khusus admin/owner — sama seperti mobile. Route lama
+# di bawah ini hanya redirect; save_invoice_common() di core.py tidak
+# dipanggil lagi tapi dibiarkan ada untuk tabel invoices/invoice_items lama.
 @invoice_bp.route("/invoice/new", methods=["GET", "POST"])
 def invoice_new_user():
     if not is_logged_in():
         return redirect("/login")
 
-    if session.get("role") == "admin":
-        return redirect("/admin/invoice/new")
+    if session.get("role") in ("admin", "owner"):
+        return redirect("/nota/new")
 
-    ensure_invoice_schema()
-
-    if request.method == "POST":
-        return save_invoice_common(request, is_admin_mode=False)
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
-        cur.execute("""
-            SELECT id, name, price
-            FROM products
-            WHERE is_global=TRUE
-            ORDER BY name ASC;
-        """)
-        products = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    return render_template(
-        "invoice_form.html",
-        products=products,
-        is_admin_mode=False
-    )
+    flash("Bikin nota sekarang khusus admin/owner.", "danger")
+    return redirect("/dashboard")
 
 
-# ---------- ADMIN ----------
 @invoice_bp.route("/admin/invoice/new", methods=["GET", "POST"])
 def invoice_new_admin():
-    deny = admin_required()
-    if deny:
-        return deny
-
-    ensure_invoice_schema()
-
-    if request.method == "POST":
-        return save_invoice_common(request, is_admin_mode=True)
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
-        cur.execute("""
-            SELECT id, name, price
-            FROM products
-            WHERE is_global=TRUE
-            ORDER BY name ASC;
-        """)
-        products = cur.fetchall()
-
-        cur.execute("""
-            SELECT id, name, email
-            FROM users
-            WHERE role='employee'
-            ORDER BY name ASC;
-        """)
-        employees = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    return render_template(
-        "invoice_form.html",
-        products=products,
-        employees=employees,
-        is_admin_mode=True
-    )
+    if not is_logged_in():
+        return redirect("/login")
+    return redirect("/nota/new")
 
 
 # ---------- VIEW ----------
@@ -132,8 +77,15 @@ def invoice_view(invoice_id):
     invoice.setdefault("customer_phone", "")
     invoice.setdefault("company_name", "")
     invoice.setdefault("company_logo_path", None)
+    invoice.setdefault("logo_data_uri", None)
 
-    return render_template("invoice_print.html", invoice=invoice, items=items)
+    return render_template(
+        "invoice_print.html",
+        invoice=invoice,
+        items=items,
+        action_base=f"/invoice/{invoice_id}",
+        is_legacy=True,
+    )
 
 
 # ---------- JSON ----------
@@ -241,6 +193,7 @@ def invoice_pdf(invoice_id):
 
     invoice["created_at_wib"] = _utc_naive_to_wib_string(invoice.get("created_at"))
     invoice["paid_at_wib"] = _utc_naive_to_wib_string(invoice.get("paid_at")) if invoice.get("paid_at") else None
+    invoice.setdefault("logo_data_uri", None)
 
     html = render_template("invoice_pdf.html", invoice=invoice, items=items)
     filename = f"{invoice['invoice_no']}.pdf"

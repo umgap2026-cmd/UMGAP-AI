@@ -1,6 +1,4 @@
 import io
-import re
-from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -16,7 +14,6 @@ from core import (
     _safe_int,
     _safe_decimal,
     _save_company_logo,
-    _ensure_transaction_cancel_columns,
 )
 
 mobile_invoice_bp = Blueprint("mobile_invoice", __name__)
@@ -330,27 +327,6 @@ def mobile_invoice_mark_paid(invoice_id):
         cur.close()
         conn.close()
 
-_NOTA_NO_RE = re.compile(r"((?:INV|BELI)-\d{8}-\d{4})")
-
-
-def _parse_nota_note(note):
-    """
-    Ekstrak invoice_no, payment_method, dan catatan tambahan dari kolom
-    `note` di fin_transactions. Format yang dipakai saat fitur "Buat Nota"
-    mengirim transaksi ke backend (lihat create_invoice / financeBeli):
-      JUAL_INVOICE -> "[INV-YYYYMMDD-XXXX] METODE" atau "... | catatan"
-      BELI_GUDANG  -> "BELI-YYYYMMDD-XXXX - STATUS"
-    """
-    note = (note or "").strip()
-    m = _NOTA_NO_RE.search(note)
-    if not m:
-        return None, "CASH", ""
-    invoice_no = m.group(1)
-    rest = note[m.end():].strip().lstrip("]").lstrip("-").strip()
-    if "|" in rest:
-        pm, extra = rest.split("|", 1)
-        return invoice_no, (pm.strip() or "CASH"), extra.strip()
-    return invoice_no, (rest or "CASH"), ""
 
 
 @mobile_invoice_bp.route("/invoice/history", methods=["GET", "OPTIONS"])
@@ -387,129 +363,23 @@ def mobile_invoice_history():
     limit     = min(int(request.args.get("limit",  100)), 500)
     offset    = int(request.args.get("offset", 0))
 
-    conditions = [
-        "t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')",
-        r"t.note ~ '(INV|BELI)-[0-9]{8}-[0-9]{4}'",
-        "t.cancelled_at IS NULL",
-    ]
-    params = []
-
-    if q:
-        conditions.append("(t.note ILIKE %s OR t.party_name ILIKE %s OR u.name ILIKE %s)")
-        like = f"%{q}%"
-        params += [like, like, like]
-
-    if type_f == "JUAL":
-        conditions.append("t.type = 'JUAL_INVOICE'")
-    elif type_f == "BELI":
-        conditions.append("t.type = 'BELI_GUDANG'")
-
-    if status_f == "LUNAS":
-        conditions.append("t.is_debt = FALSE")
-    elif status_f == "BELUM":
-        conditions.append("t.is_debt = TRUE")
-
-    if date_from:
-        conditions.append("t.created_at >= %s::date")
-        params.append(date_from)
-    if date_to:
-        conditions.append("t.created_at < (%s::date + INTERVAL '1 day')")
-        params.append(date_to)
-
-    where = "WHERE " + " AND ".join(conditions)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    from core import get_invoice_history
     try:
-        _ensure_transaction_cancel_columns(cur)
-        conn.commit()
-
-        # Total count
-        cur.execute(f"""
-            SELECT COUNT(*) AS cnt
-            FROM fin_transactions t
-            LEFT JOIN users u ON u.id = t.created_by
-            {where};
-        """, params)
-        total = (cur.fetchone() or {}).get("cnt", 0)
-
-        # Fetch transactions (= nota)
-        cur.execute(f"""
-            SELECT
-                t.id,
-                t.type,
-                t.note,
-                t.party_name AS customer_name,
-                t.is_debt,
-                t.total_amount,
-                t.created_at,
-                u.name AS created_by_name,
-                TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
-            FROM fin_transactions t
-            LEFT JOIN users u ON u.id = t.created_by
-            {where}
-            ORDER BY t.created_at DESC
-            LIMIT %s OFFSET %s;
-        """, params + [limit, offset])
-        rows = cur.fetchall()
-
-        invoices = []
-        for r in rows:
-            invoice_no, payment_method, extra_notes = _parse_nota_note(r.get("note"))
-            invoices.append({
-                "id":              r["id"],
-                "_type":           r["type"],
-                "invoice_no":      invoice_no or f"NOTA-{r['id']}",
-                "customer_name":   r.get("customer_name") or "",
-                "customer_phone":  "",
-                "company_name":    "",
-                "payment_method":  payment_method,
-                "grand_total":     float(r.get("total_amount") or 0),
-                "is_paid":         not bool(r.get("is_debt")),
-                "notes":           extra_notes,
-                "created_at":      r.get("created_at"),
-                "created_at_wib":  r.get("created_at_wib"),
-                "created_by_name": r.get("created_by_name"),
-            })
-
-        # Fetch items untuk semua nota sekaligus
-        items_map = defaultdict(list)
-        if invoices:
-            inv_ids = [inv["id"] for inv in invoices]
-            cur.execute("""
-                SELECT ti.transaction_id AS invoice_id, ti.id, ti.material_id AS product_id,
-                       m.name AS product_name, ti.qty_kg AS qty,
-                       ti.price_per_kg AS price, ti.subtotal
-                FROM fin_transaction_items ti
-                LEFT JOIN fin_materials m ON m.id = ti.material_id
-                WHERE ti.transaction_id = ANY(%s)
-                ORDER BY ti.transaction_id ASC, ti.id ASC;
-            """, (inv_ids,))
-            for item in cur.fetchall():
-                items_map[item["invoice_id"]].append({
-                    "id":           item["id"],
-                    "product_id":   item["product_id"],
-                    "product_name": item.get("product_name") or "-",
-                    "qty":          float(item["qty"] or 0),
-                    "price":        int(item["price"] or 0),
-                    "subtotal":     float(item["subtotal"] or 0),
-                })
-
+        invoices, total = get_invoice_history(
+            q=q, type_f=type_f, status_f=status_f,
+            date_from=date_from, date_to=date_to,
+            limit=limit, offset=offset,
+        )
         for inv in invoices:
-            items = items_map.get(inv["id"], [])
-            inv["items"] = items
-            items_subtotal = sum(it["subtotal"] for it in items)
-            inv["subtotal"] = items_subtotal
-            inv["discount"] = max(0.0, items_subtotal - inv["grand_total"])
-            del inv["_type"]
+            inv.setdefault("customer_phone", "")
+            inv.setdefault("company_name", "")
 
         return mobile_api_response(
             ok=True,
             message="OK",
             data={
                 "invoices": invoices,
-                "total":    int(total),
+                "total":    total,
                 "limit":    limit,
                 "offset":   offset,
             },
@@ -519,6 +389,3 @@ def mobile_invoice_history():
         import traceback
         print(f"[INVOICE HISTORY] Error: {traceback.format_exc()}")
         return mobile_api_response(ok=False, message=str(e), status_code=500)
-    finally:
-        cur.close()
-        conn.close()

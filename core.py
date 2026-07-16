@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import ssl
 import random
 import smtplib
@@ -8,6 +9,7 @@ import hashlib
 import uuid
 import threading
 import requests
+from collections import defaultdict
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from functools import wraps
@@ -250,7 +252,8 @@ def _ensure_transaction_cancel_columns(cur):
     cur.execute("""
         ALTER TABLE fin_transactions
             ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
-            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL;
+            ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS print_size VARCHAR(20) NULL;
     """)
 
 def _table_exists(cur, table):
@@ -664,6 +667,518 @@ def save_invoice_common(request, is_admin_mode=False):
         conn.close()
 
     return redirect(f"/invoice/{invoice_id}")
+
+
+# =========================
+# NOTA (fin_transactions) — dipakai bersama web & mobile
+# =========================
+def owner_or_admin_required():
+    if not session.get("user_id"):
+        return redirect(url_for("auth.login"))
+    if session.get("role") not in ("admin", "owner"):
+        flash("Akses ditolak. Khusus admin/owner.", "danger")
+        return redirect(url_for("dashboard.dashboard"))
+    return None
+
+
+def ensure_company_profile_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS company_profile (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                company_name VARCHAR(150),
+                logo_data_uri TEXT,
+                updated_by INTEGER REFERENCES users(id),
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT company_profile_singleton CHECK (id = 1)
+            );
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_company_profile():
+    ensure_company_profile_schema()
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT company_name, logo_data_uri FROM company_profile WHERE id=1;")
+        row = cur.fetchone()
+        return {
+            "company_name": (row or {}).get("company_name") or "",
+            "logo_data_uri": (row or {}).get("logo_data_uri") or "",
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+def set_company_profile(company_name, logo_data_uri, updated_by):
+    ensure_company_profile_schema()
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO company_profile (id, company_name, logo_data_uri, updated_by, updated_at)
+            VALUES (1, %s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (id) DO UPDATE SET
+                company_name  = COALESCE(EXCLUDED.company_name, company_profile.company_name),
+                logo_data_uri = COALESCE(EXCLUDED.logo_data_uri, company_profile.logo_data_uri),
+                updated_by    = EXCLUDED.updated_by,
+                updated_at    = CURRENT_TIMESTAMP;
+        """, (company_name or None, logo_data_uri or None, updated_by))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_materials_with_stock():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                m.id, m.name, m.unit, m.sort_order,
+                COALESCE(s.qty_kg, 0)          AS qty_kg,
+                COALESCE(s.avg_cost_per_kg, 0) AS avg_cost_per_kg,
+                COALESCE(s.total_value, 0)     AS total_value
+            FROM fin_materials m
+            LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+            WHERE m.is_active = TRUE
+            ORDER BY m.sort_order, m.name;
+        """)
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
+                        discount, is_paid, items, created_by, print_size=None):
+    """
+    Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
+    catat piutang jika belum lunas. Logic diextract dari
+    routes/mobile/finance.py:create_invoice() agar web & mobile berbagi 1
+    sumber kebenaran. Raise ValueError(pesan) kalau validasi gagal.
+    Return dict: {invoice_id, invoice_no, subtotal, discount, total, hpp, laba}.
+    """
+    from routes.mobile.finance import _update_stock_avco
+
+    customer_name = (customer_name or "").strip()
+    if not customer_name:
+        raise ValueError("Nama customer wajib diisi.")
+    if not items:
+        raise ValueError("Minimal 1 item barang.")
+
+    discount = float(discount or 0)
+    print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        for item in items:
+            mat_id = item.get("material_id")
+            if not mat_id:
+                raise ValueError("material_id wajib di setiap item.")
+            cur.execute(
+                "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+                (int(mat_id),)
+            )
+            if not cur.fetchone():
+                raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
+
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            cur.execute("""
+                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                FROM fin_materials m
+                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                WHERE m.id=%s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            if not row or float(row["qty"]) < qty:
+                stok_ada = float(row["qty"]) if row else 0
+                raise ValueError(
+                    f"Stok {row['name'] if row else mat_id} tidak cukup. "
+                    f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
+                )
+
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
+        grand_total = max(0.0, subtotal_bruto - discount)
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM fin_transactions
+            WHERE created_at::date = CURRENT_DATE AND type = 'JUAL_INVOICE';
+        """)
+        seq = (cur.fetchone()["cnt"] or 0) + 1
+        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
+
+        is_debt = not is_paid
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (
+            customer_name,
+            f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
+            is_debt, grand_total, created_by, print_size
+        ))
+        txn_id = cur.fetchone()["id"]
+
+        hpp_total = 0.0
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+
+            cur.execute(
+                "SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                (mat_id,)
+            )
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            hpp_total += qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(
+                cur, mat_id, qty, avg, 'OUT', txn_id,
+                note=f"Invoice {invoice_no} — {customer_name}"
+            )
+
+        if is_debt and customer_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (customer_name, grand_total, grand_total, txn_id,
+                  f"Invoice {invoice_no} — belum dibayar"))
+
+        conn.commit()
+
+        return {
+            "invoice_id": txn_id,
+            "invoice_no": invoice_no,
+            "subtotal": subtotal_bruto,
+            "discount": discount,
+            "total": grand_total,
+            "hpp": hpp_total,
+            "laba": grand_total - hpp_total,
+        }
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal buat invoice: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_invoice_detail(txn_id):
+    """
+    Ambil 1 nota (fin_transactions) beserta items-nya, dibentuk dengan
+    field-name yang sama dipakai templates/invoice_print.html &
+    invoice_pdf.html (invoice_no, customer_name, created_by_name,
+    payment_method, subtotal, discount, grand_total, notes, print_size,
+    is_paid, company_name, logo_data_uri). Return (invoice_dict, items) atau
+    (None, []) kalau tidak ada.
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT t.id, t.note, t.party_name AS customer_name, t.is_debt,
+                   t.total_amount, t.created_at, t.print_size,
+                   u.name AS created_by_name
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.created_by
+            WHERE t.id = %s AND t.type = 'JUAL_INVOICE';
+        """, (txn_id,))
+        row = cur.fetchone()
+        if not row:
+            return None, []
+
+        invoice_no, payment_method, extra_notes = _parse_nota_note(row.get("note"))
+
+        cur.execute("""
+            SELECT m.name AS product_name, ti.qty_kg AS qty,
+                   ti.price_per_kg AS price, ti.subtotal
+            FROM fin_transaction_items ti
+            LEFT JOIN fin_materials m ON m.id = ti.material_id
+            WHERE ti.transaction_id = %s
+            ORDER BY ti.id ASC;
+        """, (txn_id,))
+        items = [{
+            "product_name": r.get("product_name") or "-",
+            "qty": float(r["qty"] or 0),
+            "price": int(r["price"] or 0),
+            "subtotal": float(r["subtotal"] or 0),
+        } for r in cur.fetchall()]
+
+        items_subtotal = sum(it["subtotal"] for it in items)
+        grand_total = float(row.get("total_amount") or 0)
+        profile = get_company_profile()
+
+        invoice = {
+            "id": row["id"],
+            "invoice_no": invoice_no or f"NOTA-{row['id']}",
+            "customer_name": row.get("customer_name") or "",
+            "customer_phone": "",
+            "created_by_name": row.get("created_by_name"),
+            "payment_method": payment_method,
+            "subtotal": items_subtotal,
+            "discount": max(0.0, items_subtotal - grand_total),
+            "grand_total": grand_total,
+            "notes": extra_notes,
+            "print_size": row.get("print_size") or "80mm",
+            "is_paid": not bool(row.get("is_debt")),
+            "paid_at_wib": None,
+            "created_at": row.get("created_at"),
+            "created_at_wib": _utc_naive_to_wib_string(row.get("created_at")),
+            "company_name": profile.get("company_name") or "",
+            "logo_data_uri": profile.get("logo_data_uri") or "",
+            "company_logo_path": None,
+        }
+        return invoice, items
+    finally:
+        cur.close()
+        conn.close()
+
+
+_NOTA_NO_RE = re.compile(r"((?:INV|BELI)-\d{8}-\d{4})")
+
+
+def _parse_nota_note(note):
+    note = (note or "").strip()
+    m = _NOTA_NO_RE.search(note)
+    if not m:
+        return None, "CASH", ""
+    invoice_no = m.group(1)
+    rest = note[m.end():].strip().lstrip("]").lstrip("-").strip()
+    if "|" in rest:
+        pm, extra = rest.split("|", 1)
+        return invoice_no, (pm.strip() or "CASH"), extra.strip()
+    return invoice_no, (rest or "CASH"), ""
+
+
+def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
+                         limit=100, offset=0):
+    """
+    Ambil riwayat nota dari fin_transactions (JUAL_INVOICE/BELI_GUDANG).
+    Diextract dari routes/mobile/invoice.py:mobile_invoice_history() agar
+    web & mobile berbagi 1 sumber kebenaran. Return (invoices, total).
+    """
+    limit = min(int(limit or 100), 500)
+    offset = int(offset or 0)
+
+    conditions = [
+        "t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')",
+        r"t.note ~ '(INV|BELI)-[0-9]{8}-[0-9]{4}'",
+        "t.cancelled_at IS NULL",
+    ]
+    params = []
+
+    if q:
+        conditions.append("(t.note ILIKE %s OR t.party_name ILIKE %s OR u.name ILIKE %s)")
+        like = f"%{q}%"
+        params += [like, like, like]
+
+    if type_f == "JUAL":
+        conditions.append("t.type = 'JUAL_INVOICE'")
+    elif type_f == "BELI":
+        conditions.append("t.type = 'BELI_GUDANG'")
+
+    if status_f == "LUNAS":
+        conditions.append("t.is_debt = FALSE")
+    elif status_f == "BELUM":
+        conditions.append("t.is_debt = TRUE")
+
+    if date_from:
+        conditions.append("t.created_at >= %s::date")
+        params.append(date_from)
+    if date_to:
+        conditions.append("t.created_at < (%s::date + INTERVAL '1 day')")
+        params.append(date_to)
+
+    where = "WHERE " + " AND ".join(conditions)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        conn.commit()
+
+        cur.execute(f"""
+            SELECT COUNT(*) AS cnt
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.created_by
+            {where};
+        """, params)
+        total = (cur.fetchone() or {}).get("cnt", 0)
+
+        cur.execute(f"""
+            SELECT
+                t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
+                t.total_amount, t.created_at, u.name AS created_by_name,
+                TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.created_by
+            {where}
+            ORDER BY t.created_at DESC
+            LIMIT %s OFFSET %s;
+        """, params + [limit, offset])
+        rows = cur.fetchall()
+
+        invoices = []
+        for r in rows:
+            invoice_no, payment_method, extra_notes = _parse_nota_note(r.get("note"))
+            invoices.append({
+                "id": r["id"],
+                "_type": r["type"],
+                "invoice_no": invoice_no or f"NOTA-{r['id']}",
+                "customer_name": r.get("customer_name") or "",
+                "payment_method": payment_method,
+                "grand_total": float(r.get("total_amount") or 0),
+                "is_paid": not bool(r.get("is_debt")),
+                "notes": extra_notes,
+                "created_at": r.get("created_at"),
+                "created_at_wib": r.get("created_at_wib"),
+                "created_by_name": r.get("created_by_name"),
+            })
+
+        items_map = defaultdict(list)
+        if invoices:
+            inv_ids = [inv["id"] for inv in invoices]
+            cur.execute("""
+                SELECT ti.transaction_id AS invoice_id, ti.id, ti.material_id AS product_id,
+                       m.name AS product_name, ti.qty_kg AS qty,
+                       ti.price_per_kg AS price, ti.subtotal
+                FROM fin_transaction_items ti
+                LEFT JOIN fin_materials m ON m.id = ti.material_id
+                WHERE ti.transaction_id = ANY(%s)
+                ORDER BY ti.transaction_id ASC, ti.id ASC;
+            """, (inv_ids,))
+            for item in cur.fetchall():
+                items_map[item["invoice_id"]].append({
+                    "id": item["id"],
+                    "product_id": item["product_id"],
+                    "product_name": item.get("product_name") or "-",
+                    "qty": float(item["qty"] or 0),
+                    "price": int(item["price"] or 0),
+                    "subtotal": float(item["subtotal"] or 0),
+                })
+
+        for inv in invoices:
+            items = items_map.get(inv["id"], [])
+            inv["items"] = items
+            items_subtotal = sum(it["subtotal"] for it in items)
+            inv["subtotal"] = items_subtotal
+            inv["discount"] = max(0.0, items_subtotal - inv["grand_total"])
+            del inv["_type"]
+
+        return invoices, int(total)
+    finally:
+        cur.close()
+        conn.close()
+
+
+def cancel_fin_transaction(txn_id, cancelled_by):
+    """
+    Batalkan nota Jual/Beli: balikkan stok & HPP gudang, hapus hutang/piutang
+    terkait (kalau belum ada cicilan), tandai cancelled_at. Diextract dari
+    routes/mobile/finance.py:cancel_nota_transaction(). Raise ValueError kalau
+    tidak bisa dibatalkan.
+    """
+    from routes.mobile.finance import _reverse_stock_movement
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+
+        cur.execute("""
+            SELECT id, type, party_name, is_debt, total_amount, cancelled_at
+            FROM fin_transactions WHERE id = %s FOR UPDATE;
+        """, (txn_id,))
+        txn = cur.fetchone()
+        if not txn:
+            raise ValueError("Nota tidak ditemukan.")
+        if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
+            raise ValueError("Nota jenis ini tidak bisa dibatalkan dari sini.")
+        if txn["cancelled_at"] is not None:
+            raise ValueError("Nota ini sudah pernah dibatalkan.")
+
+        cur.execute("SELECT id, paid_amount FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
+        debt = cur.fetchone()
+        if debt and float(debt["paid_amount"] or 0) > 0:
+            raise ValueError(
+                "Nota ini tidak bisa dibatalkan karena hutang/piutangnya "
+                "sudah memiliki cicilan/pembayaran. Batalkan pembayarannya dulu."
+            )
+
+        cur.execute("""
+            SELECT material_id, qty_kg, price_per_kg
+            FROM fin_transaction_items WHERE transaction_id = %s;
+        """, (txn_id,))
+        original_movement = 'IN' if txn["type"] == 'BELI_GUDANG' else 'OUT'
+        for it in cur.fetchall():
+            _reverse_stock_movement(
+                cur, it["material_id"], float(it["qty_kg"]), txn_id,
+                original_movement, note=f"Pembatalan nota #{txn_id}")
+
+        if debt:
+            cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt["id"],))
+
+        cur.execute("""
+            UPDATE fin_transactions
+            SET cancelled_at = NOW(), cancelled_by = %s
+            WHERE id = %s;
+        """, (cancelled_by, txn_id))
+
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal membatalkan nota: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def settle_fin_debt_for_transaction(cur, txn_id):
+    """Tandai nota lunas: set is_debt=FALSE di fin_transactions & lunasi fin_debts terkait."""
+    cur.execute("UPDATE fin_transactions SET is_debt=FALSE WHERE id=%s RETURNING id;", (txn_id,))
+    if not cur.fetchone():
+        raise ValueError("Nota tidak ditemukan.")
+    cur.execute("SELECT id, amount FROM fin_debts WHERE transaction_id=%s;", (txn_id,))
+    debt = cur.fetchone()
+    if debt:
+        cur.execute("""
+            UPDATE fin_debts
+            SET paid_amount = amount, remaining = 0, is_settled = TRUE
+            WHERE id = %s;
+        """, (debt["id"],))
+
 
 # =========================
 # DASHBOARD / POINTS HELPERS

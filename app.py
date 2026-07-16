@@ -21,6 +21,7 @@ from routes.web.admin import admin_bp
 from routes.web.products import products_bp
 from routes.web.sales import sales_bp
 from routes.web.invoice import invoice_bp
+from routes.web.nota import nota_bp
 from routes.web.preview import preview_bp
 from routes.web.thermal import thermal_bp
 from routes.web.stats import stats_bp
@@ -115,6 +116,7 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(sales_bp)
 app.register_blueprint(invoice_bp)
+app.register_blueprint(nota_bp)
 app.register_blueprint(preview_bp)
 app.register_blueprint(thermal_bp)
 app.register_blueprint(stats_bp)

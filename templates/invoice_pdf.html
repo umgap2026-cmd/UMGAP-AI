@@ -330,7 +330,9 @@
               src="{{ url_for('static', filename='UMGAP (1).png', _external=True) }}"
               alt="UMGAP"
             />
-            {% if invoice.company_logo_path %}
+            {% if invoice.logo_data_uri %}
+            <img src="{{ invoice.logo_data_uri }}" alt="Logo" />
+            {% elif invoice.company_logo_path %}
             <img
               src="{{ url_for('static', filename=invoice.company_logo_path, _external=True) }}"
               alt="Logo"

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">🏢 Info Perusahaan</h1>
+    <p class="page-sub">
+      Nama &amp; logo ini tersimpan otomatis dan dipakai di semua nota —
+      tidak perlu upload ulang tiap bikin nota.
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/nota/new">← Kembali ke Nota</a>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px; max-width: 480px">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for category, msg in messages %}
+  <p style="color: {{ 'var(--bad)' if category == 'danger' else 'var(--good)' }}; font-weight: 700; margin-bottom: 12px">
+    {{ msg }}
+  </p>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  {% if company_profile.logo_data_uri %}
+  <div style="display: flex; justify-content: center; margin-bottom: 16px">
+    <img
+      src="{{ company_profile.logo_data_uri }}"
+      alt="Logo saat ini"
+      style="width: 90px; height: 90px; object-fit: contain; border-radius: 14px; border: 1px solid var(--border); background: #fff; padding: 8px"
+    />
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    <div class="row-1">
+      <div>
+        <label>Nama Perusahaan</label>
+        <input
+          type="text"
+          name="company_name"
+          value="{{ company_profile.company_name }}"
+          placeholder="Nama toko…"
+          autocomplete="off"
+        />
+      </div>
+      <div>
+        <label>Logo (PNG/JPG, maks 2MB)</label>
+        <input type="file" name="company_logo" accept="image/*" />
+        <p class="muted" style="margin-top: 4px">
+          Kosongkan kalau tidak ingin ganti logo.
+        </p>
+      </div>
+    </div>
+    <div class="actions" style="margin-top: 16px">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <a class="btn" href="/nota/new">Batal</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

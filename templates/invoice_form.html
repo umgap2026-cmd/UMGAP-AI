@@ -9,16 +9,16 @@
     padding: 0;
   }
   :root {
-    --bg: #f0eff6;
-    --surf: #faf9fe;
+    --bg: #f6f8fc;
+    --surf: #ffffff;
     --w: #fff;
-    --tx: #18182a;
-    --sub: #5a5870;
-    --mu: #9b99b8;
-    --v1: #7c5cfc;
-    --v2: #a78bfa;
-    --vs: rgba(124, 92, 252, 0.09);
-    --vg: linear-gradient(135deg, #7c5cfc, #a78bfa);
+    --tx: #0f172a;
+    --sub: #475569;
+    --mu: #64748b;
+    --v1: #2563eb;
+    --v2: #3b82f6;
+    --vs: rgba(37, 99, 235, 0.09);
+    --vg: linear-gradient(135deg, #2563eb, #3b82f6);
     --gr: #06d6a0;
     --grs: rgba(6, 214, 160, 0.11);
     --am: #f59e0b;
@@ -28,7 +28,7 @@
     --sk: #38bdf8;
     --sks: rgba(56, 189, 248, 0.1);
     --s1: 0 2px 12px rgba(24, 24, 42, 0.07), 0 5px 20px rgba(24, 24, 42, 0.04);
-    --s2: 0 10px 32px rgba(124, 92, 252, 0.22);
+    --s2: 0 10px 32px rgba(37, 99, 235, 0.22);
     --neu:
       inset 2px 2px 6px rgba(24, 24, 42, 0.07),
       inset -2px -2px 6px rgba(255, 255, 255, 0.92);
@@ -49,7 +49,7 @@
     background-image:
       radial-gradient(
         ellipse 65% 45% at 0% 0%,
-        rgba(124, 92, 252, 0.06) 0%,
+        rgba(37, 99, 235, 0.06) 0%,
         transparent 60%
       ),
       radial-gradient(
@@ -90,7 +90,7 @@
     height: 2.5px;
     background: linear-gradient(
       90deg,
-      #7c5cfc,
+      #2563eb,
       #f43f5e,
       #f59e0b,
       #06d6a0,
@@ -102,7 +102,7 @@
     height: 40px;
     border-radius: 12px;
     background: var(--w);
-    box-shadow: 0 2px 8px rgba(124, 92, 252, 0.18);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
     flex: 0 0 40px;
     display: flex;
     align-items: center;
@@ -225,7 +225,7 @@
     align-items: center;
     gap: 9px;
     padding: 12px 15px 11px;
-    border-bottom: 1px solid rgba(124, 92, 252, 0.07);
+    border-bottom: 1px solid rgba(37, 99, 235, 0.07);
   }
   .c-ico {
     width: 30px;
@@ -283,7 +283,7 @@
   .fs:focus {
     box-shadow:
       var(--neu),
-      0 0 0 3px rgba(124, 92, 252, 0.15);
+      0 0 0 3px rgba(37, 99, 235, 0.15);
   }
   .fi::placeholder {
     color: var(--mu);
@@ -447,7 +447,7 @@
     background: var(--surf);
     border-radius: 13px;
     padding: 10px;
-    border: 1.5px solid rgba(124, 92, 252, 0.07);
+    border: 1.5px solid rgba(37, 99, 235, 0.07);
     animation: irIn 0.2s ease;
   }
   @keyframes irIn {
@@ -512,7 +512,7 @@
   .add-btn {
     width: 100%;
     height: 41px;
-    border: 2px dashed rgba(124, 92, 252, 0.25);
+    border: 2px dashed rgba(37, 99, 235, 0.25);
     border-radius: 12px;
     background: var(--vs);
     color: var(--v1);
@@ -528,7 +528,7 @@
   }
   .add-btn:hover {
     border-color: var(--v1);
-    background: rgba(124, 92, 252, 0.14);
+    background: rgba(37, 99, 235, 0.14);
   }
   .disc-row {
     display: grid;
@@ -556,7 +556,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 6px 20px rgba(124, 92, 252, 0.22);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.22);
   }
   .tb-l {
     font-size: 9.5px;
@@ -594,7 +594,7 @@
   }
   .btn-submit:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 34px rgba(124, 92, 252, 0.38);
+    box-shadow: 0 14px 34px rgba(37, 99, 235, 0.38);
   }
   .btn-back {
     width: 100%;
@@ -691,14 +691,9 @@
       </div>
       <div class="tb-info">
         <div class="tb-app">UMGAP · POS</div>
-        <div class="tb-title">
-          {{ 'Nota Admin' if is_admin_mode else 'Buat Nota' }}
-        </div>
+        <div class="tb-title">Buat Nota</div>
       </div>
-      <a
-        href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
-        class="tb-btn"
-      >
+      <a href="/dashboard" class="tb-btn">
         <svg viewBox="0 0 24 24">
           <path d="M19 12H5" />
           <path d="M12 5l-7 7 7 7" />
@@ -708,10 +703,8 @@
     <div class="hero">
       <div class="h-inner">
         <div class="h-eye">Point of Sale</div>
-        <div class="h-ttl">
-          🧾 {{ 'Nota Admin' if is_admin_mode else 'Nota Penjualan' }}
-        </div>
-        <div class="h-sub">Buat nota, cetak thermal &amp; kirim WhatsApp.</div>
+        <div class="h-ttl">🧾 Nota Penjualan</div>
+        <div class="h-sub">Buat nota dari stok gudang, cetak thermal &amp; kirim WhatsApp.</div>
         <div class="h-chips">
           <span class="h-chip">🖨️ 58/80mm</span
           ><span class="h-chip">📶 BT</span>
@@ -720,7 +713,10 @@
         </div>
       </div>
     </div>
-    <form method="post" id="invForm" enctype="multipart/form-data">
+    <a href="/nota" class="btn-back" style="text-decoration: none">
+      📋 Riwayat Nota
+    </a>
+    <form method="post" id="invForm">
       <div class="card">
         <div class="card-hd">
           <div class="c-ico" style="background: var(--vs)">👤</div>
@@ -730,27 +726,16 @@
           </div>
         </div>
         <div class="card-body">
-          {% if is_admin_mode %}
-          <div>
-            <label class="flbl">Karyawan / Kasir</label>
-            <div class="sw-wrap">
-              <select class="fs" name="employee_id" required>
-                {% for e in employees %}
-                <option value="{{ e.id }}">{{ e.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          {% endif %}
           <div class="row2">
             <div>
-              <label class="flbl">Nama Customer</label>
+              <label class="flbl">Nama Customer *</label>
               <input
                 class="fi"
                 type="text"
                 name="customer_name"
-                placeholder="Opsional…"
+                placeholder="Wajib diisi…"
                 autocomplete="off"
+                required
               />
             </div>
             <div>
@@ -771,30 +756,63 @@
           <div class="c-ico" style="background: var(--sks)">🏢</div>
           <div>
             <div class="c-ttl">Info Perusahaan</div>
-            <div class="c-sub">Tampil di PDF — opsional</div>
+            <div class="c-sub">Tampil di nota — tersimpan, tidak perlu upload ulang</div>
           </div>
         </div>
         <div class="card-body">
-          <div class="row2">
-            <div>
-              <label class="flbl">Nama Perusahaan</label>
-              <input
-                class="fi"
-                type="text"
-                name="company_name"
-                placeholder="Nama toko…"
-                autocomplete="off"
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 11px;
+              background: var(--surf);
+              border-radius: 12px;
+              padding: 9px 12px;
+            "
+          >
+            <div
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: 10px;
+                background: #fff;
+                box-shadow: var(--neu);
+                flex: 0 0 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+              "
+            >
+              {% if company_profile.logo_data_uri %}
+              <img
+                src="{{ company_profile.logo_data_uri }}"
+                alt="Logo"
+                style="width: 100%; height: 100%; object-fit: contain"
               />
+              {% else %}
+              <span style="font-size: 16px">🏢</span>
+              {% endif %}
             </div>
-            <div>
-              <label class="flbl">Logo (PNG/JPG)</label>
-              <input
-                class="fi"
-                type="file"
-                name="company_logo"
-                accept="image/*"
-              />
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 12.5px; font-weight: 800; color: var(--tx)">
+                {{ company_profile.company_name or "Belum diatur" }}
+              </div>
+              <div style="font-size: 10.5px; color: var(--mu)">
+                Nama &amp; logo perusahaan di nota
+              </div>
             </div>
+            <a
+              href="/nota/company-profile"
+              style="
+                font-size: 11px;
+                font-weight: 800;
+                color: var(--v1);
+                white-space: nowrap;
+                text-decoration: none;
+              "
+              >Ubah</a
+            >
           </div>
         </div>
       </div>
@@ -889,35 +907,32 @@
           <div class="c-ico" style="background: var(--ams)">🛒</div>
           <div>
             <div class="c-ttl">Item Nota</div>
-            <div class="c-sub">Produk &amp; jumlah</div>
+            <div class="c-sub">Barang gudang, qty &amp; harga jual</div>
           </div>
         </div>
         <div class="card-body">
           <div class="item-list" id="itemList">
             <div class="ir">
-              <div class="ir-top">
-                <div class="sw-wrap">
-                  <select
-                    class="fs"
-                    name="product_id[]"
-                    required
-                    style="padding: 8px 26px 8px 11px; font-size: 11.5px"
-                  >
-                    <option value="">— Pilih Produk —</option>
-                    {% for p in products %}
-                    <option value="{{ p.id }}" data-price="{{ p.price }}">
-                      {{ p.name }} · Rp {{
-                      "{:,}".format(p.price).replace(",",".") }}
-                    </option>
-                    {% endfor %}
-                  </select>
-                </div>
+              <div class="sw-wrap" style="margin-bottom: 7px">
+                <select
+                  class="fs item-material"
+                  required
+                  style="padding: 8px 26px 8px 11px; font-size: 11.5px"
+                >
+                  <option value="">— Pilih Barang Gudang —</option>
+                  {% for m in materials %}
+                  <option value="{{ m.id }}" data-stock="{{ m.qty_kg }}" data-unit="{{ m.unit }}">
+                    {{ m.name }} · stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="row2">
                 <div>
                   <div class="qty-lbl">Qty</div>
                   <input
-                    class="fi"
+                    class="fi item-qty"
                     type="text"
-                    name="qty[]"
                     inputmode="decimal"
                     value="1"
                     required
@@ -930,8 +945,34 @@
                     "
                   />
                 </div>
+                <div>
+                  <div class="qty-lbl">Harga / satuan</div>
+                  <input
+                    class="fi item-price"
+                    type="text"
+                    inputmode="numeric"
+                    required
+                    placeholder="contoh: 200000"
+                    style="
+                      padding: 8px 10px;
+                      font-size: 14px;
+                      text-align: center;
+                      font-weight: 900;
+                    "
+                  />
+                </div>
               </div>
-              <div class="ir-bot">
+              <div class="item-stock-warn" style="
+                  display: none;
+                  margin-top: 5px;
+                  font-size: 10.5px;
+                  font-weight: 800;
+                  color: var(--rd);
+                "
+              >
+                ⚠️ Qty melebihi stok tersedia
+              </div>
+              <div class="ir-bot" style="margin-top: 6px">
                 <div class="ir-sub line-sub">Rp 0</div>
                 <button type="button" class="del">✕</button>
               </div>
@@ -994,6 +1035,7 @@
           </div>
         </div>
       </div>
+      <input type="hidden" name="items_json" id="itemsJsonInput" value="[]" />
       <button type="submit" class="btn-submit">
         <svg
           width="16"
@@ -1009,11 +1051,7 @@
         </svg>
         Simpan &amp; Buka Nota
       </button>
-      <a
-        href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
-        class="btn-back"
-        >← Kembali</a
-      >
+      <a href="/dashboard" class="btn-back">← Kembali</a>
     </form>
   </div>
 </div>
@@ -1021,7 +1059,7 @@
   <div class="nbar">
     <a
       class="ni"
-      href="{{ '/admin/dashboard' if is_admin_mode else '/dashboard' }}"
+      href="/dashboard"
       ><span class="ni-i"
         ><svg viewBox="0 0 24 24">
           <rect class="nf" x="3" y="3" width="8" height="8" rx="1.5" />
@@ -1075,14 +1113,16 @@
       if (!n) return "0";
       return n.toLocaleString("id-ID", { maximumFractionDigits: 3 });
     }
+    function rowQty(r) {
+      return qtyNum(r.querySelector(".item-qty").value || "0");
+    }
+    function rowPrice(r) {
+      return qtyNum(r.querySelector(".item-price").value || "0");
+    }
     function subTot() {
       var t = 0;
       L.querySelectorAll(".ir").forEach(function (r) {
-        var s = r.querySelector('select[name="product_id[]"]'),
-          q = r.querySelector('input[name="qty[]"]'),
-          op = s.options[s.selectedIndex],
-          p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0;
-        t += p * qtyNum(q.value || "0");
+        t += rowPrice(r) * rowQty(r);
       });
       return t;
     }
@@ -1096,18 +1136,23 @@
         disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
     }
     function bindRow(r) {
-      var s = r.querySelector('select[name="product_id[]"]'),
-        q = r.querySelector('input[name="qty[]"]'),
+      var s = r.querySelector(".item-material"),
+        q = r.querySelector(".item-qty"),
+        p = r.querySelector(".item-price"),
         o = r.querySelector(".line-sub"),
+        warn = r.querySelector(".item-stock-warn"),
         d = r.querySelector(".del");
       function c() {
+        var n = rowQty(r),
+          price = rowPrice(r);
+        o.textContent = rp(price * n);
         var op = s.options[s.selectedIndex],
-          p = op ? parseInt(op.getAttribute("data-price") || "0", 10) : 0,
-          n = qtyNum(q.value || "0");
-        o.textContent = rp(p * n);
+          stock = op ? parseFloat(op.getAttribute("data-stock") || "0") : 0;
+        warn.style.display = op && op.value && n > stock ? "block" : "none";
         grand();
       }
       s.addEventListener("change", c);
+      p.addEventListener("input", c);
       q.addEventListener("input", c);
       q.addEventListener("blur", function () {
         var n = qtyNum(q.value || "0");
@@ -1125,15 +1170,37 @@
     document.getElementById("btnAdd").addEventListener("click", function () {
       var f = L.querySelector(".ir"),
         c = f.cloneNode(true);
-      c.querySelector('select[name="product_id[]"]').selectedIndex = 0;
-      c.querySelector('input[name="qty[]"]').value = "1";
+      c.querySelector(".item-material").selectedIndex = 0;
+      c.querySelector(".item-qty").value = "1";
+      c.querySelector(".item-price").value = "";
       c.querySelector(".line-sub").textContent = "Rp 0";
+      c.querySelector(".item-stock-warn").style.display = "none";
       L.appendChild(c);
       bindRow(c);
       grand();
     });
     L.querySelectorAll(".ir").forEach(bindRow);
     DI.addEventListener("input", grand);
+
+    document.getElementById("invForm").addEventListener("submit", function (e) {
+      var items = [];
+      L.querySelectorAll(".ir").forEach(function (r) {
+        var s = r.querySelector(".item-material");
+        if (!s.value) return;
+        items.push({
+          material_id: parseInt(s.value, 10),
+          qty: rowQty(r),
+          price: rowPrice(r),
+        });
+      });
+      if (!items.length) {
+        e.preventDefault();
+        alert("Pilih minimal 1 barang.");
+        return;
+      }
+      document.getElementById("itemsJsonInput").value = JSON.stringify(items);
+    });
+
     var isPaid = true;
     window.togglePaid = function () {
       isPaid = !isPaid;

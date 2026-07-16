@@ -721,70 +721,15 @@ def cancel_nota_transaction(txn_id):
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    from core import cancel_fin_transaction
     try:
-        _ensure_transaction_cancel_columns(cur)
-
-        cur.execute("""
-            SELECT id, type, party_name, is_debt, total_amount, cancelled_at
-            FROM fin_transactions WHERE id = %s FOR UPDATE;
-        """, (txn_id,))
-        txn = cur.fetchone()
-        if not txn:
-            return mobile_api_response(
-                ok=False, message="Nota tidak ditemukan.", status_code=404)
-        if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
-            return mobile_api_response(
-                ok=False, message="Nota jenis ini tidak bisa dibatalkan dari sini.",
-                status_code=400)
-        if txn["cancelled_at"] is not None:
-            return mobile_api_response(
-                ok=False, message="Nota ini sudah pernah dibatalkan.", status_code=400)
-
-        # Tolak jika hutang/piutang terkait sudah ada cicilan tercatat
-        cur.execute("""
-            SELECT id, paid_amount FROM fin_debts WHERE transaction_id = %s;
-        """, (txn_id,))
-        debt = cur.fetchone()
-        if debt and float(debt["paid_amount"] or 0) > 0:
-            return mobile_api_response(
-                ok=False,
-                message="Nota ini tidak bisa dibatalkan karena hutang/piutangnya "
-                        "sudah memiliki cicilan/pembayaran. Batalkan pembayarannya dulu.",
-                status_code=400)
-
-        # Balikkan stok & HPP per item (BELI:'IN' → dibalik OUT, JUAL:'OUT' → dibalik IN)
-        cur.execute("""
-            SELECT material_id, qty_kg, price_per_kg
-            FROM fin_transaction_items WHERE transaction_id = %s;
-        """, (txn_id,))
-        original_movement = 'IN' if txn["type"] == 'BELI_GUDANG' else 'OUT'
-        for it in cur.fetchall():
-            _reverse_stock_movement(
-                cur, it["material_id"], float(it["qty_kg"]), txn_id,
-                original_movement, note=f"Pembatalan nota #{txn_id}")
-
-        # Hapus hutang/piutang terkait (belum ada cicilan)
-        if debt:
-            cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt["id"],))
-
-        # Tandai nota dibatalkan → otomatis hilang dari Riwayat Nota
-        cur.execute("""
-            UPDATE fin_transactions
-            SET cancelled_at = NOW(), cancelled_by = %s
-            WHERE id = %s;
-        """, (request.mobile_user.get("id"), txn_id))
-
-        conn.commit()
+        cancel_fin_transaction(txn_id, request.mobile_user.get("id"))
         return mobile_api_response(
             ok=True,
             message="Nota berhasil dibatalkan, stok & HPP gudang sudah dikembalikan.",
             data={"transaction_id": txn_id})
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal membatalkan nota: {str(e)}", status_code=500)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
     finally:
         cur.close(); conn.close()
 
@@ -1404,137 +1349,21 @@ def create_invoice():
     discount       = float(header.get("discount", 0) or 0)
     is_paid        = str(header.get("is_paid", "1")) == "1"
 
-    if not customer_name:
-        return mobile_api_response(
-            ok=False, message="Nama customer wajib diisi.", status_code=400)
-    if not items:
-        return mobile_api_response(
-            ok=False, message="Minimal 1 item barang.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    from core import create_fin_invoice
     try:
-        # ── Validasi semua material_id ada di fin_materials ──────────
-        for item in items:
-            mat_id = item.get("material_id")
-            if not mat_id:
-                return mobile_api_response(
-                    ok=False, message="material_id wajib di setiap item.", status_code=400)
-            cur.execute(
-                "SELECT id, name FROM fin_materials WHERE id = %s AND is_active = TRUE;",
-                (int(mat_id),))
-            if not cur.fetchone():
-                return mobile_api_response(
-                    ok=False,
-                    message=f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.",
-                    status_code=400)
-
-        # ── Cek stok cukup ───────────────────────────────────────────
-        for item in items:
-            mat_id = int(item["material_id"])
-            qty    = float(item.get("qty", 0))
-            cur.execute("""
-                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
-                FROM fin_materials m
-                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
-                WHERE m.id = %s;
-            """, (mat_id,))
-            row = cur.fetchone()
-            if not row or float(row["qty"]) < qty:
-                stok_ada = float(row["qty"]) if row else 0
-                return mobile_api_response(
-                    ok=False,
-                    message=f"Stok {row['name'] if row else mat_id} tidak cukup. "
-                            f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg",
-                    status_code=400)
-
-        # ── Hitung total & subtotal ──────────────────────────────────
-        subtotal_bruto = sum(
-            float(i.get("qty", 0)) * float(i.get("price", 0))
-            for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount)
-
-        # ── Generate invoice_no: INV-YYYYMMDD-XXXX ──────────────────
-        cur.execute("""
-            SELECT COUNT(*) AS cnt
-            FROM fin_transactions
-            WHERE created_at::date = CURRENT_DATE
-              AND type = 'JUAL_INVOICE';
-        """)
-        seq = (cur.fetchone()["cnt"] or 0) + 1
-        from datetime import datetime
-        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
-
-        # ── Insert header transaksi ──────────────────────────────────
-        is_debt = not is_paid
-        cur.execute("""
-            INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt,
-                 total_amount, created_by)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s)
-            RETURNING id;
-        """, (customer_name,
-              f"[{invoice_no}] {payment_method}"
-              + (f" | {notes}" if notes else ""),
-              is_debt, grand_total,
-              request.mobile_user.get("id")))
-        txn_id = cur.fetchone()["id"]
-
-        # ── Insert items + kurangi stok AVCO ────────────────────────
-        hpp_total = 0.0
-        for item in items:
-            mat_id   = int(item["material_id"])
-            qty      = float(item.get("qty", 0))
-            price    = float(item.get("price", 0))
-            subtotal = qty * price
-
-            # Ambil HPP rata-rata saat ini
-            cur.execute("""
-                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
-                FROM fin_stock_summary WHERE material_id = %s;
-            """, (mat_id,))
-            row = cur.fetchone()
-            avg = float(row["avg"]) if row else 0
-            hpp_total += qty * avg
-
-            cur.execute("""
-                INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
-
-            _update_stock_avco(
-                cur, mat_id, qty, avg, 'OUT', txn_id,
-                note=f"Invoice {invoice_no} — {customer_name}")
-
-        # ── Catat piutang jika belum lunas ──────────────────────────
-        if is_debt and customer_name:
-            cur.execute("""
-                INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining,
-                     transaction_id, note)
-                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
-            """, (customer_name, grand_total, grand_total, txn_id,
-                  f"Invoice {invoice_no} — belum dibayar"))
-
-        conn.commit()
-
-        laba = grand_total - hpp_total
-        return mobile_api_response(ok=True, message="Invoice berhasil dibuat.", data=_clean({
-            "invoice_id": txn_id,
-            "invoice_no": invoice_no,
-            "subtotal":   subtotal_bruto,
-            "discount":   discount,
-            "total":      grand_total,
-            "hpp":        hpp_total,
-            "laba":       laba,
-        }))
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal buat invoice: {str(e)}", status_code=500)
-    finally:
-        cur.close(); conn.close()
+        result = create_fin_invoice(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            payment_method=payment_method,
+            notes=notes,
+            discount=discount,
+            is_paid=is_paid,
+            items=items,
+            created_by=request.mobile_user.get("id"),
+        )
+        return mobile_api_response(ok=True, message="Invoice berhasil dibuat.", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 # ════════════════════════════════════════════════════════════════

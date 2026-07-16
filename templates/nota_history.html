@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">📋 Riwayat Nota</h1>
+    <p class="page-sub">{{ total }} nota ditemukan</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/nota/new">+ Buat Nota</a>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px">
+  <form method="get" action="/nota" class="row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto">
+    <div>
+      <label>Cari</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="No nota / nama customer / kasir…" />
+    </div>
+    <div>
+      <label>Jenis</label>
+      <select name="type">
+        <option value="" {{ "selected" if not type_f }}>Semua</option>
+        <option value="JUAL" {{ "selected" if type_f == "JUAL" }}>Jual</option>
+        <option value="BELI" {{ "selected" if type_f == "BELI" }}>Beli</option>
+      </select>
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="" {{ "selected" if not status_f }}>Semua</option>
+        <option value="LUNAS" {{ "selected" if status_f == "LUNAS" }}>Lunas</option>
+        <option value="BELUM" {{ "selected" if status_f == "BELUM" }}>Belum Lunas</option>
+      </select>
+    </div>
+    <div>
+      <label>Dari Tanggal</label>
+      <input type="date" name="date_from" value="{{ date_from }}" />
+    </div>
+    <div>
+      <label>Sampai Tanggal</label>
+      <input type="date" name="date_to" value="{{ date_to }}" />
+    </div>
+    <div style="display: flex; align-items: flex-end">
+      <button type="submit" class="btn btn-primary">Cari</button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-top: 14px; overflow-x: auto">
+  {% if invoices %}
+  <table>
+    <thead>
+      <tr>
+        <th>No Nota</th>
+        <th>Tanggal</th>
+        <th>Customer</th>
+        <th>Kasir</th>
+        <th>Metode</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td><strong>{{ inv.invoice_no }}</strong></td>
+        <td class="muted">{{ inv.created_at_wib or "-" }}</td>
+        <td>{{ inv.customer_name or "-" }}</td>
+        <td class="muted">{{ inv.created_by_name or "-" }}</td>
+        <td class="muted">{{ inv.payment_method }}</td>
+        <td>Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</td>
+        <td>
+          {% if inv.is_paid %}
+          <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
+          {% else %}
+          <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
+          {% endif %}
+        </td>
+        <td>
+          <a class="btn" href="/nota/{{ inv.id }}">Lihat</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align: center; padding: 24px 0">
+    Belum ada nota yang cocok dengan filter ini.
+  </p>
+  {% endif %}
+</div>
+
+<p class="muted" style="margin-top: 14px; text-align: center">
+  Nota lama (sebelum sistem gudang) tersimpan terpisah sebagai arsip —
+  <a href="/dashboard" style="color: var(--primary); font-weight: 700">hubungi admin</a>
+  kalau butuh salinan nota lama.
+</p>
+{% endblock %}
