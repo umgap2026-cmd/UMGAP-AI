@@ -387,7 +387,11 @@
         </div>
 
         <div class="actions">
-          <a class="btn" href="{{ url_for('dashboard.dashboard') }}">Kembali</a>
+          <a
+            class="btn"
+            href="{{ '/admin/dashboard' if session.get('role')=='admin' else url_for('dashboard.dashboard') }}"
+            >Kembali</a
+          >
           <a class="btn btn-danger" href="{{ url_for('auth.logout') }}"
             >Logout</a
           >

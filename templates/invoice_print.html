@@ -964,6 +964,24 @@
       display: none;
     }
   }
+
+  /* ── Desktop: lebarkan dari layout mobile-card ── */
+  @media screen and (min-width: 700px) {
+    .ww {
+      max-width: 640px;
+    }
+  }
+  @media screen and (min-width: 1024px) {
+    .pg {
+      padding-top: 28px;
+    }
+    .ww {
+      max-width: 820px;
+    }
+    .bnav {
+      display: none;
+    }
+  }
 </style>
 
 <!-- DATA BRIDGE: semua Jinja di sini, JS baca via dataset -->
@@ -1219,7 +1237,11 @@
           Print Browser (Ctrl+P)
         </button>
         <a class="btn-new" href="/nota/new">+ Buat Nota Baru</a>
-        <a class="btn-back" href="/dashboard">← Kembali ke Dashboard</a>
+        <a
+          class="btn-back"
+          href="{{ '/admin/dashboard' if session.get('role')=='admin' else '/dashboard' }}"
+          >← Kembali ke Dashboard</a
+        >
       </div>
     </div>
 
