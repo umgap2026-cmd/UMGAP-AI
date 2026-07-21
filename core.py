@@ -556,9 +556,9 @@ def mobile_api_login_required(fn):
 # =========================
 # INVOICE HELPERS
 # =========================
-def _make_invoice_no():
+def _make_invoice_no(prefix="INV"):
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
-    return "INV-" + now.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:5].upper()
+    return f"{prefix}-" + now.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:5].upper()
 
 def _invoice_rows_from_form(form):
     product_ids = form.getlist("product_id[]")
@@ -918,14 +918,117 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         conn.close()
 
 
+def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
+                                 discount, is_paid, items, created_by, print_size=None):
+    """
+    Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
+    (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
+    masuk (bukan keluar) dan tanpa HPP/laba. 'discount' di sini berarti DP
+    yang sudah dibayar ke pemasok, mengurangi nilai hutang yang dicatat.
+    Raise ValueError(pesan) kalau validasi gagal.
+    Return dict: {invoice_id, invoice_no, subtotal, discount, total}.
+    """
+    from routes.mobile.finance import _update_stock_avco
+
+    supplier_name = (supplier_name or "").strip()
+    if not supplier_name:
+        raise ValueError("Nama pemasok wajib diisi.")
+    if not items:
+        raise ValueError("Minimal 1 item barang.")
+
+    discount = float(discount or 0)
+    print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        for item in items:
+            mat_id = item.get("material_id")
+            if not mat_id:
+                raise ValueError("material_id wajib di setiap item.")
+            cur.execute(
+                "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+                (int(mat_id),)
+            )
+            if not cur.fetchone():
+                raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
+
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
+        grand_total = max(0.0, subtotal_bruto - discount)
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM fin_transactions
+            WHERE created_at::date = CURRENT_DATE AND type = 'BELI_GUDANG';
+        """)
+        seq = (cur.fetchone()["cnt"] or 0) + 1
+        invoice_no = f"BELI-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
+
+        is_debt = not is_paid
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (
+            supplier_name,
+            f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
+            is_debt, grand_total, created_by, print_size
+        ))
+        txn_id = cur.fetchone()["id"]
+
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(
+                cur, mat_id, qty, price, 'IN', txn_id,
+                note=f"Nota {invoice_no} — {supplier_name}"
+            )
+
+        if is_debt and supplier_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('HUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+            """, (supplier_name, grand_total, grand_total, txn_id,
+                  f"Nota {invoice_no} — belum dibayar"))
+
+        conn.commit()
+
+        return {
+            "invoice_id": txn_id,
+            "invoice_no": invoice_no,
+            "subtotal": subtotal_bruto,
+            "discount": discount,
+            "total": grand_total,
+        }
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal buat nota beli: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_fin_invoice_detail(txn_id):
     """
-    Ambil 1 nota (fin_transactions) beserta items-nya, dibentuk dengan
-    field-name yang sama dipakai templates/invoice_print.html &
-    invoice_pdf.html (invoice_no, customer_name, created_by_name,
-    payment_method, subtotal, discount, grand_total, notes, print_size,
-    is_paid, company_name, logo_data_uri). Return (invoice_dict, items) atau
-    (None, []) kalau tidak ada.
+    Ambil 1 nota (fin_transactions, JUAL_INVOICE atau BELI_GUDANG) beserta
+    items-nya, dibentuk dengan field-name yang sama dipakai
+    templates/invoice_print.html & invoice_pdf.html (invoice_no,
+    customer_name, created_by_name, payment_method, subtotal, discount,
+    grand_total, notes, print_size, is_paid, company_name, logo_data_uri,
+    nota_type). Return (invoice_dict, items) atau (None, []) kalau tidak ada.
     """
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -934,12 +1037,12 @@ def get_fin_invoice_detail(txn_id):
         conn.commit()
 
         cur.execute("""
-            SELECT t.id, t.note, t.party_name AS customer_name, t.is_debt,
+            SELECT t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
                    t.total_amount, t.created_at, t.print_size,
                    u.name AS created_by_name
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
-            WHERE t.id = %s AND t.type = 'JUAL_INVOICE';
+            WHERE t.id = %s AND t.type IN ('JUAL_INVOICE', 'BELI_GUDANG');
         """, (txn_id,))
         row = cur.fetchone()
         if not row:
@@ -965,9 +1068,11 @@ def get_fin_invoice_detail(txn_id):
         items_subtotal = sum(it["subtotal"] for it in items)
         grand_total = float(row.get("total_amount") or 0)
         profile = get_company_profile()
+        nota_type = "BELI" if row.get("type") == "BELI_GUDANG" else "JUAL"
 
         invoice = {
             "id": row["id"],
+            "nota_type": nota_type,
             "invoice_no": invoice_no or f"NOTA-{row['id']}",
             "customer_name": row.get("customer_name") or "",
             "customer_phone": "",

@@ -731,8 +731,8 @@
     <div class="hero">
       <div class="h-inner">
         <div class="h-eye">Point of Sale</div>
-        <div class="h-ttl">🧾 Nota Penjualan</div>
-        <div class="h-sub">Buat nota dari stok gudang, cetak thermal &amp; kirim WhatsApp.</div>
+        <div class="h-ttl" id="heroTitle">🧾 Nota Penjualan</div>
+        <div class="h-sub" id="heroSub">Buat nota dari stok gudang, cetak thermal &amp; kirim WhatsApp.</div>
         <div class="h-chips">
           <span class="h-chip">🖨️ 58/80mm</span
           ><span class="h-chip">📶 BT</span>
@@ -747,16 +747,41 @@
     <form method="post" id="invForm">
       <div class="card">
         <div class="card-hd">
+          <div class="c-ico" style="background: var(--vs)">🔀</div>
+          <div>
+            <div class="c-ttl">Jenis Nota</div>
+            <div class="c-sub">Barang masuk (beli) atau keluar (jual) gudang</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="pg2">
+            <div class="po">
+              <input type="radio" name="nota_type" id="nt-jual" value="JUAL" checked
+              /><label for="nt-jual"
+                ><span class="pi">🛒</span><span class="pl">Nota Jual</span></label
+              >
+            </div>
+            <div class="po g">
+              <input type="radio" name="nota_type" id="nt-beli" value="BELI"
+              /><label for="nt-beli"
+                ><span class="pi">📦</span><span class="pl">Nota Beli</span></label
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">
           <div class="c-ico" style="background: var(--vs)">👤</div>
           <div>
-            <div class="c-ttl">Info Pelanggan</div>
-            <div class="c-sub">Nama &amp; nomor WhatsApp customer</div>
+            <div class="c-ttl" id="custCardTitle">Info Pelanggan</div>
+            <div class="c-sub" id="custCardSub">Nama &amp; nomor WhatsApp customer</div>
           </div>
         </div>
         <div class="card-body">
           <div class="row2">
             <div>
-              <label class="flbl">Nama Customer *</label>
+              <label class="flbl" id="custNameLbl">Nama Customer *</label>
               <input
                 class="fi"
                 type="text"
@@ -935,7 +960,7 @@
           <div class="c-ico" style="background: var(--ams)">🛒</div>
           <div>
             <div class="c-ttl">Item Nota</div>
-            <div class="c-sub">Barang gudang, qty &amp; harga jual</div>
+            <div class="c-sub" id="itemsCardSub">Barang gudang, qty &amp; harga jual</div>
           </div>
         </div>
         <div class="card-body">
@@ -1022,7 +1047,7 @@
             Tambah Item
           </button>
           <div>
-            <label class="flbl">Diskon (Rp)</label>
+            <label class="flbl" id="discLbl">Diskon (Rp)</label>
             <div class="disc-row">
               <input
                 class="fi"
@@ -1210,6 +1235,52 @@
     L.querySelectorAll(".ir").forEach(bindRow);
     DI.addEventListener("input", grand);
 
+    // ── Toggle Jual / Beli ──
+    var TXT = {
+      JUAL: {
+        heroTitle: "🧾 Nota Penjualan",
+        heroSub: "Buat nota dari stok gudang, cetak thermal & kirim WhatsApp.",
+        custCardTitle: "Info Pelanggan",
+        custCardSub: "Nama & nomor WhatsApp customer",
+        custNameLbl: "Nama Customer *",
+        itemsCardSub: "Barang gudang, qty & harga jual",
+        discLbl: "Diskon (Rp)",
+        ptTtl: "Lunas",
+        ptSub: "Pembayaran sudah diterima",
+        ptSubOff: "Tagihan masih berjalan (piutang)",
+      },
+      BELI: {
+        heroTitle: "📦 Nota Pembelian",
+        heroSub: "Catat pembelian barang masuk ke stok gudang.",
+        custCardTitle: "Info Pemasok",
+        custCardSub: "Nama & nomor WhatsApp pemasok/orang",
+        custNameLbl: "Nama Pemasok *",
+        itemsCardSub: "Barang gudang, qty & harga beli",
+        discLbl: "DP Sudah Dibayar (Rp)",
+        ptTtl: "Lunas",
+        ptSub: "Sudah dibayar penuh ke pemasok",
+        ptSubOff: "Tagihan masih berjalan (hutang)",
+      },
+    };
+    function applyNotaType(type) {
+      var t = TXT[type] || TXT.JUAL;
+      document.getElementById("heroTitle").textContent = t.heroTitle;
+      document.getElementById("heroSub").textContent = t.heroSub;
+      document.getElementById("custCardTitle").textContent = t.custCardTitle;
+      document.getElementById("custCardSub").textContent = t.custCardSub;
+      document.getElementById("custNameLbl").textContent = t.custNameLbl;
+      document.getElementById("itemsCardSub").textContent = t.itemsCardSub;
+      document.getElementById("discLbl").textContent = t.discLbl;
+      var isPaidNow = document.getElementById("isPaidInp").value === "1";
+      document.getElementById("ptTtl").textContent = t.ptTtl;
+      document.getElementById("ptSub").textContent = isPaidNow ? t.ptSub : t.ptSubOff;
+    }
+    document.querySelectorAll('input[name="nota_type"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        applyNotaType(r.value);
+      });
+    });
+
     document.getElementById("invForm").addEventListener("submit", function (e) {
       var items = [];
       L.querySelectorAll(".ir").forEach(function (r) {
@@ -1232,15 +1303,13 @@
     var isPaid = true;
     window.togglePaid = function () {
       isPaid = !isPaid;
-      var t = document.getElementById("ptog");
-      t.className = "pt" + (isPaid ? "" : " off");
+      var checked = document.querySelector('input[name="nota_type"]:checked');
+      var t = TXT[checked ? checked.value : "JUAL"] || TXT.JUAL;
+      var el = document.getElementById("ptog");
+      el.className = "pt" + (isPaid ? "" : " off");
       document.getElementById("ptIco").textContent = isPaid ? "✅" : "⏳";
-      document.getElementById("ptTtl").textContent = isPaid
-        ? "Lunas"
-        : "Belum Lunas";
-      document.getElementById("ptSub").textContent = isPaid
-        ? "Pembayaran sudah diterima"
-        : "Tagihan masih berjalan";
+      document.getElementById("ptTtl").textContent = isPaid ? t.ptTtl : "Belum Lunas";
+      document.getElementById("ptSub").textContent = isPaid ? t.ptSub : t.ptSubOff;
       document.getElementById("isPaidInp").value = isPaid ? "1" : "0";
     };
   })();

@@ -1031,7 +1031,7 @@
     <div class="inv-hero">
       <div class="ih-top">
         <div class="ih-inner">
-          <div class="ih-eye">Nota Penjualan</div>
+          <div class="ih-eye">{{ 'Nota Pembelian' if invoice.nota_type == 'BELI' else 'Nota Penjualan' }}</div>
           <div class="ih-no">{{ invoice.invoice_no }}</div>
           <div class="ih-meta">
             <span class="ih-pill"
@@ -1273,7 +1273,7 @@
           </div>
           <div class="r-center">
             <div class="r-biz">{{ invoice.company_name or 'UMGAP' }}</div>
-            <div class="r-sub">Nota Penjualan</div>
+            <div class="r-sub">{{ 'Nota Pembelian' if invoice.nota_type == 'BELI' else 'Nota Penjualan' }}</div>
           </div>
           <hr class="r-dash" />
           <div class="r-row">
@@ -1287,7 +1287,7 @@
             ><span class="r">{{ invoice.created_at_wib or '-' }}</span>
           </div>
           <div class="r-row">
-            <span class="l">Customer</span
+            <span class="l">{{ 'Pemasok' if invoice.nota_type == 'BELI' else 'Customer' }}</span
             ><span class="r">{{ invoice.customer_name or '-' }}</span>
           </div>
           <div class="r-row">

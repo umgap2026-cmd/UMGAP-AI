@@ -2,59 +2,200 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1 class="page-title">💰 Keuangan &amp; Gudang</h1>
-    <p class="page-sub">Pusat kerja admin — nota, kasir beli, hutang-piutang, dan stok barang.</p>
+    <h1 class="page-title">💰 Finance</h1>
+    <p class="page-sub">Stok gudang, hutang-piutang, dan ringkasan keuangan dalam satu halaman.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/nota/new">+ Buat Nota</a>
+    <a class="btn" href="/nota">📋 Riwayat Nota</a>
   </div>
 </div>
 
 <div class="grid" style="margin-top: 14px">
   <div class="card">
     <h2>📦 Nilai Stok Gudang</h2>
-    <p style="font-size: 26px; font-weight: 900; margin: 4px 0">
+    <p style="font-size: 24px; font-weight: 900; margin: 4px 0">
       Rp {{ "{:,}".format(total_value | round | int).replace(",", ".") }}
     </p>
-    <p class="muted">{{ material_count }} jenis barang aktif</p>
-    <a class="btn" href="/finance/materials" style="margin-top: 10px">Kelola Barang</a>
+    <p class="muted">{{ materials|length }} jenis barang aktif</p>
   </div>
 
   <div class="card">
-    <h2>🧾 Hutang ke Pemasok</h2>
-    <p style="font-size: 26px; font-weight: 900; margin: 4px 0; color: var(--bad)">
+    <h2>🔴 Hutang ke Pemasok</h2>
+    <p style="font-size: 24px; font-weight: 900; margin: 4px 0; color: var(--bad)">
       Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }}
     </p>
     <p class="muted">{{ debts.hutang|length }} transaksi belum lunas</p>
-    <a class="btn" href="/finance/debts" style="margin-top: 10px">Lihat Hutang-Piutang</a>
   </div>
 
   <div class="card">
-    <h2>💵 Piutang Pelanggan</h2>
-    <p style="font-size: 26px; font-weight: 900; margin: 4px 0; color: var(--good)">
+    <h2>🟢 Piutang Pelanggan</h2>
+    <p style="font-size: 24px; font-weight: 900; margin: 4px 0; color: var(--good)">
       Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }}
     </p>
     <p class="muted">{{ debts.piutang|length }} transaksi belum dibayar</p>
-    <a class="btn" href="/finance/debts" style="margin-top: 10px">Lihat Hutang-Piutang</a>
   </div>
 </div>
 
+<!-- ═══ BARANG GUDANG ═══ -->
 <div class="page-head" style="margin-top: 22px">
-  <h2 class="page-title" style="font-size: 15px">Aksi Cepat</h2>
+  <h2 class="page-title" style="font-size: 16px">📦 Barang Gudang</h2>
 </div>
-<div class="grid">
-  <a class="card" style="text-decoration: none" href="/nota/new">
-    <h2>🧾 Buat Nota Jual</h2>
-    <p class="muted">Nota resmi dari stok gudang, bisa dicetak &amp; kirim WA.</p>
-  </a>
-  <a class="card" style="text-decoration: none" href="/finance/buy">
-    <h2>🛒 Kasir Beli</h2>
-    <p class="muted">Beli barang dari pemasok/orang — bisa hutang &amp; DP.</p>
-  </a>
-  <a class="card" style="text-decoration: none" href="/finance/materials">
-    <h2>📦 Barang Gudang</h2>
-    <p class="muted">Tambah/ubah barang &amp; pantau stok terkini.</p>
-  </a>
-  <a class="card" style="text-decoration: none" href="/nota">
-    <h2>📋 Riwayat Nota</h2>
-    <p class="muted">Semua nota jual &amp; beli, batalkan bila perlu.</p>
-  </a>
+
+<div class="card" style="margin-top: 8px">
+  <h2>+ Tambah Barang Baru</h2>
+  <form method="post" action="/finance/materials/add" class="row-1">
+    <div class="row">
+      <div>
+        <label>Nama Barang *</label>
+        <input type="text" name="name" placeholder="contoh: BC" required />
+      </div>
+      <div>
+        <label>Satuan</label>
+        <input type="text" name="unit" placeholder="kg" value="kg" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Stok Awal (opsional)</label>
+        <input type="number" step="0.01" name="init_qty" placeholder="0" />
+      </div>
+      <div>
+        <label>Harga Beli / satuan (wajib jika ada stok awal)</label>
+        <input type="number" name="init_price" placeholder="0" />
+      </div>
+    </div>
+    <div>
+      <label>Catatan</label>
+      <input type="text" name="note" placeholder="opsional" />
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top: 4px">Simpan Barang</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top: 14px; overflow-x: auto">
+  {% if materials %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nama</th>
+        <th>Satuan</th>
+        <th>Stok</th>
+        <th>HPP Rata²</th>
+        <th>Nilai Stok</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in materials %}
+      <tr>
+        <td>
+          <form method="post" action="/finance/materials/{{ m.id }}/edit" style="display:flex; gap:6px; align-items:center">
+            <input type="text" name="name" value="{{ m.name }}" style="min-width: 120px" required />
+            <input type="text" name="unit" value="{{ m.unit }}" style="width: 64px" />
+            <button type="submit" class="btn" style="padding: 8px 10px">Simpan</button>
+          </form>
+        </td>
+        <td class="muted">{{ m.unit }}</td>
+        <td>{{ "%.1f"|format(m.qty_kg) }}</td>
+        <td class="muted">Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</td>
+        <td><strong>Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</strong></td>
+        <td>
+          <form method="post" action="/finance/materials/{{ m.id }}/delete"
+                onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
+            <button type="submit" class="btn btn-danger">Hapus</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align: center; padding: 24px 0">Belum ada barang di gudang.</p>
+  {% endif %}
+</div>
+
+<!-- ═══ HUTANG KE PEMASOK ═══ -->
+<div class="page-head" style="margin-top: 22px">
+  <h2 class="page-title" style="font-size: 16px">
+    🔴 Hutang ke Pemasok — Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }}
+  </h2>
+</div>
+<div class="card" style="margin-top: 8px; overflow-x: auto">
+  {% if debts.hutang %}
+  <table>
+    <thead>
+      <tr>
+        <th>Pemasok</th>
+        <th>Total</th>
+        <th>Sudah Dibayar</th>
+        <th>Sisa</th>
+        <th>Catatan</th>
+        <th style="min-width: 220px">Bayar / Cicil</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in debts.hutang %}
+      <tr>
+        <td>{{ d.party_name or "-" }}</td>
+        <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
+        <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
+        <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
+        <td class="muted">{{ d.note or "-" }}</td>
+        <td>
+          <form method="post" action="/finance/debts/{{ d.id }}/pay" style="display:flex; gap:6px">
+            <input type="number" name="amount" placeholder="Jumlah bayar" min="1" required style="width: 140px" />
+            <button type="submit" class="btn btn-primary">Bayar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align: center; padding: 20px 0">Tidak ada hutang ke pemasok.</p>
+  {% endif %}
+</div>
+
+<!-- ═══ PIUTANG PELANGGAN ═══ -->
+<div class="page-head" style="margin-top: 22px">
+  <h2 class="page-title" style="font-size: 16px">
+    🟢 Piutang Pelanggan — Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }}
+  </h2>
+</div>
+<div class="card" style="margin-top: 8px; overflow-x: auto">
+  {% if debts.piutang %}
+  <table>
+    <thead>
+      <tr>
+        <th>Pelanggan</th>
+        <th>Total</th>
+        <th>Sudah Dibayar</th>
+        <th>Sisa</th>
+        <th>Catatan</th>
+        <th style="min-width: 220px">Terima Pembayaran</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in debts.piutang %}
+      <tr>
+        <td>{{ d.party_name or "-" }}</td>
+        <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
+        <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
+        <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
+        <td class="muted">{{ d.note or "-" }}</td>
+        <td>
+          <form method="post" action="/finance/debts/{{ d.id }}/pay" style="display:flex; gap:6px">
+            <input type="number" name="amount" placeholder="Jumlah diterima" min="1" required style="width: 140px" />
+            <button type="submit" class="btn btn-primary">Terima</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align: center; padding: 20px 0">Tidak ada piutang dari pelanggan.</p>
+  {% endif %}
 </div>
 {% endblock %}

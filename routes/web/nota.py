@@ -12,6 +12,7 @@ from core import (
     get_company_profile,
     set_company_profile,
     create_fin_invoice,
+    create_fin_purchase_invoice,
     get_invoice_history,
     get_fin_invoice_detail,
     settle_fin_debt_for_transaction,
@@ -34,17 +35,32 @@ def nota_new():
         except Exception:
             items = []
 
+        nota_type = (request.form.get("nota_type") or "JUAL").strip().upper()
+        is_paid = str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes")
+
         try:
-            result = create_fin_invoice(
-                customer_name=request.form.get("customer_name"),
-                customer_phone=request.form.get("customer_phone"),
-                payment_method=request.form.get("payment_method") or "CASH",
-                notes=request.form.get("notes"),
-                discount=request.form.get("discount") or 0,
-                is_paid=str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes"),
-                items=items,
-                created_by=session.get("user_id"),
-            )
+            if nota_type == "BELI":
+                result = create_fin_purchase_invoice(
+                    supplier_name=request.form.get("customer_name"),
+                    supplier_phone=request.form.get("customer_phone"),
+                    payment_method=request.form.get("payment_method") or "CASH",
+                    notes=request.form.get("notes"),
+                    discount=request.form.get("discount") or 0,
+                    is_paid=is_paid,
+                    items=items,
+                    created_by=session.get("user_id"),
+                )
+            else:
+                result = create_fin_invoice(
+                    customer_name=request.form.get("customer_name"),
+                    customer_phone=request.form.get("customer_phone"),
+                    payment_method=request.form.get("payment_method") or "CASH",
+                    notes=request.form.get("notes"),
+                    discount=request.form.get("discount") or 0,
+                    is_paid=is_paid,
+                    items=items,
+                    created_by=session.get("user_id"),
+                )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
             flash(str(e), "danger")
