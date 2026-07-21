@@ -29,6 +29,7 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
   final noteController         = TextEditingController();
   TimeOfDay? manualTime;
   TimeOfDay? manualCheckoutTime;
+  bool checkoutEmployeeLoading = false;
 
   final List<Map<String, dynamic>> _types = [
     {"value": "ONTIME",  "label": "Tepat Waktu",  "icon": Icons.check_circle_rounded,    "color": Color(0xFF2E7D32)},
@@ -207,6 +208,23 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
     if (mounted) setState(() => submitting = false);
   }
 
+  Future<void> _checkoutSelectedEmployee() async {
+    if (selectedEmployee == null) {
+      _showSnack("Pilih karyawan terlebih dahulu", isError: true);
+      return;
+    }
+    setState(() => checkoutEmployeeLoading = true);
+    try {
+      final res = await ApiService.checkOutEmployee(selectedEmployee!['id'] as int);
+      if (!mounted) return;
+      _showSnack(res["message"]?.toString() ?? "Karyawan berhasil di-checkout.");
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack("Gagal: $e", isError: true);
+    }
+    if (mounted) setState(() => checkoutEmployeeLoading = false);
+  }
+
   void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
@@ -341,6 +359,37 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
                   setState(() => selectedEmployee = Map<String, dynamic>.from(emp));
                 },
               ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Checkout cepat (untuk karyawan yang sudah check-in sendiri) ──
+          GestureDetector(
+            onTap: (employees.isEmpty || checkoutEmployeeLoading) ? null : _checkoutSelectedEmployee,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E7D32).withOpacity(0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.25)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.logout_rounded, color: Color(0xFF2E7D32), size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    "Sudah check-in sendiri? Checkout karyawan ini sekarang, tanpa ubah data masuknya.",
+                    style: TextStyle(fontSize: 12, color: _kTextMid, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                checkoutEmployeeLoading
+                    ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF2E7D32)))
+                    : const Text("Checkout",
+                    style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.w800, fontSize: 12.5)),
+              ]),
             ),
           ),
 

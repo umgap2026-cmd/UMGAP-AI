@@ -272,6 +272,20 @@ class ApiService {
     return _asMap(res.data);
   }
 
+  /// Admin checkout-kan karyawan lain yang sudah check-in sendiri hari ini
+  /// — tidak menyentuh data check-in-nya sama sekali.
+  static Future<Map<String, dynamic>> checkOutEmployee(int userId) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/attendance/checkout-employee",
+      data: {"user_id": userId},
+      options: Options(headers: headers),
+    );
+
+    _ensureOk(res, "Gagal checkout karyawan");
+    return _asMap(res.data);
+  }
+
   static Future<List<dynamic>> getPendingAttendanceList() async {
     final headers = await _headers();
     final res = await dio.get(

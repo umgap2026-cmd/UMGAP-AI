@@ -718,3 +718,37 @@ def mobile_attendance_admin_add():
         data={"user_id": target_user_id, "work_date": str(work_date), "arrival_type": arrival_type},
         status_code=200
     )
+
+
+@mobile_attendance_bp.route("/attendance/checkout-employee", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_attendance_checkout_employee():
+    """Checkout langsung (jam sekarang) untuk karyawan yang sudah check-in
+    sendiri hari ini — tidak menyentuh data check-in-nya, beda dari
+    mobile_attendance_admin_add() yang selalu ikut submit ulang check-in."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    user = request.mobile_user
+    if user.get("role") != "admin":
+        return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        target_user_id = int(payload.get("user_id"))
+    except (TypeError, ValueError):
+        return mobile_api_response(ok=False, message="user_id tidak valid.", status_code=400)
+
+    try:
+        result = record_checkout(target_user_id, date.today())
+        return mobile_api_response(
+            ok=True,
+            message="Karyawan berhasil di-checkout.",
+            data={
+                "checkin_at": _format_dt(result.get("checkin_at")),
+                "checkout_at": _format_dt(result.get("checkout_at")),
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)

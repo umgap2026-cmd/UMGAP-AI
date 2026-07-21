@@ -644,3 +644,27 @@ def admin_attendance_add():
             flash(str(e), "danger")
 
     return redirect("/admin/attendance")
+
+
+@admin_bp.route("/admin/attendance/checkout-employee", methods=["POST"])
+def admin_attendance_checkout_employee():
+    """Checkout langsung (jam sekarang) untuk karyawan yang sudah check-in
+    sendiri hari ini — tidak menyentuh/menimpa data check-in-nya sama sekali,
+    beda dari admin_attendance_add() yang selalu ikut submit ulang check-in."""
+    deny = admin_required()
+    if deny:
+        return deny
+
+    try:
+        user_id = int(request.form["user_id"])
+    except (KeyError, ValueError):
+        flash("Pilih karyawan yang mau di-checkout.", "danger")
+        return redirect("/admin/attendance")
+
+    try:
+        record_checkout(user_id, date.today())
+        flash("Karyawan berhasil di-checkout.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect("/admin/attendance")

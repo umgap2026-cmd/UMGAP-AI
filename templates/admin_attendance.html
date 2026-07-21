@@ -1090,6 +1090,33 @@
     </div>
     <!-- /form-split -->
 
+    <!-- CHECKOUT KARYAWAN -->
+    <div class="main-card">
+      <div class="inner">
+        <div class="sec-title">🚪 Checkout Karyawan</div>
+        <div class="sec-desc">Karyawan yang sudah absen masuk sendiri hari ini — checkout langsung tanpa mengubah data masuknya.</div>
+        <div class="divider"></div>
+        <form method="POST" action="/admin/attendance/checkout-employee" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap">
+          <div class="field" style="flex: 1; min-width: 220px; margin-bottom: 0">
+            <label>Pilih Karyawan</label>
+            <select name="user_id" required>
+              {% for e in employees %}
+              <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn-submit" type="submit" style="width: auto; height: 50px; padding: 0 22px; margin: 0; background: linear-gradient(180deg, #059669 0%, #047857 100%); box-shadow: 0 10px 20px rgba(5,150,105,0.22)">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Checkout Sekarang
+          </button>
+        </form>
+      </div>
+    </div>
+
     <!-- RIWAYAT -->
     <div class="main-card">
       <div class="inner">
