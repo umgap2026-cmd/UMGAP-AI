@@ -9,6 +9,7 @@ from db import get_conn
 from core import (
     mobile_api_response, _public_ip, ensure_mobile_api_schema,
     _otp_verify_rate_limited, send_wa as _send_wa_reset,
+    ensure_password_reset_schema,
 )
 
 mobile_auth_bp = Blueprint("mobile_auth", __name__)
@@ -312,35 +313,6 @@ import random as _rand
 import string as _string
 from datetime  import datetime, timedelta
 
-def _ensure_reset_table(cur):
-    # Buat tabel fresh
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS password_reset_otps (
-            id          SERIAL PRIMARY KEY,
-            user_id     INT         NOT NULL,
-            otp         CHAR(6)     NOT NULL,
-            reset_token TEXT        UNIQUE,
-            expires_at  TIMESTAMPTZ NOT NULL,
-            used        BOOLEAN     NOT NULL DEFAULT FALSE
-        );
-    """)
-    # Tambah kolom yang mungkin kurang (jika tabel sudah ada tapi schema lama)
-    for col_sql in [
-        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS otp CHAR(6)",
-        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS reset_token TEXT",
-        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS used BOOLEAN NOT NULL DEFAULT FALSE",
-        "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
-    ]:
-        try:
-            cur.execute(col_sql)
-        except Exception:
-            pass
-    # Buat index terpisah
-    try:
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reset_otp ON password_reset_otps(otp);")
-    except Exception:
-        pass
-
 def _mask_wa(phone: str) -> str:
     """Samarkan nomor: 0812****5678"""
     p = phone.strip().replace("+","").replace(" ","")
@@ -392,11 +364,10 @@ def forgot_password_request():
             ok=False, message="Email atau nomor WhatsApp wajib diisi.",
             status_code=400)
 
+    ensure_password_reset_schema()
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_reset_table(cur)
-
         user = _find_user_by_identifier(cur, identifier)
 
         # Selalu return sukses untuk keamanan (tidak bocorkan apakah akun ada)
@@ -467,6 +438,7 @@ def forgot_password_verify():
         return mobile_api_response(
             ok=False, message="OTP tidak valid.", status_code=400)
 
+    ensure_password_reset_schema()
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -478,8 +450,6 @@ def forgot_password_verify():
                 message="Terlalu banyak percobaan. Coba lagi beberapa menit lagi.",
                 status_code=429)
         conn.commit()
-
-        _ensure_reset_table(cur)
 
         user = _find_user_by_identifier(cur, identifier)
         if not user:
@@ -547,10 +517,10 @@ def forgot_password_reset():
         return mobile_api_response(
             ok=False, message="Password minimal 6 karakter.", status_code=400)
 
+    ensure_password_reset_schema()
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_reset_table(cur)
         cur.execute("""
             SELECT user_id, expires_at
             FROM password_reset_otps

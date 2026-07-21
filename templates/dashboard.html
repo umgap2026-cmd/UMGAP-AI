@@ -1202,36 +1202,10 @@
             <div class="feat-ico">📆</div>
             <div class="feat-lbl">Kalender Konten</div>
           </a>
-          <a class="feat f-c" href="/caption">
-            <div class="feat-ico">✨</div>
-            <div class="feat-lbl">AI Caption</div>
+          <a class="feat f-p visible" href="/payslip">
+            <div class="feat-ico">💵</div>
+            <div class="feat-lbl">Slip Gaji</div>
           </a>
-          <a class="feat f-b" href="/sales">
-            <div class="feat-ico">🧾</div>
-            <div class="feat-lbl">Penjualan</div>
-          </a>
-        </div>
-
-        <!-- MORE toggle -->
-        <div class="more-wrap">
-          <button class="more-btn" id="moreBtn" type="button">
-            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-            Lihat Semua Menu
-          </button>
-        </div>
-
-        <div class="more-sec" id="moreSec">
-          <div class="sec-ttl" style="margin-top: 16px">Menu Lainnya</div>
-          <div class="feat-grid">
-            <a class="feat f-p visible" href="/products">
-              <div class="feat-ico">📦</div>
-              <div class="feat-lbl">Produk</div>
-            </a>
-            <a class="feat f-j visible" href="/invoice/new">
-              <div class="feat-ico">📝</div>
-              <div class="feat-lbl">Nota</div>
-            </a>
-          </div>
         </div>
 
         <!-- ═══ COMING SOON ═══ -->
@@ -1507,19 +1481,6 @@
             },
             100 + i * 60,
           );
-        });
-
-        /* ── More toggle ── */
-        var mBtn = document.getElementById("moreBtn");
-        var mSec = document.getElementById("moreSec");
-        mBtn.addEventListener("click", function () {
-          var open = mSec.classList.toggle("show");
-          mBtn.classList.toggle("open", open);
-          mBtn.innerHTML = open
-            ? '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transform:rotate(180deg)"><path d="M6 9l6 6 6-6"/></svg> Sembunyikan'
-            : '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;"><path d="M6 9l6 6 6-6"/></svg> Lihat Semua Menu';
-          if (open)
-            mSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
         });
 
         /* ── Bottom nav ── */

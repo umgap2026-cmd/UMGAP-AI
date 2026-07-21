@@ -7,6 +7,14 @@ from core import mobile_api_response, mobile_api_login_required
 mobile_products_bp = Blueprint("mobile_products", __name__)
 
 
+def _admin_or_owner():
+    role = str((request.mobile_user or {}).get("role") or "").strip().lower()
+    if role not in ("admin", "owner"):
+        return mobile_api_response(
+            ok=False, message="Akses ditolak. Hanya admin/owner.", status_code=403)
+    return None
+
+
 @mobile_products_bp.route("/products", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
 def mobile_products_list():
@@ -56,6 +64,10 @@ def mobile_products_add():
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
+    deny = _admin_or_owner()
+    if deny:
+        return deny
+
     user = request.mobile_user
     data = request.get_json(silent=True) or {}
 
@@ -92,6 +104,10 @@ def mobile_products_update(pid):
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
 
+    deny = _admin_or_owner()
+    if deny:
+        return deny
+
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     price = data.get("price") or 0
@@ -126,6 +142,10 @@ def mobile_products_update(pid):
 def mobile_products_delete(pid):
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    deny = _admin_or_owner()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor()

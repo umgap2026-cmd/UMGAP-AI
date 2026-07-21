@@ -2,15 +2,16 @@ from flask import Blueprint, render_template, redirect, request, session, abort
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import is_logged_in
+from core import owner_or_admin_required
 
 products_bp = Blueprint("products", __name__)
 
 
 @products_bp.route("/products")
 def products():
-    if not is_logged_in():
-        return redirect("/login")
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -31,8 +32,9 @@ def products():
 
 @products_bp.route("/products/add", methods=["POST"])
 def products_add():
-    if not is_logged_in():
-        return redirect("/login")
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
 
     name = (request.form.get("name") or "").strip()
     price = (request.form.get("price") or "0").strip()
@@ -66,8 +68,9 @@ def products_add():
 
 @products_bp.route("/products/delete/<int:pid>")
 def products_delete(pid):
-    if not is_logged_in():
-        return redirect("/login")
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor()
@@ -84,8 +87,9 @@ def products_delete(pid):
 
 @products_bp.route("/products/edit/<int:pid>", methods=["GET", "POST"])
 def products_edit(pid):
-    if not is_logged_in():
-        return redirect("/login")
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)

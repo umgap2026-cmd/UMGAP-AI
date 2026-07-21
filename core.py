@@ -309,19 +309,49 @@ def _otp_verify_rate_limited(cur, ip_address: str) -> bool:
     return count > OTP_VERIFY_MAX_ATTEMPTS
 
 def ensure_password_reset_schema():
+    """Skema bersama untuk reset password web (email+otp_hash) & mobile
+    (user_id+otp+reset_token via WA) — dulu ada 2 fungsi terpisah yang
+    bikin tabel sama dengan kolom berbeda, siapa pun jalan duluan bikin
+    alur satunya gagal. Sekarang 1 tabel, semua kolom opsional kecuali
+    yang dipakai bersama (expires_at, used, created_at)."""
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS password_reset_otps (
                 id SERIAL PRIMARY KEY,
-                email VARCHAR(255) NOT NULL,
-                otp_hash TEXT NOT NULL,
+                email VARCHAR(255),
+                otp_hash TEXT,
+                user_id INTEGER,
+                otp CHAR(6),
+                reset_token TEXT,
                 expires_at TIMESTAMP NOT NULL,
                 used BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        for col_sql in [
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS email VARCHAR(255)",
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS otp_hash TEXT",
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS user_id INTEGER",
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS otp CHAR(6)",
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS reset_token TEXT",
+        ]:
+            try:
+                cur.execute(col_sql)
+            except Exception:
+                conn.rollback()
+        try:
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_otps_reset_token
+                ON password_reset_otps(reset_token) WHERE reset_token IS NOT NULL;
+            """)
+        except Exception:
+            conn.rollback()
+        try:
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_otps_otp ON password_reset_otps(otp);")
+        except Exception:
+            conn.rollback()
         conn.commit()
     finally:
         cur.close()
@@ -1382,6 +1412,662 @@ def get_admin_fcm_tokens():
         """)
         rows = cur.fetchall()
         return [r["fcm_token"] for r in rows if r.get("fcm_token")]
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =========================
+# FINANCE — KASIR / STOK / HUTANG-PIUTANG (dipakai bersama web & mobile)
+# Diextract dari routes/mobile/finance.py supaya web (routes/web/finance.py)
+# & mobile (routes/mobile/finance.py) berbagi 1 sumber kebenaran, sama
+# seperti pola create_fin_invoice/cancel_fin_transaction di atas.
+# Semua fungsi raise ValueError(pesan) kalau validasi gagal — caller di
+# layer route yang menerjemahkan ke response (400/flash message).
+# =========================
+
+def list_fin_materials():
+    """Daftar barang gudang aktif + stok saat ini. Return (rows, total_value)."""
+    from routes.mobile.finance import _clean
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                m.id, m.name, m.unit, m.sort_order,
+                COALESCE(s.qty_kg, 0)          AS qty_kg,
+                COALESCE(s.avg_cost_per_kg, 0) AS avg_cost_per_kg,
+                COALESCE(s.total_value, 0)     AS total_value,
+                s.updated_at
+            FROM fin_materials m
+            LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+            WHERE m.is_active = TRUE
+            ORDER BY m.sort_order, m.name;
+        """)
+        rows = _clean([dict(r) for r in cur.fetchall()])
+        total_value = sum(float(r['total_value'] or 0) for r in rows)
+        return rows, total_value
+    finally:
+        cur.close()
+        conn.close()
+
+
+def add_fin_material(name, unit, init_qty, init_price, note, created_by):
+    """Tambah barang baru ke fin_materials, opsional stok awal via AVCO."""
+    name = (name or "").strip()
+    unit = (unit or "kg").strip() or "kg"
+    init_qty = float(init_qty or 0)
+    init_price = int(init_price or 0)
+    note = (note or "").strip()
+
+    if not name:
+        raise ValueError("Nama barang wajib diisi.")
+    if init_qty > 0 and init_price <= 0:
+        raise ValueError("Harga beli wajib diisi jika ada stok awal.")
+
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT id FROM fin_materials WHERE LOWER(name)=LOWER(%s) AND is_active=TRUE;",
+            (name,))
+        if cur.fetchone():
+            raise ValueError(f"Barang '{name}' sudah ada di gudang.")
+
+        cur.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS nxt FROM fin_materials;")
+        sort_order = cur.fetchone()["nxt"]
+
+        cur.execute("""
+            INSERT INTO fin_materials (name, unit, sort_order, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            RETURNING id;
+        """, (name, unit, sort_order))
+        material_id = cur.fetchone()["id"]
+
+        cur.execute("""
+            INSERT INTO fin_stock_summary
+                (material_id, qty_kg, avg_cost_per_kg, total_value, updated_at)
+            VALUES (%s, 0, 0, 0, NOW())
+            ON CONFLICT (material_id) DO NOTHING;
+        """, (material_id,))
+
+        if init_qty > 0:
+            cur.execute("""
+                INSERT INTO fin_transactions
+                    (type, party_name, party_type, note, is_debt,
+                     total_amount, created_by)
+                VALUES ('BELI', 'Stok Awal', 'SUPPLIER', %s, FALSE, %s, %s)
+                RETURNING id;
+            """, (
+                note or f"Stok awal {name}",
+                init_qty * init_price,
+                created_by,
+            ))
+            txn_id = cur.fetchone()["id"]
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, material_id, init_qty, init_price, init_qty * init_price))
+
+            _update_stock_avco(
+                cur, material_id, init_qty, init_price, 'IN', txn_id,
+                note=note or f"Stok awal {name}")
+
+        conn.commit()
+        return {"material_id": material_id, "name": name, "unit": unit, "init_qty": init_qty}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal tambah barang: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def edit_fin_material(material_id, name, unit):
+    """Edit nama & satuan barang gudang."""
+    name = (name or "").strip()
+    unit = (unit or "kg").strip() or "kg"
+    if not name:
+        raise ValueError("Nama barang wajib diisi.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "UPDATE fin_materials SET name = %s, unit = %s WHERE id = %s RETURNING id, name;",
+            (name, unit, material_id)
+        )
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            raise ValueError("Barang tidak ditemukan.")
+        conn.commit()
+        return dict(row)
+    except ValueError:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_material(material_id):
+    """Nonaktifkan barang gudang & bersihkan referensi stok. Return nama barang."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT name FROM fin_materials WHERE id = %s;", (material_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            raise ValueError("Barang tidak ditemukan.")
+        mat_name = row["name"]
+
+        cur.execute("DELETE FROM fin_stock_ledger WHERE material_id = %s;", (material_id,))
+        cur.execute("""
+            UPDATE fin_transaction_items
+            SET material_id = NULL
+            WHERE material_id = %s;
+        """, (material_id,))
+        cur.execute("DELETE FROM fin_stock_summary WHERE material_id = %s;", (material_id,))
+        cur.execute("UPDATE fin_materials SET is_active = FALSE WHERE id = %s;", (material_id,))
+        conn.commit()
+        return mat_name
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
+    """
+    Kasir Beli — beli barang dari orang/pemasok, stok masuk gudang via AVCO.
+    'discount' = nilai potongan/DP dalam Rupiah; total & hutang dicatat
+    sebesar (total - discount), stok/HPP tetap pakai harga asli.
+    Return dict {transaction_id, total, discount, grand_total}.
+    """
+    party_name = (party_name or "").strip()
+    note = (note or "").strip()
+    discount = max(0.0, float(discount or 0))
+    is_debt = bool(is_debt)
+
+    if not items:
+        raise ValueError("Minimal 1 item barang.")
+
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in items)
+        grand_total = max(0.0, total - discount)
+
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by)
+            VALUES ('BELI_GUDANG', %s, 'PELANGGAN', %s, %s, %s, %s)
+            RETURNING id;
+        """, (party_name or None, note or None, is_debt, grand_total, created_by))
+        txn_id = cur.fetchone()["id"]
+
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item["qty_kg"])
+            price = float(item["price_per_kg"])
+            subtotal = qty * price
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(cur, mat_id, qty, price, 'IN', txn_id,
+                               note=f"Beli dari {party_name or 'orang'}")
+
+        if is_debt and party_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (party_name, grand_total, grand_total, txn_id, "Beli barang — belum dibayar"))
+
+        conn.commit()
+        return {
+            "transaction_id": txn_id,
+            "total": total,
+            "discount": discount,
+            "grand_total": grand_total,
+        }
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_sale_kasir(party_name, is_debt, note, items, created_by):
+    """
+    Kasir Jual — jual barang gudang ke orang, stok keluar via AVCO.
+    Beda dari create_fin_invoice (Nota): tidak generate invoice_no/cetak,
+    dipakai untuk transaksi cepat tanpa nota resmi.
+    Return dict {transaction_id, total, hpp, laba}.
+    """
+    party_name = (party_name or "").strip()
+    note = (note or "").strip()
+    is_debt = bool(is_debt)
+
+    if not items:
+        raise ValueError("Minimal 1 item barang.")
+
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in items)
+
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item["qty_kg"])
+            cur.execute("""
+                SELECT COALESCE(qty_kg, 0) AS qty, name
+                FROM fin_stock_summary s
+                JOIN fin_materials m ON m.id = s.material_id
+                WHERE s.material_id = %s;
+            """, (mat_id,))
+            stok = cur.fetchone()
+            if not stok or float(stok["qty"]) < qty:
+                nama = stok["name"] if stok else f"Material #{mat_id}"
+                tersedia = float(stok["qty"]) if stok else 0
+                raise ValueError(f"Stok {nama} tidak cukup. Tersedia: {tersedia} kg")
+
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by)
+            VALUES ('JUAL_GUDANG', %s, 'PELANGGAN', %s, %s, %s, %s)
+            RETURNING id;
+        """, (party_name or None, note or None, is_debt, total, created_by))
+        txn_id = cur.fetchone()["id"]
+
+        hpp_total = 0.0
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item["qty_kg"])
+            price = float(item["price_per_kg"])
+            subtotal = qty * price
+
+            cur.execute("""
+                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
+                FROM fin_stock_summary WHERE material_id = %s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            hpp_total += qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(cur, mat_id, qty, avg, 'OUT', txn_id,
+                               note=f"Jual ke {party_name or 'orang'}")
+
+        if is_debt and party_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (party_name, total, total, txn_id, "Jual barang — belum dibayar"))
+
+        conn.commit()
+        laba = total - hpp_total
+        return {"transaction_id": txn_id, "total": total, "hpp": hpp_total, "laba": laba}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_expense(note, items, created_by):
+    """Input pengeluaran operasional (ongkir, makan, dll). Return dict {transaction_id, total}."""
+    note = (note or "").strip()
+    if not items:
+        raise ValueError("Minimal 1 item pengeluaran.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        total = sum(float(i.get("subtotal", 0)) for i in items)
+
+        cur.execute("""
+            INSERT INTO fin_transactions (type, note, total_amount, created_by)
+            VALUES ('PENGELUARAN', %s, %s, %s)
+            RETURNING id;
+        """, (note or None, total, created_by))
+        txn_id = cur.fetchone()["id"]
+
+        for item in items:
+            cur.execute("""
+                INSERT INTO fin_transaction_items (transaction_id, expense_name, subtotal)
+                VALUES (%s, %s, %s);
+            """, (txn_id, (item.get("expense_name") or "Pengeluaran").strip(),
+                  float(item.get("subtotal", 0))))
+
+        conn.commit()
+        return {"transaction_id": txn_id, "total": total}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_fin_debts():
+    """Daftar hutang (ke pemasok) & piutang yang belum lunas."""
+    from routes.mobile.finance import _clean
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, type, party_name, amount, paid_amount,
+                   remaining, due_date, is_settled, note, created_at
+            FROM fin_debts
+            WHERE is_settled = FALSE
+            ORDER BY type, created_at DESC;
+        """)
+        rows = _clean([dict(r) for r in cur.fetchall()])
+        hutang = [r for r in rows if r["type"] == "HUTANG"]
+        piutang = [r for r in rows if r["type"] == "PIUTANG"]
+        return {
+            "hutang": hutang,
+            "piutang": piutang,
+            "total_hutang": sum(float(r["remaining"]) for r in hutang),
+            "total_piutang": sum(float(r["remaining"]) for r in piutang),
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+def pay_fin_debt(debt_id, pay_amount):
+    """Cicil/lunasi hutang atau piutang. Return dict {paid, remaining, is_settled}."""
+    pay_amount = float(pay_amount or 0)
+    if pay_amount <= 0:
+        raise ValueError("Jumlah pembayaran harus lebih dari 0.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, amount, paid_amount, remaining, type, party_name
+            FROM fin_debts WHERE id = %s;
+        """, (debt_id,))
+        debt = cur.fetchone()
+        if not debt:
+            raise ValueError("Data tidak ditemukan.")
+
+        new_paid = float(debt["paid_amount"]) + pay_amount
+        new_remaining = max(0, float(debt["amount"]) - new_paid)
+        is_settled = new_remaining <= 0
+
+        cur.execute("""
+            UPDATE fin_debts
+            SET paid_amount = %s, remaining = %s, is_settled = %s
+            WHERE id = %s;
+        """, (new_paid, new_remaining, is_settled, debt_id))
+        conn.commit()
+        return {"paid": new_paid, "remaining": new_remaining, "is_settled": is_settled}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_stock_history(material_id):
+    """Riwayat pergerakan stok 1 material + ringkasan stok saat ini."""
+    from routes.mobile.finance import _clean
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT l.*, m.name AS material_name
+            FROM fin_stock_ledger l
+            JOIN fin_materials m ON m.id = l.material_id
+            WHERE l.material_id = %s
+            ORDER BY l.created_at DESC
+            LIMIT 50;
+        """, (material_id,))
+        rows = _clean([dict(r) for r in cur.fetchall()])
+
+        cur.execute("""
+            SELECT qty_kg, avg_cost_per_kg, total_value
+            FROM fin_stock_summary WHERE material_id = %s;
+        """, (material_id,))
+        summary = dict(cur.fetchone() or {})
+
+        return {"current": summary, "history": rows}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_daily_report(report_date):
+    """Laporan keuangan harian (kasir gudang + trip). `report_date` = datetime.date."""
+    from routes.mobile.finance import _clean
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                t.id, t.type, t.party_name, t.total_amount,
+                t.is_debt, t.note, t.created_at,
+                json_agg(json_build_object(
+                    'material_id',  i.material_id,
+                    'expense_name', i.expense_name,
+                    'qty_kg',       i.qty_kg,
+                    'price_per_kg', i.price_per_kg,
+                    'subtotal',     i.subtotal,
+                    'material_name', m.name
+                )) AS items
+            FROM fin_transactions t
+            LEFT JOIN fin_transaction_items i ON i.transaction_id = t.id
+            LEFT JOIN fin_materials m ON m.id = i.material_id
+            WHERE t.created_at::date = %s
+            GROUP BY t.id
+            ORDER BY t.created_at DESC;
+        """, (report_date,))
+        transactions = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT
+                ti.id, ti.type AS trip_item_type,
+                ti.subtotal, ti.qty_kg, ti.expense_name,
+                ti.payment_type,
+                m.name AS material_name,
+                p.name AS party_name,
+                t.note AS trip_note,
+                t.id   AS trip_id,
+                ti.created_at
+            FROM fin_trip_items ti
+            JOIN fin_trips t ON t.id = ti.trip_id
+            LEFT JOIN fin_materials m ON m.id = ti.material_id
+            LEFT JOIN fin_trip_parties p ON p.id = ti.party_id
+            WHERE ti.created_at::date = %s
+            ORDER BY ti.created_at DESC;
+        """, (report_date,))
+        trip_items = [dict(r) for r in cur.fetchall()]
+
+        for ti in trip_items:
+            type_map = {
+                'JUAL':    'JUAL_TRIP',
+                'BELI':    'BELI_TRIP',
+                'EXPENSE': 'PENGELUARAN_TRIP',
+                'RETURN':  'RETURN_TRIP',
+            }
+            transactions.append({
+                "id":           f"trip-{ti['id']}",
+                "type":         type_map.get(ti['trip_item_type'], ti['trip_item_type']),
+                "party_name":   ti.get('party_name') or ti.get('trip_note') or f"Trip #{ti['trip_id']}",
+                "total_amount": float(ti['subtotal'] or 0),
+                "note":         ti.get('expense_name') or ti.get('material_name'),
+                "created_at":   str(ti['created_at']),
+                "is_trip":      True,
+                "items": [],
+            })
+
+        pemasukan = sum(float(t["total_amount"] or 0) for t in transactions
+                        if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "TERIMA_HUTANG"))
+        pengeluaran = sum(float(t["total_amount"] or 0) for t in transactions
+                          if t["type"] in ("BELI_GUDANG", "PENGELUARAN", "PEMBAYARAN_DP", "BAYAR_HUTANG"))
+
+        trip_jual = sum(float(t["total_amount"] or 0) for t in transactions if t["type"] == "JUAL_TRIP")
+        trip_beli = sum(float(t["total_amount"] or 0) for t in transactions if t["type"] == "BELI_TRIP")
+        trip_expense = sum(float(t["total_amount"] or 0) for t in transactions if t["type"] == "PENGELUARAN_TRIP")
+
+        cur.execute("""
+            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
+            FROM fin_transactions t
+            JOIN fin_transaction_items i ON i.transaction_id = t.id
+            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            WHERE t.created_at::date = %s
+              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
+              AND i.material_id IS NOT NULL;
+        """, (report_date,))
+        hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
+
+        cur.execute("""
+            SELECT COALESCE(SUM(ti.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
+            FROM fin_trip_items ti
+            JOIN fin_stock_summary s ON s.material_id = ti.material_id
+            WHERE ti.created_at::date = %s AND ti.type = 'JUAL';
+        """, (report_date,))
+        hpp_trip = float((cur.fetchone() or {}).get("hpp_total", 0))
+
+        hpp_total = hpp_gudang + hpp_trip
+        omzet_jual = sum(float(t["total_amount"] or 0) for t in transactions
+                         if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "JUAL_TRIP"))
+        laba_kotor = omzet_jual - hpp_total - trip_expense
+
+        cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
+        nilai_stok = float((cur.fetchone() or {}).get("total", 0))
+
+        return _clean({
+            "date": str(report_date),
+            "transactions": transactions,
+            "summary": {
+                "pemasukan": pemasukan,
+                "pengeluaran": pengeluaran,
+                "omzet_jual": omzet_jual,
+                "hpp": hpp_total,
+                "laba_kotor": laba_kotor,
+                "nilai_stok": nilai_stok,
+                "trip_jual": trip_jual,
+                "trip_beli": trip_beli,
+                "trip_expense": trip_expense,
+            }
+        })
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_weekly_report(week_start, week_end):
+    """Laporan keuangan mingguan. `week_start`/`week_end` = datetime.date."""
+    from routes.mobile.finance import _clean
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT type, SUM(total_amount) AS total, COUNT(*) AS count
+            FROM fin_transactions
+            WHERE created_at::date >= %s AND created_at::date <= %s
+            GROUP BY type;
+        """, (week_start, week_end))
+        by_type = {r["type"]: dict(r) for r in cur.fetchall()}
+
+        def _sum(types):
+            return sum(float((by_type.get(t) or {}).get("total", 0)) for t in types)
+
+        omzet = _sum(["JUAL_GUDANG", "JUAL_INVOICE"])
+        modal = _sum(["BELI_GUDANG"])
+        biaya = _sum(["PENGELUARAN", "PEMBAYARAN_DP"])
+        masuk = _sum(["TERIMA_HUTANG"])
+
+        cur.execute("""
+            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp
+            FROM fin_transactions t
+            JOIN fin_transaction_items i ON i.transaction_id = t.id
+            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            WHERE t.created_at::date >= %s AND t.created_at::date <= %s
+              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
+              AND i.material_id IS NOT NULL;
+        """, (week_start, week_end))
+        hpp = float((cur.fetchone() or {}).get("hpp", 0))
+
+        laba_kotor = omzet - hpp
+        laba_bersih = laba_kotor - biaya
+
+        cur.execute("""
+            SELECT
+                created_at::date AS hari,
+                SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END) AS jual,
+                SUM(CASE WHEN type = 'BELI_GUDANG'  THEN total_amount ELSE 0 END) AS beli,
+                SUM(CASE WHEN type = 'PENGELUARAN'  THEN total_amount ELSE 0 END) AS biaya
+            FROM fin_transactions
+            WHERE created_at::date >= %s AND created_at::date <= %s
+            GROUP BY hari ORDER BY hari;
+        """, (week_start, week_end))
+        per_hari = [dict(r) for r in cur.fetchall()]
+
+        return _clean({
+            "week_start": str(week_start),
+            "week_end": str(week_end),
+            "week_label": f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}",
+            "summary": {
+                "omzet_jual": omzet,
+                "modal_beli": modal,
+                "hpp": hpp,
+                "laba_kotor": laba_kotor,
+                "biaya_ops": biaya,
+                "laba_bersih": laba_bersih,
+                "piutang_masuk": masuk,
+            },
+            "per_hari": per_hari,
+        })
     finally:
         cur.close()
         conn.close()

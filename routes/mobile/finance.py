@@ -13,6 +13,10 @@ from db import get_conn
 from core import (
     mobile_api_response, mobile_api_login_required, send_wa as _send_wa,
     _ensure_transaction_cancel_columns,
+    list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
+    create_fin_purchase, create_fin_sale_kasir, create_fin_expense,
+    list_fin_debts, pay_fin_debt, get_fin_stock_history,
+    get_fin_daily_report, get_fin_weekly_report,
 )
 import random
 import string
@@ -372,24 +376,19 @@ def finance_edit_material(material_id):
     try:
         _ensure_otp_table(cur)
         _consume_otp(cur, otp, request.mobile_user["user_id"])   # validasi + consume atomic
-        cur.execute(
-            "UPDATE fin_materials SET name = %s, unit = %s WHERE id = %s RETURNING id, name;",
-            (name, unit, material_id)
-        )
-        row = cur.fetchone()
-        if not row:
-            conn.rollback()
-            return mobile_api_response(ok=False, message="Barang tidak ditemukan", status_code=404)
         conn.commit()
-        return mobile_api_response(ok=True, message="Barang berhasil diperbarui", data=dict(row))
     except ValueError as e:
         conn.rollback()
         return mobile_api_response(ok=False, message=str(e), status_code=400)
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(ok=False, message=str(e), status_code=500)
     finally:
         cur.close(); conn.close()
+
+    try:
+        row = edit_fin_material(material_id, name, unit)
+        return mobile_api_response(ok=True, message="Barang berhasil diperbarui", data=row)
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
 @mobile_finance_bp.route("/finance/materials/<int:material_id>/delete",
@@ -415,39 +414,20 @@ def finance_delete_material(material_id):
     try:
         _ensure_otp_table(cur)
         _consume_otp(cur, otp, request.mobile_user["user_id"])
-
-        cur.execute("SELECT name FROM fin_materials WHERE id = %s;", (material_id,))
-        row = cur.fetchone()
-        if not row:
-            conn.rollback()
-            return mobile_api_response(ok=False, message="Barang tidak ditemukan", status_code=404)
-        mat_name = row["name"]
-
-        # Hapus/nullify semua referensi sebelum hapus parent
-        cur.execute("DELETE FROM fin_stock_ledger WHERE material_id = %s;", (material_id,))
-
-        # fin_transaction_items mungkin punya FK ke fin_materials — set null dulu
-        cur.execute("""
-            UPDATE fin_transaction_items
-            SET material_id = NULL
-            WHERE material_id = %s;
-        """, (material_id,))
-
-        cur.execute("DELETE FROM fin_stock_summary WHERE material_id = %s;", (material_id,))
-        cur.execute("UPDATE fin_materials SET is_active = FALSE WHERE id = %s;", (material_id,))
         conn.commit()
-        return mobile_api_response(
-            ok=True, message=f'Barang "{mat_name}" berhasil dihapus', data={})
     except ValueError as e:
         conn.rollback()
         return mobile_api_response(ok=False, message=str(e), status_code=400)
-    except Exception as e:
-        conn.rollback()
-        import traceback
-        print(f"[DELETE MATERIAL] Error: {traceback.format_exc()}")
-        return mobile_api_response(ok=False, message=str(e), status_code=500)
     finally:
         cur.close(); conn.close()
+
+    try:
+        mat_name = delete_fin_material(material_id)
+        return mobile_api_response(
+            ok=True, message=f'Barang "{mat_name}" berhasil dihapus', data={})
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -464,32 +444,11 @@ def get_materials():
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT
-                m.id, m.name, m.unit, m.sort_order,
-                COALESCE(s.qty_kg, 0)          AS qty_kg,
-                COALESCE(s.avg_cost_per_kg, 0) AS avg_cost_per_kg,
-                COALESCE(s.total_value, 0)     AS total_value,
-                s.updated_at
-            FROM fin_materials m
-            LEFT JOIN fin_stock_summary s ON s.material_id = m.id
-            WHERE m.is_active = TRUE
-            ORDER BY m.sort_order, m.name;
-        """)
-        rows = _clean([dict(r) for r in cur.fetchall()])
-
-        # Total nilai gudang
-        total_value = sum(float(r['total_value'] or 0) for r in rows)
-
-        return mobile_api_response(ok=True, message="OK", data=_clean({
-            "materials":   rows,
-            "total_value": total_value,
-        }))
-    finally:
-        cur.close(); conn.close()
+    rows, total_value = list_fin_materials()
+    return mobile_api_response(ok=True, message="OK", data=_clean({
+        "materials":   rows,
+        "total_value": total_value,
+    }))
 
 
 # ════════════════════════════════════════════════════════════════
@@ -518,90 +477,23 @@ def add_material():
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    data      = request.get_json(silent=True) or {}
-    name      = (data.get("name") or "").strip()
-    unit      = (data.get("unit") or "kg").strip() or "kg"
-    init_qty  = float(data.get("init_qty") or 0)
-    init_price = int(data.get("init_price") or 0)
-    note      = (data.get("note") or "").strip()
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
 
-    if not name:
-        return mobile_api_response(
-            ok=False, message="Nama barang wajib diisi.", status_code=400)
-    if init_qty > 0 and init_price <= 0:
-        return mobile_api_response(
-            ok=False, message="Harga beli wajib diisi jika ada stok awal.",
-            status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Cek duplikat nama (case-insensitive)
-        cur.execute(
-            "SELECT id FROM fin_materials WHERE LOWER(name)=LOWER(%s) AND is_active=TRUE;",
-            (name,))
-        if cur.fetchone():
-            return mobile_api_response(
-                ok=False, message=f"Barang '{name}' sudah ada di gudang.",
-                status_code=409)
-
-        # Ambil sort_order berikutnya
-        cur.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS nxt FROM fin_materials;")
-        sort_order = cur.fetchone()["nxt"]
-
-        # Insert material
-        cur.execute("""
-            INSERT INTO fin_materials (name, unit, sort_order, is_active)
-            VALUES (%s, %s, %s, TRUE)
-            RETURNING id;
-        """, (name, unit, sort_order))
-        material_id = cur.fetchone()["id"]
-
-        # Buat baris fin_stock_summary kosong
-        cur.execute("""
-            INSERT INTO fin_stock_summary
-                (material_id, qty_kg, avg_cost_per_kg, total_value, updated_at)
-            VALUES (%s, 0, 0, 0, NOW())
-            ON CONFLICT (material_id) DO NOTHING;
-        """, (material_id,))
-
-        # Jika ada stok awal → transaksi BELI awal
-        if init_qty > 0:
-            cur.execute("""
-                INSERT INTO fin_transactions
-                    (type, party_name, party_type, note, is_debt,
-                     total_amount, created_by)
-                VALUES ('BELI', 'Stok Awal', 'SUPPLIER', %s, FALSE, %s, %s)
-                RETURNING id;
-            """, (
-                note or f"Stok awal {name}",
-                init_qty * init_price,
-                request.mobile_user.get("id"),
-            ))
-            txn_id = cur.fetchone()["id"]
-
-            cur.execute("""
-                INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, material_id, init_qty, init_price,
-                  init_qty * init_price))
-
-            _update_stock_avco(
-                cur, material_id, init_qty, init_price, 'IN', txn_id,
-                note=note or f"Stok awal {name}")
-
-        conn.commit()
+        result = add_fin_material(
+            name=name,
+            unit=data.get("unit"),
+            init_qty=data.get("init_qty"),
+            init_price=data.get("init_price"),
+            note=data.get("note"),
+            created_by=request.mobile_user.get("id"),
+        )
         return mobile_api_response(ok=True,
-            message=f"Barang '{name}' berhasil ditambahkan.",
-            data=_clean({"material_id": material_id, "name": name,
-                         "unit": unit, "init_qty": init_qty}))
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal tambah barang: {str(e)}", status_code=500)
-    finally:
-        cur.close(); conn.close()
+            message=f"Barang '{result['name']}' berhasil ditambahkan.",
+            data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -633,73 +525,21 @@ def kasir_beli():
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    data       = request.get_json(silent=True) or {}
-    party_name = (data.get("party_name") or "").strip()
-    is_debt    = bool(data.get("is_debt", False))
-    note       = (data.get("note") or "").strip()
-    items      = data.get("items", [])
-    discount   = max(0.0, float(data.get("discount", 0) or 0))
+    data = request.get_json(silent=True) or {}
+    items = data.get("items", [])
 
-    if not items:
-        return mobile_api_response(
-            ok=False, message="Minimal 1 item barang.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-
-        total       = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
-                          for i in items)
-        grand_total = max(0.0, total - discount)
-
-        # Insert transaksi header (total_amount = nilai setelah DP/diskon)
-        cur.execute("""
-            INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by)
-            VALUES ('BELI_GUDANG', %s, 'PELANGGAN', %s, %s, %s, %s)
-            RETURNING id;
-        """, (party_name or None, note or None, is_debt, grand_total,
-               request.mobile_user.get("id")))
-        txn_id = cur.fetchone()["id"]
-
-        # Insert items + update stok AVCO
-        for item in items:
-            mat_id    = int(item["material_id"])
-            qty       = float(item["qty_kg"])
-            price     = float(item["price_per_kg"])
-            subtotal  = qty * price
-
-            cur.execute("""
-                INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
-
-            _update_stock_avco(cur, mat_id, qty, price, 'IN', txn_id,
-                               note=f"Beli dari {party_name or 'orang'}")
-
-        # Catat hutang jika perlu (sebesar nilai setelah DP/diskon)
-        if is_debt and party_name:
-            cur.execute("""
-                INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
-            """, (party_name, grand_total, grand_total, txn_id,
-                  f"Beli barang — belum dibayar"))
-
-        conn.commit()
-        return mobile_api_response(ok=True, message="Transaksi beli berhasil.", data={
-            "transaction_id": txn_id,
-            "total":          total,
-            "discount":       discount,
-            "grand_total":    grand_total,
-        })
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal: {str(e)}", status_code=500)
-    finally:
-        cur.close(); conn.close()
+        result = create_fin_purchase(
+            party_name=data.get("party_name"),
+            is_debt=data.get("is_debt", False),
+            note=data.get("note"),
+            discount=data.get("discount", 0),
+            items=items,
+            created_by=request.mobile_user.get("id"),
+        )
+        return mobile_api_response(ok=True, message="Transaksi beli berhasil.", data=result)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -730,8 +570,6 @@ def cancel_nota_transaction(txn_id):
             data={"transaction_id": txn_id})
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
-    finally:
-        cur.close(); conn.close()
 
 
 # ════════════════════════════════════════════════════════════════
@@ -759,101 +597,20 @@ def kasir_jual():
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    data       = request.get_json(silent=True) or {}
-    party_name = (data.get("party_name") or "").strip()
-    is_debt    = bool(data.get("is_debt", False))
-    note       = (data.get("note") or "").strip()
-    items      = data.get("items", [])
+    data = request.get_json(silent=True) or {}
+    items = data.get("items", [])
 
-    if not items:
-        return mobile_api_response(
-            ok=False, message="Minimal 1 item barang.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-
-        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0))
-                    for i in items)
-
-        # Cek stok cukup untuk semua item
-        for item in items:
-            mat_id = int(item["material_id"])
-            qty    = float(item["qty_kg"])
-            cur.execute("""
-                SELECT COALESCE(qty_kg, 0) AS qty, name
-                FROM fin_stock_summary s
-                JOIN fin_materials m ON m.id = s.material_id
-                WHERE s.material_id = %s;
-            """, (mat_id,))
-            stok = cur.fetchone()
-            if not stok or float(stok["qty"]) < qty:
-                nama = stok["name"] if stok else f"Material #{mat_id}"
-                return mobile_api_response(
-                    ok=False,
-                    message=f"Stok {nama} tidak cukup. "
-                            f"Tersedia: {float(stok['qty']) if stok else 0} kg",
-                    status_code=400)
-
-        # Insert transaksi header
-        cur.execute("""
-            INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by)
-            VALUES ('JUAL_GUDANG', %s, 'PELANGGAN', %s, %s, %s, %s)
-            RETURNING id;
-        """, (party_name or None, note or None, is_debt, total,
-               request.mobile_user.get("id")))
-        txn_id = cur.fetchone()["id"]
-
-        # Insert items + update stok
-        hpp_total = 0.0
-        for item in items:
-            mat_id   = int(item["material_id"])
-            qty      = float(item["qty_kg"])
-            price    = float(item["price_per_kg"])
-            subtotal = qty * price
-
-            cur.execute("""
-                SELECT COALESCE(avg_cost_per_kg, 0) AS avg
-                FROM fin_stock_summary WHERE material_id = %s;
-            """, (mat_id,))
-            row = cur.fetchone()
-            avg = float(row["avg"]) if row else 0
-
-            hpp_total += qty * avg
-
-            cur.execute("""
-                INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
-
-            _update_stock_avco(cur, mat_id, qty, avg, 'OUT', txn_id,
-                               note=f"Jual ke {party_name or 'orang'}")
-
-        # Catat piutang jika belum bayar
-        if is_debt and party_name:
-            cur.execute("""
-                INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
-            """, (party_name, total, total, txn_id, "Jual barang — belum dibayar"))
-
-        conn.commit()
-
-        laba = total - hpp_total
-        return mobile_api_response(ok=True, message="Transaksi jual berhasil.", data={
-            "transaction_id": txn_id,
-            "total":          total,
-            "hpp":            hpp_total,
-            "laba":           laba,
-        })
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal: {str(e)}", status_code=500)
-    finally:
-        cur.close(); conn.close()
+        result = create_fin_sale_kasir(
+            party_name=data.get("party_name"),
+            is_debt=data.get("is_debt", False),
+            note=data.get("note"),
+            items=items,
+            created_by=request.mobile_user.get("id"),
+        )
+        return mobile_api_response(ok=True, message="Transaksi jual berhasil.", data=result)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -881,47 +638,17 @@ def kasir_pengeluaran():
     if deny: return deny
 
     data  = request.get_json(silent=True) or {}
-    note  = (data.get("note") or "").strip()
     items = data.get("items", [])
 
-    if not items:
-        return mobile_api_response(
-            ok=False, message="Minimal 1 item pengeluaran.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-
-        total = sum(float(i.get("subtotal", 0)) for i in items)
-
-        cur.execute("""
-            INSERT INTO fin_transactions
-                (type, note, total_amount, created_by)
-            VALUES ('PENGELUARAN', %s, %s, %s)
-            RETURNING id;
-        """, (note or None, total, request.mobile_user.get("id")))
-        txn_id = cur.fetchone()["id"]
-
-        for item in items:
-            cur.execute("""
-                INSERT INTO fin_transaction_items
-                    (transaction_id, expense_name, subtotal)
-                VALUES (%s, %s, %s);
-            """, (txn_id,
-                  (item.get("expense_name") or "Pengeluaran").strip(),
-                  float(item.get("subtotal", 0))))
-
-        conn.commit()
-        return mobile_api_response(ok=True, message="Pengeluaran dicatat.", data={
-            "transaction_id": txn_id,
-            "total":          total,
-        })
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=f"Gagal: {str(e)}", status_code=500)
-    finally:
-        cur.close(); conn.close()
+        result = create_fin_expense(
+            note=data.get("note"),
+            items=items,
+            created_by=request.mobile_user.get("id"),
+        )
+        return mobile_api_response(ok=True, message="Pengeluaran dicatat.", data=result)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -947,135 +674,7 @@ def report_daily():
     except ValueError:
         report_date = date.today()
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        # Semua transaksi kasir gudang hari ini
-        cur.execute("""
-            SELECT
-                t.id, t.type, t.party_name, t.total_amount,
-                t.is_debt, t.note, t.created_at,
-                json_agg(json_build_object(
-                    'material_id',  i.material_id,
-                    'expense_name', i.expense_name,
-                    'qty_kg',       i.qty_kg,
-                    'price_per_kg', i.price_per_kg,
-                    'subtotal',     i.subtotal,
-                    'material_name', m.name
-                )) AS items
-            FROM fin_transactions t
-            LEFT JOIN fin_transaction_items i ON i.transaction_id = t.id
-            LEFT JOIN fin_materials m ON m.id = i.material_id
-            WHERE t.created_at::date = %s
-            GROUP BY t.id
-            ORDER BY t.created_at DESC;
-        """, (report_date,))
-        transactions = [dict(r) for r in cur.fetchall()]
-
-        # Transaksi perjalanan Jakarta hari ini (dari fin_trip_items)
-        cur.execute("""
-            SELECT
-                ti.id, ti.type AS trip_item_type,
-                ti.subtotal, ti.qty_kg, ti.expense_name,
-                ti.payment_type,
-                m.name AS material_name,
-                p.name AS party_name,
-                t.note AS trip_note,
-                t.id   AS trip_id,
-                ti.created_at
-            FROM fin_trip_items ti
-            JOIN fin_trips t ON t.id = ti.trip_id
-            LEFT JOIN fin_materials m ON m.id = ti.material_id
-            LEFT JOIN fin_trip_parties p ON p.id = ti.party_id
-            WHERE ti.created_at::date = %s
-            ORDER BY ti.created_at DESC;
-        """, (report_date,))
-        trip_items = [dict(r) for r in cur.fetchall()]
-
-        # Gabungkan trip items sebagai transaksi virtual
-        for ti in trip_items:
-            type_map = {
-                'JUAL':    'JUAL_TRIP',
-                'BELI':    'BELI_TRIP',
-                'EXPENSE': 'PENGELUARAN_TRIP',
-                'RETURN':  'RETURN_TRIP',
-            }
-            transactions.append({
-                "id":           f"trip-{ti['id']}",
-                "type":         type_map.get(ti['trip_item_type'], ti['trip_item_type']),
-                "party_name":   ti.get('party_name') or ti.get('trip_note') or f"Trip #{ti['trip_id']}",
-                "total_amount": float(ti['subtotal'] or 0),
-                "note":         ti.get('expense_name') or ti.get('material_name'),
-                "created_at":   str(ti['created_at']),
-                "is_trip":      True,
-                "items": [],
-            })
-
-        # Ringkasan — kasir gudang
-        pemasukan   = sum(float(t["total_amount"] or 0)
-                         for t in transactions
-                         if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "TERIMA_HUTANG"))
-        pengeluaran = sum(float(t["total_amount"] or 0)
-                         for t in transactions
-                         if t["type"] in ("BELI_GUDANG", "PENGELUARAN",
-                                          "PEMBAYARAN_DP", "BAYAR_HUTANG"))
-
-        # Ringkasan — trip Jakarta
-        trip_jual    = sum(float(t["total_amount"] or 0)
-                          for t in transactions if t["type"] == "JUAL_TRIP")
-        trip_beli    = sum(float(t["total_amount"] or 0)
-                          for t in transactions if t["type"] == "BELI_TRIP")
-        trip_expense = sum(float(t["total_amount"] or 0)
-                          for t in transactions if t["type"] == "PENGELUARAN_TRIP")
-
-        # HPP barang terjual hari ini (gudang + trip)
-        cur.execute("""
-            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
-            FROM fin_transactions t
-            JOIN fin_transaction_items i ON i.transaction_id = t.id
-            JOIN fin_stock_summary s ON s.material_id = i.material_id
-            WHERE t.created_at::date = %s
-              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
-              AND i.material_id IS NOT NULL;
-        """, (report_date,))
-        hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
-
-        # HPP trip jual
-        cur.execute("""
-            SELECT COALESCE(SUM(ti.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
-            FROM fin_trip_items ti
-            JOIN fin_stock_summary s ON s.material_id = ti.material_id
-            WHERE ti.created_at::date = %s AND ti.type = 'JUAL';
-        """, (report_date,))
-        hpp_trip = float((cur.fetchone() or {}).get("hpp_total", 0))
-
-        hpp_total  = hpp_gudang + hpp_trip
-        omzet_jual = sum(float(t["total_amount"] or 0)
-                        for t in transactions
-                        if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "JUAL_TRIP"))
-        laba_kotor = omzet_jual - hpp_total - trip_expense
-
-        # Nilai stok gudang saat ini
-        cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
-        nilai_stok = float((cur.fetchone() or {}).get("total", 0))
-
-        return mobile_api_response(ok=True, message="OK", data=_clean({
-            "date":         str(report_date),
-            "transactions": transactions,
-            "summary": {
-                "pemasukan":     pemasukan,
-                "pengeluaran":   pengeluaran,
-                "omzet_jual":    omzet_jual,
-                "hpp":           hpp_total,
-                "laba_kotor":    laba_kotor,
-                "nilai_stok":    nilai_stok,
-                "trip_jual":     trip_jual,
-                "trip_beli":     trip_beli,
-                "trip_expense":  trip_expense,
-            }
-        }))
-    finally:
-        cur.close(); conn.close()
+    return mobile_api_response(ok=True, message="OK", data=get_fin_daily_report(report_date))
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1101,73 +700,9 @@ def report_weekly():
         week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT
-                type,
-                SUM(total_amount) AS total,
-                COUNT(*) AS count
-            FROM fin_transactions
-            WHERE created_at::date >= %s AND created_at::date <= %s
-            GROUP BY type;
-        """, (week_start, week_end))
-        by_type = {r["type"]: dict(r) for r in cur.fetchall()}
-
-        def _sum(types):
-            return sum(float((by_type.get(t) or {}).get("total", 0)) for t in types)
-
-        omzet    = _sum(["JUAL_GUDANG", "JUAL_INVOICE"])
-        modal    = _sum(["BELI_GUDANG"])
-        biaya    = _sum(["PENGELUARAN", "PEMBAYARAN_DP"])
-        masuk    = _sum(["TERIMA_HUTANG"])
-
-        # HPP minggu ini
-        cur.execute("""
-            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp
-            FROM fin_transactions t
-            JOIN fin_transaction_items i ON i.transaction_id = t.id
-            JOIN fin_stock_summary s ON s.material_id = i.material_id
-            WHERE t.created_at::date >= %s AND t.created_at::date <= %s
-              AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
-              AND i.material_id IS NOT NULL;
-        """, (week_start, week_end))
-        hpp = float((cur.fetchone() or {}).get("hpp", 0))
-
-        laba_kotor  = omzet - hpp
-        laba_bersih = laba_kotor - biaya
-
-        # Rekap per hari
-        cur.execute("""
-            SELECT
-                created_at::date AS hari,
-                SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END) AS jual,
-                SUM(CASE WHEN type = 'BELI_GUDANG'  THEN total_amount ELSE 0 END) AS beli,
-                SUM(CASE WHEN type = 'PENGELUARAN'  THEN total_amount ELSE 0 END) AS biaya
-            FROM fin_transactions
-            WHERE created_at::date >= %s AND created_at::date <= %s
-            GROUP BY hari ORDER BY hari;
-        """, (week_start, week_end))
-        per_hari = [dict(r) for r in cur.fetchall()]
-
-        return mobile_api_response(ok=True, message="OK", data=_clean({
-            "week_start":   str(week_start),
-            "week_end":     str(week_end),
-            "week_label":   f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}",
-            "summary": {
-                "omzet_jual":   omzet,
-                "modal_beli":   modal,
-                "hpp":          hpp,
-                "laba_kotor":   laba_kotor,
-                "biaya_ops":    biaya,
-                "laba_bersih":  laba_bersih,
-                "piutang_masuk": masuk,
-            },
-            "per_hari": per_hari,
-        }))
-    finally:
-        cur.close(); conn.close()
+    return mobile_api_response(
+        ok=True, message="OK",
+        data=get_fin_weekly_report(week_start, week_end))
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1184,31 +719,7 @@ def get_debts():
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT id, type, party_name, amount, paid_amount,
-                   remaining, due_date, is_settled, note, created_at
-            FROM fin_debts
-            WHERE is_settled = FALSE
-            ORDER BY type, created_at DESC;
-        """)
-        rows = _clean([dict(r) for r in cur.fetchall()])
-
-        hutang   = [r for r in rows if r["type"] == "HUTANG"]
-        piutang  = [r for r in rows if r["type"] == "PIUTANG"]
-        total_hutang  = sum(float(r["remaining"]) for r in hutang)
-        total_piutang = sum(float(r["remaining"]) for r in piutang)
-
-        return mobile_api_response(ok=True, message="OK", data=_clean({
-            "hutang":        hutang,
-            "piutang":       piutang,
-            "total_hutang":  total_hutang,
-            "total_piutang": total_piutang,
-        }))
-    finally:
-        cur.close(); conn.close()
+    return mobile_api_response(ok=True, message="OK", data=list_fin_debts())
 
 
 @mobile_finance_bp.route("/finance/debts/<int:debt_id>/pay", methods=["POST", "OPTIONS"])
@@ -1222,48 +733,16 @@ def pay_debt(debt_id):
     if deny: return deny
 
     data       = request.get_json(silent=True) or {}
-    pay_amount = float(data.get("amount", 0))
+    pay_amount = data.get("amount", 0)
 
-    if pay_amount <= 0:
-        return mobile_api_response(
-            ok=False, message="Jumlah pembayaran harus lebih dari 0.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("""
-            SELECT id, amount, paid_amount, remaining, type, party_name
-            FROM fin_debts WHERE id = %s;
-        """, (debt_id,))
-        debt = cur.fetchone()
-        if not debt:
-            return mobile_api_response(
-                ok=False, message="Data tidak ditemukan.", status_code=404)
-
-        new_paid      = float(debt["paid_amount"]) + pay_amount
-        new_remaining = max(0, float(debt["amount"]) - new_paid)
-        is_settled    = new_remaining <= 0
-
-        cur.execute("""
-            UPDATE fin_debts
-            SET paid_amount = %s, remaining = %s, is_settled = %s
-            WHERE id = %s;
-        """, (new_paid, new_remaining, is_settled, debt_id))
-        conn.commit()
-
+        result = pay_fin_debt(debt_id, pay_amount)
         return mobile_api_response(ok=True,
-            message="Lunas! 🎉" if is_settled else "Pembayaran dicatat.",
-            data={
-                "paid":       new_paid,
-                "remaining":  new_remaining,
-                "is_settled": is_settled,
-            })
-    except Exception as e:
-        conn.rollback()
-        return mobile_api_response(
-            ok=False, message=str(e), status_code=500)
-    finally:
-        cur.close(); conn.close()
+            message="Lunas! 🎉" if result["is_settled"] else "Pembayaran dicatat.",
+            data=result)
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1281,31 +760,7 @@ def stock_history(material_id):
     deny = _check_access(request.mobile_user)
     if deny: return deny
 
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT l.*, m.name AS material_name
-            FROM fin_stock_ledger l
-            JOIN fin_materials m ON m.id = l.material_id
-            WHERE l.material_id = %s
-            ORDER BY l.created_at DESC
-            LIMIT 50;
-        """, (material_id,))
-        rows = _clean([dict(r) for r in cur.fetchall()])
-
-        cur.execute("""
-            SELECT qty_kg, avg_cost_per_kg, total_value
-            FROM fin_stock_summary WHERE material_id = %s;
-        """, (material_id,))
-        summary = dict(cur.fetchone() or {})
-
-        return mobile_api_response(ok=True, message="OK", data=_clean({
-            "current": summary,
-            "history": rows,
-        }))
-    finally:
-        cur.close(); conn.close()
+    return mobile_api_response(ok=True, message="OK", data=get_fin_stock_history(material_id))
 
 # ════════════════════════════════════════════════════════════════
 #  INVOICE — Buat nota dari stok gudang
@@ -1386,6 +841,12 @@ def trip_new():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        # Perjalanan sekarang selalu diinput langsung oleh admin/owner yang
+        # login di app (lihat endpoint /finance/trips/<id>/sell,buy,expense,
+        # dst di bawah) — tidak ada lagi jalur PIN tanpa-login untuk
+        # karyawan lapangan. `pin` tetap diisi acak untuk kompatibilitas
+        # kolom (kalau NOT NULL di DB) tapi tidak pernah dikembalikan ke
+        # klien / dipakai untuk otorisasi.
         import random as _rand
         pin = ''.join(_rand.choices('0123456789', k=4))
 
@@ -1395,7 +856,6 @@ def trip_new():
             RETURNING id, trip_date, note, status, created_at;
         """, (trip_date, note or None, request.mobile_user.get("id"), pin))
         trip = _clean(dict(cur.fetchone()))
-        trip['pin'] = pin
         conn.commit()
         return mobile_api_response(ok=True, message="Perjalanan dibuka.", data=trip)
     except Exception as e:
@@ -1915,221 +1375,3 @@ def trip_delete(trip_id):
     finally:
         cur.close(); conn.close()
 
-
-@mobile_finance_bp.route("/finance/trip/verify-pin", methods=["POST", "OPTIONS"])
-def trip_verify_pin():
-    """
-    Verifikasi PIN trip — TIDAK butuh login.
-    Body: { "pin": "1234" }
-    Return: trip_id, trip_note, materials list
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
-
-    data = request.get_json(silent=True) or {}
-    pin  = str(data.get("pin", "")).strip()
-
-    if len(pin) != 4 or not pin.isdigit():
-        return mobile_api_response(ok=False, message="PIN tidak valid.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT id, note, status, pin_expires_at
-            FROM fin_trips
-            WHERE pin = %s AND status = 'OPEN'
-            LIMIT 1;
-        """, (pin,))
-        trip = cur.fetchone()
-
-        if not trip:
-            return mobile_api_response(
-                ok=False, message="PIN salah atau perjalanan sudah selesai.",
-                status_code=400)
-
-        # Cek expired (opsional — kalau NULL berarti berlaku selama trip OPEN)
-        if trip["pin_expires_at"]:
-            if datetime.utcnow() > trip["pin_expires_at"].replace(tzinfo=None):
-                return mobile_api_response(
-                    ok=False, message="PIN sudah kedaluwarsa.", status_code=400)
-
-        # Ambil daftar barang aktif untuk dropdown
-        cur.execute("""
-            SELECT id, name, unit
-            FROM fin_materials
-            WHERE is_active = TRUE
-            ORDER BY sort_order ASC, name ASC;
-        """)
-        materials = [dict(r) for r in cur.fetchall()]
-
-        return mobile_api_response(ok=True, message="PIN valid.", data={
-            "trip_id":   trip["id"],
-            "trip_note": trip["note"] or f"Perjalanan #{trip['id']}",
-            "materials": materials,
-        })
-    finally:
-        cur.close(); conn.close()
-
-
-@mobile_finance_bp.route("/finance/trip/<int:trip_id>/items-pin", methods=["GET", "OPTIONS"])
-def trip_items_pin(trip_id):
-    """
-    Ambil item transaksi trip — TIDAK butuh login, cukup trip_id valid & OPEN.
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
-        t = cur.fetchone()
-        if not t:
-            return mobile_api_response(ok=False, message="Trip tidak ditemukan.", status_code=404)
-
-        cur.execute("""
-            SELECT
-                i.id,
-                i.type,
-                i.qty_kg,
-                i.price_per_kg,
-                i.subtotal       AS total_amount,
-                i.note,
-                p.name           AS party_name,
-                m.name           AS material_name,
-                i.created_at
-            FROM fin_trip_items i
-            LEFT JOIN fin_trip_parties p ON p.id = i.party_id
-            LEFT JOIN fin_materials    m ON m.id = i.material_id
-            WHERE i.trip_id = %s
-            ORDER BY i.created_at DESC
-            LIMIT 50;
-        """, (trip_id,))
-        items = _clean([dict(r) for r in cur.fetchall()])
-        return mobile_api_response(ok=True, message="OK", data={"items": items})
-    finally:
-        cur.close(); conn.close()
-
-
-@mobile_finance_bp.route("/finance/trip/<int:trip_id>/add-item-pin",
-                         methods=["POST", "OPTIONS"])
-def trip_add_item_pin(trip_id):
-    """
-    Input transaksi dari karyawan via PIN — TIDAK butuh login.
-    Body: {
-        type:         'JUAL' | 'BELI' | 'BIAYA',
-        party_name:   str | null,
-        material_id:  int | null,
-        qty_kg:       float,
-        total_amount: float,
-    }
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data={})
-
-    data         = request.get_json(silent=True) or {}
-    txn_type     = str(data.get("type", "")).upper()
-    party_name   = (data.get("party_name") or "").strip() or None
-    material_id  = data.get("material_id")
-    qty_kg       = float(data.get("qty_kg") or 1)
-    total_amount = float(data.get("total_amount") or 0)
-    note         = (data.get("note") or "").strip() or "Input via PIN karyawan"
-
-    if txn_type not in ("JUAL", "BELI", "BIAYA", "BALIKAN"):
-        return mobile_api_response(ok=False, message="Tipe tidak valid.", status_code=400)
-    if txn_type != "BALIKAN" and total_amount <= 0:
-        return mobile_api_response(ok=False, message="Jumlah uang wajib diisi.", status_code=400)
-    if txn_type == "BALIKAN" and not material_id:
-        return mobile_api_response(ok=False, message="Pilih barang yang dikembalikan.", status_code=400)
-
-    conn = get_conn()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        # Pastikan trip masih OPEN
-        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
-        t = cur.fetchone()
-        if not t or t["status"] != "OPEN":
-            return mobile_api_response(
-                ok=False, message="Perjalanan sudah ditutup.", status_code=400)
-
-        # Auto-buat party jika ada nama
-        party_id = None
-        if party_name:
-            cur.execute("""
-                INSERT INTO fin_trip_parties (trip_id, name)
-                VALUES (%s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id;
-            """, (trip_id, party_name))
-            row = cur.fetchone()
-            if row:
-                party_id = row["id"]
-            else:
-                cur.execute("""
-                    SELECT id FROM fin_trip_parties
-                    WHERE trip_id = %s AND name = %s LIMIT 1;
-                """, (trip_id, party_name))
-                r2 = cur.fetchone()
-                if r2: party_id = r2["id"]
-
-        # Hitung price_per_kg
-        price_per_kg = (total_amount / qty_kg) if qty_kg > 0 else total_amount
-
-        if txn_type == "BALIKAN":
-            # Barang balikan — masuk stok kembali
-            cur.execute("SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id = %s;", (int(material_id),))
-            row = cur.fetchone()
-            avg = float(row["avg"]) if row else 0
-            value = qty_kg * avg
-
-            cur.execute("""
-                INSERT INTO fin_trip_items
-                    (trip_id, type, material_id, qty_kg,
-                     price_per_kg, subtotal, return_to_stock, note)
-                VALUES (%s, 'RETURN', %s, %s, %s, %s, TRUE, %s)
-                RETURNING id;
-            """, (trip_id, int(material_id), qty_kg, avg, value, note))
-            new_id = cur.fetchone()["id"]
-
-            # Masukkan stok kembali
-            try:
-                _update_stock_avco(cur, int(material_id), qty_kg, avg, "IN", None,
-                                   note=f"Balikan trip#{trip_id} via PIN")
-            except Exception as se:
-                print(f"[TRIP PIN] Stok balikan warning: {se}")
-        else:
-            cur.execute("""
-                INSERT INTO fin_trip_items
-                    (trip_id, party_id, type, material_id,
-                     qty_kg, price_per_kg, subtotal, payment_type, is_debt,
-                     expense_name, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'CASH', FALSE, %s, %s)
-                RETURNING id;
-            """, (trip_id, party_id, txn_type,
-                  int(material_id) if material_id else None,
-                  qty_kg, price_per_kg, total_amount,
-                  party_name if txn_type == "BIAYA" else None,
-                  note))
-            new_id = cur.fetchone()["id"]
-
-            # Update stok jika JUAL (stok keluar)
-            if txn_type == "JUAL" and material_id:
-                try:
-                    _update_stock_avco(cur, int(material_id), qty_kg,
-                                       price_per_kg, "OUT", None,
-                                       note=f"Jual perjalanan trip#{trip_id} via PIN")
-                except Exception as se:
-                    print(f"[TRIP PIN] Stok update warning: {se}")
-
-        conn.commit()
-        return mobile_api_response(
-            ok=True, message="Transaksi berhasil dicatat.",
-            data={"item_id": new_id})
-    except Exception as e:
-        conn.rollback()
-        import traceback
-        print(f"[TRIP PIN ADD] {traceback.format_exc()}")
-        return mobile_api_response(ok=False, message=str(e), status_code=500)
-    finally:
-        cur.close(); conn.close()

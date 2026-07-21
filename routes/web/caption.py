@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect
-from core import is_logged_in, rupiah, pick
+from core import is_logged_in, is_admin, rupiah, pick
 
 caption_bp = Blueprint("caption", __name__)
 
@@ -8,6 +8,8 @@ caption_bp = Blueprint("caption", __name__)
 def caption():
     if not is_logged_in():
         return redirect("/login")
+    if not is_admin():
+        return redirect("/dashboard")
 
     form = {
         "template": "promo",

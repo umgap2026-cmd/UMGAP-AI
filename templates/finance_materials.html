@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">📦 Barang Gudang</h1>
+    <p class="page-sub">Nilai stok total: Rp {{ "{:,}".format(total_value | round | int).replace(",", ".") }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/finance">← Keuangan</a>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px">
+  <h2>+ Tambah Barang Baru</h2>
+  <form method="post" action="/finance/materials" class="row-1">
+    <div class="row">
+      <div>
+        <label>Nama Barang *</label>
+        <input type="text" name="name" placeholder="contoh: BC" required />
+      </div>
+      <div>
+        <label>Satuan</label>
+        <input type="text" name="unit" placeholder="kg" value="kg" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Stok Awal (opsional)</label>
+        <input type="number" step="0.01" name="init_qty" placeholder="0" />
+      </div>
+      <div>
+        <label>Harga Beli / satuan (wajib jika ada stok awal)</label>
+        <input type="number" name="init_price" placeholder="0" />
+      </div>
+    </div>
+    <div>
+      <label>Catatan</label>
+      <input type="text" name="note" placeholder="opsional" />
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top: 4px">Simpan Barang</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top: 14px; overflow-x: auto">
+  {% if materials %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nama</th>
+        <th>Satuan</th>
+        <th>Stok</th>
+        <th>HPP Rata²</th>
+        <th>Nilai Stok</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in materials %}
+      <tr>
+        <td>
+          <form method="post" action="/finance/materials/{{ m.id }}/edit" style="display:flex; gap:6px; align-items:center">
+            <input type="text" name="name" value="{{ m.name }}" style="min-width: 120px" required />
+            <input type="text" name="unit" value="{{ m.unit }}" style="width: 64px" />
+            <button type="submit" class="btn" style="padding: 8px 10px">Simpan</button>
+          </form>
+        </td>
+        <td class="muted">{{ m.unit }}</td>
+        <td>{{ "%.1f"|format(m.qty_kg) }}</td>
+        <td class="muted">Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</td>
+        <td><strong>Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</strong></td>
+        <td>
+          <form method="post" action="/finance/materials/{{ m.id }}/delete"
+                onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
+            <button type="submit" class="btn btn-danger">Hapus</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align: center; padding: 24px 0">Belum ada barang di gudang.</p>
+  {% endif %}
+</div>
+{% endblock %}

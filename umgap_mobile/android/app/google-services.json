@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "153316741169",
+    "project_id": "umgap-mobile",
+    "storage_bucket": "umgap-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153316741169:android:e4f7140e11984dd2964510",
+        "android_client_info": {
+          "package_name": "com.umgapai.umgap"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "153316741169-36r0ekga6g8sh8db9dusk89emd46pkul.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.umgapai.umgap",
+            "certificate_hash": "ffeb3f8b608abf3f11ed6d8bb9008a08c269b626"
+          }
+        },
+        {
+          "client_id": "153316741169-sjsgn3bdsop41hp5m8lhf7ppifla29lu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmBN-Xnk2QaJ6vF1rCJ4HdV6NUbjZsu4w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "153316741169-sjsgn3bdsop41hp5m8lhf7ppifla29lu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

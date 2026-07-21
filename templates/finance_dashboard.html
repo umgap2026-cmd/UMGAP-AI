@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">💰 Keuangan &amp; Gudang</h1>
+    <p class="page-sub">Pusat kerja admin — nota, kasir beli, hutang-piutang, dan stok barang.</p>
+  </div>
+</div>
+
+<div class="grid" style="margin-top: 14px">
+  <div class="card">
+    <h2>📦 Nilai Stok Gudang</h2>
+    <p style="font-size: 26px; font-weight: 900; margin: 4px 0">
+      Rp {{ "{:,}".format(total_value | round | int).replace(",", ".") }}
+    </p>
+    <p class="muted">{{ material_count }} jenis barang aktif</p>
+    <a class="btn" href="/finance/materials" style="margin-top: 10px">Kelola Barang</a>
+  </div>
+
+  <div class="card">
+    <h2>🧾 Hutang ke Pemasok</h2>
+    <p style="font-size: 26px; font-weight: 900; margin: 4px 0; color: var(--bad)">
+      Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }}
+    </p>
+    <p class="muted">{{ debts.hutang|length }} transaksi belum lunas</p>
+    <a class="btn" href="/finance/debts" style="margin-top: 10px">Lihat Hutang-Piutang</a>
+  </div>
+
+  <div class="card">
+    <h2>💵 Piutang Pelanggan</h2>
+    <p style="font-size: 26px; font-weight: 900; margin: 4px 0; color: var(--good)">
+      Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }}
+    </p>
+    <p class="muted">{{ debts.piutang|length }} transaksi belum dibayar</p>
+    <a class="btn" href="/finance/debts" style="margin-top: 10px">Lihat Hutang-Piutang</a>
+  </div>
+</div>
+
+<div class="page-head" style="margin-top: 22px">
+  <h2 class="page-title" style="font-size: 15px">Aksi Cepat</h2>
+</div>
+<div class="grid">
+  <a class="card" style="text-decoration: none" href="/nota/new">
+    <h2>🧾 Buat Nota Jual</h2>
+    <p class="muted">Nota resmi dari stok gudang, bisa dicetak &amp; kirim WA.</p>
+  </a>
+  <a class="card" style="text-decoration: none" href="/finance/buy">
+    <h2>🛒 Kasir Beli</h2>
+    <p class="muted">Beli barang dari pemasok/orang — bisa hutang &amp; DP.</p>
+  </a>
+  <a class="card" style="text-decoration: none" href="/finance/materials">
+    <h2>📦 Barang Gudang</h2>
+    <p class="muted">Tambah/ubah barang &amp; pantau stok terkini.</p>
+  </a>
+  <a class="card" style="text-decoration: none" href="/nota">
+    <h2>📋 Riwayat Nota</h2>
+    <p class="muted">Semua nota jual &amp; beli, batalkan bila perlu.</p>
+  </a>
+</div>
+{% endblock %}

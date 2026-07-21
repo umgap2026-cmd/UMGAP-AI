@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">💵 Slip Gaji Mingguan</h1>
+    <p class="page-sub">{{ week_start.strftime("%d %b") }} – {{ week_end.strftime("%d %b %Y") }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/payslip?week={{ prev_week }}">← Minggu Lalu</a>
+    <a class="btn" href="/payslip?week={{ next_week }}">Minggu Depan →</a>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px">
+  <h2>{{ employee_name }}</h2>
+  <p class="muted">{{ "Gaji Bulanan" if salary_type == "monthly" else "Gaji Harian" }} · Rp {{ "{:,}".format(daily_salary | round | int).replace(",", ".") }} / hari</p>
+  <p style="font-size: 28px; font-weight: 900; margin: 10px 0 0">
+    Rp {{ "{:,}".format(weekly_salary | round | int).replace(",", ".") }}
+  </p>
+  <p class="muted">Estimasi gaji minggu ini</p>
+</div>
+
+<div class="grid" style="margin-top: 14px">
+  <div class="card">
+    <h2>✅ Hadir</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_present }} hari</p>
+  </div>
+  <div class="card">
+    <h2>⏰ Terlambat</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_late }} hari</p>
+  </div>
+  <div class="card">
+    <h2>🤒 Sakit</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_sick }} hari</p>
+  </div>
+  <div class="card">
+    <h2>📋 Izin</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_leave }} hari</p>
+  </div>
+  <div class="card">
+    <h2>❌ Absen</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_absent }} hari</p>
+  </div>
+  <div class="card">
+    <h2>📅 Hari Kerja</h2>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ workdays }} hari</p>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 14px; overflow-x: auto">
+  <h2>Rincian Harian</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Hari</th>
+        <th>Tanggal</th>
+        <th>Status</th>
+        <th>Jam Masuk</th>
+        <th>Catatan</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in days_detail %}
+      <tr>
+        <td>{{ d.day_name }}</td>
+        <td class="muted">{{ d.date.strftime("%d/%m/%Y") }}</td>
+        <td>
+          {% if d.status == "PRESENT" %}
+          <span class="badge" style="color: var(--good); border-color: var(--good)">✅ {{ "Terlambat" if d.arrival_type == "LATE" else "Hadir" }}</span>
+          {% elif d.status == "SICK" %}
+          <span class="badge">🤒 Sakit</span>
+          {% elif d.status == "LEAVE" %}
+          <span class="badge">📋 Izin</span>
+          {% elif d.status == "ABSENT" %}
+          <span class="badge" style="color: var(--bad); border-color: var(--bad)">❌ Absen</span>
+          {% else %}
+          <span class="badge muted">— Belum</span>
+          {% endif %}
+        </td>
+        <td class="muted">{{ d.checkin_at.strftime("%H:%M") if d.checkin_at else "-" }}</td>
+        <td class="muted">{{ d.note or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

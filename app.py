@@ -34,6 +34,7 @@ from routes.web.hpp import hpp_bp
 from routes.web.ai import ai_bp
 from routes.web.buy_prices import buy_prices_bp
 from routes.web.export import export_bp
+from routes.web.finance import finance_bp
 
 
 # ------ MOBILE -----
@@ -129,6 +130,7 @@ app.register_blueprint(hpp_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(export_bp)
 app.register_blueprint(buy_prices_bp)
+app.register_blueprint(finance_bp)
 
 # ------ REGISTER MOBILE -----
 app.register_blueprint(mobile_auth_bp,          url_prefix="/api/mobile")
