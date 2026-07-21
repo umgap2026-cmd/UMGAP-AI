@@ -28,6 +28,7 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
   String selectedType          = "ONTIME";
   final noteController         = TextEditingController();
   TimeOfDay? manualTime;
+  TimeOfDay? manualCheckoutTime;
 
   final List<Map<String, dynamic>> _types = [
     {"value": "ONTIME",  "label": "Tepat Waktu",  "icon": Icons.check_circle_rounded,    "color": Color(0xFF2E7D32)},
@@ -83,6 +84,20 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
     if (picked != null) setState(() => manualTime = picked);
   }
 
+  Future<void> _pickCheckoutTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: manualCheckoutTime ?? TimeOfDay.now(),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: _kPrimary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => manualCheckoutTime = picked);
+  }
+
   Future<void> _submit() async {
     if (selectedEmployee == null) {
       _showSnack("Pilih karyawan terlebih dahulu", isError: true);
@@ -99,11 +114,19 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
         manualCheckin = "$h:$m";
       }
 
+      String? manualCheckout;
+      if (manualCheckoutTime != null) {
+        final h = manualCheckoutTime!.hour.toString().padLeft(2, '0');
+        final m = manualCheckoutTime!.minute.toString().padLeft(2, '0');
+        manualCheckout = "$h:$m";
+      }
+
       await ApiService.adminSubmitAttendanceForEmployee(
-        userId:        selectedEmployee!['id'] as int,
-        arrivalType:   selectedType,
-        note:          noteController.text.trim(),
-        manualCheckin: manualCheckin,
+        userId:         selectedEmployee!['id'] as int,
+        arrivalType:    selectedType,
+        note:           noteController.text.trim(),
+        manualCheckin:  manualCheckin,
+        manualCheckout: manualCheckout,
       );
 
       if (!mounted) return;
@@ -171,8 +194,9 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
       if (mounted) {
         setState(() {
           noteController.clear();
-          manualTime   = null;
-          selectedType = "ONTIME";
+          manualTime         = null;
+          manualCheckoutTime = null;
+          selectedType       = "ONTIME";
         });
       }
     } catch (e) {
@@ -365,6 +389,57 @@ class _AdminSubmitAttendancePageState extends State<AdminSubmitAttendancePage> {
                 if (manualTime != null)
                   GestureDetector(
                     onTap: () => setState(() => manualTime = null),
+                    child: const Icon(Icons.close_rounded, color: _kTextLight, size: 18),
+                  ),
+              ]),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Jam Keluar ──
+          _SectionLabel("Jam Keluar (Opsional)"),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _pickCheckoutTime,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: manualCheckoutTime != null ? const Color(0xFF2E7D32).withOpacity(0.5) : _kPrimary.withOpacity(0.15)),
+                boxShadow: [BoxShadow(color: _kPrimary.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
+              ),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: (manualCheckoutTime != null ? const Color(0xFF2E7D32) : _kTextLight).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.logout_rounded,
+                      color: manualCheckoutTime != null ? const Color(0xFF2E7D32) : _kTextLight, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      manualCheckoutTime != null
+                          ? "${manualCheckoutTime!.hour.toString().padLeft(2,'0')}:${manualCheckoutTime!.minute.toString().padLeft(2,'0')}"
+                          : "Kosongkan kalau belum pulang",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: manualCheckoutTime != null ? FontWeight.w700 : FontWeight.w400,
+                        color: manualCheckoutTime != null ? _kTextDark : _kTextLight,
+                      ),
+                    ),
+                    if (manualCheckoutTime == null)
+                      const Text("Isi kalau mau catat jam pulang sekaligus", style: TextStyle(fontSize: 11, color: _kTextLight)),
+                  ]),
+                ),
+                if (manualCheckoutTime != null)
+                  GestureDetector(
+                    onTap: () => setState(() => manualCheckoutTime = null),
                     child: const Icon(Icons.close_rounded, color: _kTextLight, size: 18),
                   ),
               ]),

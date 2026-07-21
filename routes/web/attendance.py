@@ -2,11 +2,14 @@ import os
 import uuid
 from datetime import date
 
-from flask import Blueprint, render_template, redirect, request, session
+from flask import Blueprint, render_template, redirect, request, session, flash
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import is_logged_in, is_admin, _now_wib_naive_from_form, _public_ip
+from core import (
+    is_logged_in, is_admin, _now_wib_naive_from_form, _public_ip,
+    record_checkout, _ensure_attendance_checkout_column,
+)
 
 
 attendance_bp = Blueprint("attendance", __name__)
@@ -24,8 +27,11 @@ def attendance_page():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
+        _ensure_attendance_checkout_column(cur)
+        conn.commit()
+
         cur.execute("""
-            SELECT work_date, arrival_type, status, note, checkin_at
+            SELECT work_date, arrival_type, status, note, checkin_at, checkout_at, checkout_auto
             FROM attendance
             WHERE user_id=%s
             ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
@@ -35,7 +41,23 @@ def attendance_page():
         cur.close()
         conn.close()
 
-    return render_template("attendance.html", rows=rows)
+    today_row = next((r for r in rows if r["work_date"] == date.today()), None)
+
+    return render_template("attendance.html", rows=rows, today_row=today_row)
+
+
+@attendance_bp.route("/attendance/checkout", methods=["POST"])
+def attendance_checkout():
+    if not is_logged_in():
+        return redirect("/login")
+
+    try:
+        record_checkout(session["user_id"], date.today())
+        flash("Check-out berhasil dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect("/attendance")
 
 
 @attendance_bp.route("/attendance/add", methods=["POST"])

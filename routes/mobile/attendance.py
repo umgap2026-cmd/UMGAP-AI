@@ -16,6 +16,8 @@ from core import (
     get_admin_fcm_tokens,
     send_fcm_to_tokens,
     send_wa as _send_wa,
+    record_checkout,
+    _ensure_attendance_checkout_column,
 )
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
@@ -67,6 +69,8 @@ def _format_attendance_row(row):
     item = dict(row)
     item["work_date"] = str(item.get("work_date")) if item.get("work_date") else "-"
     item["checkin_at"] = _format_dt(item.get("checkin_at"))
+    item["checkout_at"] = _format_dt(item.get("checkout_at")) if item.get("checkout_at") else None
+    item["checkout_auto"] = bool(item.get("checkout_auto"))
     item["photo_url"] = _file_url(item.get("photo_path"))
     item["map_url"] = item.get("map_url") or ""
     return item
@@ -83,6 +87,9 @@ def mobile_attendance_list():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_checkout_column(cur)
+        conn.commit()
+
         if user.get("role") == "admin":
             cur.execute("""
                 SELECT
@@ -94,6 +101,8 @@ def mobile_attendance_list():
                     a.status,
                     a.note,
                     a.checkin_at,
+                    a.checkout_at,
+                    a.checkout_auto,
                     a.device_id,
                     a.latitude,
                     a.longitude,
@@ -115,6 +124,8 @@ def mobile_attendance_list():
                     status,
                     note,
                     checkin_at,
+                    checkout_at,
+                    checkout_auto,
                     device_id,
                     latitude,
                     longitude,
@@ -150,6 +161,9 @@ def mobile_attendance_me():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_checkout_column(cur)
+        conn.commit()
+
         cur.execute("""
             SELECT
                 id,
@@ -159,6 +173,8 @@ def mobile_attendance_me():
                 status,
                 note,
                 checkin_at,
+                checkout_at,
+                checkout_auto,
                 device_id,
                 latitude,
                 longitude,
@@ -181,6 +197,28 @@ def mobile_attendance_me():
     finally:
         cur.close()
         conn.close()
+
+
+@mobile_attendance_bp.route("/attendance/checkout", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_attendance_checkout():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    user = request.mobile_user
+    try:
+        result = record_checkout(user["user_id"], date.today())
+        return mobile_api_response(
+            ok=True,
+            message="Check-out berhasil dicatat.",
+            data={
+                "checkin_at": _format_dt(result.get("checkin_at")),
+                "checkout_at": _format_dt(result.get("checkout_at")),
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
 
 
 @mobile_attendance_bp.route("/attendance", methods=["POST", "OPTIONS"])
@@ -611,11 +649,12 @@ def mobile_attendance_admin_add():
     if user.get("role") != "admin":
         return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
 
-    payload        = request.get_json(silent=True) or {}
-    user_id_raw    = payload.get("user_id")
-    arrival_type   = (payload.get("arrival_type") or "ONTIME").strip().upper()
-    note           = (payload.get("note") or "").strip()
-    manual_checkin = (payload.get("manual_checkin") or "").strip()  # format "HH:MM"
+    payload         = request.get_json(silent=True) or {}
+    user_id_raw     = payload.get("user_id")
+    arrival_type    = (payload.get("arrival_type") or "ONTIME").strip().upper()
+    note            = (payload.get("note") or "").strip()
+    manual_checkin  = (payload.get("manual_checkin") or "").strip()  # format "HH:MM"
+    manual_checkout = (payload.get("manual_checkout") or "").strip()  # format "HH:MM"
 
     if not user_id_raw:
         return mobile_api_response(ok=False, message="user_id wajib diisi.", status_code=400)
@@ -656,16 +695,26 @@ def mobile_attendance_admin_add():
         """, (target_user_id, work_date, status, arrival_type, note, now, now))
 
         conn.commit()
-
-        return mobile_api_response(
-            ok=True,
-            message="Absensi karyawan berhasil dicatat.",
-            data={"user_id": target_user_id, "work_date": str(work_date), "arrival_type": arrival_type},
-            status_code=200
-        )
     except Exception as e:
         conn.rollback()
         return mobile_api_response(ok=False, message=f"Gagal catat absensi: {str(e)}", status_code=500)
     finally:
         cur.close()
         conn.close()
+
+    if manual_checkout:
+        try:
+            parts = manual_checkout.split(":")
+            checkout_dt = now.replace(hour=int(parts[0]), minute=int(parts[1]), second=0, microsecond=0)
+            record_checkout(target_user_id, work_date, checkout_dt)
+        except ValueError as e:
+            return mobile_api_response(ok=False, message=str(e), status_code=400)
+        except Exception:
+            pass
+
+    return mobile_api_response(
+        ok=True,
+        message="Absensi karyawan berhasil dicatat.",
+        data={"user_id": target_user_id, "work_date": str(work_date), "arrival_type": arrival_type},
+        status_code=200
+    )

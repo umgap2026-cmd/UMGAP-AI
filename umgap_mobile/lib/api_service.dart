@@ -259,6 +259,19 @@ class ApiService {
     return _asMap(res.data);
   }
 
+  /// Check-out — catat jam pulang untuk absensi hari ini yang sudah
+  /// disetujui admin. Tidak butuh foto/GPS, langsung tersimpan.
+  static Future<Map<String, dynamic>> checkOut() async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/attendance/checkout",
+      options: Options(headers: headers),
+    );
+
+    _ensureOk(res, "Gagal check-out");
+    return _asMap(res.data);
+  }
+
   static Future<List<dynamic>> getPendingAttendanceList() async {
     final headers = await _headers();
     final res = await dio.get(
@@ -307,15 +320,17 @@ class ApiService {
 // ============================================================
 
   /// Admin mengabsenkan karyawan tertentu secara manual.
-  /// [userId]       : ID karyawan yang diabsenkan
-  /// [arrivalType]  : "ONTIME" | "LATE" | "SICK" | "LEAVE" | "ABSENT"
-  /// [note]         : catatan opsional
-  /// [manualCheckin]: jam format "HH:MM" — null = jam otomatis server (WIB)
+  /// [userId]        : ID karyawan yang diabsenkan
+  /// [arrivalType]   : "ONTIME" | "LATE" | "SICK" | "LEAVE" | "ABSENT"
+  /// [note]          : catatan opsional
+  /// [manualCheckin] : jam format "HH:MM" — null = jam otomatis server (WIB)
+  /// [manualCheckout]: jam pulang format "HH:MM" — opsional, catat checkout sekaligus
   static Future<Map<String, dynamic>> adminSubmitAttendanceForEmployee({
     required int userId,
     required String arrivalType,
     String note = "",
     String? manualCheckin,
+    String? manualCheckout,
   }) async {
     final headers = await _headers();
     final res = await dio.post(
@@ -326,6 +341,8 @@ class ApiService {
         "note":           note,
         if (manualCheckin != null && manualCheckin.isNotEmpty)
           "manual_checkin": manualCheckin,
+        if (manualCheckout != null && manualCheckout.isNotEmpty)
+          "manual_checkout": manualCheckout,
       },
       options: Options(headers: headers),
     );

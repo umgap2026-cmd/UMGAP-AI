@@ -479,6 +479,84 @@ def is_token_valid(token: str) -> bool:
 
 
 # =========================
+# ATTENDANCE — CHECK-OUT (dipakai bersama web & mobile)
+# =========================
+def _ensure_attendance_checkout_column(cur):
+    """Lazy-migration: kolom checkout_at/checkout_auto belum ada di skema
+    attendance lama. Dipakai bersama routes/web/attendance.py,
+    routes/web/admin.py, routes/mobile/attendance.py."""
+    cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS checkout_at TIMESTAMP NULL;")
+    cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS checkout_auto BOOLEAN NOT NULL DEFAULT FALSE;")
+
+
+def record_checkout(user_id, work_date, checkout_time=None):
+    """
+    Catat jam pulang (check-out) untuk attendance yang SUDAH ADA hari itu
+    (artinya check-in sudah pernah disetujui admin — lihat
+    routes/*/attendance.py approve flow). Tidak membuat record baru dan
+    tidak butuh approval — cukup update kolom checkout_at.
+    Submit ulang di hari yang sama menimpa jam sebelumnya.
+    Raise ValueError kalau belum ada attendance untuk user_id+work_date itu.
+    Return dict {checkin_at, checkout_at}.
+    """
+    checkout_time = checkout_time or _now_wib_naive()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_attendance_checkout_column(cur)
+        cur.execute("""
+            UPDATE attendance
+            SET checkout_at = %s, checkout_auto = FALSE
+            WHERE user_id = %s AND work_date = %s
+            RETURNING checkin_at, checkout_at;
+        """, (checkout_time, user_id, work_date))
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            raise ValueError("Belum ada absensi masuk yang disetujui untuk hari ini. Checkout tidak bisa dilakukan.")
+        conn.commit()
+        return dict(row)
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat checkout: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def auto_checkout_forgotten():
+    """
+    Checkout otomatis untuk attendance yang sudah check-in tapi lupa
+    check-out, untuk hari-hari yang SUDAH LEWAT (work_date < hari ini).
+    Dipanggil oleh endpoint /api/mobile/auto-checkout (app.py), yang
+    dipicu cron eksternal sekitar tengah malam — lihat pola
+    /api/mobile/send-reminder & /api/mobile/send-daily-summary di app.py.
+    Return jumlah baris yang di-checkout otomatis.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        _ensure_attendance_checkout_column(cur)
+        cur.execute("""
+            UPDATE attendance
+            SET checkout_at = (work_date + TIME '23:59:59'), checkout_auto = TRUE
+            WHERE checkin_at IS NOT NULL
+              AND checkout_at IS NULL
+              AND work_date < CURRENT_DATE;
+        """)
+        n = cur.rowcount
+        conn.commit()
+        return n
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =========================
 # MOBILE API HELPERS
 # =========================
 def mobile_api_response(ok=True, message="", data=None, status_code=200):

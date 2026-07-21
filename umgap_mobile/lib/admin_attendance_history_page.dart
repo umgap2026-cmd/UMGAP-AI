@@ -265,6 +265,8 @@ class _HistoryCard extends StatelessWidget {
     final userName    = readValue(item, ["employee_name", "user_name"]);
     final workDate    = readValue(item, ["work_date"]);
     final checkinAt   = readValue(item, ["checkin_at"]);
+    final checkoutAt  = readValue(item, ["checkout_at"]);
+    final checkoutAuto = item["checkout_auto"] == true;
     final status      = readValue(item, ["status"]);
     final arrivalType = readValue(item, ["arrival_type"]);
     final note        = readValue(item, ["note"]);
@@ -310,10 +312,21 @@ class _HistoryCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(workDate, style: const TextStyle(fontSize: 11, color: _kTextLight)),
                       const SizedBox(width: 10),
-                      Icon(Icons.access_time_rounded, size: 11, color: _kTextLight),
+                      Icon(Icons.login_rounded, size: 11, color: _kTextLight),
                       const SizedBox(width: 4),
                       Text(checkinAt, style: const TextStyle(fontSize: 11, color: _kTextLight)),
                     ]),
+                    if (checkoutAt != "-") ...[
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Icon(Icons.logout_rounded, size: 11, color: const Color(0xFF2E7D32).withOpacity(0.7)),
+                        const SizedBox(width: 4),
+                        Text(
+                          checkoutAuto ? "$checkoutAt (otomatis)" : checkoutAt,
+                          style: const TextStyle(fontSize: 11, color: _kTextLight),
+                        ),
+                      ]),
+                    ],
                   ]),
                 ),
               ]),

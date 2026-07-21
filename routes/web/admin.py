@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import date
 
-from flask import Blueprint, render_template, redirect, request, session
+from flask import Blueprint, render_template, redirect, request, session, flash
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash
 
@@ -15,6 +15,7 @@ from core import _parse_manual_wib_naive
 from core import _public_ip
 from core import _now_wib_naive
 from core import is_token_valid
+from core import record_checkout, _ensure_attendance_checkout_column
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -575,10 +576,13 @@ def admin_attendance():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    _ensure_attendance_checkout_column(cur)
+    conn.commit()
     cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
     employees = cur.fetchall()
     cur.execute("""
-        SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at, u.name AS employee_name
+        SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at,
+               a.checkout_at, a.checkout_auto, u.name AS employee_name
         FROM attendance a
         JOIN users u ON u.id=a.user_id
         ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
@@ -599,6 +603,7 @@ def admin_attendance_add():
     arrival_type = (request.form.get("arrival_type") or "ONTIME").strip().upper()
     note = (request.form.get("note") or "").strip()
     manual_checkin = (request.form.get("manual_checkin") or "").strip()
+    manual_checkout = (request.form.get("manual_checkout") or "").strip()
 
     if arrival_type in ("SICK", "LEAVE", "ABSENT"):
         status = arrival_type
@@ -626,4 +631,16 @@ def admin_attendance_add():
     conn.commit()
     cur.close()
     conn.close()
+
+    if manual_checkout:
+        checkout_dt = _parse_manual_wib_naive(manual_checkout)
+        if not checkout_dt:
+            flash("Format jam keluar tidak valid.", "danger")
+            return redirect("/admin/attendance")
+
+        try:
+            record_checkout(user_id, work_date, checkout_dt)
+        except ValueError as e:
+            flash(str(e), "danger")
+
     return redirect("/admin/attendance")

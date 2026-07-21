@@ -972,6 +972,20 @@
               Submit Absensi
             </button>
           </form>
+
+          <div class="divider"></div>
+          <div class="sec-title" style="font-size: 13px">🚪 Check-out</div>
+          <div class="sec-desc" style="margin-bottom: 10px">Sudah selesai kerja hari ini? Catat jam pulang.</div>
+          <form method="POST" action="/attendance/checkout">
+            <button class="btn-submit" type="submit" style="background: linear-gradient(180deg, #059669 0%, #047857 100%); box-shadow: 0 12px 22px rgba(5,150,105,0.24)">
+              <svg viewBox="0 0 24 24">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Check-out Sekarang
+            </button>
+          </form>
         </div>
       </div>
 
@@ -996,6 +1010,13 @@
               <input type="datetime-local" name="manual_checkin" />
               <div class="field-hint">
                 Kosongkan untuk pakai jam live otomatis.
+              </div>
+            </div>
+            <div class="field">
+              <label>Jam Keluar (Opsional)</label>
+              <input type="datetime-local" name="manual_checkout" />
+              <div class="field-hint">
+                Isi kalau mau catat jam pulang sekaligus.
               </div>
             </div>
             <div class="field">
@@ -1115,8 +1136,8 @@
               <div class="rinfo">
                 <div class="rname">{{ r.employee_name }}</div>
                 <div class="rsub">
-                  {{ r.work_date }} · {{ r.checkin_at_wib or r.checkin_at or '—'
-                  }}
+                  {{ r.work_date }} · Masuk {{ r.checkin_at_wib or r.checkin_at or '—'
+                  }}{% if r.checkout_at %} · Pulang {{ r.checkout_at.strftime("%H:%M") }}{% if r.checkout_auto %} (otomatis){% endif %}{% endif %}
                 </div>
                 {% if r.timezone_used and r.timezone_used != 'WIB' %}
                 <div class="rsub" style="font-size: 11px; opacity: 0.7">
@@ -1177,7 +1198,8 @@
             <thead>
               <tr>
                 <th>Tanggal</th>
-                <th>Jam</th>
+                <th>Masuk</th>
+                <th>Pulang</th>
                 <th>Karyawan</th>
                 <th>Tipe</th>
                 <th>Status</th>
@@ -1199,6 +1221,11 @@
                 <td>
                   <div class="t-sub">
                     {{ r.checkin_at_wib or r.checkin_at or "—" }}
+                  </div>
+                </td>
+                <td>
+                  <div class="t-sub">
+                    {% if r.checkout_at %}{{ r.checkout_at.strftime("%H:%M") }}{% if r.checkout_auto %} <span style="opacity:.6">(otomatis)</span>{% endif %}{% else %}—{% endif %}
                   </div>
                 </td>
                 <td><div class="t-name">{{ r.employee_name }}</div></td>
@@ -1239,7 +1266,7 @@
               {% endfor %} {% if rows|length == 0 %}
               <tr>
                 <td
-                  colspan="6"
+                  colspan="7"
                   style="
                     text-align: center;
                     padding: 28px;

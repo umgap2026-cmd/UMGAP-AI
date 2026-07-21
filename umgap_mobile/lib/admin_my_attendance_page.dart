@@ -41,6 +41,8 @@ class _AdminMyAttendancePageState extends State<AdminMyAttendancePage>
   bool historyLoading = true;
   List<dynamic> histories = [];
 
+  bool checkoutLoading = false;
+
   final List<Map<String, dynamic>> _types = [
     {"value": "ONTIME", "label": "Hadir",       "icon": Icons.check_circle_rounded,    "color": Color(0xFF2E7D32)},
     {"value": "LATE",   "label": "Terlambat",   "icon": Icons.schedule_rounded,         "color": Color(0xFFE65100)},
@@ -134,6 +136,34 @@ class _AdminMyAttendancePageState extends State<AdminMyAttendancePage>
       _showSnack("Gagal absensi: $e", isError: true);
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  Map<String, dynamic>? get _todayRow {
+    final n = DateTime.now();
+    final todayStr = "${n.year.toString().padLeft(4, '0')}-"
+        "${n.month.toString().padLeft(2, '0')}-"
+        "${n.day.toString().padLeft(2, '0')}";
+    for (final h in histories) {
+      final m = h as Map;
+      if (readValue(m, ["work_date"]) == todayStr) {
+        return Map<String, dynamic>.from(m);
+      }
+    }
+    return null;
+  }
+
+  Future<void> checkOut() async {
+    setState(() => checkoutLoading = true);
+    try {
+      final res = await ApiService.checkOut();
+      if (!mounted) return;
+      _showSnack(res["message"]?.toString() ?? "Check-out berhasil");
+      await loadHistory();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack("Gagal: $e", isError: true);
+    }
+    if (mounted) setState(() => checkoutLoading = false);
   }
 
   Future<void> openMap(String url) async {
@@ -249,6 +279,56 @@ class _AdminMyAttendancePageState extends State<AdminMyAttendancePage>
             ]),
           ]),
         ),
+
+        const SizedBox(height: 20),
+
+        // Check-out card
+        Builder(builder: (context) {
+          final todayRow      = _todayRow;
+          final todayCheckout = todayRow != null ? readValue(todayRow, ["checkout_at"]) : "-";
+          final hasCheckedOut = todayCheckout != "-";
+          final canCheckout   = todayRow != null;
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: const Color(0xFF2E7D32).withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.logout_rounded, color: Color(0xFF2E7D32), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text("Check-out", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _kTextDark)),
+                const SizedBox(height: 2),
+                Text(
+                  !canCheckout ? "Absen masuk dulu & tunggu disetujui admin"
+                      : hasCheckedOut ? "Sudah check-out jam $todayCheckout"
+                      : "Sudah check-in — siap check-out",
+                  style: const TextStyle(fontSize: 11, color: _kTextMid),
+                ),
+              ])),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: (!canCheckout || checkoutLoading) ? null : checkOut,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: _kTextLight.withOpacity(0.25),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+                child: checkoutLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                    : Text(hasCheckedOut ? "Perbarui" : "Check-out", style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+              ),
+            ]),
+          );
+        }),
 
         const SizedBox(height: 20),
 
@@ -406,6 +486,8 @@ class _AdminMyAttendancePageState extends State<AdminMyAttendancePage>
           final status     = readValue(item, ["status"]);
           final workDate   = readValue(item, ["work_date"]);
           final checkinAt  = readValue(item, ["checkin_at"]);
+          final checkoutAt = readValue(item, ["checkout_at"]);
+          final checkoutAuto = item["checkout_auto"] == true;
           final note       = readValue(item, ["note"]);
           final photoUrl   = readValue(item, ["photo_url"]);
           final mapUrl     = readValue(item, ["map_url"]);
@@ -436,10 +518,21 @@ class _AdminMyAttendancePageState extends State<AdminMyAttendancePage>
                       const SizedBox(width: 5),
                       Text(workDate, style: const TextStyle(fontSize: 12, color: _kTextMid)),
                       const SizedBox(width: 14),
-                      Icon(Icons.access_time_rounded, size: 13, color: _kPrimary.withOpacity(0.6)),
+                      Icon(Icons.login_rounded, size: 13, color: _kPrimary.withOpacity(0.6)),
                       const SizedBox(width: 5),
                       Text(checkinAt, style: const TextStyle(fontSize: 12, color: _kTextMid)),
                     ]),
+                    if (checkoutAt != "-") ...[
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Icon(Icons.logout_rounded, size: 13, color: const Color(0xFF2E7D32).withOpacity(0.7)),
+                        const SizedBox(width: 5),
+                        Text(
+                          checkoutAuto ? "$checkoutAt (otomatis)" : checkoutAt,
+                          style: const TextStyle(fontSize: 12, color: _kTextMid),
+                        ),
+                      ]),
+                    ],
                     if (note != "-" && note.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

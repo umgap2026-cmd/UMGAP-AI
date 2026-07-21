@@ -47,6 +47,9 @@ class _AttendancePageState extends State<AttendancePage>
   List<dynamic>        histories      = [];
   Map<String, dynamic> _meUser        = {};
 
+  // ── Check-out ──────────────────────────────
+  bool checkoutLoading = false;
+
   // ── Tipe kehadiran ────────────────────────
   final List<Map<String, dynamic>> _types = [
     {"value":"ONTIME", "label":"Hadir",      "icon":Icons.check_circle_rounded,    "color":Color(0xFF2E7D32)},
@@ -180,6 +183,38 @@ class _AttendancePageState extends State<AttendancePage>
     if (mounted) setState(() => loading = false);
   }
 
+  /// Data absensi hari ini dari `histories` (kalau sudah check-in & disetujui).
+  Map<String, dynamic>? get _todayRow {
+    final n = DateTime.now();
+    final todayStr = "${n.year.toString().padLeft(4, '0')}-"
+        "${n.month.toString().padLeft(2, '0')}-"
+        "${n.day.toString().padLeft(2, '0')}";
+    for (final h in histories) {
+      final m = h as Map;
+      if (readValue(m, ["work_date"]) == todayStr) {
+        return Map<String, dynamic>.from(m);
+      }
+    }
+    return null;
+  }
+
+  Future<void> checkOut() async {
+    HapticFeedback.mediumImpact();
+    setState(() => checkoutLoading = true);
+    try {
+      final res = await ApiService.checkOut();
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      _snack(res["message"]?.toString() ?? "Check-out berhasil");
+      await loadHistory();
+    } catch (e) {
+      if (!mounted) return;
+      HapticFeedback.vibrate();
+      _snack("Gagal: $e", isError: true);
+    }
+    if (mounted) setState(() => checkoutLoading = false);
+  }
+
   void _snack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content:         Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -290,10 +325,70 @@ class _AttendancePageState extends State<AttendancePage>
     final stepSelf = selfieFile != null;
     final canSubmit = stepLoc && stepSelf && !loading;
 
+    final todayRow      = _todayRow;
+    final todayCheckout = todayRow != null ? readValue(todayRow, ["checkout_at"]) : "-";
+    final hasCheckedOut = todayCheckout != "-";
+    final canCheckout   = todayRow != null;
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
       children: [
+
+        // ── CHECK-OUT CARD ────────────────────
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
+                blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                  color: _green.withOpacity(0.12), shape: BoxShape.circle),
+              child: const Icon(Icons.logout_rounded, color: _green, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Check-out", style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: _textDark)),
+                const SizedBox(height: 2),
+                Text(
+                  !canCheckout
+                      ? "Absen masuk dulu & tunggu disetujui admin"
+                      : hasCheckedOut
+                      ? "Sudah check-out jam $todayCheckout"
+                      : "Sudah check-in — siap check-out",
+                  style: const TextStyle(fontSize: 11, color: _textMid),
+                ),
+              ],
+            )),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: (!canCheckout || checkoutLoading) ? null : checkOut,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: _white,
+                disabledBackgroundColor: _textSoft.withOpacity(0.25),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              child: checkoutLoading
+                  ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.2, color: _white))
+                  : Text(hasCheckedOut ? "Perbarui" : "Check-out",
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+            ),
+          ]),
+        ),
 
         // ── STEP 1: Tipe Kehadiran ────────────
         _StepCard(
@@ -905,14 +1000,18 @@ class _AttendancePageState extends State<AttendancePage>
             ])),
           ] else
             ...histories.map((item) {
-              final m      = item as Map<String, dynamic>;
-              final type   = readValue(m, ["arrival_type","attendance_type"]);
-              final status = readValue(m, ["status","approval_status"]);
-              final date   = readValue(m, ["work_date"]);
-              final time   = readValue(m, ["checkin_at","created_at"]);
-              final note   = readValue(m, ["note","notes"]);
+              final m       = item as Map<String, dynamic>;
+              final type    = readValue(m, ["arrival_type","attendance_type"]);
+              final status  = readValue(m, ["status","approval_status"]);
+              final date    = readValue(m, ["work_date"]);
+              final time    = readValue(m, ["checkin_at","created_at"]);
+              final coTime  = readValue(m, ["checkout_at"]);
+              final coAuto  = m["checkout_auto"] == true;
+              final note    = readValue(m, ["note","notes"]);
               return _HistoryCard(
-                type: type, status: status, date: date, time: time, note: note,
+                type: type, status: status, date: date, time: time,
+                checkoutTime: coTime == "-" ? null : coTime, checkoutAuto: coAuto,
+                note: note,
                 statusColor: _statusColor(type), badgeColor: _statusColor(status),
               );
             }),
@@ -1119,9 +1218,12 @@ class _PremiumOutlineBtn extends StatelessWidget {
 // ════════════════════════════════════════════
 class _HistoryCard extends StatelessWidget {
   final String type, status, date, time, note;
+  final String? checkoutTime;
+  final bool checkoutAuto;
   final Color  statusColor, badgeColor;
   const _HistoryCard({required this.type, required this.status,
     required this.date, required this.time, required this.note,
+    this.checkoutTime, this.checkoutAuto = false,
     required this.statusColor, required this.badgeColor});
   @override
   Widget build(BuildContext context) {
@@ -1174,10 +1276,21 @@ class _HistoryCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(date, style: const TextStyle(fontSize: 11, color: _textMid)),
                   const SizedBox(width: 10),
-                  Icon(Icons.access_time_rounded, size: 11, color: _blue.withOpacity(0.5)),
+                  Icon(Icons.login_rounded, size: 11, color: _blue.withOpacity(0.5)),
                   const SizedBox(width: 4),
                   Text(time, style: const TextStyle(fontSize: 11, color: _textMid)),
                 ]),
+                if (checkoutTime != null) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.logout_rounded, size: 11, color: _green.withOpacity(0.7)),
+                    const SizedBox(width: 4),
+                    Text(
+                      checkoutAuto ? "$checkoutTime (otomatis)" : checkoutTime!,
+                      style: const TextStyle(fontSize: 11, color: _textMid),
+                    ),
+                  ]),
+                ],
                 if (note != "-" && note.isNotEmpty) ...[
                   const SizedBox(height: 5),
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

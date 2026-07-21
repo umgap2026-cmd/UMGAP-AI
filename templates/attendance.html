@@ -1178,6 +1178,40 @@
       </div>
     </div>
 
+    <!-- CHECK-OUT CARD -->
+    <div class="type-card">
+      <div class="tc-header">
+        <div class="tc-h-row">
+          <div class="tc-ico" style="background: var(--green-s)">🚪</div>
+          <div>
+            <div class="tc-title">Check-out</div>
+            <div class="tc-sub">Catat jam pulang hari ini</div>
+          </div>
+        </div>
+      </div>
+      <div class="tc-body">
+        {% if not today_row %}
+        <div class="submit-hint" style="margin-top: 0; justify-content: flex-start">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+          Belum ada absensi masuk yang disetujui hari ini. Absen masuk dulu, tunggu admin approve, baru bisa check-out.
+        </div>
+        {% else %}
+        {% if today_row.checkout_at %}
+        <div class="submit-hint" style="margin-top: 0; justify-content: flex-start; color: var(--sub)">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+          Sudah check-out jam {{ today_row.checkout_at.strftime("%H:%M") }}{% if today_row.checkout_auto %} (otomatis){% endif %} — kirim lagi untuk memperbarui.
+        </div>
+        {% endif %}
+        <form method="POST" action="/attendance/checkout">
+          <button class="btn-submit" type="submit" style="height: 50px; font-size: 14px; margin-top: 12px; box-shadow: 0 10px 24px rgba(6,214,160,0.28); background: linear-gradient(135deg, #059669, #06d6a0)">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+            {{ "Perbarui Jam Keluar" if today_row.checkout_at else "Check-out Sekarang" }}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- FORM -->
     <form
       method="POST"
@@ -1463,9 +1497,17 @@
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                {{ r.checkin_at_wib or (r.checkin_at.strftime("%H:%M") if
+                Masuk {{ r.checkin_at_wib or (r.checkin_at.strftime("%H:%M") if
                 r.checkin_at else "—") }}
               </span>
+              {% if r.checkout_at %}
+              <span class="hi-time">
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Pulang {{ r.checkout_at.strftime("%H:%M") }}{% if r.checkout_auto %} (otomatis){% endif %}
+              </span>
+              {% endif %}
             </div>
             {% if r.note %}
             <div class="hi-note">{{ r.note }}</div>

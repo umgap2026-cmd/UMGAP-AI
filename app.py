@@ -271,6 +271,23 @@ def send_daily_summary():
         return jsonify({"ok": False, "message": str(e)}), 500
 
 
+@app.route("/api/mobile/auto-checkout", methods=["POST"])
+def auto_checkout_midnight():
+    """Checkout otomatis untuk karyawan yang lupa check-out kemarin/sebelumnya.
+    Dipicu cron eksternal ~00:05 WIB — sama seperti send-reminder/send-daily-summary
+    di atas, bukan scheduler internal."""
+    if not _internal_key_ok():
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    try:
+        from core import auto_checkout_forgotten
+        n = auto_checkout_forgotten()
+        print(f"[AUTO-CHECKOUT] {n} attendance ditutup otomatis")
+        return jsonify({"ok": True, "checked_out": n})
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 500
+
+
 @app.route("/api/mobile/version")
 def app_version():
     return jsonify({
