@@ -2,9 +2,17 @@ from flask import Blueprint, render_template, request, redirect, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import is_logged_in
+from core import is_logged_in, is_admin
 
 content_bp = Blueprint("content", __name__)
+
+
+def _admin_guard():
+    if not is_logged_in():
+        return redirect("/login")
+    if not is_admin():
+        return redirect("/dashboard")
+    return None
 
 
 @content_bp.route("/init-content")
@@ -34,8 +42,9 @@ def init_content():
 
 @content_bp.route("/content", methods=["GET", "POST"])
 def content():
-    if not is_logged_in():
-        return redirect("/login")
+    deny = _admin_guard()
+    if deny:
+        return deny
 
     user_id = session.get("user_id")
 
@@ -80,8 +89,9 @@ def content():
 
 @content_bp.route("/content/add", methods=["POST"])
 def content_add():
-    if not is_logged_in():
-        return redirect("/login")
+    deny = _admin_guard()
+    if deny:
+        return deny
 
     plan_date = request.form.get("plan_date")
     platform = request.form.get("platform")
@@ -109,8 +119,9 @@ def content_add():
 
 @content_bp.route("/content/done/<int:cid>")
 def content_done(cid):
-    if not is_logged_in():
-        return redirect("/login")
+    deny = _admin_guard()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor()
@@ -130,8 +141,9 @@ def content_done(cid):
 
 @content_bp.route("/content/undo/<int:cid>")
 def content_undo(cid):
-    if not is_logged_in():
-        return redirect("/login")
+    deny = _admin_guard()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor()
@@ -151,8 +163,9 @@ def content_undo(cid):
 
 @content_bp.route("/content/delete/<int:cid>")
 def content_delete(cid):
-    if not is_logged_in():
-        return redirect("/login")
+    deny = _admin_guard()
+    if deny:
+        return deny
 
     conn = get_conn()
     cur = conn.cursor()

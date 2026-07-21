@@ -823,7 +823,7 @@
                   <rect x="3" y="5" width="18" height="14" rx="3"></rect>
                   <path d="M3 7l9 6 9-6"></path>
                 </svg>
-                <span class="notif-badge">{{ notif_count or 0 }}</span>
+                {% if notif_count and notif_count > 0 %}<span class="notif-badge">{{ notif_count }}</span>{% endif %}
               </button>
               <a href="/logout" class="action-btn" aria-label="Logout">
                 <svg viewBox="0 0 24 24">
@@ -911,6 +911,10 @@
               <a class="feature fc-link" href="/caption">
                 <div class="feat-icon">✨</div>
                 <div class="feat-label">Caption AI</div>
+              </a>
+              <a class="feature fc-link" href="/content">
+                <div class="feat-icon">📆</div>
+                <div class="feat-label">Kalender Konten</div>
               </a>
             </div>
 
