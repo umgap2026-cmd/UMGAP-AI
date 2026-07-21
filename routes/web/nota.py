@@ -17,6 +17,7 @@ from core import (
     get_fin_invoice_detail,
     settle_fin_debt_for_transaction,
     cancel_fin_transaction,
+    get_notif_count,
 )
 
 nota_bp = Blueprint("nota", __name__)
@@ -70,6 +71,7 @@ def nota_new():
         "invoice_form.html",
         materials=get_materials_with_stock(),
         company_profile=get_company_profile(),
+        notif_count=get_notif_count(),
     )
 
 
