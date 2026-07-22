@@ -218,6 +218,35 @@
     padding: 8px 12px; font-size: 13px; font-weight: 900; text-align: center; margin-top: 8px;
   }
   .item-warn { font-size: 11px; font-weight: 800; color: var(--bad); margin-top: 6px; display: none; }
+
+  /* list-of-value: searchable item picker */
+  .lov { position: relative; }
+  .lov-btn {
+    width: 100%; border: none; outline: none; border-radius: 13px;
+    background: #f2f5fb; box-shadow: var(--soft-in); padding: 13px 14px;
+    font-size: 13px; color: var(--text); font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+  }
+  .lov-btn.placeholder { color: var(--muted); }
+  .lov-btn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .lov-btn .care { font-size: 10px; color: var(--muted); flex: 0 0 auto; transition: transform 0.15s; }
+  .lov.open .lov-btn .care { transform: rotate(180deg); }
+  .lov-panel {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+    background: #fff; border-radius: 14px; box-shadow: var(--shadow-out);
+    border: 1px solid rgba(37, 99, 235, 0.08); overflow: hidden;
+  }
+  .lov.open .lov-panel { display: block; }
+  .lov-search-wrap { padding: 8px; border-bottom: 1px solid rgba(125, 138, 166, 0.14); }
+  .lov-search {
+    width: 100%; border: none; outline: none; border-radius: 10px; background: #f2f5fb;
+    padding: 9px 12px; font-size: 13px; color: var(--text); font-family: inherit;
+  }
+  .lov-list { max-height: 220px; overflow-y: auto; }
+  .lov-item { padding: 10px 14px; font-size: 13px; color: var(--text); cursor: pointer; transition: background 0.12s; }
+  .lov-item:hover { background: #eef2ff; }
+  .lov-item .stk { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
+  .lov-empty { padding: 16px 14px; text-align: center; font-size: 12px; color: var(--muted); }
   .add-item-btn {
     width: 100%; height: 44px; border: 2px dashed rgba(37,99,235,0.3); border-radius: 14px;
     background: rgba(37,99,235,0.06); color: var(--blue); font-weight: 900; font-size: 13px;
@@ -460,14 +489,27 @@
                   <div class="item-top">
                     <div>
                       <label style="margin-bottom: 5px">Barang</label>
-                      <select class="item-material" required>
-                        <option value="">— Pilih Barang Gudang —</option>
-                        {% for m in materials %}
-                        <option value="{{ m.id }}" data-stock="{{ m.qty_kg }}" data-unit="{{ m.unit }}">
-                          {{ m.name }} · stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}
-                        </option>
-                        {% endfor %}
-                      </select>
+                      <div class="lov item-material" data-value="" data-stock="0" data-unit="">
+                        <button type="button" class="lov-btn placeholder">
+                          <span class="lov-btn-text">— Pilih Barang Gudang —</span>
+                          <span class="care">▾</span>
+                        </button>
+                        <div class="lov-panel">
+                          <div class="lov-search-wrap">
+                            <input type="text" class="lov-search" placeholder="Cari nama barang…" autocomplete="off" />
+                          </div>
+                          <div class="lov-list">
+                            {% for m in materials %}
+                            <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}"
+                                 data-unit="{{ m.unit }}" data-search="{{ m.name|lower }}">
+                              {{ m.name }}
+                              <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}</span>
+                            </div>
+                            {% endfor %}
+                            <div class="lov-empty" style="display: none">Barang tidak ditemukan</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <button type="button" class="item-del">✕</button>
                   </div>
@@ -562,18 +604,96 @@
       DB.textContent = "- " + rp(disc);
       DL.textContent = disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
     }
+
+    // ── List-of-value: searchable item picker ──
+    function initLov(wrap) {
+      var btn = wrap.querySelector(".lov-btn");
+      var btnText = wrap.querySelector(".lov-btn-text");
+      var search = wrap.querySelector(".lov-search");
+      var empty = wrap.querySelector(".lov-empty");
+
+      function items() { return wrap.querySelectorAll(".lov-item"); }
+      function closeOthers() {
+        document.querySelectorAll(".lov.open").forEach(function (o) {
+          if (o !== wrap) o.classList.remove("open");
+        });
+      }
+      function openPanel() {
+        closeOthers();
+        wrap.classList.add("open");
+        search.value = "";
+        filter("");
+        setTimeout(function () { search.focus(); }, 0);
+      }
+      function closePanel() { wrap.classList.remove("open"); }
+      function filter(q) {
+        q = q.trim().toLowerCase();
+        var any = false;
+        items().forEach(function (it) {
+          var match = !q || (it.getAttribute("data-search") || "").indexOf(q) !== -1;
+          it.style.display = match ? "" : "none";
+          if (match) any = true;
+        });
+        if (empty) empty.style.display = any ? "none" : "block";
+      }
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (wrap.classList.contains("open")) closePanel(); else openPanel();
+      });
+      search.addEventListener("input", function () { filter(search.value); });
+      search.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") e.preventDefault();
+        if (e.key === "Escape") closePanel();
+      });
+      items().forEach(function (it) {
+        it.addEventListener("click", function () {
+          var id = it.getAttribute("data-id"),
+            stock = it.getAttribute("data-stock") || "0",
+            unit = it.getAttribute("data-unit") || "",
+            name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
+          wrap.setAttribute("data-value", id);
+          wrap.setAttribute("data-stock", stock);
+          wrap.setAttribute("data-unit", unit);
+          btnText.textContent = name + " · stok " + parseFloat(stock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+          btn.classList.remove("placeholder");
+          closePanel();
+          wrap.dispatchEvent(new Event("lovchange"));
+        });
+      });
+    }
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll(".lov.open").forEach(function (w) {
+        if (!w.contains(e.target)) w.classList.remove("open");
+      });
+    });
+
+    function resetLov(wrap) {
+      wrap.setAttribute("data-value", "");
+      wrap.setAttribute("data-stock", "0");
+      wrap.setAttribute("data-unit", "");
+      wrap.classList.remove("open");
+      wrap.querySelector(".lov-btn-text").textContent = "— Pilih Barang Gudang —";
+      wrap.querySelector(".lov-btn").classList.add("placeholder");
+      wrap.querySelector(".lov-search").value = "";
+      wrap.querySelectorAll(".lov-item").forEach(function (it) { it.style.display = ""; });
+      var empty = wrap.querySelector(".lov-empty");
+      if (empty) empty.style.display = "none";
+    }
+
     function bindRow(r) {
       var s = r.querySelector(".item-material"), q = r.querySelector(".item-qty"),
         p = r.querySelector(".item-price"), o = r.querySelector(".line-sub"),
         warn = r.querySelector(".item-warn"), d = r.querySelector(".item-del");
+      initLov(s);
       function c() {
         var n = rowQty(r), price = rowPrice(r);
         o.textContent = rp(price * n);
-        var op = s.options[s.selectedIndex], stock = op ? parseFloat(op.getAttribute("data-stock") || "0") : 0;
-        warn.style.display = op && op.value && n > stock ? "block" : "none";
+        var hasVal = !!s.getAttribute("data-value");
+        var stock = parseFloat(s.getAttribute("data-stock") || "0");
+        warn.style.display = hasVal && n > stock ? "block" : "none";
         grand();
       }
-      s.addEventListener("change", c);
+      s.addEventListener("lovchange", c);
       p.addEventListener("input", c);
       q.addEventListener("input", c);
       q.addEventListener("blur", function () {
@@ -588,7 +708,7 @@
     }
     document.getElementById("btnAdd").addEventListener("click", function () {
       var f = L.querySelector(".item-row"), c = f.cloneNode(true);
-      c.querySelector(".item-material").selectedIndex = 0;
+      resetLov(c.querySelector(".item-material"));
       c.querySelector(".item-qty").value = "1";
       c.querySelector(".item-price").value = "";
       c.querySelector(".line-sub").textContent = "Rp 0";
@@ -640,8 +760,9 @@
       var items = [];
       L.querySelectorAll(".item-row").forEach(function (r) {
         var s = r.querySelector(".item-material");
-        if (!s.value) return;
-        items.push({ material_id: parseInt(s.value, 10), qty: rowQty(r), price: rowPrice(r) });
+        var val = s.getAttribute("data-value");
+        if (!val) return;
+        items.push({ material_id: parseInt(val, 10), qty: rowQty(r), price: rowPrice(r) });
       });
       if (!items.length) {
         e.preventDefault();
