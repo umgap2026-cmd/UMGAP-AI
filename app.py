@@ -23,7 +23,6 @@ from routes.web.sales import sales_bp
 from routes.web.invoice import invoice_bp
 from routes.web.nota import nota_bp
 from routes.web.preview import preview_bp
-from routes.web.thermal import thermal_bp
 from routes.web.stats import stats_bp
 from routes.web.announcements import announcements_bp
 from routes.web.payroll import payroll_bp
@@ -119,7 +118,6 @@ app.register_blueprint(sales_bp)
 app.register_blueprint(invoice_bp)
 app.register_blueprint(nota_bp)
 app.register_blueprint(preview_bp)
-app.register_blueprint(thermal_bp)
 app.register_blueprint(stats_bp)
 app.register_blueprint(announcements_bp)
 app.register_blueprint(payroll_bp)

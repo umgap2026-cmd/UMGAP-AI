@@ -25,7 +25,6 @@
     --good: #15803d;
     --bad: #b91c1c;
     --mono: "IBM Plex Mono", ui-monospace, monospace;
-    --paper-w: 80mm;
     --nav-h: 92px;
   }
   body {
@@ -38,7 +37,7 @@
   .screen { min-height: 100svh; display: flex; justify-content: center; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); }
   .wrap { width: 100%; max-width: 480px; }
   @media (min-width: 600px) { .wrap { max-width: 720px; } }
-  @media (min-width: 960px) { .wrap { max-width: 1060px; } }
+  @media (min-width: 960px) { .wrap { max-width: 1200px; } }
 
   /* ── HEADER ── */
   .head-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 12px; position: relative; overflow: hidden; }
@@ -104,47 +103,61 @@
   .act-wa { background: linear-gradient(135deg, #128c7e, #25d366); box-shadow: 0 10px 22px rgba(37,211,102,0.24); }
   .act-new { background: linear-gradient(135deg, #7c3aed, #a78bfa); box-shadow: 0 10px 22px rgba(124,58,237,0.22); }
 
-  /* paper size */
-  .opt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .opt { position: relative; }
-  .opt input { position: absolute; opacity: 0; width: 0; height: 0; }
-  .opt label {
-    display: flex; align-items: center; justify-content: center; gap: 6px; background: #f2f5fb; box-shadow: var(--soft-in);
-    border-radius: 13px; padding: 11px 10px; font-size: 12.5px; font-weight: 900; color: var(--muted); cursor: pointer; transition: all 0.15s;
-  }
-  .opt input:checked + label { color: #fff; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 8px 18px rgba(37,99,235,0.26); }
-
   .btn-back { display: flex; align-items: center; justify-content: center; width: 100%; height: 42px; border: none; border-radius: 13px; background: transparent; color: var(--muted); font-weight: 800; font-size: 12.5px; cursor: pointer; font-family: inherit; text-decoration: none; margin-top: 10px; }
 
-  /* RECEIPT PREVIEW */
-  .pv-body { display: flex; justify-content: center; padding: 6px 0; }
-  .receipt { font-family: var(--mono); font-size: 11px; color: #111; background: #fff; padding: 14px 12px; width: var(--paper-w); box-shadow: var(--shadow-out); border-radius: 14px; position: relative; }
-  .r-logos { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 7px; }
-  .r-logos img { height: 28px; object-fit: contain; filter: grayscale(1) contrast(1.3); }
-  .r-center { text-align: center; }
-  .r-biz { font-size: 13px; font-weight: 700; margin-bottom: 1px; }
-  .r-sub { font-size: 9.5px; color: #555; margin-bottom: 6px; }
-  .r-dash { border: none; border-top: 1px dashed #ccc; margin: 5px 0; }
-  .r-row { display: flex; justify-content: space-between; gap: 4px; font-size: 10px; margin: 2px 0; }
-  .r-row .l { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .r-row .r { text-align: right; white-space: nowrap; font-weight: 600; }
-  .r-item-name { font-size: 10px; font-weight: 700; margin: 4px 0 1px; }
-  .r-item-det { display: flex; justify-content: space-between; font-size: 9.5px; color: #444; margin-bottom: 2px; }
-  .r-disc { display: flex; justify-content: space-between; font-size: 10px; color: #888; margin: 2px 0; }
-  .r-total-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; }
-  .r-stamp { text-align: center; margin: 6px 0 4px; }
-  .r-stamp-inner { display: inline-block; padding: 4px 14px; border-radius: 4px; font-size: 11px; font-weight: 700; border: 2px solid; }
-  .r-stamp-inner.lunas { color: #059669; border-color: #059669; }
-  .r-stamp-inner.belum { color: #d97706; border-color: #d97706; }
-  .r-footer { text-align: center; font-size: 10px; color: #555; margin-top: 5px; }
-  .r-inv-no { text-align: center; font-size: 8px; color: #aaa; margin-top: 3px; word-break: break-all; }
+  /* ── FAKTUR PREVIEW (kertas continuous form 9.5" x 11") ── */
+  .pv-body { display: flex; justify-content: center; padding: 6px 0; overflow-x: auto; }
+  .faktur {
+    font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #fff;
+    width: 9.5in; min-height: 11in; padding: 0.5in 0.55in; box-shadow: var(--shadow-out);
+    position: relative;
+  }
+  .fk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #111; margin-bottom: 16px; }
+  .fk-logos { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .fk-logos img { height: 34px; object-fit: contain; }
+  .fk-biz { font-size: 19px; font-weight: 900; letter-spacing: -0.3px; }
+  .fk-type { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+  .fk-right { text-align: right; }
+  .fk-no { font-size: 13px; font-weight: 800; font-family: var(--mono); margin-bottom: 4px; }
+  .fk-date { font-size: 11px; color: #666; }
+  .fk-badge { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; }
+  .fk-badge.lunas { background: #d1fae5; color: #065f46; border: 1.5px solid #6ee7b7; }
+  .fk-badge.belum { background: #fef3c7; color: #92400e; border: 1.5px solid #fcd34d; }
+
+  .fk-meta { background: #f9f9f9; border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; display: grid; grid-template-columns: 110px 1fr 110px 1fr; gap: 5px 14px; }
+  .fk-m-lbl { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
+  .fk-m-val { font-size: 12px; font-weight: 600; }
+
+  .fk-tbl { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .fk-tbl thead tr { background: #111; color: #fff; }
+  .fk-tbl thead th { padding: 8px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
+  .fk-tbl thead th.r { text-align: right; }
+  .fk-tbl tbody tr { border-bottom: 1px solid #eee; }
+  .fk-tbl tbody tr:nth-child(even) { background: #fafafa; }
+  .fk-tbl tbody td { padding: 7px 10px; font-size: 12px; }
+  .fk-tbl tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .fk-tbl tfoot td { padding: 6px 10px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  .fk-tbl tfoot .lbl { text-align: left; color: #888; font-weight: 600; }
+  .fk-tbl tfoot .disc { color: #dc2626; }
+  .fk-tbl tfoot .grand { font-size: 15px; font-weight: 900; padding-top: 10px; border-top: 2px solid #111; }
+  .fk-tbl tfoot .grand-lbl { font-size: 15px; font-weight: 900; text-align: left; padding-top: 10px; border-top: 2px solid #111; }
+
+  .fk-notes { background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+  .fk-notes-lbl { font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .fk-notes-txt { font-size: 12px; }
+
+  .fk-footer { margin-top: 28px; padding-top: 14px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .fk-thanks { font-size: 11px; color: #888; }
+  .fk-sig { text-align: right; }
+  .fk-sig-lbl { font-size: 10px; color: #888; margin-bottom: 26px; }
+  .fk-sig-name { font-size: 12px; font-weight: 700; border-top: 1px solid #666; padding-top: 4px; display: inline-block; min-width: 130px; text-align: center; }
 
   @media print {
-    @page { size: var(--paper-w) auto; margin: 0; }
+    @page { size: 9.5in 11in; margin: 0; }
     body { background: #fff; padding: 0; }
     .head-card, .hero-strip, .main-card:not(.pv-only), .bottom-nav { display: none !important; }
-    .screen, .wrap, .pv-body { display: block; padding: 0; margin: 0; max-width: none; }
-    .receipt { box-shadow: none; width: 100%; border-radius: 0; }
+    .screen, .wrap, .pv-body { display: block; padding: 0; margin: 0; max-width: none; overflow: visible; }
+    .faktur { box-shadow: none; width: 100%; min-height: 0; }
   }
 
   @media (min-width: 960px) {
@@ -165,7 +178,6 @@
   data-kasir="{{ invoice.created_by_name or '-' }}"
   data-method="{{ invoice.payment_method }}"
   data-grand="{{ invoice.grand_total }}"
-  data-paperw="{{ invoice.print_size if invoice.print_size in ('58mm','80mm') else '80mm' }}"
   data-ispaid="{{ '1' if invoice.is_paid else '0' }}"
   data-base="{{ action_base }}"
 ></div>
@@ -227,14 +239,8 @@
         <div class="main-card">
           <div class="inner">
             <div class="sec-title">🖨️ Cetak &amp; Bagikan</div>
-            <div class="sec-desc">Pilih cara paling gampang buat kamu</div>
+            <div class="sec-desc">Kertas faktur continuous form 9.5" x 11"</div>
             <div class="divider"></div>
-
-            <label>Ukuran Kertas</label>
-            <div class="opt-grid" style="margin-bottom: 14px">
-              <div class="opt"><input type="radio" name="sz" id="sz-58" value="58" /><label for="sz-58">🖨️ 58mm</label></div>
-              <div class="opt"><input type="radio" name="sz" id="sz-80" value="80" /><label for="sz-80">🖨️ 80mm</label></div>
-            </div>
 
             <div class="st-bar" id="stBar">
               <div class="st-dot"></div>
@@ -260,56 +266,101 @@
         </div>
       </div>
 
-      <!-- RIGHT: receipt preview -->
+      <!-- RIGHT: faktur preview -->
       <div class="main-card pv-only">
         <div class="inner" style="background: #eef0f4">
-          <div class="sec-title">🧾 Preview Nota Thermal</div>
-          <div class="sec-desc">Tampilan sesuai kertas printer</div>
+          <div class="sec-title">🧾 Preview Faktur</div>
+          <div class="sec-desc">Tampilan sesuai kertas continuous form printer</div>
           <div class="divider"></div>
           <div class="pv-body">
-            <div class="receipt" id="receiptEl">
-              <div class="r-logos">
-                <img src="{{ url_for('static',filename='UMGAP (1).png') }}" alt="UMGAP" />
-                {% if invoice.logo_data_uri %}<img src="{{ invoice.logo_data_uri }}" alt="Logo" />
-                {% elif invoice.company_logo_path %}<img src="{{ url_for('static',filename=invoice.company_logo_path) }}" alt="Logo" />{% endif %}
-              </div>
-              <div class="r-center">
-                <div class="r-biz">{{ invoice.company_name or 'UMGAP' }}</div>
-                <div class="r-sub">{{ 'Nota Pembelian' if invoice.nota_type == 'BELI' else 'Nota Penjualan' }}</div>
-              </div>
-              <hr class="r-dash" />
-              <div class="r-row"><span class="l">No</span><span class="r" style="font-family: var(--mono)">{{ invoice.invoice_no }}</span></div>
-              <div class="r-row"><span class="l">Tanggal</span><span class="r">{{ invoice.created_at_wib or '-' }}</span></div>
-              <div class="r-row"><span class="l">{{ 'Pemasok' if invoice.nota_type == 'BELI' else 'Customer' }}</span><span class="r">{{ invoice.customer_name or '-' }}</span></div>
-              <div class="r-row"><span class="l">Kasir</span><span class="r">{{ invoice.created_by_name or '-' }}</span></div>
-              <div class="r-row"><span class="l">Pembayaran</span><span class="r">{{ invoice.payment_method }}</span></div>
-              <hr class="r-dash" />
-              {% for item in items %}
-              <div class="r-item-name">{{ item.product_name }}</div>
-              <div class="r-item-det">
-                <span>{{ item.qty_display or item.qty }} x Rp {{ "{:,}".format(item.price).replace(",",".") }}</span>
-                <span>Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</span>
-              </div>
-              {% endfor %}
-              <hr class="r-dash" />
-              {% if invoice.discount and invoice.discount > 0 %}
-              <div class="r-disc"><span>Subtotal</span><span>Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}</span></div>
-              <div class="r-disc"><span>Diskon</span><span>- Rp {{ "{:,}".format(invoice.discount).replace(",",".") }}</span></div>
-              <hr class="r-dash" />
-              {% endif %}
-              <div class="r-total-row"><span>TOTAL</span><span>Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</span></div>
-              <div class="r-stamp">
-                <div class="r-stamp-inner {{ 'lunas' if invoice.is_paid else 'belum' }}" id="receiptStamp">
-                  {{ '★ LUNAS ★' if invoice.is_paid else '⏳ BELUM LUNAS' }}
+            <div class="faktur" id="fakturEl">
+              <div class="fk-head">
+                <div>
+                  <div class="fk-logos">
+                    <img src="{{ url_for('static',filename='UMGAP (1).png') }}" alt="UMGAP" />
+                    {% if invoice.logo_data_uri %}<img src="{{ invoice.logo_data_uri }}" alt="Logo" />
+                    {% elif invoice.company_logo_path %}<img src="{{ url_for('static',filename=invoice.company_logo_path) }}" alt="Logo" />{% endif %}
+                  </div>
+                  <div class="fk-biz">{{ invoice.company_name or 'UMGAP' }}</div>
+                  <div class="fk-type">{{ 'Nota Pembelian' if invoice.nota_type == 'BELI' else 'Nota Penjualan' }}</div>
+                </div>
+                <div class="fk-right">
+                  <div class="fk-no">{{ invoice.invoice_no }}</div>
+                  <div class="fk-date">{{ invoice.created_at_wib or '-' }}</div>
+                  <div class="fk-badge {{ 'lunas' if invoice.is_paid else 'belum' }}" id="fakturStamp">
+                    {{ '✅ LUNAS' if invoice.is_paid else '⏳ BELUM LUNAS' }}
+                  </div>
                 </div>
               </div>
-              <hr class="r-dash" />
+
+              <div class="fk-meta">
+                <div class="fk-m-lbl">{{ 'Pemasok' if invoice.nota_type == 'BELI' else 'Customer' }}</div>
+                <div class="fk-m-val">{{ invoice.customer_name or '-' }}</div>
+                <div class="fk-m-lbl">Kasir</div>
+                <div class="fk-m-val">{{ invoice.created_by_name or '-' }}</div>
+                {% if invoice.customer_phone %}
+                <div class="fk-m-lbl">No. HP</div>
+                <div class="fk-m-val">{{ invoice.customer_phone }}</div>
+                {% else %}
+                <div></div><div></div>
+                {% endif %}
+                <div class="fk-m-lbl">Pembayaran</div>
+                <div class="fk-m-val">{{ invoice.payment_method }}</div>
+              </div>
+
+              <table class="fk-tbl">
+                <thead>
+                  <tr>
+                    <th style="width: 34px">#</th>
+                    <th>Nama Barang</th>
+                    <th class="r" style="width: 70px">Qty</th>
+                    <th class="r" style="width: 120px">Harga</th>
+                    <th class="r" style="width: 130px">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in items %}
+                  <tr>
+                    <td style="color: #888">{{ loop.index }}</td>
+                    <td style="font-weight: 600">{{ item.product_name }}</td>
+                    <td class="r">{{ item.qty_display or item.qty }}</td>
+                    <td class="r">Rp {{ "{:,}".format(item.price).replace(",",".") }}</td>
+                    <td class="r" style="font-weight: 700">Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  {% if invoice.discount and invoice.discount > 0 %}
+                  <tr>
+                    <td colspan="3" class="lbl">Subtotal</td>
+                    <td colspan="2">Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}</td>
+                  </tr>
+                  <tr>
+                    <td colspan="3" class="lbl disc">Diskon</td>
+                    <td colspan="2" class="disc">- Rp {{ "{:,}".format(invoice.discount).replace(",",".") }}</td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <td colspan="3" class="grand-lbl">TOTAL</td>
+                    <td colspan="2" class="grand">Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
               {% if invoice.notes %}
-              <div style="font-size: 9.5px; color: #555; font-style: italic; text-align: center">{{ invoice.notes }}</div>
-              <hr class="r-dash" />
+              <div class="fk-notes">
+                <div class="fk-notes-lbl">📝 Catatan</div>
+                <div class="fk-notes-txt">{{ invoice.notes }}</div>
+              </div>
               {% endif %}
-              <div class="r-footer">Terima kasih! 🙏</div>
-              <div class="r-inv-no">{{ invoice.invoice_no }}</div>
+
+              <div class="fk-footer">
+                <div class="fk-thanks">Terima kasih! 🙏<br />Nota ini diterbitkan oleh sistem UMGAP.</div>
+                <div class="fk-sig">
+                  <div class="fk-sig-lbl">Kasir / Penerima</div>
+                  <div class="fk-sig-name">{{ invoice.created_by_name or '-' }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -322,21 +373,9 @@
   var _d = document.getElementById("invData").dataset;
   var INV_ID = parseInt(_d.id, 10);
   var BASE = _d.base || "/nota/" + INV_ID;
-  var PAPERW = _d.paperw || "80mm";
   var IS_PAID = _d.ispaid === "1";
   var PHONE = _d.phone || "";
   var IS_BELI = _d.type === "BELI";
-
-  (function () {
-    document.documentElement.style.setProperty("--paper-w", PAPERW);
-    var r = document.getElementById(PAPERW === "58mm" ? "sz-58" : "sz-80");
-    if (r) r.checked = true;
-  })();
-  document.querySelectorAll('input[name="sz"]').forEach(function (r) {
-    r.addEventListener("change", function () {
-      document.documentElement.style.setProperty("--paper-w", r.value + "mm");
-    });
-  });
 
   function setSt(cls, txt) {
     var b = document.getElementById("stBar");
@@ -356,10 +395,10 @@
       .then(function (d) {
         if (d.ok) {
           document.getElementById("pbLbl").textContent = IS_PAID ? "✅ LUNAS" : "⏳ BELUM LUNAS";
-          var s = document.getElementById("receiptStamp");
+          var s = document.getElementById("fakturStamp");
           if (s) {
-            s.className = "r-stamp-inner " + (IS_PAID ? "lunas" : "belum");
-            s.textContent = IS_PAID ? "★ LUNAS ★" : "⏳ BELUM LUNAS";
+            s.className = "fk-badge " + (IS_PAID ? "lunas" : "belum");
+            s.textContent = IS_PAID ? "✅ LUNAS" : "⏳ BELUM LUNAS";
           }
           setSt("ok", "Status tersimpan: " + (IS_PAID ? "LUNAS" : "BELUM LUNAS"));
         } else {
