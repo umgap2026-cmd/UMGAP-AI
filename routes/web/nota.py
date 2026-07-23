@@ -100,6 +100,7 @@ def nota_history():
         total=total,
         q=q, type_f=type_f, status_f=status_f,
         date_from=date_from, date_to=date_to,
+        notif_count=get_notif_count(),
     )
 
 

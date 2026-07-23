@@ -1,98 +1,462 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="page-head">
-  <div>
-    <h1 class="page-title">📋 Riwayat Nota</h1>
-    <p class="page-sub">{{ total }} nota ditemukan</p>
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f6f8fc;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --shadow-out: 0 20px 42px rgba(18, 32, 62, 0.11);
+    --shadow-in:
+      inset 10px 10px 20px rgba(20, 40, 80, 0.13),
+      inset -10px -10px 20px rgba(255, 255, 255, 0.92);
+    --soft-in:
+      inset 6px 6px 12px rgba(20, 40, 80, 0.1),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+    --radius: 24px;
+    --pill: 999px;
+    --blue: #2563eb;
+    --good: #15803d;
+    --bad: #b91c1c;
+    --nav-h: 92px;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100svh;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+  .screen { min-height: 100svh; display: flex; justify-content: center; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .wrap { width: 100%; max-width: 480px; }
+  @media (min-width: 600px) { .wrap { max-width: 720px; } }
+  @media (min-width: 960px) { .wrap { max-width: 1100px; } }
+
+  /* ── ANIMASI ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { opacity: 0; animation: fadeInUp 0.55s ease-out forwards; }
+  .fade-up.d1 { animation-delay: 0.06s; }
+  .fade-up.d2 { animation-delay: 0.12s; }
+  .fade-up.d3 { animation-delay: 0.18s; }
+  .item-row.fade-up { animation-duration: 0.4s; }
+  @keyframes barPan {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+
+  /* ── HEADER ── */
+  .head-card {
+    background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-out);
+    padding: 12px; position: relative; overflow: hidden;
+  }
+  .head-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+    background-size: 200% 100%; animation: barPan 6s ease-in-out infinite;
+  }
+  .head-top { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 14px; background: #fff;
+    box-shadow: 0 10px 20px rgba(18, 32, 62, 0.13); display: flex; align-items: center;
+    justify-content: center; overflow: hidden; flex: 0 0 auto;
+  }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .head-title { min-width: 0; }
+  .head-title h1 { font-size: 16px; font-weight: 1000; color: #1e3252; }
+  .head-title p { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .userpill {
+    display: flex; align-items: center; gap: 8px; background: #f2f5fb;
+    border-radius: var(--pill); padding: 7px 12px; box-shadow: var(--soft-in); white-space: nowrap;
+  }
+  @media (max-width: 460px) { .userpill { display: none; } }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #16a34a; flex: 0 0 auto; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18); }
+  .uname { font-size: 13px; font-weight: 800; color: #25456a; }
+  .action-btn {
+    position: relative; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 14px;
+    background: #f3f6fc;
+    box-shadow: 0 10px 22px rgba(28, 55, 90, 0.16), inset 4px 4px 10px rgba(255, 255, 255, 0.92), inset -4px -4px 10px rgba(28, 55, 90, 0.08);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
+    text-decoration: none; transition: transform 0.15s;
+  }
+  .action-btn:hover { transform: translateY(-1px); }
+  .action-btn svg { width: 20px; height: 20px; stroke: #7b93c7; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .notif-badge {
+    position: absolute; top: -5px; right: -5px; background: #ffd84d; color: #1f2937;
+    font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 999px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  }
+  .rgb {
+    height: 3px; border-radius: 999px; margin-top: 10px;
+    background: linear-gradient(90deg, #f00 0%, #ff7a00 18%, #ffd500 36%, #00c853 58%, #00b0ff 78%, #8a2be2 100%);
+  }
+
+  /* ── HERO ── */
+  .hero-strip {
+    margin-top: 14px; background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #4f8fbf 100%);
+    border-radius: var(--radius); box-shadow: 0 16px 38px rgba(30, 58, 95, 0.26);
+    padding: 18px 20px; display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; position: relative; overflow: hidden;
+  }
+  .hero-strip::before {
+    content: ""; position: absolute; right: -30px; top: -30px; width: 160px; height: 160px;
+    border-radius: 50%; background: rgba(255, 255, 255, 0.08); pointer-events: none;
+    animation: float 6s ease-in-out infinite;
+  }
+  .hero-left { position: relative; z-index: 1; min-width: 0; }
+  .hero-title { font-size: 15px; font-weight: 900; color: rgba(255, 255, 255, 0.85); display: flex; align-items: center; gap: 10px; }
+  .hero-ico {
+    width: 38px; height: 38px; border-radius: 12px; flex: 0 0 38px; background: rgba(255, 255, 255, 0.15);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .hero-sub { font-size: 11px; color: rgba(255, 255, 255, 0.55); margin-top: 5px; margin-left: 48px; }
+  .hero-right { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .total-badge { background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 14px; padding: 10px 16px; text-align: center; }
+  .total-val { font-size: 22px; font-weight: 1000; color: #fff; letter-spacing: 0.2px; }
+  .total-lbl { font-size: 10px; color: rgba(255, 255, 255, 0.55); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  @media (max-width: 380px) { .hero-right { display: none; } }
+
+  /* ── QUICK ACTIONS ── */
+  .quick-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .link-card {
+    flex: 1 1 200px; display: flex; align-items: center; gap: 12px; background: #fff;
+    border-radius: 18px; box-shadow: var(--shadow-out); padding: 13px 16px; text-decoration: none;
+    color: var(--text); transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .link-card:hover { transform: translateY(-2px); box-shadow: 0 22px 46px rgba(18, 32, 62, 0.16); }
+  .link-ico { width: 36px; height: 36px; border-radius: 11px; background: #eef2ff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex: 0 0 36px; }
+  .link-ttl { font-weight: 900; font-size: 13px; }
+  .link-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* ── MAIN CARD ── */
+  .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
+  .inner { border-radius: 20px; background: #f3f5f9; box-shadow: var(--shadow-in); padding: 18px 14px 16px; }
+  .sec-title { font-size: 16px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
+  .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .divider { height: 1px; background: rgba(125, 138, 166, 0.18); border-radius: 999px; margin: 14px 0; }
+
+  /* ── FORM ── */
+  label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  .field { margin-bottom: 12px; }
+  input[type="text"], input[type="date"], select {
+    width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb;
+    box-shadow: var(--soft-in); padding: 13px 14px; font-size: 14px; color: var(--text);
+    -webkit-appearance: none; appearance: none; font-family: inherit; transition: box-shadow 0.2s;
+  }
+  input:focus, select:focus { box-shadow: var(--soft-in), 0 0 0 3px rgba(37, 99, 235, 0.15); }
+  input::placeholder { color: var(--muted); font-size: 13px; }
+  .filter-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 10px; align-items: end; }
+  @media (max-width: 820px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .filter-grid { grid-template-columns: 1fr; } }
+
+  .btn-submit {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px;
+    border: none; border-radius: 15px; cursor: pointer; font-weight: 900; font-size: 14px;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff;
+    box-shadow: 0 12px 22px rgba(37, 99, 235, 0.24); font-family: inherit;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3); }
+
+  .pill-btn {
+    border: none; border-radius: 12px; padding: 9px 14px; font-weight: 900; font-size: 12px;
+    cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.15s;
+    background: #eef2ff; color: var(--blue); white-space: nowrap; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pill-btn:hover { transform: translateY(-1px); }
+  .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 900; border: 1.5px solid;
+  }
+
+  /* ── ITEM LIST (mobile) ── */
+  .item-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .item-row {
+    background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 14px;
+    position: relative; overflow: hidden; transition: transform 0.15s;
+  }
+  .item-row:hover { transform: translateY(-1px); }
+  .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--good); }
+  .item-row.unpaid::before { background: var(--bad); }
+  .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .item-name { font-size: 14px; font-weight: 900; color: var(--text); }
+  .item-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .item-val { font-size: 14px; font-weight: 1000; color: var(--blue); text-align: right; white-space: nowrap; }
+  .item-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
+
+  /* ── DESKTOP TABLE ── */
+  .mobile-only { display: block; }
+  .desktop-only { display: none; }
+  @media (min-width: 901px) {
+    .mobile-only { display: none; }
+    .desktop-only { display: block; }
+  }
+  .table-wrap { margin-top: 14px; overflow-x: auto; border-radius: 16px; box-shadow: var(--shadow-out); }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 16px; overflow: hidden; }
+  thead th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); font-weight: 900; padding: 12px 14px; background: #f7f9fc;
+  }
+  tbody td { padding: 12px 14px; font-size: 13px; border-top: 1px solid rgba(125, 138, 166, 0.14); vertical-align: middle; }
+  tbody tr { transition: background 0.12s; }
+  tbody tr:hover { background: #f7f9ff; }
+  td .muted { color: var(--muted); }
+  td strong { font-weight: 900; }
+
+  .footer-hint { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
+        <div class="head-title">
+          <h1>📋 Riwayat Nota</h1>
+          <p>Semua nota jual &amp; beli yang tercatat</p>
+        </div>
+        <div class="hdr-right">
+          <div class="userpill"><span class="dot"></span><span class="uname">{{ session.get("user_name","Admin") }}</span></div>
+          <a href="/notifications" class="action-btn" aria-label="Notifikasi">
+            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M3 7l9 6 9-6"></path></svg>
+            {% if notif_count %}<span class="notif-badge">{{ notif_count }}</span>{% endif %}
+          </a>
+          <a href="{{ '/admin/dashboard' if session.get('role')=='admin' else url_for('dashboard.dashboard') }}" class="action-btn" aria-label="Kembali">
+            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero-strip fade-up">
+      <div class="hero-left">
+        <div class="hero-title"><div class="hero-ico">📋</div><span>Riwayat Nota</span></div>
+        <div class="hero-sub">Sesuai filter yang dipilih</div>
+      </div>
+      <div class="hero-right">
+        <div class="total-badge">
+          <div class="total-val" id="heroTotal" data-count="{{ total }}">0</div>
+          <div class="total-lbl">Nota Ditemukan</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="quick-actions fade-up d1">
+      <a href="/nota/new" class="link-card">
+        <div class="link-ico">🧾</div>
+        <div><div class="link-ttl">+ Buat Nota</div><div class="link-sub">Nota jual/beli baru</div></div>
+      </a>
+      <a href="/finance" class="link-card">
+        <div class="link-ico">💰</div>
+        <div><div class="link-ttl">Finance</div><div class="link-sub">Stok, hutang &amp; piutang</div></div>
+      </a>
+    </div>
+
+    <!-- FILTER -->
+    <div class="main-card fade-up d2">
+      <div class="inner">
+        <div class="sec-title">🔍 Filter Pencarian</div>
+        <div class="sec-desc">{{ total }} nota ditemukan</div>
+        <div class="divider"></div>
+        <form method="get" action="/nota" class="filter-grid">
+          <div class="field">
+            <label>Cari</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="No nota / nama customer / kasir…" />
+          </div>
+          <div class="field">
+            <label>Jenis</label>
+            <select name="type">
+              <option value="" {{ "selected" if not type_f }}>Semua</option>
+              <option value="JUAL" {{ "selected" if type_f == "JUAL" }}>Jual</option>
+              <option value="BELI" {{ "selected" if type_f == "BELI" }}>Beli</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select name="status">
+              <option value="" {{ "selected" if not status_f }}>Semua</option>
+              <option value="LUNAS" {{ "selected" if status_f == "LUNAS" }}>Lunas</option>
+              <option value="BELUM" {{ "selected" if status_f == "BELUM" }}>Belum Lunas</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Dari Tanggal</label>
+            <input type="date" name="date_from" value="{{ date_from }}" />
+          </div>
+          <div class="field">
+            <label>Sampai Tanggal</label>
+            <input type="date" name="date_to" value="{{ date_to }}" />
+          </div>
+          <div class="field" style="grid-column: 1 / -1; margin-bottom: 0">
+            <button type="submit" class="btn-submit">Cari</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- LIST -->
+    <div class="main-card fade-up d3">
+      <div class="inner">
+        <div class="sec-title">🧾 Daftar Nota</div>
+        <div class="sec-desc">{{ total }} nota ditemukan</div>
+      </div>
+
+      <!-- MOBILE cards -->
+      <div class="item-list mobile-only">
+        {% for inv in invoices %}
+        <div class="item-row fade-up {{ 'unpaid' if not inv.is_paid }}" style="animation-delay: {{ (loop.index0 * 0.03) | round(2) }}s">
+          <div class="item-top">
+            <div>
+              <div class="item-name">{{ inv.invoice_no }}</div>
+              <div class="item-meta">{{ inv.created_at_wib or "-" }} &bull; {{ inv.customer_name or "-" }}</div>
+              <div class="item-meta">Kasir {{ inv.created_by_name or "-" }} &bull; {{ inv.payment_method }}</div>
+            </div>
+            <div class="item-val">Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</div>
+          </div>
+          <div class="item-actions">
+            {% if inv.is_paid %}
+            <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
+            {% else %}
+            <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
+            {% endif %}
+            <a class="pill-btn primary" href="/nota/{{ inv.id }}">Lihat</a>
+          </div>
+        </div>
+        {% else %}
+        <p class="empty-hint">Belum ada nota yang cocok dengan filter ini.</p>
+        {% endfor %}
+      </div>
+
+      <!-- DESKTOP table -->
+      <div class="table-wrap desktop-only">
+        {% if invoices %}
+        <table>
+          <thead>
+            <tr>
+              <th>No Nota</th><th>Tanggal</th><th>Customer</th><th>Kasir</th>
+              <th>Metode</th><th>Total</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in invoices %}
+            <tr>
+              <td><strong>{{ inv.invoice_no }}</strong></td>
+              <td class="muted">{{ inv.created_at_wib or "-" }}</td>
+              <td>{{ inv.customer_name or "-" }}</td>
+              <td class="muted">{{ inv.created_by_name or "-" }}</td>
+              <td class="muted">{{ inv.payment_method }}</td>
+              <td>Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</td>
+              <td>
+                {% if inv.is_paid %}
+                <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
+                {% else %}
+                <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
+                {% endif %}
+              </td>
+              <td><a class="pill-btn" href="/nota/{{ inv.id }}">Lihat</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty-hint">Belum ada nota yang cocok dengan filter ini.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="footer-hint">
+      Nota lama (sebelum sistem gudang) tersimpan terpisah sebagai arsip —
+      hubungi admin kalau butuh salinan nota lama.
+    </p>
   </div>
-  <div class="actions">
-    <a class="btn btn-primary" href="/nota/new">+ Buat Nota</a>
+</div>
+
+<script>
+  (function () {
+    function countUp(el, duration) {
+      var target = parseInt(el.getAttribute("data-count") || "0", 10);
+      var startTime = null;
+      function step(ts) {
+        if (!startTime) startTime = ts;
+        var progress = Math.min((ts - startTime) / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(target * eased);
+        if (progress < 1) requestAnimationFrame(step);
+        else el.textContent = target;
+      }
+      requestAnimationFrame(step);
+    }
+    document.querySelectorAll("[data-count]").forEach(function (el) {
+      countUp(el, 700);
+    });
+  })();
+</script>
+{% endblock %}
+
+{% block bottom_nav %}
+<style>
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(238, 241, 247, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 99;
+  }
+  .nav-bar {
+    max-width: 430px; margin: 0 auto; background: #fff; border-radius: 18px;
+    box-shadow: 0 18px 35px rgba(18, 32, 62, 0.1); padding: 8px; display: flex; gap: 6px;
+  }
+  .nav-item {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px 6px; border-radius: 14px; color: #9fb1d6; font-weight: 800;
+    text-decoration: none; font-size: 12px; border: none; background: none; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .nav-item.is-active {
+    color: #2563eb; background: #f2f5fb;
+    box-shadow: inset 6px 6px 12px rgba(20, 40, 80, 0.1), inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+  }
+  .nav-ico { width: 20px; height: 20px; flex: 0 0 20px; }
+  .nav-ico svg { width: 100%; height: 100%; display: block; }
+  .stroke { stroke: currentColor; fill: none; }
+  .fill { fill: currentColor; }
+  @media (max-width: 360px) { .nav-item span { display: none; } }
+</style>
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ '/admin/dashboard' if session.get('role')=='admin' else '/dashboard' }}">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+      </svg></span>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-item" href="/finance">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <rect class="stroke" x="3" y="4" width="18" height="18" rx="2" stroke-width="2.2" stroke-linecap="round"></rect>
+        <line class="stroke" x1="8" y1="9" x2="16" y2="9" stroke-width="2.2" stroke-linecap="round"></line>
+        <line class="stroke" x1="8" y1="13" x2="13" y2="13" stroke-width="2.2" stroke-linecap="round"></line>
+      </svg></span>
+      <span>Finance</span>
+    </a>
+    <a class="nav-item is-active" href="/nota">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <path class="stroke" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+        <rect class="stroke" x="9" y="3" width="6" height="4" rx="1" stroke-width="2.2"></rect>
+      </svg></span>
+      <span>Riwayat Nota</span>
+    </a>
   </div>
 </div>
-
-<div class="card" style="margin-top: 14px">
-  <form method="get" action="/nota" class="row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto">
-    <div>
-      <label>Cari</label>
-      <input type="text" name="q" value="{{ q }}" placeholder="No nota / nama customer / kasir…" />
-    </div>
-    <div>
-      <label>Jenis</label>
-      <select name="type">
-        <option value="" {{ "selected" if not type_f }}>Semua</option>
-        <option value="JUAL" {{ "selected" if type_f == "JUAL" }}>Jual</option>
-        <option value="BELI" {{ "selected" if type_f == "BELI" }}>Beli</option>
-      </select>
-    </div>
-    <div>
-      <label>Status</label>
-      <select name="status">
-        <option value="" {{ "selected" if not status_f }}>Semua</option>
-        <option value="LUNAS" {{ "selected" if status_f == "LUNAS" }}>Lunas</option>
-        <option value="BELUM" {{ "selected" if status_f == "BELUM" }}>Belum Lunas</option>
-      </select>
-    </div>
-    <div>
-      <label>Dari Tanggal</label>
-      <input type="date" name="date_from" value="{{ date_from }}" />
-    </div>
-    <div>
-      <label>Sampai Tanggal</label>
-      <input type="date" name="date_to" value="{{ date_to }}" />
-    </div>
-    <div style="display: flex; align-items: flex-end">
-      <button type="submit" class="btn btn-primary">Cari</button>
-    </div>
-  </form>
-</div>
-
-<div class="card" style="margin-top: 14px; overflow-x: auto">
-  {% if invoices %}
-  <table>
-    <thead>
-      <tr>
-        <th>No Nota</th>
-        <th>Tanggal</th>
-        <th>Customer</th>
-        <th>Kasir</th>
-        <th>Metode</th>
-        <th>Total</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for inv in invoices %}
-      <tr>
-        <td><strong>{{ inv.invoice_no }}</strong></td>
-        <td class="muted">{{ inv.created_at_wib or "-" }}</td>
-        <td>{{ inv.customer_name or "-" }}</td>
-        <td class="muted">{{ inv.created_by_name or "-" }}</td>
-        <td class="muted">{{ inv.payment_method }}</td>
-        <td>Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</td>
-        <td>
-          {% if inv.is_paid %}
-          <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
-          {% else %}
-          <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
-          {% endif %}
-        </td>
-        <td>
-          <a class="btn" href="/nota/{{ inv.id }}">Lihat</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted" style="text-align: center; padding: 24px 0">
-    Belum ada nota yang cocok dengan filter ini.
-  </p>
-  {% endif %}
-</div>
-
-<p class="muted" style="margin-top: 14px; text-align: center">
-  Nota lama (sebelum sistem gudang) tersimpan terpisah sebagai arsip —
-  hubungi admin kalau butuh salinan nota lama.
-</p>
 {% endblock %}
