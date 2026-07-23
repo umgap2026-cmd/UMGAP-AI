@@ -241,15 +241,25 @@
   .item-actions input[type="number"], .item-actions input[type="text"] { padding: 9px 10px; font-size: 12px; }
   .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
 
-  /* mini popover (edit / tambah stok) */
-  details.mini-pop { position: relative; display: inline-block; }
-  details.mini-pop > summary { list-style: none; }
-  details.mini-pop > summary::-webkit-details-marker { display: none; }
-  details.mini-pop .pop-panel {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; background: #fff;
-    border-radius: 14px; box-shadow: var(--shadow-out); border: 1px solid rgba(37, 99, 235, 0.08);
-    padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 210px;
+  /* modal terpusat (edit / tambah stok / kurangi stok) -- bukan popover
+     mengikuti tombol, supaya tidak pernah salah posisi/tidak muncul di
+     baris manapun (termasuk baris paling bawah tabel). */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 200;
+    display: none; align-items: center; justify-content: center; padding: 16px;
   }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 20px; box-shadow: var(--shadow-out);
+    padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .modal-title { font-size: 15px; font-weight: 1000; color: #1e3252; }
+  .modal-close {
+    width: 32px; height: 32px; flex: 0 0 32px; border: none; border-radius: 10px;
+    background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .modal-box form { display: flex; flex-direction: column; gap: 8px; }
 
   /* ── DESKTOP TABLE ── */
   .mobile-only { display: block; }
@@ -395,44 +405,9 @@
             <div class="item-val">Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</div>
           </div>
           <div class="item-actions">
-            <details class="mini-pop">
-              <summary class="pill-btn">✏️ Edit</summary>
-              <div class="pop-panel">
-                <form method="post" action="/finance/materials/{{ m.id }}/edit" style="display:flex; flex-direction:column; gap:8px">
-                  <input type="text" name="name" value="{{ m.name }}" placeholder="Nama" required />
-                  <input type="text" name="unit" value="{{ m.unit }}" placeholder="Satuan" />
-                  <button type="submit" class="pill-btn primary">Simpan</button>
-                </form>
-              </div>
-            </details>
-            <details class="mini-pop">
-              <summary class="pill-btn">+ Stok</summary>
-              <div class="pop-panel">
-                <form method="post" action="/finance/materials/{{ m.id }}/add-stock" style="display:flex; flex-direction:column; gap:8px">
-                  <input type="number" name="qty" step="0.01" min="0.01" placeholder="Jumlah ({{ m.unit }})" required />
-                  <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
-                  <input type="text" name="note" placeholder="Catatan (opsional)" />
-                  <button type="submit" class="pill-btn primary">Tambah Stok</button>
-                </form>
-              </div>
-            </details>
-            <details class="mini-pop">
-              <summary class="pill-btn danger">− Stok</summary>
-              <div class="pop-panel">
-                <form method="post" action="/finance/materials/{{ m.id }}/reduce-stock" style="display:flex; flex-direction:column; gap:8px">
-                  <input type="number" name="qty" step="0.01" min="0.01" max="{{ m.qty_kg }}" placeholder="Jumlah ({{ m.unit }})" required />
-                  <select name="reason_template" class="reduce-stock-reason" required>
-                    <option value="KOTOR">Kotor/Kontaminasi</option>
-                    <option value="SUSUT">Susut/Menguap</option>
-                    <option value="RUSAK">Rusak</option>
-                    <option value="LAINNYA">Lainnya…</option>
-                  </select>
-                  <input type="text" name="reason_other" class="reduce-stock-reason-other" placeholder="Tulis alasan…" style="display:none" />
-                  <input type="text" name="note" placeholder="Catatan (opsional)" />
-                  <button type="submit" class="pill-btn danger">Kurangi Stok</button>
-                </form>
-              </div>
-            </details>
+            <button type="button" class="pill-btn btn-open-edit" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">✏️ Edit</button>
+            <button type="button" class="pill-btn btn-open-addstock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">+ Stok</button>
+            <button type="button" class="pill-btn danger btn-open-reducestock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-qty="{{ m.qty_kg }}">− Stok</button>
             <form method="post" action="/finance/materials/{{ m.id }}/delete"
                   onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
               <button type="submit" class="pill-btn danger">Hapus</button>
@@ -467,34 +442,8 @@
               <td><strong>Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</strong></td>
               <td>
                 <div class="row-actions">
-                  <details class="mini-pop">
-                    <summary class="pill-btn primary">+ Stok</summary>
-                    <div class="pop-panel">
-                      <form method="post" action="/finance/materials/{{ m.id }}/add-stock" style="display:flex; flex-direction:column; gap:8px">
-                        <input type="number" name="qty" step="0.01" min="0.01" placeholder="Jumlah ({{ m.unit }})" required />
-                        <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
-                        <input type="text" name="note" placeholder="Catatan (opsional)" />
-                        <button type="submit" class="pill-btn primary">Tambah Stok</button>
-                      </form>
-                    </div>
-                  </details>
-                  <details class="mini-pop">
-                    <summary class="pill-btn danger">− Stok</summary>
-                    <div class="pop-panel">
-                      <form method="post" action="/finance/materials/{{ m.id }}/reduce-stock" style="display:flex; flex-direction:column; gap:8px">
-                        <input type="number" name="qty" step="0.01" min="0.01" max="{{ m.qty_kg }}" placeholder="Jumlah ({{ m.unit }})" required />
-                        <select name="reason_template" class="reduce-stock-reason" required>
-                          <option value="KOTOR">Kotor/Kontaminasi</option>
-                          <option value="SUSUT">Susut/Menguap</option>
-                          <option value="RUSAK">Rusak</option>
-                          <option value="LAINNYA">Lainnya…</option>
-                        </select>
-                        <input type="text" name="reason_other" class="reduce-stock-reason-other" placeholder="Tulis alasan…" style="display:none" />
-                        <input type="text" name="note" placeholder="Catatan (opsional)" />
-                        <button type="submit" class="pill-btn danger">Kurangi Stok</button>
-                      </form>
-                    </div>
-                  </details>
+                  <button type="button" class="pill-btn primary btn-open-addstock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">+ Stok</button>
+                  <button type="button" class="pill-btn danger btn-open-reducestock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-qty="{{ m.qty_kg }}">− Stok</button>
                   <form method="post" action="/finance/materials/{{ m.id }}/delete"
                         onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
                     <button type="submit" class="pill-btn danger">Hapus</button>
@@ -646,6 +595,59 @@
   </div>
 </div>
 
+<!-- MODAL EDIT BARANG -->
+<div class="modal-overlay" id="editModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Edit <span id="editModalName"></span></div>
+      <button type="button" class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <form method="post" id="editModalForm">
+      <input type="text" name="name" id="editModalNameInp" placeholder="Nama" required />
+      <input type="text" name="unit" id="editModalUnitInp" placeholder="Satuan" />
+      <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Simpan</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL TAMBAH STOK -->
+<div class="modal-overlay" id="addStockModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">+ Stok <span id="addStockModalName"></span></div>
+      <button type="button" class="modal-close" onclick="closeAddStockModal()">✕</button>
+    </div>
+    <form method="post" id="addStockModalForm">
+      <input type="number" name="qty" step="0.01" min="0.01" id="addStockModalQty" placeholder="Jumlah" required />
+      <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
+      <input type="text" name="note" placeholder="Catatan (opsional)" />
+      <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Tambah Stok</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL KURANGI STOK -->
+<div class="modal-overlay" id="reduceStockModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">− Stok <span id="reduceStockModalName"></span></div>
+      <button type="button" class="modal-close" onclick="closeReduceStockModal()">✕</button>
+    </div>
+    <form method="post" id="reduceStockModalForm">
+      <input type="number" name="qty" step="0.01" min="0.01" id="reduceStockModalQty" placeholder="Jumlah" required />
+      <select name="reason_template" id="reduceStockModalReason" required>
+        <option value="KOTOR">Kotor/Kontaminasi</option>
+        <option value="SUSUT">Susut/Menguap</option>
+        <option value="RUSAK">Rusak</option>
+        <option value="LAINNYA">Lainnya…</option>
+      </select>
+      <input type="text" name="reason_other" id="reduceStockModalReasonOther" placeholder="Tulis alasan…" style="display:none" />
+      <input type="text" name="note" placeholder="Catatan (opsional)" />
+      <button type="submit" class="pill-btn danger" style="width:100%; padding:12px">Kurangi Stok</button>
+    </form>
+  </div>
+</div>
+
 <script>
   (function () {
     function formatRp(n) {
@@ -670,52 +672,78 @@
       countUp(el, 900);
     });
 
-    // Popover mini-pop: tutup yang lain saat satu dibuka, dan posisikan
-    // "fixed" mengikuti tombolnya — supaya tidak ke-clip oleh .table-wrap
-    // (overflow-x:auto otomatis membuat overflow-y ikut auto & memotong
-    // popover yang posisinya absolute di dalamnya).
-    function closeAllMiniPop(except) {
-      document.querySelectorAll("details.mini-pop[open]").forEach(function (o) {
-        if (o !== except) o.removeAttribute("open");
+    // Modal Edit/+Stok/-Stok: satu modal per aksi dipakai bersama semua
+    // baris, selalu dipusatkan di layar (position:fixed + flex center) --
+    // menggantikan popover per-baris yang sebelumnya bisa tidak muncul
+    // sama sekali di baris paling bawah (ke-clip oleh .table-wrap yang
+    // overflow-x:auto otomatis membuat overflow-y ikut auto).
+    function wireModal(overlayId, closeFnName) {
+      var overlay = document.getElementById(overlayId);
+      window[closeFnName] = function () { overlay.classList.remove("open"); };
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) window[closeFnName]();
       });
+      return overlay;
     }
-    function positionPopPanel(d) {
-      var panel = d.querySelector(".pop-panel");
-      var summary = d.querySelector("summary");
-      if (!panel || !summary) return;
-      var rect = summary.getBoundingClientRect();
-      var pw = panel.offsetWidth || 260;
-      var ph = panel.offsetHeight || 200;
-      var left = Math.min(rect.right - pw, window.innerWidth - pw - 10);
-      left = Math.max(left, 10);
-      var top = rect.bottom + 8;
-      if (top + ph > window.innerHeight - 10) top = Math.max(10, rect.top - ph - 8);
-      panel.style.position = "fixed";
-      panel.style.left = left + "px";
-      panel.style.top = top + "px";
-      panel.style.right = "auto";
-    }
-    document.querySelectorAll("details.mini-pop").forEach(function (d) {
-      d.addEventListener("toggle", function () {
-        if (d.open) {
-          closeAllMiniPop(d);
-          positionPopPanel(d);
-        }
-      });
-    });
-    window.addEventListener("scroll", function () { closeAllMiniPop(null); }, true);
-    window.addEventListener("resize", function () { closeAllMiniPop(null); });
+    var editOverlay = wireModal("editModalOverlay", "closeEditModal");
+    var addStockOverlay = wireModal("addStockModalOverlay", "closeAddStockModal");
+    var reduceStockOverlay = wireModal("reduceStockModalOverlay", "closeReduceStockModal");
 
-    // Tampilkan input alasan manual kalau pilih "Lainnya" (kurangi stok)
-    document.querySelectorAll("select.reduce-stock-reason").forEach(function (sel) {
-      var other = sel.closest("form").querySelector(".reduce-stock-reason-other");
-      function sync() {
-        var isOther = sel.value === "LAINNYA";
-        other.style.display = isOther ? "block" : "none";
-        other.required = isOther;
+    var editForm = document.getElementById("editModalForm");
+    var editNameInp = document.getElementById("editModalNameInp");
+    var editUnitInp = document.getElementById("editModalUnitInp");
+    var editModalName = document.getElementById("editModalName");
+    window.openEditModal = function (id, name, unit) {
+      editForm.action = "/finance/materials/" + id + "/edit";
+      editNameInp.value = name;
+      editUnitInp.value = unit;
+      editModalName.textContent = name;
+      editOverlay.classList.add("open");
+    };
+
+    var addStockForm = document.getElementById("addStockModalForm");
+    var addStockQty = document.getElementById("addStockModalQty");
+    var addStockModalName = document.getElementById("addStockModalName");
+    window.openAddStockModal = function (id, name, unit) {
+      addStockForm.action = "/finance/materials/" + id + "/add-stock";
+      addStockQty.placeholder = "Jumlah (" + unit + ")";
+      addStockModalName.textContent = name;
+      addStockOverlay.classList.add("open");
+    };
+
+    var reduceStockForm = document.getElementById("reduceStockModalForm");
+    var reduceStockQty = document.getElementById("reduceStockModalQty");
+    var reduceStockModalName = document.getElementById("reduceStockModalName");
+    var reduceStockReason = document.getElementById("reduceStockModalReason");
+    var reduceStockReasonOther = document.getElementById("reduceStockModalReasonOther");
+    function syncReduceStockReason() {
+      var isOther = reduceStockReason.value === "LAINNYA";
+      reduceStockReasonOther.style.display = isOther ? "block" : "none";
+      reduceStockReasonOther.required = isOther;
+    }
+    reduceStockReason.addEventListener("change", syncReduceStockReason);
+    syncReduceStockReason();
+    window.openReduceStockModal = function (id, name, unit, qty) {
+      reduceStockForm.action = "/finance/materials/" + id + "/reduce-stock";
+      reduceStockQty.placeholder = "Jumlah (" + unit + ")";
+      reduceStockQty.max = qty;
+      reduceStockModalName.textContent = name;
+      reduceStockOverlay.classList.add("open");
+    };
+
+    document.addEventListener("click", function (e) {
+      var btn;
+      if ((btn = e.target.closest(".btn-open-edit"))) {
+        openEditModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"));
+      } else if ((btn = e.target.closest(".btn-open-addstock"))) {
+        openAddStockModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"));
+      } else if ((btn = e.target.closest(".btn-open-reducestock"))) {
+        openReduceStockModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"), btn.getAttribute("data-qty"));
       }
-      sel.addEventListener("change", sync);
-      sync();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      closeEditModal(); closeAddStockModal(); closeReduceStockModal();
     });
 
     // Tab switch: Barang Gudang / Hutang / Piutang -- supaya Hutang & Piutang
