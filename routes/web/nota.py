@@ -10,6 +10,7 @@ from core import (
     owner_or_admin_required,
     owner_required,
     get_materials_with_stock,
+    add_fin_material,
     get_company_profile,
     set_company_profile,
     create_fin_invoice,
@@ -168,6 +169,28 @@ def nota_draft_delete(draft_id):
         flash(str(e), "danger")
 
     return redirect("/nota/new")
+
+
+# ---------- TAMBAH BARANG CEPAT (dari dalam pembuatan nota) ----------
+@nota_bp.route("/nota/materials/quick-add", methods=["POST"])
+def nota_material_quick_add():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = add_fin_material(
+            name=data.get("name"),
+            unit=data.get("unit"),
+            init_qty=data.get("init_qty"),
+            init_price=data.get("init_price"),
+            note=data.get("note"),
+            created_by=session.get("user_id"),
+        )
+        return jsonify({"ok": True, "material": result})
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
 
 
 # ---------- RIWAYAT ----------

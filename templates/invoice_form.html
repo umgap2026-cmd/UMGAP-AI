@@ -247,6 +247,35 @@
   .lov-item:hover { background: #eef2ff; }
   .lov-item .stk { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
   .lov-empty { padding: 16px 14px; text-align: center; font-size: 12px; color: var(--muted); }
+
+  /* tambah barang baru dari dalam LOV */
+  .lov-addnew { border-top: 1px solid rgba(125, 138, 166, 0.14); padding: 8px; }
+  .lov-addnew-btn {
+    width: 100%; height: 38px; border: 2px dashed rgba(37,99,235,0.3); border-radius: 12px;
+    background: rgba(37,99,235,0.06); color: var(--blue); font-weight: 900; font-size: 12px;
+    cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center;
+    gap: 6px; transition: all 0.15s;
+  }
+  .lov-addnew-btn:hover { background: rgba(37,99,235,0.12); }
+  .lov-addnew-form { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+  .lov-addnew-form input { font-size: 13px; }
+  .lov-new-toggle { display: flex; gap: 6px; }
+  .lov-new-toggle-btn {
+    flex: 1; border: none; border-radius: 10px; padding: 9px 8px; font-size: 11px; font-weight: 900;
+    background: #f2f5fb; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .lov-new-toggle-btn.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
+  .lov-new-stock-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lov-new-actions { display: flex; gap: 8px; }
+  .lov-new-cancel {
+    flex: 1; border: none; border-radius: 10px; padding: 10px; font-size: 12px; font-weight: 800;
+    background: #f2f5fb; color: var(--muted); cursor: pointer; font-family: inherit;
+  }
+  .lov-new-submit {
+    flex: 2; border: none; border-radius: 10px; padding: 10px; font-size: 12px; font-weight: 900;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; cursor: pointer; font-family: inherit;
+  }
+
   .add-item-btn {
     width: 100%; height: 44px; border: 2px dashed rgba(37,99,235,0.3); border-radius: 14px;
     background: rgba(37,99,235,0.06); color: var(--blue); font-weight: 900; font-size: 13px;
@@ -547,6 +576,27 @@
                             {% endfor %}
                             <div class="lov-empty" style="display: none">Barang tidak ditemukan</div>
                           </div>
+                          <div class="lov-addnew">
+                            <button type="button" class="lov-addnew-btn">
+                              <span>+</span> Tambah Barang Baru
+                            </button>
+                            <div class="lov-addnew-form" style="display:none">
+                              <input type="text" class="lov-new-name" placeholder="Nama barang baru" />
+                              <input type="text" class="lov-new-unit" placeholder="Satuan" value="kg" />
+                              <div class="lov-new-toggle">
+                                <button type="button" class="lov-new-toggle-btn active" data-mode="empty">Kosongkan (0 stok)</button>
+                                <button type="button" class="lov-new-toggle-btn" data-mode="fill">Isi Stok Awal</button>
+                              </div>
+                              <div class="lov-new-stock-fields" style="display:none">
+                                <input type="number" class="lov-new-qty" placeholder="Jumlah" step="0.01" min="0" />
+                                <input type="number" class="lov-new-price" placeholder="Harga/satuan (Rp)" min="0" />
+                              </div>
+                              <div class="lov-new-actions">
+                                <button type="button" class="lov-new-cancel">Batal</button>
+                                <button type="button" class="lov-new-submit">Simpan &amp; Pilih</button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -658,11 +708,54 @@
     }
 
     // ── List-of-value: searchable item picker ──
-    function initLov(wrap) {
+    function selectLovItem(wrap, it) {
       var btn = wrap.querySelector(".lov-btn");
       var btnText = wrap.querySelector(".lov-btn-text");
+      var id = it.getAttribute("data-id"),
+        stock = it.getAttribute("data-stock") || "0",
+        unit = it.getAttribute("data-unit") || "",
+        name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
+      wrap.setAttribute("data-value", id);
+      wrap.setAttribute("data-stock", stock);
+      wrap.setAttribute("data-unit", unit);
+      btnText.textContent = name + " · stok " + parseFloat(stock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+      btn.classList.remove("placeholder");
+      wrap.classList.remove("open");
+      wrap.dispatchEvent(new Event("lovchange"));
+    }
+    function addLovItemToList(wrap, mat) {
+      var list = wrap.querySelector(".lov-list");
+      var emptyEl = wrap.querySelector(".lov-empty");
+      var item = document.createElement("div");
+      item.className = "lov-item";
+      item.setAttribute("data-id", mat.material_id);
+      item.setAttribute("data-stock", mat.init_qty || 0);
+      item.setAttribute("data-unit", mat.unit);
+      item.setAttribute("data-search", String(mat.name || "").toLowerCase());
+      item.textContent = mat.name;
+      var stk = document.createElement("span");
+      stk.className = "stk";
+      stk.textContent = "stok " + parseFloat(mat.init_qty || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + mat.unit;
+      item.appendChild(stk);
+      item.addEventListener("click", function () { selectLovItem(wrap, item); });
+      if (emptyEl) list.insertBefore(item, emptyEl); else list.appendChild(item);
+      return item;
+    }
+    function initLov(wrap) {
+      var btn = wrap.querySelector(".lov-btn");
       var search = wrap.querySelector(".lov-search");
       var empty = wrap.querySelector(".lov-empty");
+      var addBtn = wrap.querySelector(".lov-addnew-btn");
+      var addForm = wrap.querySelector(".lov-addnew-form");
+      var newName = wrap.querySelector(".lov-new-name");
+      var newUnit = wrap.querySelector(".lov-new-unit");
+      var toggleBtns = wrap.querySelectorAll(".lov-new-toggle-btn");
+      var stockFields = wrap.querySelector(".lov-new-stock-fields");
+      var newQty = wrap.querySelector(".lov-new-qty");
+      var newPrice = wrap.querySelector(".lov-new-price");
+      var newSubmit = wrap.querySelector(".lov-new-submit");
+      var newCancel = wrap.querySelector(".lov-new-cancel");
+      var stockMode = "empty";
 
       function items() { return wrap.querySelectorAll(".lov-item"); }
       function closeOthers() {
@@ -675,9 +768,10 @@
         wrap.classList.add("open");
         search.value = "";
         filter("");
+        resetAddForm();
         setTimeout(function () { search.focus(); }, 0);
       }
-      function closePanel() { wrap.classList.remove("open"); }
+      function closePanel() { wrap.classList.remove("open"); resetAddForm(); }
       function filter(q) {
         q = q.trim().toLowerCase();
         var any = false;
@@ -698,20 +792,81 @@
         if (e.key === "Escape") closePanel();
       });
       items().forEach(function (it) {
-        it.addEventListener("click", function () {
-          var id = it.getAttribute("data-id"),
-            stock = it.getAttribute("data-stock") || "0",
-            unit = it.getAttribute("data-unit") || "",
-            name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
-          wrap.setAttribute("data-value", id);
-          wrap.setAttribute("data-stock", stock);
-          wrap.setAttribute("data-unit", unit);
-          btnText.textContent = name + " · stok " + parseFloat(stock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
-          btn.classList.remove("placeholder");
-          closePanel();
-          wrap.dispatchEvent(new Event("lovchange"));
-        });
+        it.addEventListener("click", function () { selectLovItem(wrap, it); });
       });
+
+      // ── Tambah barang baru dari dalam LOV ──
+      function resetAddForm() {
+        if (!addForm) return;
+        addForm.style.display = "none";
+        addBtn.style.display = "";
+        newName.value = "";
+        newUnit.value = "kg";
+        newQty.value = "";
+        newPrice.value = "";
+        stockMode = "empty";
+        toggleBtns.forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-mode") === "empty"); });
+        stockFields.style.display = "none";
+      }
+      if (addBtn) {
+        addBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          addForm.style.display = "flex";
+          addBtn.style.display = "none";
+          newName.value = search.value || "";
+          newName.focus();
+        });
+        newCancel.addEventListener("click", function (e) { e.stopPropagation(); resetAddForm(); });
+        toggleBtns.forEach(function (b) {
+          b.addEventListener("click", function (e) {
+            e.stopPropagation();
+            stockMode = b.getAttribute("data-mode");
+            toggleBtns.forEach(function (x) { x.classList.toggle("active", x === b); });
+            stockFields.style.display = stockMode === "fill" ? "grid" : "none";
+          });
+        });
+        [newName, newUnit, newQty, newPrice].forEach(function (el) {
+          el.addEventListener("click", function (e) { e.stopPropagation(); });
+        });
+        newSubmit.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var name = (newName.value || "").trim();
+          if (!name) { alert("Nama barang wajib diisi."); newName.focus(); return; }
+          var unit = (newUnit.value || "kg").trim() || "kg";
+          var payload = { name: name, unit: unit };
+          if (stockMode === "fill") {
+            payload.init_qty = qtyNum(newQty.value || "0");
+            payload.init_price = qtyNum(newPrice.value || "0");
+            if (payload.init_qty > 0 && payload.init_price <= 0) {
+              alert("Harga beli wajib diisi jika ada stok awal.");
+              return;
+            }
+          }
+          newSubmit.disabled = true;
+          fetch("/nota/materials/quick-add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+              newSubmit.disabled = false;
+              if (!res.ok) { alert(res.message || "Gagal menambah barang."); return; }
+              var mat = res.material;
+              var selfItem = null;
+              document.querySelectorAll(".lov").forEach(function (otherWrap) {
+                var added = addLovItemToList(otherWrap, mat);
+                if (otherWrap === wrap) selfItem = added;
+              });
+              resetAddForm();
+              if (selfItem) selectLovItem(wrap, selfItem);
+            })
+            .catch(function () {
+              newSubmit.disabled = false;
+              alert("Gagal menambah barang (koneksi bermasalah).");
+            });
+        });
+      }
     }
     document.addEventListener("click", function (e) {
       document.querySelectorAll(".lov.open").forEach(function (w) {
