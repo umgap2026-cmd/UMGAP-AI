@@ -105,6 +105,47 @@
 
   .btn-back { display: flex; align-items: center; justify-content: center; width: 100%; height: 42px; border: none; border-radius: 13px; background: transparent; color: var(--muted); font-weight: 800; font-size: 12.5px; cursor: pointer; font-family: inherit; text-decoration: none; margin-top: 10px; }
 
+  /* ── BARANG BALIK (retur) ── */
+  .pill-btn {
+    border: none; border-radius: 12px; padding: 9px 14px; font-weight: 900; font-size: 12px;
+    cursor: pointer; font-family: inherit; transition: transform 0.15s; background: #eef2ff; color: var(--blue);
+    white-space: nowrap; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pill-btn:hover { transform: translateY(-1px); }
+  .return-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #f2f5fb; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+  }
+  .return-name { font-weight: 900; font-size: 12.5px; }
+  .return-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .return-val { font-size: 12.5px; font-weight: 900; color: var(--bad); white-space: nowrap; }
+  label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  input[type="text"], input[type="number"], select {
+    width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb;
+    box-shadow: var(--soft-in); padding: 13px 14px; font-size: 14px; color: var(--text);
+    font-family: inherit; margin-bottom: 10px;
+  }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 200;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 20px; box-shadow: var(--shadow-out);
+    padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .modal-title { font-size: 15px; font-weight: 1000; color: #1e3252; }
+  .modal-close {
+    width: 32px; height: 32px; flex: 0 0 32px; border: none; border-radius: 10px;
+    background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .btn-submit {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px;
+    border: none; border-radius: 15px; cursor: pointer; font-weight: 900; font-size: 14px;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; font-family: inherit;
+  }
+
   /* ── FAKTUR PREVIEW (kertas continuous form 9.5" x 11") ── */
   .pv-body { display: flex; justify-content: center; padding: 6px 0; overflow-x: auto; }
   .faktur {
@@ -235,6 +276,31 @@
             </div>
           </div>
         </div>
+
+        {% if not invoice.cancelled_at %}
+        <div class="main-card">
+          <div class="inner">
+            <div class="sec-title">🔄 Barang Balik</div>
+            <div class="sec-desc">Retur sebagian barang -- stok &amp; HPP gudang otomatis disesuaikan, nota ini tidak berubah</div>
+            <div class="divider"></div>
+
+            {% if returns %}
+            {% for r in returns %}
+            <div class="return-row">
+              <div>
+                <div class="return-name">{{ r.material_name }}</div>
+                <div class="return-meta">{{ "%.1f"|format(r.qty_kg) }} {{ r.unit }} &bull; {{ r.reason }} &bull; {{ r.created_at_wib }}</div>
+              </div>
+              <div class="return-val">Rp {{ "{:,}".format(r.value | round | int).replace(",", ".") }}</div>
+            </div>
+            {% endfor %}
+            <div class="divider"></div>
+            {% endif %}
+
+            <button type="button" class="pill-btn" style="width:100%; padding:12px" onclick="openReturnModal()">+ Catat Retur</button>
+          </div>
+        </div>
+        {% endif %}
 
         <div class="main-card">
           <div class="inner">
@@ -369,7 +435,61 @@
   </div>
 </div>
 
+{% if not invoice.cancelled_at %}
+<!-- MODAL CATAT RETUR -->
+<div class="modal-overlay" id="returnModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Catat Retur</div>
+      <button type="button" class="modal-close" onclick="closeReturnModal()">✕</button>
+    </div>
+    <form method="post" action="{{ action_base }}/return">
+      <label>Barang</label>
+      <select name="material_id" required>
+        {% for it in items %}
+        <option value="{{ it.material_id }}">{{ it.product_name }} ({{ "%.1f"|format(it.qty) }} {{ it.unit }})</option>
+        {% endfor %}
+      </select>
+      <label>Jumlah Retur</label>
+      <input type="number" name="qty" step="0.01" min="0.01" placeholder="Jumlah" required />
+      <label>Alasan</label>
+      <select name="reason_template" id="returnReason" required>
+        <option value="KOTOR_CACAT">Barang kotor/cacat</option>
+        <option value="KUALITAS">Kualitas tidak sesuai</option>
+        <option value="SALAH_KIRIM">Salah kirim/beli</option>
+        <option value="LAINNYA">Lainnya…</option>
+      </select>
+      <input type="text" name="reason_other" id="returnReasonOther" placeholder="Tulis alasan…" style="display:none" />
+      <label>Catatan (opsional)</label>
+      <input type="text" name="note" placeholder="Catatan tambahan…" />
+      <button type="submit" class="btn-submit">Simpan Retur</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <script>
+  {% if not invoice.cancelled_at %}
+  var returnOverlay = document.getElementById("returnModalOverlay");
+  window.openReturnModal = function () { returnOverlay.classList.add("open"); };
+  window.closeReturnModal = function () { returnOverlay.classList.remove("open"); };
+  returnOverlay.addEventListener("click", function (e) {
+    if (e.target === returnOverlay) closeReturnModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && returnOverlay.classList.contains("open")) closeReturnModal();
+  });
+  var returnReasonSel = document.getElementById("returnReason");
+  var returnReasonOther = document.getElementById("returnReasonOther");
+  function syncReturnReason() {
+    var isOther = returnReasonSel.value === "LAINNYA";
+    returnReasonOther.style.display = isOther ? "block" : "none";
+    returnReasonOther.required = isOther;
+  }
+  returnReasonSel.addEventListener("change", syncReturnReason);
+  syncReturnReason();
+  {% endif %}
+
   var _d = document.getElementById("invData").dataset;
   var INV_ID = parseInt(_d.id, 10);
   var BASE = _d.base || "/nota/" + INV_ID;

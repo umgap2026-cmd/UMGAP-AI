@@ -3,9 +3,15 @@ from flask import Blueprint, render_template, request, redirect, session, flash
 from core import (
     owner_or_admin_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
-    add_fin_material_stock,
+    add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt,
 )
+
+REDUCE_STOCK_REASONS = {
+    "KOTOR": "Kotor/Kontaminasi",
+    "SUSUT": "Susut/Menguap",
+    "RUSAK": "Rusak",
+}
 
 finance_bp = Blueprint("finance", __name__)
 
@@ -82,6 +88,34 @@ def finance_materials_add_stock(material_id):
             created_by=session.get("user_id"),
         )
         flash(f"Stok '{result['name']}' berhasil ditambah.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/materials/<int:material_id>/reduce-stock", methods=["POST"])
+def finance_materials_reduce_stock(material_id):
+    """Kurangi stok barang yang sudah ada karena kotor/susut/rusak, tanpa
+    lewat penjualan -- HPP & nilai stok ikut disesuaikan otomatis."""
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    reason_template = (request.form.get("reason_template") or "").strip().upper()
+    if reason_template == "LAINNYA":
+        reason = (request.form.get("reason_other") or "").strip()
+    else:
+        reason = REDUCE_STOCK_REASONS.get(reason_template, reason_template)
+
+    try:
+        result = reduce_fin_material_stock(
+            material_id,
+            qty=request.form.get("qty"),
+            reason=reason,
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        flash(f"Stok '{result['name']}' berhasil dikurangi.", "success")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")

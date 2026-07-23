@@ -416,6 +416,23 @@
                 </form>
               </div>
             </details>
+            <details class="mini-pop">
+              <summary class="pill-btn danger">− Stok</summary>
+              <div class="pop-panel">
+                <form method="post" action="/finance/materials/{{ m.id }}/reduce-stock" style="display:flex; flex-direction:column; gap:8px">
+                  <input type="number" name="qty" step="0.01" min="0.01" max="{{ m.qty_kg }}" placeholder="Jumlah ({{ m.unit }})" required />
+                  <select name="reason_template" class="reduce-stock-reason" required>
+                    <option value="KOTOR">Kotor/Kontaminasi</option>
+                    <option value="SUSUT">Susut/Menguap</option>
+                    <option value="RUSAK">Rusak</option>
+                    <option value="LAINNYA">Lainnya…</option>
+                  </select>
+                  <input type="text" name="reason_other" class="reduce-stock-reason-other" placeholder="Tulis alasan…" style="display:none" />
+                  <input type="text" name="note" placeholder="Catatan (opsional)" />
+                  <button type="submit" class="pill-btn danger">Kurangi Stok</button>
+                </form>
+              </div>
+            </details>
             <form method="post" action="/finance/materials/{{ m.id }}/delete"
                   onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
               <button type="submit" class="pill-btn danger">Hapus</button>
@@ -458,6 +475,23 @@
                         <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
                         <input type="text" name="note" placeholder="Catatan (opsional)" />
                         <button type="submit" class="pill-btn primary">Tambah Stok</button>
+                      </form>
+                    </div>
+                  </details>
+                  <details class="mini-pop">
+                    <summary class="pill-btn danger">− Stok</summary>
+                    <div class="pop-panel">
+                      <form method="post" action="/finance/materials/{{ m.id }}/reduce-stock" style="display:flex; flex-direction:column; gap:8px">
+                        <input type="number" name="qty" step="0.01" min="0.01" max="{{ m.qty_kg }}" placeholder="Jumlah ({{ m.unit }})" required />
+                        <select name="reason_template" class="reduce-stock-reason" required>
+                          <option value="KOTOR">Kotor/Kontaminasi</option>
+                          <option value="SUSUT">Susut/Menguap</option>
+                          <option value="RUSAK">Rusak</option>
+                          <option value="LAINNYA">Lainnya…</option>
+                        </select>
+                        <input type="text" name="reason_other" class="reduce-stock-reason-other" placeholder="Tulis alasan…" style="display:none" />
+                        <input type="text" name="note" placeholder="Catatan (opsional)" />
+                        <button type="submit" class="pill-btn danger">Kurangi Stok</button>
                       </form>
                     </div>
                   </details>
@@ -671,6 +705,18 @@
     });
     window.addEventListener("scroll", function () { closeAllMiniPop(null); }, true);
     window.addEventListener("resize", function () { closeAllMiniPop(null); });
+
+    // Tampilkan input alasan manual kalau pilih "Lainnya" (kurangi stok)
+    document.querySelectorAll("select.reduce-stock-reason").forEach(function (sel) {
+      var other = sel.closest("form").querySelector(".reduce-stock-reason-other");
+      function sync() {
+        var isOther = sel.value === "LAINNYA";
+        other.style.display = isOther ? "block" : "none";
+        other.required = isOther;
+      }
+      sel.addEventListener("change", sync);
+      sync();
+    });
 
     // Tab switch: Barang Gudang / Hutang / Piutang -- supaya Hutang & Piutang
     // langsung bisa dibuka tanpa scroll panjang kalau daftar barang sudah banyak.

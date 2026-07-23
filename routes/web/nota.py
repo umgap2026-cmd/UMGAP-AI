@@ -23,11 +23,19 @@ from core import (
     delete_nota_transaction,
     list_deleted_nota,
     purge_fin_transaction,
+    create_fin_return,
+    list_fin_returns,
     list_nota_drafts,
     save_nota_draft,
     delete_nota_draft,
     get_notif_count,
 )
+
+RETURN_REASONS = {
+    "KOTOR_CACAT": "Barang kotor/cacat",
+    "KUALITAS": "Kualitas tidak sesuai",
+    "SALAH_KIRIM": "Salah kirim/beli",
+}
 
 nota_bp = Blueprint("nota", __name__)
 
@@ -48,6 +56,9 @@ def nota_new():
         nota_type = (request.form.get("nota_type") or "JUAL").strip().upper()
         is_paid = str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes")
 
+        ongkir = request.form.get("ongkir") or 0
+        ongkir_mode = request.form.get("ongkir_mode") or "BEBAN"
+
         try:
             if nota_type == "BELI":
                 result = create_fin_purchase_invoice(
@@ -59,6 +70,8 @@ def nota_new():
                     is_paid=is_paid,
                     items=items,
                     created_by=session.get("user_id"),
+                    ongkir=ongkir,
+                    ongkir_mode=ongkir_mode,
                 )
             else:
                 result = create_fin_invoice(
@@ -70,6 +83,8 @@ def nota_new():
                     is_paid=is_paid,
                     items=items,
                     created_by=session.get("user_id"),
+                    ongkir=ongkir,
+                    ongkir_mode=ongkir_mode,
                 )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
@@ -112,6 +127,8 @@ def nota_edit(txn_id):
                 is_paid=is_paid,
                 items=items,
                 edited_by=session.get("user_id"),
+                ongkir=request.form.get("ongkir") or 0,
+                ongkir_mode=request.form.get("ongkir_mode") or "BEBAN",
             )
             flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
             return redirect(f"/nota/{result['invoice_id']}")
@@ -239,7 +256,41 @@ def nota_detail(txn_id):
         items=items,
         action_base=f"/nota/{txn_id}",
         is_legacy=False,
+        returns=list_fin_returns(txn_id),
     )
+
+
+# ---------- BARANG BALIK (RETUR SEBAGIAN) ----------
+@nota_bp.route("/nota/<int:txn_id>/return", methods=["POST"])
+def nota_return(txn_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    reason_template = (request.form.get("reason_template") or "").strip().upper()
+    if reason_template == "LAINNYA":
+        reason = (request.form.get("reason_other") or "").strip()
+    else:
+        reason = RETURN_REASONS.get(reason_template, reason_template)
+
+    try:
+        material_id = int(request.form.get("material_id") or 0)
+        result = create_fin_return(
+            txn_id,
+            material_id=material_id,
+            qty=request.form.get("qty"),
+            reason=reason,
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        msg = f"Retur {result['qty']:g} tercatat, stok & sisa hutang/piutang sudah disesuaikan."
+        if result["refund_needed"] > 0:
+            msg += f" Perlu refund tunai ~Rp {result['refund_needed']:,.0f} (nota ini sudah lunas/sisa hutang tidak cukup) -- tangani manual di luar sistem.".replace(",", ".")
+        flash(msg, "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect(f"/nota/{txn_id}")
 
 
 @nota_bp.route("/nota/<int:txn_id>/pdf")

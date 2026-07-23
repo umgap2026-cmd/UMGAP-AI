@@ -636,6 +636,18 @@
                   <div class="disc-badge" id="discBadge">- Rp 0</div>
                 </div>
               </div>
+
+              <div class="field">
+                <label>🚚 Ongkir (Rp)</label>
+                <input type="number" name="ongkir" id="ongkirInp" min="0" value="0" placeholder="0" />
+                <div class="lov-new-toggle" style="margin-top: 8px">
+                  <button type="button" class="lov-new-toggle-btn active" data-mode="BEBAN">Kita yang bayar<br />(jadi beban)</button>
+                  <button type="button" class="lov-new-toggle-btn" data-mode="POTONGAN">Mereka yang bayar<br />(kurangi nota)</button>
+                </div>
+                <input type="hidden" name="ongkir_mode" id="ongkirModeInp" value="BEBAN" />
+                <div class="field-hint" id="ongkirHint" style="margin-top: 6px">Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.</div>
+              </div>
+
               <div class="field" style="margin-bottom: 0">
                 <label>Catatan</label>
                 <textarea name="notes" placeholder="DP, keterangan…" style="min-height: 60px">{{ edit_invoice.notes if edit_mode else '' }}</textarea>
@@ -681,6 +693,9 @@
     var DI = document.getElementById("discInp"),
       DB = document.getElementById("discBadge"),
       DL = document.getElementById("discLine");
+    var OI = document.getElementById("ongkirInp"),
+      OM = document.getElementById("ongkirModeInp"),
+      OH = document.getElementById("ongkirHint");
     var blankRowTemplate = L.querySelector(".item-row").cloneNode(true);
 
     function rp(n) { return "Rp " + Math.round(n || 0).toLocaleString("id-ID"); }
@@ -711,11 +726,16 @@
       return t;
     }
     function grand() {
-      var sub = subTot(), disc = Math.max(0, parseInt(DI.value || "0", 10) || 0), g = Math.max(0, sub - disc);
+      var sub = subTot(), disc = Math.max(0, parseInt(DI.value || "0", 10) || 0);
+      var ongkir = Math.max(0, parseInt(OI.value || "0", 10) || 0);
+      var ongkirPotongan = OM.value === "POTONGAN" ? ongkir : 0;
+      var g = Math.max(0, sub - disc - ongkirPotongan);
       G.textContent = rp(g);
       HT.textContent = rp(g);
       DB.textContent = "- " + rp(disc);
-      DL.textContent = disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
+      var subLine = disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
+      if (ongkirPotongan > 0) subLine += (subLine ? " · " : "Subtotal " + rp(sub) + " · ") + "Ongkir " + rp(ongkirPotongan);
+      DL.textContent = subLine;
     }
 
     // ── List-of-value: searchable item picker ──
@@ -973,6 +993,22 @@
       L.querySelectorAll(".item-row").forEach(bindRow);
     }
     DI.addEventListener("input", grand);
+    OI.addEventListener("input", grand);
+    var OI_HINTS = {
+      BEBAN: "Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.",
+      POTONGAN: "Ongkir langsung mengurangi total nota (seperti diskon tambahan).",
+    };
+    document.querySelectorAll('.lov-new-toggle-btn[data-mode="BEBAN"], .lov-new-toggle-btn[data-mode="POTONGAN"]').forEach(function (b) {
+      b.addEventListener("click", function () {
+        var mode = b.getAttribute("data-mode");
+        OM.value = mode;
+        OH.textContent = OI_HINTS[mode];
+        b.parentElement.querySelectorAll(".lov-new-toggle-btn").forEach(function (x) {
+          x.classList.toggle("active", x === b);
+        });
+        grand();
+      });
+    });
     grand();
 
     // ── Toggle Jual / Beli ──
@@ -1049,6 +1085,13 @@
       document.querySelector('input[name="customer_name"]').value = data.customer_name || "";
       document.querySelector('input[name="customer_phone"]').value = data.customer_phone || "";
       DI.value = data.discount || 0;
+      OI.value = data.ongkir || 0;
+      var ongkirMode = data.ongkir_mode === "POTONGAN" ? "POTONGAN" : "BEBAN";
+      OM.value = ongkirMode;
+      OH.textContent = OI_HINTS[ongkirMode];
+      document.querySelectorAll('.lov-new-toggle-btn[data-mode="BEBAN"], .lov-new-toggle-btn[data-mode="POTONGAN"]').forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-mode") === ongkirMode);
+      });
       document.querySelector('textarea[name="notes"]').value = data.notes || "";
       var pmRadio = document.querySelector('input[name="payment_method"][value="' + (data.payment_method || "CASH") + '"]');
       if (pmRadio) pmRadio.checked = true;
@@ -1109,6 +1152,8 @@
             payment_method: (document.querySelector('input[name="payment_method"]:checked') || {}).value || "CASH",
             is_paid: isPaid,
             discount: parseInt(DI.value || "0", 10) || 0,
+            ongkir: parseInt(OI.value || "0", 10) || 0,
+            ongkir_mode: OM.value || "BEBAN",
             notes: document.querySelector('textarea[name="notes"]').value || "",
             items: items,
           },

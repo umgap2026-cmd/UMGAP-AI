@@ -255,7 +255,26 @@ def _ensure_transaction_cancel_columns(cur):
             ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL,
             ADD COLUMN IF NOT EXISTS print_size VARCHAR(20) NULL,
             ADD COLUMN IF NOT EXISTS delete_reason TEXT NULL,
-            ADD COLUMN IF NOT EXISTS delete_mode VARCHAR(20) NULL;
+            ADD COLUMN IF NOT EXISTS delete_mode VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS related_transaction_id INTEGER NULL;
+    """)
+
+
+def _ensure_fin_returns_schema(cur):
+    """Lazy-migration: tabel retur sebagian (barang balik) tertaut ke nota asal."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fin_returns (
+            id SERIAL PRIMARY KEY,
+            transaction_id INTEGER NOT NULL REFERENCES fin_transactions(id),
+            material_id INTEGER NOT NULL REFERENCES fin_materials(id),
+            qty_kg NUMERIC(14,3) NOT NULL,
+            price_per_kg NUMERIC(14,2) NOT NULL,
+            value NUMERIC(14,2) NOT NULL,
+            reason TEXT,
+            note TEXT,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
 def _table_exists(cur, table):
@@ -877,14 +896,31 @@ def get_materials_with_stock():
         conn.close()
 
 
+def _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by):
+    """Insert pengeluaran 'Ongkir' tertaut ke nota (mode BEBAN -- kita yang bayar)."""
+    cur.execute("""
+        INSERT INTO fin_transactions
+            (type, party_name, note, total_amount, created_by, related_transaction_id)
+        VALUES ('PENGELUARAN', 'Ongkir', %s, %s, %s, %s);
+    """, (f"Ongkir nota {invoice_no}", ongkir, created_by, txn_id))
+
+
 def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
-                        discount, is_paid, items, created_by, print_size=None):
+                        discount, is_paid, items, created_by, print_size=None,
+                        ongkir=0, ongkir_mode="BEBAN"):
     """
     Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
     catat piutang jika belum lunas. Logic diextract dari
     routes/mobile/finance.py:create_invoice() agar web & mobile berbagi 1
     sumber kebenaran. Raise ValueError(pesan) kalau validasi gagal.
-    Return dict: {invoice_id, invoice_no, subtotal, discount, total, hpp, laba}.
+
+    ongkir_mode: "BEBAN" (kita yang bayar -- jadi pengeluaran terpisah di
+    Finance, tertaut ke nota ini, TIDAK mengubah total nota) atau
+    "POTONGAN" (mereka yang bayar -- langsung mengurangi total nota,
+    diperlakukan seperti diskon tambahan).
+
+    Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir,
+    ongkir_mode, total, hpp, laba}.
     """
     from routes.mobile.finance import _update_stock_avco
 
@@ -895,6 +931,10 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
+    ongkir = float(ongkir or 0)
+    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
+    if ongkir_mode not in ("BEBAN", "POTONGAN"):
+        ongkir_mode = "BEBAN"
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -929,7 +969,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                 )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount)
+        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
+        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -985,6 +1026,9 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             """, (customer_name, grand_total, grand_total, txn_id,
                   f"Invoice {invoice_no} — belum dibayar"))
 
+        if ongkir > 0 and ongkir_mode == "BEBAN":
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by)
+
         conn.commit()
 
         return {
@@ -992,6 +1036,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             "invoice_no": invoice_no,
             "subtotal": subtotal_bruto,
             "discount": discount,
+            "ongkir": ongkir,
+            "ongkir_mode": ongkir_mode,
             "total": grand_total,
             "hpp": hpp_total,
             "laba": grand_total - hpp_total,
@@ -1008,14 +1054,17 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
 
 def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
-                                 discount, is_paid, items, created_by, print_size=None):
+                                 discount, is_paid, items, created_by, print_size=None,
+                                 ongkir=0, ongkir_mode="BEBAN"):
     """
     Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
     (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
     masuk (bukan keluar) dan tanpa HPP/laba. 'discount' di sini berarti DP
     yang sudah dibayar ke pemasok, mengurangi nilai hutang yang dicatat.
+    ongkir_mode: "BEBAN" (kita bayar -- pengeluaran terpisah tertaut ke
+    nota ini) atau "POTONGAN" (mereka bayar -- langsung mengurangi total).
     Raise ValueError(pesan) kalau validasi gagal.
-    Return dict: {invoice_id, invoice_no, subtotal, discount, total}.
+    Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir, ongkir_mode, total}.
     """
     from routes.mobile.finance import _update_stock_avco
 
@@ -1024,6 +1073,10 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
+    ongkir = float(ongkir or 0)
+    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
+    if ongkir_mode not in ("BEBAN", "POTONGAN"):
+        ongkir_mode = "BEBAN"
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1041,7 +1094,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount)
+        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
+        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -1088,6 +1142,9 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             """, (supplier_name, grand_total, grand_total, txn_id,
                   f"Nota {invoice_no} — belum dibayar"))
 
+        if ongkir > 0 and ongkir_mode == "BEBAN":
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by)
+
         conn.commit()
 
         return {
@@ -1095,6 +1152,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             "invoice_no": invoice_no,
             "subtotal": subtotal_bruto,
             "discount": discount,
+            "ongkir": ongkir,
+            "ongkir_mode": ongkir_mode,
             "total": grand_total,
         }
     except ValueError:
@@ -1109,7 +1168,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
 
 def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, payment_method,
-                                    notes, discount, is_paid, items, edited_by):
+                                    notes, discount, is_paid, items, edited_by,
+                                    ongkir=0, ongkir_mode="BEBAN"):
     """
     Edit nota JUAL_INVOICE/BELI_GUDANG yang sudah ada: balikkan efek stok &
     hutang/piutang LAMA (pola sama dengan cancel_fin_transaction), lalu
@@ -1117,6 +1177,9 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
     create_fin_invoice/create_fin_purchase_invoice). invoice_no & jenis nota
     (JUAL/BELI) TIDAK berubah. Tidak bisa dipakai kalau hutang/piutangnya
     sudah ada cicilan/pembayaran, atau nota-nya sudah dihapus/dibatalkan.
+    ongkir_mode: "BEBAN" (kita bayar) / "POTONGAN" (mereka bayar) -- lihat
+    create_fin_invoice(). Expense Ongkir lama (kalau ada) dihapus dulu
+    sebelum yang baru dibuat, supaya edit berulang tidak numpuk expense.
     Return dict {invoice_id, invoice_no, total}.
     """
     from routes.mobile.finance import _update_stock_avco, _reverse_stock_movement
@@ -1126,6 +1189,10 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
+    ongkir = float(ongkir or 0)
+    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
+    if ongkir_mode not in ("BEBAN", "POTONGAN"):
+        ongkir_mode = "BEBAN"
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1208,7 +1275,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                     )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount)
+        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
+        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
 
         for item in items:
             mat_id = int(item["material_id"])
@@ -1255,6 +1323,13 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             """, (debt_type, customer_name, party_type, grand_total, grand_total, txn_id,
                   f"Nota {invoice_no} — belum dibayar (hasil edit)"))
 
+        cur.execute("""
+            DELETE FROM fin_transactions
+            WHERE related_transaction_id = %s AND type = 'PENGELUARAN' AND party_name = 'Ongkir';
+        """, (txn_id,))
+        if ongkir > 0 and ongkir_mode == "BEBAN":
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, edited_by)
+
         conn.commit()
         return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total}
     except ValueError:
@@ -1285,7 +1360,7 @@ def get_fin_invoice_detail(txn_id):
 
         cur.execute("""
             SELECT t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
-                   t.total_amount, t.created_at, t.print_size,
+                   t.total_amount, t.created_at, t.print_size, t.cancelled_at,
                    u.name AS created_by_name
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
@@ -1333,6 +1408,7 @@ def get_fin_invoice_detail(txn_id):
             "notes": extra_notes,
             "print_size": row.get("print_size") or "80mm",
             "is_paid": not bool(row.get("is_debt")),
+            "cancelled_at": row.get("cancelled_at"),
             "paid_at_wib": None,
             "created_at": row.get("created_at"),
             "created_at_wib": _utc_naive_to_wib_string(row.get("created_at")),
@@ -1544,6 +1620,154 @@ def cancel_fin_transaction(txn_id, cancelled_by):
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal membatalkan nota: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_return(transaction_id, material_id, qty, reason, note, created_by):
+    """
+    Catat "barang balik" (retur sebagian) dari sebuah nota yang sudah jadi --
+    nota ASLI (nomor, total yang sudah dicetak) TIDAK berubah. Retur jadi
+    transaksi terpisah yang tertaut ke nota asal, menyesuaikan stok/HPP
+    gudang & sisa hutang-piutang nota tsb.
+
+    Arah stok mengikuti jenis nota:
+    - BELI_GUDANG (kita beli, retur balik ke pemasok) -> stok TURUN.
+    - JUAL_INVOICE (customer balikin ke kita)          -> stok NAIK.
+    Dihitung lewat _reverse_stock_movement dengan avg cost SAAT INI (bukan
+    harga historis -- fin_transaction_items tidak menyimpan HPP per-item
+    di masa lalu, jadi ini pilihan paling aman/konsisten).
+
+    Nilai retur (utk penyesuaian hutang/piutang) pakai price_per_kg ASLI
+    di nota tsb, bukan avg cost sekarang. Kalau nota sudah lunas penuh
+    (atau retur melebihi sisa hutang/piutang), kelebihannya dilaporkan
+    sbg "perlu refund tunai" -- tidak dicatat otomatis, ditangani admin
+    di luar sistem.
+
+    Return dict {qty, value, refund_needed}.
+    """
+    from routes.mobile.finance import _reverse_stock_movement
+
+    try:
+        qty = float(qty or 0)
+    except (TypeError, ValueError):
+        qty = 0
+    reason = (reason or "").strip()
+    note = (note or "").strip()
+
+    if qty <= 0:
+        raise ValueError("Jumlah retur harus lebih dari 0.")
+    if not reason:
+        raise ValueError("Alasan retur wajib diisi.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_returns_schema(cur)
+
+        cur.execute("""
+            SELECT id, type, note, cancelled_at
+            FROM fin_transactions WHERE id = %s FOR UPDATE;
+        """, (transaction_id,))
+        txn = cur.fetchone()
+        if not txn:
+            raise ValueError("Nota tidak ditemukan.")
+        if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
+            raise ValueError("Nota jenis ini tidak bisa diretur dari sini.")
+        if txn["cancelled_at"] is not None:
+            raise ValueError("Nota yang sudah dihapus tidak bisa diretur.")
+
+        is_beli = txn["type"] == "BELI_GUDANG"
+        invoice_no, _pm, _extra = _parse_nota_note(txn["note"])
+
+        cur.execute("""
+            SELECT qty_kg, price_per_kg FROM fin_transaction_items
+            WHERE transaction_id = %s AND material_id = %s;
+        """, (transaction_id, material_id))
+        item = cur.fetchone()
+        if not item:
+            raise ValueError("Barang ini tidak ada di nota tersebut.")
+        original_qty = float(item["qty_kg"])
+        price_per_kg = float(item["price_per_kg"])
+
+        cur.execute("""
+            SELECT COALESCE(SUM(qty_kg), 0) AS total
+            FROM fin_returns WHERE transaction_id = %s AND material_id = %s;
+        """, (transaction_id, material_id))
+        already_returned = float(cur.fetchone()["total"])
+
+        if already_returned + qty > original_qty:
+            sisa = max(0, original_qty - already_returned)
+            raise ValueError(
+                f"Jumlah retur melebihi qty di nota ini. "
+                f"Sudah diretur sebelumnya: {already_returned:.1f}, sisa yang bisa diretur: {sisa:.1f}")
+
+        original_movement = 'IN' if is_beli else 'OUT'
+        _reverse_stock_movement(
+            cur, material_id, qty, transaction_id, original_movement,
+            note=f"Retur nota {invoice_no or transaction_id}: {reason}")
+
+        value = qty * price_per_kg
+
+        cur.execute("SELECT id, remaining FROM fin_debts WHERE transaction_id = %s;", (transaction_id,))
+        debt = cur.fetchone()
+        refund_needed = 0.0
+        if debt:
+            remaining = float(debt["remaining"])
+            reduction = min(value, remaining)
+            new_remaining = max(0.0, remaining - reduction)
+            cur.execute("""
+                UPDATE fin_debts
+                SET amount = GREATEST(0, amount - %s),
+                    remaining = %s,
+                    is_settled = %s
+                WHERE id = %s;
+            """, (reduction, new_remaining, new_remaining <= 0, debt["id"]))
+            refund_needed = value - reduction
+        else:
+            refund_needed = value
+
+        cur.execute("""
+            INSERT INTO fin_returns
+                (transaction_id, material_id, qty_kg, price_per_kg, value, reason, note, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+        """, (transaction_id, material_id, qty, price_per_kg, value, reason, note or None, created_by))
+
+        conn.commit()
+        return {"qty": qty, "value": value, "refund_needed": refund_needed}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat retur: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_fin_returns(transaction_id):
+    """Riwayat retur (barang balik) untuk 1 nota, terbaru duluan."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_returns_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT r.id, r.material_id, m.name AS material_name, m.unit,
+                   r.qty_kg, r.price_per_kg, r.value, r.reason, r.note,
+                   TO_CHAR(r.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                   u.name AS created_by_name
+            FROM fin_returns r
+            JOIN fin_materials m ON m.id = r.material_id
+            LEFT JOIN users u ON u.id = r.created_by
+            WHERE r.transaction_id = %s
+            ORDER BY r.created_at DESC;
+        """, (transaction_id,))
+        return [dict(r) for r in cur.fetchall()]
     finally:
         cur.close()
         conn.close()
@@ -2209,6 +2433,100 @@ def add_fin_material_stock(material_id, qty, price, note, created_by):
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal tambah stok: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def reduce_fin_material_stock(material_id, qty, reason, note, created_by):
+    """
+    Kurangi stok barang gudang karena kotor/susut/rusak (bukan lewat nota
+    penjualan) — kebalikan dari add_fin_material_stock(). Dicatat sebagai
+    pengeluaran (kerugian) di Finance sebesar nilai stok yang hilang
+    (qty x HPP rata-rata saat ini). HPP rata-rata itu sendiri TIDAK berubah
+    (sesuai perilaku AVCO untuk movement OUT — cuma qty & total nilai turun).
+    Raise ValueError kalau barang tidak ditemukan, qty tidak valid, alasan
+    kosong, atau qty melebihi stok yang tersedia.
+    Return dict {id, name, qty_kg, avg_cost_per_kg, total_value}.
+    """
+    try:
+        qty = float(qty or 0)
+    except (TypeError, ValueError):
+        qty = 0
+    reason = (reason or "").strip()
+    note = (note or "").strip()
+
+    if qty <= 0:
+        raise ValueError("Jumlah pengurangan harus lebih dari 0.")
+    if not reason:
+        raise ValueError("Alasan pengurangan wajib diisi.")
+
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+
+        cur.execute("""
+            SELECT COALESCE(qty_kg, 0) AS qty, COALESCE(avg_cost_per_kg, 0) AS avg
+            FROM fin_stock_summary WHERE material_id = %s FOR UPDATE;
+        """, (material_id,))
+        stock = cur.fetchone()
+        current_qty = float(stock["qty"]) if stock else 0.0
+        avg_cost = float(stock["avg"]) if stock else 0.0
+
+        if qty > current_qty:
+            raise ValueError(
+                f"Jumlah melebihi stok tersedia. Tersedia: {current_qty:.1f} kg, diminta: {qty:.1f} kg")
+
+        loss_value = qty * avg_cost
+        full_note = reason + (f" — {note}" if note else "")
+
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, note, is_debt, total_amount, created_by)
+            VALUES ('PENGELUARAN', 'Penyesuaian Stok', %s, FALSE, %s, %s)
+            RETURNING id;
+        """, (
+            f"Pengurangan stok {mat['name']}: {full_note}",
+            loss_value,
+            created_by,
+        ))
+        txn_id = cur.fetchone()["id"]
+
+        cur.execute("""
+            INSERT INTO fin_transaction_items
+                (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+            VALUES (%s, %s, %s, %s, %s);
+        """, (txn_id, material_id, qty, avg_cost, loss_value))
+
+        _update_stock_avco(
+            cur, material_id, qty, avg_cost, 'OUT', txn_id, note=full_note)
+
+        conn.commit()
+
+        cur.execute("""
+            SELECT m.id, m.name,
+                   COALESCE(s.qty_kg, 0)          AS qty_kg,
+                   COALESCE(s.avg_cost_per_kg, 0)  AS avg_cost_per_kg,
+                   COALESCE(s.total_value, 0)      AS total_value
+            FROM fin_materials m
+            LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+            WHERE m.id = %s;
+        """, (material_id,))
+        return dict(cur.fetchone())
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mengurangi stok: {e}")
     finally:
         cur.close()
         conn.close()
