@@ -420,7 +420,7 @@
           <div class="draft-row">
             <div style="min-width:0">
               <div class="draft-name">{{ '🛒' if d.nota_type == 'JUAL' else '📦' }} {{ d.draft_name }}</div>
-              <div class="draft-meta">{{ (d.form_data.items|length) if d.form_data.items else 0 }} item &bull; {{ d.updated_at_wib }}</div>
+              <div class="draft-meta">{{ d.form_data.get('items', [])|length }} item &bull; {{ d.updated_at_wib }}</div>
             </div>
             <div style="display:flex; gap:6px; flex:0 0 auto">
               <button type="button" class="pill-btn" style="background:linear-gradient(180deg,#2563eb,#1d4ed8); color:#fff" onclick="loadDraft({{ d.id }})">Buka</button>
