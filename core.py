@@ -1019,9 +1019,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
     """
     from routes.mobile.finance import _update_stock_avco
 
-    supplier_name = (supplier_name or "").strip()
-    if not supplier_name:
-        raise ValueError("Nama pemasok wajib diisi.")
+    supplier_name = (supplier_name or "").strip() or "Pembelian Umum"
     if not items:
         raise ValueError("Minimal 1 item barang.")
 
@@ -1124,8 +1122,6 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
     from routes.mobile.finance import _update_stock_avco, _reverse_stock_movement
 
     customer_name = (customer_name or "").strip()
-    if not customer_name:
-        raise ValueError("Nama customer/pemasok wajib diisi.")
     if not items:
         raise ValueError("Minimal 1 item barang.")
 
@@ -1149,6 +1145,12 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             raise ValueError("Nota yang sudah dihapus tidak bisa diedit.")
 
         is_beli = txn["type"] == "BELI_GUDANG"
+        if not customer_name:
+            if is_beli:
+                customer_name = "Pembelian Umum"
+            else:
+                raise ValueError("Nama customer wajib diisi.")
+
         invoice_no, _pm, _extra = _parse_nota_note(txn["note"])
         if not invoice_no:
             raise ValueError("Nomor nota tidak valid untuk diedit.")

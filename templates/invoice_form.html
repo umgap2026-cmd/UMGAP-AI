@@ -473,16 +473,20 @@
           <div class="main-card">
             <div class="inner">
               <div class="sec-title" id="custCardTitle">{{ '🚚 Info Pemasok' if edit_mode and edit_invoice.nota_type == 'BELI' else '👤 Info Pelanggan' }}</div>
-              <div class="sec-desc" id="custCardSub">{{ 'Nama & nomor WhatsApp pemasok/orang' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama & nomor WhatsApp customer' }}</div>
+              <div class="sec-desc" id="custCardSub">{{ 'Opsional — kosongkan jika pembelian umum' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama & nomor WhatsApp customer' }}</div>
               <div class="divider"></div>
               <div class="row2">
                 <div class="field">
-                  <label id="custNameLbl">{{ 'Nama Pemasok *' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
-                  <input type="text" name="customer_name" placeholder="Wajib diisi…" autocomplete="off" required value="{{ edit_invoice.customer_name if edit_mode else '' }}" />
+                  <label id="custNameLbl">{{ 'Nama Pemasok (opsional)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
+                  <input type="text" name="customer_name" id="custNameInp"
+                         placeholder="{{ 'Opsional, kosongkan jika umum…' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Wajib diisi…' }}"
+                         autocomplete="off"
+                         {{ '' if edit_mode and edit_invoice.nota_type == 'BELI' else 'required' }}
+                         value="{{ edit_invoice.customer_name if edit_mode else '' }}" />
                 </div>
                 <div class="field">
                   <label>No. WhatsApp</label>
-                  <input type="tel" name="customer_phone" placeholder="08xx…" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
+                  <input type="tel" name="customer_phone" placeholder="08xx… (opsional)" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
 
@@ -977,14 +981,16 @@
         heroIco: "🧾", heroTitle: "Buat Nota Jual",
         heroSub: "Buat nota dari stok gudang, cetak & kirim WhatsApp.",
         custCardTitle: "👤 Info Pelanggan", custCardSub: "Nama & nomor WhatsApp customer",
-        custNameLbl: "Nama Customer *", itemsCardSub: "Barang gudang, qty & harga jual",
+        custNameLbl: "Nama Customer *", custNamePlaceholder: "Wajib diisi…", custNameRequired: true,
+        itemsCardSub: "Barang gudang, qty & harga jual",
         discLbl: "Diskon (Rp)", ptTtl: "Lunas", ptSub: "Pembayaran sudah diterima", ptSubOff: "Tagihan masih berjalan (piutang)",
       },
       BELI: {
         heroIco: "📦", heroTitle: "Buat Nota Beli",
         heroSub: "Catat pembelian barang masuk ke stok gudang.",
-        custCardTitle: "🚚 Info Pemasok", custCardSub: "Nama & nomor WhatsApp pemasok/orang",
-        custNameLbl: "Nama Pemasok *", itemsCardSub: "Barang gudang, qty & harga beli",
+        custCardTitle: "🚚 Info Pemasok", custCardSub: "Opsional — kosongkan jika pembelian umum",
+        custNameLbl: "Nama Pemasok (opsional)", custNamePlaceholder: "Opsional, kosongkan jika umum…", custNameRequired: false,
+        itemsCardSub: "Barang gudang, qty & harga beli",
         discLbl: "DP Sudah Dibayar (Rp)", ptTtl: "Lunas", ptSub: "Sudah dibayar penuh ke pemasok", ptSubOff: "Tagihan masih berjalan (hutang)",
       },
     };
@@ -998,6 +1004,9 @@
       document.getElementById("custNameLbl").textContent = t.custNameLbl;
       document.getElementById("itemsCardSub").textContent = t.itemsCardSub;
       document.getElementById("discLbl").textContent = t.discLbl;
+      var custNameInp = document.getElementById("custNameInp");
+      custNameInp.required = t.custNameRequired;
+      custNameInp.placeholder = t.custNamePlaceholder;
       var isPaidNow = document.getElementById("isPaidInp").value === "1";
       document.getElementById("ptTtl").textContent = t.ptTtl;
       document.getElementById("ptSub").textContent = isPaidNow ? t.ptSub : t.ptSubOff;
