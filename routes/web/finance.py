@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, session, flash
 
 from core import (
-    owner_or_admin_required,
+    owner_or_admin_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock,
     list_fin_debts, pay_fin_debt,
@@ -25,6 +25,7 @@ def finance_dashboard():
         materials=materials,
         total_value=total_value,
         debts=debts,
+        notif_count=get_notif_count(),
     )
 
 
