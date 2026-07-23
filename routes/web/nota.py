@@ -56,8 +56,10 @@ def nota_new():
         nota_type = (request.form.get("nota_type") or "JUAL").strip().upper()
         is_paid = str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes")
 
-        ongkir = request.form.get("ongkir") or 0
-        ongkir_mode = request.form.get("ongkir_mode") or "BEBAN"
+        try:
+            adjustments = json.loads(request.form.get("adjustments_json") or "[]")
+        except Exception:
+            adjustments = []
 
         try:
             if nota_type == "BELI":
@@ -66,12 +68,11 @@ def nota_new():
                     supplier_phone=request.form.get("customer_phone"),
                     payment_method=request.form.get("payment_method") or "CASH",
                     notes=request.form.get("notes"),
-                    discount=request.form.get("discount") or 0,
+                    discount=0,
                     is_paid=is_paid,
                     items=items,
                     created_by=session.get("user_id"),
-                    ongkir=ongkir,
-                    ongkir_mode=ongkir_mode,
+                    adjustments=adjustments,
                 )
             else:
                 result = create_fin_invoice(
@@ -79,12 +80,11 @@ def nota_new():
                     customer_phone=request.form.get("customer_phone"),
                     payment_method=request.form.get("payment_method") or "CASH",
                     notes=request.form.get("notes"),
-                    discount=request.form.get("discount") or 0,
+                    discount=0,
                     is_paid=is_paid,
                     items=items,
                     created_by=session.get("user_id"),
-                    ongkir=ongkir,
-                    ongkir_mode=ongkir_mode,
+                    adjustments=adjustments,
                 )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
@@ -96,7 +96,7 @@ def nota_new():
         materials=get_materials_with_stock(),
         company_profile=get_company_profile(),
         notif_count=get_notif_count(),
-        drafts=list_nota_drafts(session.get("user_id")),
+        drafts=list_nota_drafts(),
         edit_mode=False,
     )
 
@@ -117,18 +117,22 @@ def nota_edit(txn_id):
         is_paid = str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes")
 
         try:
+            adjustments = json.loads(request.form.get("adjustments_json") or "[]")
+        except Exception:
+            adjustments = []
+
+        try:
             result = update_fin_invoice_transaction(
                 txn_id,
                 customer_name=request.form.get("customer_name"),
                 customer_phone=request.form.get("customer_phone"),
                 payment_method=request.form.get("payment_method") or "CASH",
                 notes=request.form.get("notes"),
-                discount=request.form.get("discount") or 0,
+                discount=0,
                 is_paid=is_paid,
                 items=items,
                 edited_by=session.get("user_id"),
-                ongkir=request.form.get("ongkir") or 0,
-                ongkir_mode=request.form.get("ongkir_mode") or "BEBAN",
+                adjustments=adjustments,
             )
             flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
             return redirect(f"/nota/{result['invoice_id']}")
@@ -180,7 +184,7 @@ def nota_draft_delete(draft_id):
         return deny
 
     try:
-        delete_nota_draft(draft_id, session.get("user_id"))
+        delete_nota_draft(draft_id)
         flash("Draft dihapus.", "success")
     except ValueError as e:
         flash(str(e), "danger")

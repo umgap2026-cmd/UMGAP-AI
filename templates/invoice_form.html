@@ -283,10 +283,10 @@
   }
   .add-item-btn:hover { background: rgba(37,99,235,0.12); }
 
-  .disc-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
-  .disc-badge {
-    display: flex; align-items: center; justify-content: center; background: rgba(180,83,9,0.1);
-    color: #92400e; border-radius: 12px; padding: 13px 14px; font-size: 12.5px; font-weight: 900; white-space: nowrap;
+  .adj-row { background: #f2f5fb; border-radius: 14px; padding: 12px; margin-bottom: 10px; box-shadow: var(--soft-in); }
+  .adj-remove {
+    margin-top: 8px; border: none; background: none; color: var(--bad); font-size: 11px;
+    font-weight: 800; cursor: pointer; font-family: inherit; padding: 4px 0;
   }
 
   .grand-bar {
@@ -413,14 +413,14 @@
     <div class="main-card" style="margin-top: 14px">
       <div class="inner">
         <div class="sec-title">📝 Draft Tersimpan ({{ drafts|length }})</div>
-        <div class="sec-desc">Lanjutkan nota yang belum selesai dibuat</div>
+        <div class="sec-desc">Draft dibagikan semua admin/owner -- bisa dilanjutkan siapa saja</div>
         <div class="divider"></div>
         <div style="display:flex; flex-direction:column; gap:8px">
           {% for d in drafts %}
           <div class="draft-row">
             <div style="min-width:0">
               <div class="draft-name">{{ '🛒' if d.nota_type == 'JUAL' else '📦' }} {{ d.draft_name }}</div>
-              <div class="draft-meta">{{ d.form_data.get('items', [])|length }} item &bull; {{ d.updated_at_wib }}</div>
+              <div class="draft-meta">{{ d.form_data.get('items', [])|length }} item &bull; oleh {{ d.created_by_name or "?" }} &bull; {{ d.updated_at_wib }}</div>
             </div>
             <div style="display:flex; gap:6px; flex:0 0 auto">
               <button type="button" class="pill-btn" style="background:linear-gradient(180deg,#2563eb,#1d4ed8); color:#fff" onclick="loadDraft({{ d.id }})">Buka</button>
@@ -629,24 +629,40 @@
 
               <div class="divider"></div>
 
-              <div class="field">
-                <label id="discLbl">{{ 'DP Sudah Dibayar (Rp)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Diskon (Rp)' }}</label>
-                <div class="disc-row">
-                  <input type="number" name="discount" id="discInp" min="0" value="{{ edit_invoice.discount|round|int if edit_mode else 0 }}" placeholder="0" />
-                  <div class="disc-badge" id="discBadge">- Rp 0</div>
-                </div>
+              <div class="field" style="margin-bottom: 8px">
+                <label>Potongan &amp; Biaya</label>
+                <div class="sec-desc" style="margin-top: -2px">DP/Diskon langsung mengurangi total. Ongkir bisa jadi beban terpisah atau ikut mengurangi total.</div>
               </div>
 
-              <div class="field">
-                <label>🚚 Ongkir (Rp)</label>
-                <input type="number" name="ongkir" id="ongkirInp" min="0" value="0" placeholder="0" />
-                <div class="lov-new-toggle" style="margin-top: 8px">
-                  <button type="button" class="lov-new-toggle-btn active" data-mode="BEBAN">Kita yang bayar<br />(jadi beban)</button>
-                  <button type="button" class="lov-new-toggle-btn" data-mode="POTONGAN">Mereka yang bayar<br />(kurangi nota)</button>
+              <div id="adjList">
+                <div class="adj-row">
+                  <div class="row2">
+                    <div class="field" style="margin-bottom: 0">
+                      <label style="margin-bottom: 5px">Jenis</label>
+                      <select class="adj-type">
+                        <option value="DP" selected>DP / Diskon</option>
+                        <option value="ONGKIR">Ongkir</option>
+                      </select>
+                    </div>
+                    <div class="field" style="margin-bottom: 0">
+                      <label style="margin-bottom: 5px">Jumlah (Rp)</label>
+                      <input type="number" class="adj-amount" min="0" placeholder="0" value="{{ edit_invoice.discount|round|int if edit_mode and edit_invoice.discount else '' }}" />
+                    </div>
+                  </div>
+                  <div class="adj-ongkir-toggle lov-new-toggle" style="display:none; margin-top: 8px">
+                    <button type="button" class="lov-new-toggle-btn active" data-mode="BEBAN">Kita yang bayar<br />(jadi beban)</button>
+                    <button type="button" class="lov-new-toggle-btn" data-mode="POTONGAN">Mereka yang bayar<br />(kurangi nota)</button>
+                  </div>
+                  <div class="field-hint adj-hint" style="display:none; margin-top: 6px"></div>
+                  <button type="button" class="adj-remove">✕ Hapus baris ini</button>
                 </div>
-                <input type="hidden" name="ongkir_mode" id="ongkirModeInp" value="BEBAN" />
-                <div class="field-hint" id="ongkirHint" style="margin-top: 6px">Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.</div>
               </div>
+              <button type="button" class="add-item-btn" id="btnAddAdj" style="margin-top: 8px; height: 38px; font-size: 12px">
+                <span>+</span> Tambah Potongan/Biaya
+              </button>
+              <input type="hidden" name="adjustments_json" id="adjustmentsJsonInput" value="[]" />
+
+              <div class="divider"></div>
 
               <div class="field" style="margin-bottom: 0">
                 <label>Catatan</label>
@@ -690,12 +706,13 @@
     var L = document.getElementById("itemList"),
       G = document.getElementById("grandTotal"),
       HT = document.getElementById("heroTotal");
-    var DI = document.getElementById("discInp"),
-      DB = document.getElementById("discBadge"),
-      DL = document.getElementById("discLine");
-    var OI = document.getElementById("ongkirInp"),
-      OM = document.getElementById("ongkirModeInp"),
-      OH = document.getElementById("ongkirHint");
+    var DL = document.getElementById("discLine");
+    var AJ = document.getElementById("adjList");
+    var adjBlankTemplate = AJ.querySelector(".adj-row").cloneNode(true);
+    var ADJ_ONGKIR_HINTS = {
+      BEBAN: "Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.",
+      POTONGAN: "Ongkir langsung mengurangi total nota (seperti diskon tambahan).",
+    };
     var blankRowTemplate = L.querySelector(".item-row").cloneNode(true);
 
     function rp(n) { return "Rp " + Math.round(n || 0).toLocaleString("id-ID"); }
@@ -725,17 +742,40 @@
       L.querySelectorAll(".item-row").forEach(function (r) { t += rowPrice(r) * rowQty(r); });
       return t;
     }
+    function getAdjMode(row) {
+      var activeBtn = row.querySelector(".adj-ongkir-toggle .lov-new-toggle-btn.active");
+      return activeBtn ? activeBtn.getAttribute("data-mode") : "BEBAN";
+    }
+    function collectAdjustments() {
+      var list = [];
+      AJ.querySelectorAll(".adj-row").forEach(function (row) {
+        var type = row.querySelector(".adj-type").value;
+        var amount = qtyNum(row.querySelector(".adj-amount").value || "0");
+        if (amount <= 0) return;
+        var entry = { type: type, amount: amount };
+        if (type === "ONGKIR") entry.mode = getAdjMode(row);
+        list.push(entry);
+      });
+      return list;
+    }
     function grand() {
-      var sub = subTot(), disc = Math.max(0, parseInt(DI.value || "0", 10) || 0);
-      var ongkir = Math.max(0, parseInt(OI.value || "0", 10) || 0);
-      var ongkirPotongan = OM.value === "POTONGAN" ? ongkir : 0;
-      var g = Math.max(0, sub - disc - ongkirPotongan);
+      var sub = subTot();
+      var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
+      collectAdjustments().forEach(function (a) {
+        if (a.type === "DP") totalDp += a.amount;
+        else if (a.type === "ONGKIR") {
+          if (a.mode === "POTONGAN") ongkirPotongan += a.amount;
+          else ongkirBeban += a.amount;
+        }
+      });
+      var g = Math.max(0, sub - totalDp - ongkirPotongan);
       G.textContent = rp(g);
       HT.textContent = rp(g);
-      DB.textContent = "- " + rp(disc);
-      var subLine = disc > 0 ? "Subtotal " + rp(sub) + " · Diskon " + rp(disc) : "";
-      if (ongkirPotongan > 0) subLine += (subLine ? " · " : "Subtotal " + rp(sub) + " · ") + "Ongkir " + rp(ongkirPotongan);
-      DL.textContent = subLine;
+      var parts = [];
+      if (totalDp > 0) parts.push("Diskon/DP " + rp(totalDp));
+      if (ongkirPotongan > 0) parts.push("Ongkir " + rp(ongkirPotongan));
+      if (ongkirBeban > 0) parts.push("Ongkir beban " + rp(ongkirBeban));
+      DL.textContent = parts.length ? "Subtotal " + rp(sub) + " · " + parts.join(" · ") : "";
     }
 
     // ── List-of-value: searchable item picker ──
@@ -992,22 +1032,45 @@
     } else {
       L.querySelectorAll(".item-row").forEach(bindRow);
     }
-    DI.addEventListener("input", grand);
-    OI.addEventListener("input", grand);
-    var OI_HINTS = {
-      BEBAN: "Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.",
-      POTONGAN: "Ongkir langsung mengurangi total nota (seperti diskon tambahan).",
-    };
-    document.querySelectorAll('.lov-new-toggle-btn[data-mode="BEBAN"], .lov-new-toggle-btn[data-mode="POTONGAN"]').forEach(function (b) {
-      b.addEventListener("click", function () {
-        var mode = b.getAttribute("data-mode");
-        OM.value = mode;
-        OH.textContent = OI_HINTS[mode];
-        b.parentElement.querySelectorAll(".lov-new-toggle-btn").forEach(function (x) {
-          x.classList.toggle("active", x === b);
+    // ── Potongan & Biaya (DP/Diskon, Ongkir, dst -- bisa tambah berkali-kali) ──
+    function bindAdjRow(row) {
+      var typeSel = row.querySelector(".adj-type");
+      var amountInp = row.querySelector(".adj-amount");
+      var toggleWrap = row.querySelector(".adj-ongkir-toggle");
+      var hint = row.querySelector(".adj-hint");
+      var removeBtn = row.querySelector(".adj-remove");
+      function syncType() {
+        var isOngkir = typeSel.value === "ONGKIR";
+        toggleWrap.style.display = isOngkir ? "flex" : "none";
+        hint.style.display = isOngkir ? "block" : "none";
+        if (isOngkir) hint.textContent = ADJ_ONGKIR_HINTS[getAdjMode(row)];
+        grand();
+      }
+      typeSel.addEventListener("change", syncType);
+      amountInp.addEventListener("input", grand);
+      toggleWrap.querySelectorAll(".lov-new-toggle-btn").forEach(function (b) {
+        b.addEventListener("click", function () {
+          toggleWrap.querySelectorAll(".lov-new-toggle-btn").forEach(function (x) {
+            x.classList.toggle("active", x === b);
+          });
+          hint.textContent = ADJ_ONGKIR_HINTS[getAdjMode(row)];
+          grand();
         });
+      });
+      removeBtn.addEventListener("click", function () {
+        row.remove();
         grand();
       });
+      syncType();
+    }
+    AJ.querySelectorAll(".adj-row").forEach(bindAdjRow);
+    document.getElementById("btnAddAdj").addEventListener("click", function () {
+      var row = adjBlankTemplate.cloneNode(true);
+      row.querySelector(".adj-amount").value = "";
+      row.querySelector(".adj-type").value = "DP";
+      AJ.appendChild(row);
+      bindAdjRow(row);
+      grand();
     });
     grand();
 
@@ -1019,7 +1082,7 @@
         custCardTitle: "👤 Info Pelanggan", custCardSub: "Nama & nomor WhatsApp customer",
         custNameLbl: "Nama Customer *", custNamePlaceholder: "Wajib diisi…", custNameRequired: true,
         itemsCardSub: "Barang gudang, qty & harga jual",
-        discLbl: "Diskon (Rp)", ptTtl: "Lunas", ptSub: "Pembayaran sudah diterima", ptSubOff: "Tagihan masih berjalan (piutang)",
+        ptTtl: "Lunas", ptSub: "Pembayaran sudah diterima", ptSubOff: "Tagihan masih berjalan (piutang)",
       },
       BELI: {
         heroIco: "📦", heroTitle: "Buat Nota Beli",
@@ -1027,7 +1090,7 @@
         custCardTitle: "🚚 Info Pemasok", custCardSub: "Opsional — kosongkan jika pembelian umum",
         custNameLbl: "Nama Pemasok (opsional)", custNamePlaceholder: "Opsional, kosongkan jika umum…", custNameRequired: false,
         itemsCardSub: "Barang gudang, qty & harga beli",
-        discLbl: "DP Sudah Dibayar (Rp)", ptTtl: "Lunas", ptSub: "Sudah dibayar penuh ke pemasok", ptSubOff: "Tagihan masih berjalan (hutang)",
+        ptTtl: "Lunas", ptSub: "Sudah dibayar penuh ke pemasok", ptSubOff: "Tagihan masih berjalan (hutang)",
       },
     };
     function applyNotaType(type) {
@@ -1039,7 +1102,6 @@
       document.getElementById("custCardSub").textContent = t.custCardSub;
       document.getElementById("custNameLbl").textContent = t.custNameLbl;
       document.getElementById("itemsCardSub").textContent = t.itemsCardSub;
-      document.getElementById("discLbl").textContent = t.discLbl;
       var custNameInp = document.getElementById("custNameInp");
       custNameInp.required = t.custNameRequired;
       custNameInp.placeholder = t.custNamePlaceholder;
@@ -1065,6 +1127,7 @@
         return;
       }
       document.getElementById("itemsJsonInput").value = JSON.stringify(items);
+      document.getElementById("adjustmentsJsonInput").value = JSON.stringify(collectAdjustments());
     });
 
     var isPaid = document.getElementById("isPaidInp").value === "1";
@@ -1081,17 +1144,31 @@
     };
 
     // ── Draft: simpan, buka, hapus ──
+    function applyAdjustmentsSnapshot(adjustments) {
+      AJ.querySelectorAll(".adj-row").forEach(function (r) { r.remove(); });
+      (adjustments || []).forEach(function (a) {
+        var row = adjBlankTemplate.cloneNode(true);
+        var type = a.type === "ONGKIR" ? "ONGKIR" : "DP";
+        row.querySelector(".adj-type").value = type;
+        row.querySelector(".adj-amount").value = a.amount || "";
+        if (type === "ONGKIR" && a.mode === "POTONGAN") {
+          row.querySelectorAll(".adj-ongkir-toggle .lov-new-toggle-btn").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-mode") === "POTONGAN");
+          });
+        }
+        AJ.appendChild(row);
+        bindAdjRow(row);
+      });
+      if (!AJ.querySelector(".adj-row")) {
+        var row = adjBlankTemplate.cloneNode(true);
+        AJ.appendChild(row);
+        bindAdjRow(row);
+      }
+    }
     function applyFormFieldsSnapshot(data) {
       document.querySelector('input[name="customer_name"]').value = data.customer_name || "";
       document.querySelector('input[name="customer_phone"]').value = data.customer_phone || "";
-      DI.value = data.discount || 0;
-      OI.value = data.ongkir || 0;
-      var ongkirMode = data.ongkir_mode === "POTONGAN" ? "POTONGAN" : "BEBAN";
-      OM.value = ongkirMode;
-      OH.textContent = OI_HINTS[ongkirMode];
-      document.querySelectorAll('.lov-new-toggle-btn[data-mode="BEBAN"], .lov-new-toggle-btn[data-mode="POTONGAN"]').forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-mode") === ongkirMode);
-      });
+      applyAdjustmentsSnapshot(data.adjustments || []);
       document.querySelector('textarea[name="notes"]').value = data.notes || "";
       var pmRadio = document.querySelector('input[name="payment_method"][value="' + (data.payment_method || "CASH") + '"]');
       if (pmRadio) pmRadio.checked = true;
@@ -1151,9 +1228,7 @@
             customer_phone: document.querySelector('input[name="customer_phone"]').value || "",
             payment_method: (document.querySelector('input[name="payment_method"]:checked') || {}).value || "CASH",
             is_paid: isPaid,
-            discount: parseInt(DI.value || "0", 10) || 0,
-            ongkir: parseInt(OI.value || "0", 10) || 0,
-            ongkir_mode: OM.value || "BEBAN",
+            adjustments: collectAdjustments(),
             notes: document.querySelector('textarea[name="notes"]').value || "",
             items: items,
           },

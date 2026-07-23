@@ -905,22 +905,59 @@ def _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by):
     """, (f"Ongkir nota {invoice_no}", ongkir, created_by, txn_id))
 
 
+def _sum_adjustments(adjustments):
+    """
+    Pecah daftar "Potongan & Biaya" (dropdown di form Nota, bisa nambah
+    berkali-kali) jadi 3 total sesuai prosedur yang sudah ditetapkan:
+    - DP / Diskon         -> selalu mengurangi total nota langsung.
+    - Ongkir mode BEBAN   -> jadi pengeluaran terpisah di Finance (TIDAK
+                             mengurangi total nota).
+    - Ongkir mode POTONGAN -> mengurangi total nota langsung (mereka bayar).
+    adjustments: [{"type": "DP"|"ONGKIR", "amount": number, "mode": "BEBAN"|"POTONGAN"}]
+    Return (total_dp, ongkir_beban, ongkir_potongan).
+    """
+    total_dp = 0.0
+    ongkir_beban = 0.0
+    ongkir_potongan = 0.0
+    for adj in (adjustments or []):
+        try:
+            amount = float(adj.get("amount") or 0)
+        except (TypeError, ValueError, AttributeError):
+            amount = 0.0
+        if amount <= 0:
+            continue
+        adj_type = str((adj or {}).get("type") or "").strip().upper()
+        if adj_type == "DP":
+            total_dp += amount
+        elif adj_type == "ONGKIR":
+            mode = str(adj.get("mode") or "BEBAN").strip().upper()
+            if mode == "POTONGAN":
+                ongkir_potongan += amount
+            else:
+                ongkir_beban += amount
+    return total_dp, ongkir_beban, ongkir_potongan
+
+
 def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                         discount, is_paid, items, created_by, print_size=None,
-                        ongkir=0, ongkir_mode="BEBAN"):
+                        adjustments=None):
     """
     Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
     catat piutang jika belum lunas. Logic diextract dari
     routes/mobile/finance.py:create_invoice() agar web & mobile berbagi 1
     sumber kebenaran. Raise ValueError(pesan) kalau validasi gagal.
 
-    ongkir_mode: "BEBAN" (kita yang bayar -- jadi pengeluaran terpisah di
-    Finance, tertaut ke nota ini, TIDAK mengubah total nota) atau
-    "POTONGAN" (mereka yang bayar -- langsung mengurangi total nota,
-    diperlakukan seperti diskon tambahan).
+    'discount' tetap ada apa adanya (dipakai mobile app -- angka biasa,
+    langsung mengurangi total). 'adjustments' (dipakai form Nota web,
+    opsional) adalah daftar "Potongan & Biaya" yang bisa ditambah
+    berkali-kali, tiap entri {type: "DP"|"ONGKIR", amount, mode} --
+    lihat _sum_adjustments() utk aturan lengkapnya. Jumlah DP di
+    adjustments ditambahkan ke discount; Ongkir mode BEBAN jadi
+    pengeluaran terpisah tertaut ke nota (tidak mengubah total), mode
+    POTONGAN mengurangi total nota.
 
     Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir,
-    ongkir_mode, total, hpp, laba}.
+    total, hpp, laba}.
     """
     from routes.mobile.finance import _update_stock_avco
 
@@ -931,10 +968,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
-    ongkir = float(ongkir or 0)
-    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
-    if ongkir_mode not in ("BEBAN", "POTONGAN"):
-        ongkir_mode = "BEBAN"
+    total_dp, ongkir_beban, ongkir_potongan = _sum_adjustments(adjustments)
+    discount += total_dp
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -969,8 +1004,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                 )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
-        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
+        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -1026,8 +1060,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             """, (customer_name, grand_total, grand_total, txn_id,
                   f"Invoice {invoice_no} — belum dibayar"))
 
-        if ongkir > 0 and ongkir_mode == "BEBAN":
-            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by)
+        if ongkir_beban > 0:
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir_beban, created_by)
 
         conn.commit()
 
@@ -1036,8 +1070,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             "invoice_no": invoice_no,
             "subtotal": subtotal_bruto,
             "discount": discount,
-            "ongkir": ongkir,
-            "ongkir_mode": ongkir_mode,
+            "ongkir": ongkir_beban + ongkir_potongan,
             "total": grand_total,
             "hpp": hpp_total,
             "laba": grand_total - hpp_total,
@@ -1055,16 +1088,16 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
 def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
                                  discount, is_paid, items, created_by, print_size=None,
-                                 ongkir=0, ongkir_mode="BEBAN"):
+                                 adjustments=None):
     """
     Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
     (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
     masuk (bukan keluar) dan tanpa HPP/laba. 'discount' di sini berarti DP
     yang sudah dibayar ke pemasok, mengurangi nilai hutang yang dicatat.
-    ongkir_mode: "BEBAN" (kita bayar -- pengeluaran terpisah tertaut ke
-    nota ini) atau "POTONGAN" (mereka bayar -- langsung mengurangi total).
+    'adjustments' (opsional, dari form Nota web) -- lihat create_fin_invoice()
+    & _sum_adjustments() utk aturan lengkapnya.
     Raise ValueError(pesan) kalau validasi gagal.
-    Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir, ongkir_mode, total}.
+    Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir, total}.
     """
     from routes.mobile.finance import _update_stock_avco
 
@@ -1073,10 +1106,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
-    ongkir = float(ongkir or 0)
-    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
-    if ongkir_mode not in ("BEBAN", "POTONGAN"):
-        ongkir_mode = "BEBAN"
+    total_dp, ongkir_beban, ongkir_potongan = _sum_adjustments(adjustments)
+    discount += total_dp
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1094,8 +1125,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
-        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
+        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -1142,8 +1172,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             """, (supplier_name, grand_total, grand_total, txn_id,
                   f"Nota {invoice_no} — belum dibayar"))
 
-        if ongkir > 0 and ongkir_mode == "BEBAN":
-            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by)
+        if ongkir_beban > 0:
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir_beban, created_by)
 
         conn.commit()
 
@@ -1152,8 +1182,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             "invoice_no": invoice_no,
             "subtotal": subtotal_bruto,
             "discount": discount,
-            "ongkir": ongkir,
-            "ongkir_mode": ongkir_mode,
+            "ongkir": ongkir_beban + ongkir_potongan,
             "total": grand_total,
         }
     except ValueError:
@@ -1169,7 +1198,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
 def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, payment_method,
                                     notes, discount, is_paid, items, edited_by,
-                                    ongkir=0, ongkir_mode="BEBAN"):
+                                    adjustments=None):
     """
     Edit nota JUAL_INVOICE/BELI_GUDANG yang sudah ada: balikkan efek stok &
     hutang/piutang LAMA (pola sama dengan cancel_fin_transaction), lalu
@@ -1177,9 +1206,9 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
     create_fin_invoice/create_fin_purchase_invoice). invoice_no & jenis nota
     (JUAL/BELI) TIDAK berubah. Tidak bisa dipakai kalau hutang/piutangnya
     sudah ada cicilan/pembayaran, atau nota-nya sudah dihapus/dibatalkan.
-    ongkir_mode: "BEBAN" (kita bayar) / "POTONGAN" (mereka bayar) -- lihat
-    create_fin_invoice(). Expense Ongkir lama (kalau ada) dihapus dulu
-    sebelum yang baru dibuat, supaya edit berulang tidak numpuk expense.
+    'adjustments' (opsional) -- lihat create_fin_invoice() & _sum_adjustments().
+    Expense Ongkir lama (kalau ada) dihapus dulu sebelum yang baru dibuat,
+    supaya edit berulang tidak numpuk expense.
     Return dict {invoice_id, invoice_no, total}.
     """
     from routes.mobile.finance import _update_stock_avco, _reverse_stock_movement
@@ -1189,10 +1218,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         raise ValueError("Minimal 1 item barang.")
 
     discount = float(discount or 0)
-    ongkir = float(ongkir or 0)
-    ongkir_mode = (ongkir_mode or "BEBAN").strip().upper()
-    if ongkir_mode not in ("BEBAN", "POTONGAN"):
-        ongkir_mode = "BEBAN"
+    total_dp, ongkir_beban, ongkir_potongan = _sum_adjustments(adjustments)
+    discount += total_dp
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1275,8 +1302,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                     )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        potongan_ongkir = ongkir if ongkir_mode == "POTONGAN" else 0.0
-        grand_total = max(0.0, subtotal_bruto - discount - potongan_ongkir)
+        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
 
         for item in items:
             mat_id = int(item["material_id"])
@@ -1327,8 +1353,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             DELETE FROM fin_transactions
             WHERE related_transaction_id = %s AND type = 'PENGELUARAN' AND party_name = 'Ongkir';
         """, (txn_id,))
-        if ongkir > 0 and ongkir_mode == "BEBAN":
-            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, edited_by)
+        if ongkir_beban > 0:
+            _record_ongkir_expense(cur, txn_id, invoice_no, ongkir_beban, edited_by)
 
         conn.commit()
         return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total}
@@ -1926,21 +1952,25 @@ def _ensure_nota_drafts_schema(cur):
     """)
 
 
-def list_nota_drafts(user_id):
-    """Daftar draft nota milik satu user, terbaru duluan."""
+def list_nota_drafts():
+    """
+    Daftar SEMUA draft nota (dari admin/owner manapun -- dibagikan supaya
+    saling bisa lanjutkan pekerjaan satu sama lain), terbaru duluan.
+    """
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_nota_drafts_schema(cur)
         conn.commit()
         cur.execute("""
-            SELECT id, nota_type, draft_name, form_data,
-                   TO_CHAR(updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+            SELECT d.id, d.nota_type, d.draft_name, d.form_data, d.created_by,
+                   u.name AS created_by_name,
+                   TO_CHAR(d.updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
                            'YYYY-MM-DD HH24:MI:SS') AS updated_at_wib
-            FROM nota_drafts
-            WHERE created_by = %s
-            ORDER BY updated_at DESC;
-        """, (user_id,))
+            FROM nota_drafts d
+            LEFT JOIN users u ON u.id = d.created_by
+            ORDER BY d.updated_at DESC;
+        """)
         return [dict(r) for r in cur.fetchall()]
     finally:
         cur.close()
@@ -1998,14 +2028,19 @@ def save_nota_draft(user_id, nota_type, draft_name, form_data):
         conn.close()
 
 
-def delete_nota_draft(draft_id, user_id):
-    """Hapus 1 draft milik user tsb. Raise ValueError kalau tidak ketemu/bukan miliknya."""
+def delete_nota_draft(draft_id):
+    """
+    Hapus 1 draft. Draft dibagikan antar admin/owner (lihat list_nota_drafts),
+    jadi siapa saja yang punya akses Finance boleh hapus draft siapa pun --
+    akses sudah dibatasi di level route (owner_or_admin_required).
+    Raise ValueError kalau draft tidak ditemukan.
+    """
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            DELETE FROM nota_drafts WHERE id = %s AND created_by = %s RETURNING id;
-        """, (draft_id, user_id))
+            DELETE FROM nota_drafts WHERE id = %s RETURNING id;
+        """, (draft_id,))
         if not cur.fetchone():
             raise ValueError("Draft tidak ditemukan.")
         conn.commit()
