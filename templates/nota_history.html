@@ -212,14 +212,22 @@
 
   .footer-hint { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); }
 
-  /* mini popover (hapus nota) */
-  details.mini-pop { position: relative; display: inline-block; }
-  details.mini-pop > summary { list-style: none; }
-  details.mini-pop > summary::-webkit-details-marker { display: none; }
-  details.mini-pop .pop-panel {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; background: #fff;
-    border-radius: 14px; box-shadow: var(--shadow-out); border: 1px solid rgba(37, 99, 235, 0.08);
-    padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 260px;
+  /* modal hapus nota -- dipusatkan di layar, bukan popover mengikuti tombol,
+     supaya tidak pernah salah posisi/kepotong di baris manapun */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 200;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 20px; box-shadow: var(--shadow-out);
+    padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .modal-title { font-size: 15px; font-weight: 1000; color: #1e3252; }
+  .modal-close {
+    width: 32px; height: 32px; flex: 0 0 32px; border: none; border-radius: 10px;
+    background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit;
   }
   .del-radio-grid { display: flex; flex-direction: column; gap: 6px; }
   .del-radio {
@@ -357,7 +365,7 @@
             <div style="display:flex; gap:6px; flex-wrap:wrap">
               <a class="pill-btn primary" href="/nota/{{ inv.id }}">Lihat</a>
               <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
-              {% include "_nota_delete_popover.html" %}
+              <button type="button" class="pill-btn danger" onclick="openDeleteModal({{ inv.id }}, {{ (inv.invoice_no or ('Nota #' ~ inv.id))|tojson }})">Hapus</button>
             </div>
           </div>
         </div>
@@ -396,7 +404,7 @@
                 <div style="display:flex; gap:6px; flex-wrap:wrap">
                   <a class="pill-btn" href="/nota/{{ inv.id }}">Lihat</a>
                   <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
-                  {% include "_nota_delete_popover.html" %}
+                  <button type="button" class="pill-btn danger" onclick="openDeleteModal({{ inv.id }}, {{ (inv.invoice_no or ('Nota #' ~ inv.id))|tojson }})">Hapus</button>
                 </div>
               </td>
             </tr>
@@ -413,6 +421,45 @@
       Nota lama (sebelum sistem gudang) tersimpan terpisah sebagai arsip —
       hubungi admin kalau butuh salinan nota lama.
     </p>
+  </div>
+</div>
+
+<!-- MODAL HAPUS NOTA (satu untuk semua baris, dipusatkan di layar) -->
+<div class="modal-overlay" id="deleteModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Hapus <span id="delModalInvNo"></span></div>
+      <button type="button" class="modal-close" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <form method="post" id="deleteModalForm" style="display:flex; flex-direction:column; gap:10px">
+      <div>
+        <label style="margin-bottom:8px">Stok &amp; Uang</label>
+        <div class="del-radio-grid">
+          <label class="del-radio">
+            <input type="radio" name="mode" value="REVERSE" />
+            🔄 Kembalikan stok &amp; uang
+          </label>
+          <label class="del-radio">
+            <input type="radio" name="mode" value="KEEP" checked />
+            🗑️ Hapus dari riwayat saja
+          </label>
+        </div>
+      </div>
+      <div>
+        <label>Alasan Hapus</label>
+        <select name="reason_template" id="delModalReason" required>
+          <option value="SALAH_INPUT">Salah input data</option>
+          <option value="DUPLIKAT">Nota duplikat</option>
+          <option value="BATAL_PELANGGAN">Dibatalkan pelanggan</option>
+          <option value="BATAL_PEMASOK">Dibatalkan pemasok</option>
+          <option value="SALAH_JUMLAH_HARGA">Kesalahan jumlah/harga barang</option>
+          <option value="UJI_COBA">Nota uji coba</option>
+          <option value="LAINNYA">Lainnya…</option>
+        </select>
+      </div>
+      <input type="text" name="reason_other" id="delModalReasonOther" placeholder="Tulis alasan…" style="display:none" />
+      <button type="submit" class="pill-btn danger" style="width:100%; padding:12px">Hapus Nota</button>
+    </form>
   </div>
 </div>
 
@@ -435,53 +482,44 @@
       countUp(el, 700);
     });
 
-    // Popover mini-pop: tutup yang lain saat satu dibuka, dan posisikan
-    // "fixed" mengikuti tombolnya — supaya tidak ke-clip oleh .table-wrap
-    // (overflow-x:auto otomatis membuat overflow-y ikut auto & memotong
-    // popover yang posisinya absolute di dalamnya).
-    function closeAllMiniPop(except) {
-      document.querySelectorAll("details.mini-pop[open]").forEach(function (o) {
-        if (o !== except) o.removeAttribute("open");
-      });
-    }
-    function positionPopPanel(d) {
-      var panel = d.querySelector(".pop-panel");
-      var summary = d.querySelector("summary");
-      if (!panel || !summary) return;
-      var rect = summary.getBoundingClientRect();
-      var pw = panel.offsetWidth || 260;
-      var ph = panel.offsetHeight || 200;
-      var left = Math.min(rect.right - pw, window.innerWidth - pw - 10);
-      left = Math.max(left, 10);
-      var top = rect.bottom + 8;
-      if (top + ph > window.innerHeight - 10) top = Math.max(10, rect.top - ph - 8);
-      panel.style.position = "fixed";
-      panel.style.left = left + "px";
-      panel.style.top = top + "px";
-      panel.style.right = "auto";
-    }
-    document.querySelectorAll("details.mini-pop").forEach(function (d) {
-      d.addEventListener("toggle", function () {
-        if (d.open) {
-          closeAllMiniPop(d);
-          positionPopPanel(d);
-        }
-      });
+    // Modal Hapus Nota: satu modal dipakai bersama semua baris, selalu
+    // dipusatkan di layar (position:fixed + flex center) -- jadi tidak
+    // pernah salah posisi/kepotong di baris manapun, beda dari popover
+    // yang sebelumnya mengikuti posisi tombol per baris.
+    var deleteOverlay = document.getElementById("deleteModalOverlay");
+    var deleteForm = document.getElementById("deleteModalForm");
+    var delModalInvNo = document.getElementById("delModalInvNo");
+    var delModalReason = document.getElementById("delModalReason");
+    var delModalReasonOther = document.getElementById("delModalReasonOther");
+
+    window.openDeleteModal = function (id, invoiceNo) {
+      deleteForm.action = "/nota/" + id + "/delete";
+      delModalInvNo.textContent = invoiceNo || ("Nota #" + id);
+      deleteOverlay.classList.add("open");
+    };
+    window.closeDeleteModal = function () {
+      deleteOverlay.classList.remove("open");
+    };
+    deleteOverlay.addEventListener("click", function (e) {
+      if (e.target === deleteOverlay) closeDeleteModal();
     });
-    window.addEventListener("scroll", function () { closeAllMiniPop(null); }, true);
-    window.addEventListener("resize", function () { closeAllMiniPop(null); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && deleteOverlay.classList.contains("open")) closeDeleteModal();
+    });
+    deleteForm.addEventListener("submit", function (e) {
+      if (!confirm("Hapus " + delModalInvNo.textContent + "? Nota akan hilang dari Riwayat Nota dan masuk arsip khusus owner.")) {
+        e.preventDefault();
+      }
+    });
 
     // Tampilkan input alasan manual kalau pilih "Lainnya"
-    document.querySelectorAll("select.nota-del-reason").forEach(function (sel) {
-      var other = sel.closest("form").querySelector(".nota-del-reason-other");
-      function sync() {
-        var isOther = sel.value === "LAINNYA";
-        other.style.display = isOther ? "block" : "none";
-        other.required = isOther;
-      }
-      sel.addEventListener("change", sync);
-      sync();
-    });
+    function syncReasonOther() {
+      var isOther = delModalReason.value === "LAINNYA";
+      delModalReasonOther.style.display = isOther ? "block" : "none";
+      delModalReasonOther.required = isOther;
+    }
+    delModalReason.addEventListener("change", syncReasonOther);
+    syncReasonOther();
   })();
 </script>
 {% endblock %}
