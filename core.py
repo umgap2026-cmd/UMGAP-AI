@@ -277,6 +277,81 @@ def _ensure_fin_returns_schema(cur):
         );
     """)
 
+def _ensure_fin_materials_schema(cur):
+    """Lazy-migration: kolom kategori barang gudang (tembaga, kuningan, dst),
+    bebas diubah admin -- teks bebas, bukan enum tetap."""
+    cur.execute("""
+        ALTER TABLE fin_materials
+            ADD COLUMN IF NOT EXISTS category VARCHAR(80) NULL;
+    """)
+
+
+def _ensure_fin_activity_log_schema(cur):
+    """Lazy-migration: log aktivitas barang gudang (tambah/ubah/tambah stok/
+    kurangi stok/hapus) supaya ketahuan siapa melakukan apa & kapan."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fin_activity_log (
+            id SERIAL PRIMARY KEY,
+            action VARCHAR(30) NOT NULL,
+            material_id INTEGER NULL REFERENCES fin_materials(id),
+            material_name TEXT NOT NULL,
+            detail TEXT,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+
+def _log_fin_activity(cur, action, material_id, material_name, detail, created_by):
+    """Insert 1 baris log aktivitas barang gudang. Dipanggil DALAM transaksi
+    yang sama (sebelum commit) supaya log & perubahan datanya atomik."""
+    cur.execute("""
+        INSERT INTO fin_activity_log (action, material_id, material_name, detail, created_by)
+        VALUES (%s, %s, %s, %s, %s);
+    """, (action, material_id, material_name, detail, created_by))
+
+
+def list_fin_activity_log(limit=200):
+    """Riwayat aktivitas barang gudang terbaru duluan, dengan nama pelaku."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_activity_log_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT l.id, l.action, l.material_id, l.material_name, l.detail,
+                   l.created_by, u.name AS created_by_name,
+                   TO_CHAR(l.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+            FROM fin_activity_log l
+            LEFT JOIN users u ON u.id = l.created_by
+            ORDER BY l.created_at DESC
+            LIMIT %s;
+        """, (limit,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_fin_categories():
+    """Daftar kategori barang gudang yang sudah pernah dipakai (utk saran/datalist)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_materials_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT DISTINCT category FROM fin_materials
+            WHERE category IS NOT NULL AND TRIM(category) <> '' AND is_active = TRUE
+            ORDER BY category;
+        """)
+        return [r["category"] for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
 def _table_exists(cur, table):
     cur.execute("""
         SELECT 1 FROM information_schema.tables
@@ -879,16 +954,22 @@ def get_materials_with_stock():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_materials_schema(cur)
+        conn.commit()
         cur.execute("""
             SELECT
                 m.id, m.name, m.unit, m.sort_order,
+                COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori') AS category,
                 COALESCE(s.qty_kg, 0)          AS qty_kg,
                 COALESCE(s.avg_cost_per_kg, 0) AS avg_cost_per_kg,
                 COALESCE(s.total_value, 0)     AS total_value
             FROM fin_materials m
             LEFT JOIN fin_stock_summary s ON s.material_id = m.id
             WHERE m.is_active = TRUE
-            ORDER BY m.sort_order, m.name;
+            ORDER BY
+                (COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori') = 'Tanpa Kategori'),
+                COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori'),
+                m.sort_order, m.name;
         """)
         return [dict(r) for r in cur.fetchall()]
     finally:
@@ -2292,9 +2373,12 @@ def list_fin_materials():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_materials_schema(cur)
+        conn.commit()
         cur.execute("""
             SELECT
                 m.id, m.name, m.unit, m.sort_order,
+                COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori') AS category,
                 COALESCE(s.qty_kg, 0)          AS qty_kg,
                 COALESCE(s.avg_cost_per_kg, 0) AS avg_cost_per_kg,
                 COALESCE(s.total_value, 0)     AS total_value,
@@ -2302,7 +2386,10 @@ def list_fin_materials():
             FROM fin_materials m
             LEFT JOIN fin_stock_summary s ON s.material_id = m.id
             WHERE m.is_active = TRUE
-            ORDER BY m.sort_order, m.name;
+            ORDER BY
+                (COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori') = 'Tanpa Kategori'),
+                COALESCE(NULLIF(TRIM(m.category), ''), 'Tanpa Kategori'),
+                m.sort_order, m.name;
         """)
         rows = _clean([dict(r) for r in cur.fetchall()])
         total_value = sum(float(r['total_value'] or 0) for r in rows)
@@ -2312,10 +2399,11 @@ def list_fin_materials():
         conn.close()
 
 
-def add_fin_material(name, unit, init_qty, init_price, note, created_by):
+def add_fin_material(name, unit, init_qty, init_price, note, created_by, category=None):
     """Tambah barang baru ke fin_materials, opsional stok awal via AVCO."""
     name = (name or "").strip()
     unit = (unit or "kg").strip() or "kg"
+    category = (category or "").strip() or None
     init_qty = float(init_qty or 0)
     init_price = int(init_price or 0)
     note = (note or "").strip()
@@ -2330,6 +2418,9 @@ def add_fin_material(name, unit, init_qty, init_price, note, created_by):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_materials_schema(cur)
+        _ensure_fin_activity_log_schema(cur)
+
         cur.execute(
             "SELECT id FROM fin_materials WHERE LOWER(name)=LOWER(%s) AND is_active=TRUE;",
             (name,))
@@ -2340,10 +2431,10 @@ def add_fin_material(name, unit, init_qty, init_price, note, created_by):
         sort_order = cur.fetchone()["nxt"]
 
         cur.execute("""
-            INSERT INTO fin_materials (name, unit, sort_order, is_active)
-            VALUES (%s, %s, %s, TRUE)
+            INSERT INTO fin_materials (name, unit, category, sort_order, is_active)
+            VALUES (%s, %s, %s, %s, TRUE)
             RETURNING id;
-        """, (name, unit, sort_order))
+        """, (name, unit, category, sort_order))
         material_id = cur.fetchone()["id"]
 
         cur.execute("""
@@ -2376,6 +2467,11 @@ def add_fin_material(name, unit, init_qty, init_price, note, created_by):
             _update_stock_avco(
                 cur, material_id, init_qty, init_price, 'IN', txn_id,
                 note=note or f"Stok awal {name}")
+
+        detail = f"Kategori: {category or 'Tanpa Kategori'}"
+        if init_qty > 0:
+            detail += f" • Stok awal {init_qty:g} {unit} @ Rp{init_price:,}".replace(",", ".")
+        _log_fin_activity(cur, "TAMBAH_BARANG", material_id, name, detail, created_by)
 
         conn.commit()
         return {"material_id": material_id, "name": name, "unit": unit, "init_qty": init_qty}
@@ -2422,7 +2518,7 @@ def add_fin_material_stock(material_id, qty, price, note, created_by):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(
-            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            "SELECT id, name, unit FROM fin_materials WHERE id=%s AND is_active=TRUE;",
             (material_id,))
         mat = cur.fetchone()
         if not mat:
@@ -2449,6 +2545,12 @@ def add_fin_material_stock(material_id, qty, price, note, created_by):
         _update_stock_avco(
             cur, material_id, qty, price, 'IN', txn_id,
             note=note or f"Tambah stok {mat['name']}")
+
+        _ensure_fin_activity_log_schema(cur)
+        detail = f"+{qty:g} {mat.get('unit') or ''} @ Rp{int(price):,}".replace(",", ".")
+        if note:
+            detail += f" — {note}"
+        _log_fin_activity(cur, "TAMBAH_STOK", material_id, mat["name"], detail, created_by)
 
         conn.commit()
 
@@ -2502,7 +2604,7 @@ def reduce_fin_material_stock(material_id, qty, reason, note, created_by):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(
-            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            "SELECT id, name, unit FROM fin_materials WHERE id=%s AND is_active=TRUE;",
             (material_id,))
         mat = cur.fetchone()
         if not mat:
@@ -2544,6 +2646,10 @@ def reduce_fin_material_stock(material_id, qty, reason, note, created_by):
         _update_stock_avco(
             cur, material_id, qty, avg_cost, 'OUT', txn_id, note=full_note)
 
+        _ensure_fin_activity_log_schema(cur)
+        detail = f"-{qty:g} {mat.get('unit') or ''} • {full_note} (Rp{int(loss_value):,})".replace(",", ".")
+        _log_fin_activity(cur, "KURANGI_STOK", material_id, mat["name"], detail, created_by)
+
         conn.commit()
 
         cur.execute("""
@@ -2567,24 +2673,46 @@ def reduce_fin_material_stock(material_id, qty, reason, note, created_by):
         conn.close()
 
 
-def edit_fin_material(material_id, name, unit):
-    """Edit nama & satuan barang gudang."""
+def edit_fin_material(material_id, name, unit, created_by, category=None):
+    """Edit nama, satuan & kategori barang gudang. Kategori teks bebas (admin
+    bisa isi/ubah sesuka hati, mis. Tembaga, Kuningan) -- kosongkan utk hapus
+    kategori (jadi 'Tanpa Kategori')."""
     name = (name or "").strip()
     unit = (unit or "kg").strip() or "kg"
+    category = (category or "").strip() or None
     if not name:
         raise ValueError("Nama barang wajib diisi.")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_materials_schema(cur)
+        _ensure_fin_activity_log_schema(cur)
+
         cur.execute(
-            "UPDATE fin_materials SET name = %s, unit = %s WHERE id = %s RETURNING id, name;",
-            (name, unit, material_id)
-        )
-        row = cur.fetchone()
-        if not row:
+            "SELECT name, unit, category FROM fin_materials WHERE id = %s;",
+            (material_id,))
+        old = cur.fetchone()
+        if not old:
             conn.rollback()
             raise ValueError("Barang tidak ditemukan.")
+
+        cur.execute(
+            "UPDATE fin_materials SET name = %s, unit = %s, category = %s WHERE id = %s RETURNING id, name;",
+            (name, unit, category, material_id)
+        )
+        row = cur.fetchone()
+
+        changes = []
+        if old["name"] != name:
+            changes.append(f"nama '{old['name']}' → '{name}'")
+        if (old["unit"] or "") != unit:
+            changes.append(f"satuan '{old['unit']}' → '{unit}'")
+        if (old["category"] or None) != category:
+            changes.append(f"kategori '{old['category'] or 'Tanpa Kategori'}' → '{category or 'Tanpa Kategori'}'")
+        detail = "; ".join(changes) if changes else "Tidak ada perubahan"
+        _log_fin_activity(cur, "EDIT_BARANG", material_id, name, detail, created_by)
+
         conn.commit()
         return dict(row)
     except ValueError:
@@ -2597,11 +2725,13 @@ def edit_fin_material(material_id, name, unit):
         conn.close()
 
 
-def delete_fin_material(material_id):
+def delete_fin_material(material_id, created_by=None):
     """Nonaktifkan barang gudang & bersihkan referensi stok. Return nama barang."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_activity_log_schema(cur)
+
         cur.execute("SELECT name FROM fin_materials WHERE id = %s;", (material_id,))
         row = cur.fetchone()
         if not row:
@@ -2617,6 +2747,9 @@ def delete_fin_material(material_id):
         """, (material_id,))
         cur.execute("DELETE FROM fin_stock_summary WHERE material_id = %s;", (material_id,))
         cur.execute("UPDATE fin_materials SET is_active = FALSE WHERE id = %s;", (material_id,))
+
+        _log_fin_activity(cur, "HAPUS_BARANG", material_id, mat_name, "Barang dinonaktifkan", created_by)
+
         conn.commit()
         return mat_name
     except ValueError:

@@ -385,7 +385,7 @@ def finance_edit_material(material_id):
         cur.close(); conn.close()
 
     try:
-        row = edit_fin_material(material_id, name, unit)
+        row = edit_fin_material(material_id, name, unit, request.mobile_user["user_id"])
         return mobile_api_response(ok=True, message="Barang berhasil diperbarui", data=row)
     except ValueError as e:
         status = 404 if "tidak ditemukan" in str(e) else 400
@@ -423,7 +423,7 @@ def finance_delete_material(material_id):
         cur.close(); conn.close()
 
     try:
-        mat_name = delete_fin_material(material_id)
+        mat_name = delete_fin_material(material_id, request.mobile_user["user_id"])
         return mobile_api_response(
             ok=True, message=f'Barang "{mat_name}" berhasil dihapus', data={})
     except ValueError as e:

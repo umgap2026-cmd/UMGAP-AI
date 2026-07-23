@@ -243,6 +243,10 @@
     padding: 9px 12px; font-size: 13px; color: var(--text); font-family: inherit;
   }
   .lov-list { max-height: 220px; overflow-y: auto; }
+  .lov-group-header {
+    padding: 8px 14px 4px; font-size: 10.5px; font-weight: 900; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px; background: #fbfcfe;
+  }
   .lov-item { padding: 10px 14px; font-size: 13px; color: var(--text); cursor: pointer; transition: background 0.12s; }
   .lov-item:hover { background: #eef2ff; }
   .lov-item .stk { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
@@ -571,12 +575,15 @@
                             <input type="text" class="lov-search" placeholder="Cari nama barang…" autocomplete="off" />
                           </div>
                           <div class="lov-list">
-                            {% for m in materials %}
+                            {% for cat, group in materials|groupby('category') %}
+                            <div class="lov-group-header">🏷️ {{ cat }}</div>
+                            {% for m in group %}
                             <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}"
                                  data-unit="{{ m.unit }}" data-search="{{ m.name|lower }}">
                               {{ m.name }}
                               <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}</span>
                             </div>
+                            {% endfor %}
                             {% endfor %}
                             <div class="lov-empty" style="display: none">Barang tidak ditemukan</div>
                           </div>
@@ -631,7 +638,7 @@
 
               <div class="field" style="margin-bottom: 8px">
                 <label>Potongan &amp; Biaya</label>
-                <div class="sec-desc" style="margin-top: -2px">DP/Diskon langsung mengurangi total. Ongkir bisa jadi beban terpisah atau ikut mengurangi total.</div>
+                <div class="sec-desc" style="margin-top: -2px">DP langsung mengurangi total. Ongkir bisa jadi beban terpisah atau ikut mengurangi total.</div>
               </div>
 
               <div id="adjList">
@@ -640,7 +647,7 @@
                     <div class="field" style="margin-bottom: 0">
                       <label style="margin-bottom: 5px">Jenis</label>
                       <select class="adj-type">
-                        <option value="DP" selected>DP / Diskon</option>
+                        <option value="DP" selected>DP</option>
                         <option value="ONGKIR">Ongkir</option>
                       </select>
                     </div>
@@ -711,7 +718,7 @@
     var adjBlankTemplate = AJ.querySelector(".adj-row").cloneNode(true);
     var ADJ_ONGKIR_HINTS = {
       BEBAN: "Ongkir jadi pengeluaran terpisah di Finance, total nota tidak berubah.",
-      POTONGAN: "Ongkir langsung mengurangi total nota (seperti diskon tambahan).",
+      POTONGAN: "Ongkir langsung mengurangi total nota (seperti DP).",
     };
     var blankRowTemplate = L.querySelector(".item-row").cloneNode(true);
 
@@ -772,7 +779,7 @@
       G.textContent = rp(g);
       HT.textContent = rp(g);
       var parts = [];
-      if (totalDp > 0) parts.push("Diskon/DP " + rp(totalDp));
+      if (totalDp > 0) parts.push("DP " + rp(totalDp));
       if (ongkirPotongan > 0) parts.push("Ongkir " + rp(ongkirPotongan));
       if (ongkirBeban > 0) parts.push("Ongkir beban " + rp(ongkirBeban));
       DL.textContent = parts.length ? "Subtotal " + rp(sub) + " · " + parts.join(" · ") : "";
@@ -846,11 +853,22 @@
       function filter(q) {
         q = q.trim().toLowerCase();
         var any = false;
-        items().forEach(function (it) {
-          var match = !q || (it.getAttribute("data-search") || "").indexOf(q) !== -1;
-          it.style.display = match ? "" : "none";
-          if (match) any = true;
+        var list = wrap.querySelector(".lov-list");
+        var groupHeader = null;
+        var groupHasMatch = false;
+        Array.prototype.forEach.call(list.children, function (el) {
+          if (el.classList.contains("lov-group-header")) {
+            if (groupHeader) groupHeader.style.display = groupHasMatch ? "" : "none";
+            groupHeader = el;
+            groupHasMatch = false;
+            return;
+          }
+          if (!el.classList.contains("lov-item")) return;
+          var match = !q || (el.getAttribute("data-search") || "").indexOf(q) !== -1;
+          el.style.display = match ? "" : "none";
+          if (match) { any = true; groupHasMatch = true; }
         });
+        if (groupHeader) groupHeader.style.display = groupHasMatch ? "" : "none";
         if (empty) empty.style.display = any ? "none" : "block";
       }
       btn.addEventListener("click", function (e) {
@@ -1032,7 +1050,7 @@
     } else {
       L.querySelectorAll(".item-row").forEach(bindRow);
     }
-    // ── Potongan & Biaya (DP/Diskon, Ongkir, dst -- bisa tambah berkali-kali) ──
+    // ── Potongan & Biaya (DP, Ongkir, dst -- bisa tambah berkali-kali) ──
     function bindAdjRow(row) {
       var typeSel = row.querySelector(".adj-type");
       var amountInp = row.querySelector(".adj-amount");

@@ -5,6 +5,7 @@ from core import (
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt,
+    list_fin_categories, list_fin_activity_log,
 )
 
 REDUCE_STOCK_REASONS = {
@@ -25,12 +26,16 @@ def finance_dashboard():
 
     materials, total_value = list_fin_materials()
     debts = list_fin_debts()
+    categories = list_fin_categories()
+    activity_log = list_fin_activity_log()
 
     return render_template(
         "finance_dashboard.html",
         materials=materials,
         total_value=total_value,
         debts=debts,
+        categories=categories,
+        activity_log=activity_log,
         notif_count=get_notif_count(),
     )
 
@@ -50,6 +55,7 @@ def finance_materials_add():
             init_price=request.form.get("init_price"),
             note=request.form.get("note"),
             created_by=session.get("user_id"),
+            category=request.form.get("category"),
         )
         flash(f"Barang '{result['name']}' berhasil ditambahkan.", "success")
     except ValueError as e:
@@ -64,7 +70,13 @@ def finance_materials_edit(material_id):
         return deny
 
     try:
-        edit_fin_material(material_id, request.form.get("name"), request.form.get("unit"))
+        edit_fin_material(
+            material_id,
+            request.form.get("name"),
+            request.form.get("unit"),
+            session.get("user_id"),
+            category=request.form.get("category"),
+        )
         flash("Barang berhasil diperbarui.", "success")
     except ValueError as e:
         flash(str(e), "danger")
@@ -128,7 +140,7 @@ def finance_materials_delete(material_id):
         return deny
 
     try:
-        mat_name = delete_fin_material(material_id)
+        mat_name = delete_fin_material(material_id, session.get("user_id"))
         flash(f'Barang "{mat_name}" dinonaktifkan.', "success")
     except ValueError as e:
         flash(str(e), "danger")

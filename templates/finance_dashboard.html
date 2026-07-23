@@ -284,6 +284,45 @@
   .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .pay-form-td { display: flex; gap: 6px; }
   .pay-form-td input[type="number"] { width: 130px; padding: 9px 10px; font-size: 13px; }
+
+  /* ── KATEGORI ── */
+  .cat-group-head {
+    display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-size: 11.5px;
+    font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .cat-group-head:first-child { margin-top: 2px; }
+  .cat-group-head::after { content: ""; flex: 1; height: 1px; background: rgba(125, 138, 166, 0.22); }
+  .cat-badge {
+    display: inline-flex; align-items: center; background: #eef2ff; color: var(--blue);
+    border-radius: var(--pill); padding: 5px 11px; font-size: 11px; font-weight: 900; white-space: nowrap;
+  }
+  select[name="category"], input[list="categoryList"] { width: 100%; }
+
+  /* ── MODAL EDIT: sub-tab Info / +Stok / -Stok ── */
+  .edit-tab-switch { display: flex; gap: 6px; background: #f2f5fb; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .edit-tab-btn {
+    flex: 1; border: none; background: none; border-radius: 9px; padding: 8px 4px; font-size: 11.5px;
+    font-weight: 900; color: var(--muted); cursor: pointer; font-family: inherit;
+  }
+  .edit-tab-btn.active { background: #fff; color: var(--blue); box-shadow: 0 4px 10px rgba(28, 55, 90, 0.14); }
+  .modal-box form.edit-tab-panel { display: none; }
+  .modal-box form.edit-tab-panel.active { display: flex; }
+
+  /* ── LOG AKTIVITAS ── */
+  .log-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .log-row { background: #fff; border-radius: 14px; box-shadow: var(--shadow-out); padding: 12px 14px; }
+  .log-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .log-action {
+    font-size: 10.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 3px 9px; border-radius: 999px; background: #eef2ff; color: var(--blue); white-space: nowrap;
+  }
+  .log-action.HAPUS_BARANG { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
+  .log-action.KURANGI_STOK { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
+  .log-action.TAMBAH_STOK, .log-action.TAMBAH_BARANG { background: rgba(21, 128, 61, 0.1); color: var(--good); }
+  .log-time { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .log-name { font-size: 13px; font-weight: 900; margin-top: 6px; }
+  .log-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .log-by { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
 </style>
 
 <div class="screen">
@@ -363,6 +402,9 @@
       <button type="button" class="tab-btn" data-tab="piutang">
         🟢 Piutang <span class="tab-count">{{ debts.piutang|length }}</span>
       </button>
+      <button type="button" class="tab-btn" data-tab="log">
+        📜 Log <span class="tab-count">{{ activity_log|length }}</span>
+      </button>
     </div>
 
     <!-- ═══ BARANG GUDANG ═══ -->
@@ -383,6 +425,10 @@
               <div class="field"><label>Nama Barang *</label><input type="text" name="name" placeholder="contoh: BC" required /></div>
               <div class="field"><label>Satuan</label><input type="text" name="unit" placeholder="kg" value="kg" /></div>
             </div>
+            <div class="field">
+              <label>Kategori</label>
+              <input type="text" name="category" list="categoryList" placeholder="contoh: Tembaga, Kuningan (opsional)" />
+            </div>
             <div class="row2">
               <div class="field"><label>Stok Awal (opsional)</label><input type="number" step="0.01" name="init_qty" placeholder="0" /></div>
               <div class="field"><label>Harga Beli / satuan</label><input type="number" name="init_price" placeholder="0" /></div>
@@ -393,9 +439,15 @@
         </details>
       </div>
 
+      <datalist id="categoryList">
+        {% for c in categories %}<option value="{{ c }}"></option>{% endfor %}
+      </datalist>
+
       <!-- MOBILE cards -->
       <div class="item-list mobile-only">
-        {% for m in materials %}
+        {% for cat, group in materials|groupby('category') %}
+        <div class="cat-group-head">🏷️ {{ cat }} <span class="muted">({{ group|length }})</span></div>
+        {% for m in group %}
         <div class="item-row fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <div class="item-top">
             <div>
@@ -405,15 +457,15 @@
             <div class="item-val">Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</div>
           </div>
           <div class="item-actions">
-            <button type="button" class="pill-btn btn-open-edit" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">✏️ Edit</button>
-            <button type="button" class="pill-btn btn-open-addstock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">+ Stok</button>
-            <button type="button" class="pill-btn danger btn-open-reducestock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-qty="{{ m.qty_kg }}">− Stok</button>
+            <button type="button" class="pill-btn btn-open-edit" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-category="{{ '' if m.category == 'Tanpa Kategori' else m.category }}" data-qty="{{ m.qty_kg }}">✏️ Edit</button>
+            <span class="cat-badge">{{ m.category }}</span>
             <form method="post" action="/finance/materials/{{ m.id }}/delete"
                   onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
               <button type="submit" class="pill-btn danger">Hapus</button>
             </form>
           </div>
         </div>
+        {% endfor %}
         {% else %}
         <p class="empty-hint">Belum ada barang di gudang.</p>
         {% endfor %}
@@ -424,26 +476,22 @@
         {% if materials %}
         <table>
           <thead>
-            <tr><th>Nama</th><th>Satuan</th><th>Stok</th><th>HPP Rata²</th><th>Nilai Stok</th><th></th></tr>
+            <tr><th>Nama</th><th>Kategori</th><th>Satuan</th><th>Stok</th><th>HPP Rata²</th><th>Nilai Stok</th><th></th></tr>
           </thead>
           <tbody>
-            {% for m in materials %}
+            {% for cat, group in materials|groupby('category') %}
+            <tr><td colspan="7" style="background:#f7f9fc; padding:8px 14px; font-size:11px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">🏷️ {{ cat }} ({{ group|length }})</td></tr>
+            {% for m in group %}
             <tr>
-              <td>
-                <form method="post" action="/finance/materials/{{ m.id }}/edit" class="row-edit-form">
-                  <input type="text" name="name" value="{{ m.name }}" style="min-width: 120px" required />
-                  <input type="text" name="unit" value="{{ m.unit }}" style="width: 64px" />
-                  <button type="submit" class="pill-btn">Simpan</button>
-                </form>
-              </td>
+              <td><strong>{{ m.name }}</strong></td>
+              <td><span class="cat-badge">{{ m.category }}</span></td>
               <td class="muted">{{ m.unit }}</td>
               <td>{{ "%.1f"|format(m.qty_kg) }}</td>
               <td class="muted">Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</td>
               <td><strong>Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</strong></td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="pill-btn primary btn-open-addstock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}">+ Stok</button>
-                  <button type="button" class="pill-btn danger btn-open-reducestock" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-qty="{{ m.qty_kg }}">− Stok</button>
+                  <button type="button" class="pill-btn primary btn-open-edit" data-id="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-category="{{ '' if m.category == 'Tanpa Kategori' else m.category }}" data-qty="{{ m.qty_kg }}">✏️ Edit</button>
                   <form method="post" action="/finance/materials/{{ m.id }}/delete"
                         onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
                     <button type="submit" class="pill-btn danger">Hapus</button>
@@ -451,6 +499,7 @@
                 </div>
               </td>
             </tr>
+            {% endfor %}
             {% endfor %}
           </tbody>
         </table>
@@ -592,56 +641,72 @@
     </div>
     <!-- /tab-panel piutang -->
 
+    <!-- ═══ LOG AKTIVITAS BARANG GUDANG ═══ -->
+    <div class="tab-panel" data-tab-panel="log">
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title">📜 Log Aktivitas</div>
+        <div class="sec-desc">Riwayat tambah/ubah/hapus barang &amp; perubahan stok, {{ activity_log|length }} catatan terakhir</div>
+      </div>
+      <div class="log-list">
+        {% for l in activity_log %}
+        <div class="log-row">
+          <div class="log-top">
+            <span class="log-action {{ l.action }}">{{ l.action.replace('_', ' ') }}</span>
+            <span class="log-time">{{ l.created_at_wib }}</span>
+          </div>
+          <div class="log-name">{{ l.material_name }}</div>
+          {% if l.detail %}<div class="log-detail">{{ l.detail }}</div>{% endif %}
+          <div class="log-by">oleh {{ l.created_by_name or "?" }}</div>
+        </div>
+        {% else %}
+        <p class="empty-hint">Belum ada aktivitas tercatat.</p>
+        {% endfor %}
+      </div>
+    </div>
+    </div>
+    <!-- /tab-panel log -->
+
   </div>
 </div>
 
-<!-- MODAL EDIT BARANG -->
+<!-- MODAL EDIT (gabungan: Info / + Stok / − Stok) -->
 <div class="modal-overlay" id="editModalOverlay">
   <div class="modal-box">
     <div class="modal-head">
       <div class="modal-title">Edit <span id="editModalName"></span></div>
       <button type="button" class="modal-close" onclick="closeEditModal()">✕</button>
     </div>
-    <form method="post" id="editModalForm">
+
+    <div class="edit-tab-switch">
+      <button type="button" class="edit-tab-btn active" data-edit-tab="info">Info</button>
+      <button type="button" class="edit-tab-btn" data-edit-tab="add">+ Stok</button>
+      <button type="button" class="edit-tab-btn" data-edit-tab="reduce">− Stok</button>
+    </div>
+
+    <form method="post" id="editInfoForm" class="edit-tab-panel active" data-edit-panel="info">
       <input type="text" name="name" id="editModalNameInp" placeholder="Nama" required />
       <input type="text" name="unit" id="editModalUnitInp" placeholder="Satuan" />
+      <input type="text" name="category" id="editModalCategoryInp" list="categoryList" placeholder="Kategori (mis. Tembaga, opsional)" />
       <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Simpan</button>
     </form>
-  </div>
-</div>
 
-<!-- MODAL TAMBAH STOK -->
-<div class="modal-overlay" id="addStockModalOverlay">
-  <div class="modal-box">
-    <div class="modal-head">
-      <div class="modal-title">+ Stok <span id="addStockModalName"></span></div>
-      <button type="button" class="modal-close" onclick="closeAddStockModal()">✕</button>
-    </div>
-    <form method="post" id="addStockModalForm">
-      <input type="number" name="qty" step="0.01" min="0.01" id="addStockModalQty" placeholder="Jumlah" required />
+    <form method="post" id="editAddStockForm" class="edit-tab-panel" data-edit-panel="add">
+      <input type="number" name="qty" step="0.01" min="0.01" id="editAddStockQty" placeholder="Jumlah" required />
       <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
       <input type="text" name="note" placeholder="Catatan (opsional)" />
       <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Tambah Stok</button>
     </form>
-  </div>
-</div>
 
-<!-- MODAL KURANGI STOK -->
-<div class="modal-overlay" id="reduceStockModalOverlay">
-  <div class="modal-box">
-    <div class="modal-head">
-      <div class="modal-title">− Stok <span id="reduceStockModalName"></span></div>
-      <button type="button" class="modal-close" onclick="closeReduceStockModal()">✕</button>
-    </div>
-    <form method="post" id="reduceStockModalForm">
-      <input type="number" name="qty" step="0.01" min="0.01" id="reduceStockModalQty" placeholder="Jumlah" required />
-      <select name="reason_template" id="reduceStockModalReason" required>
+    <form method="post" id="editReduceStockForm" class="edit-tab-panel" data-edit-panel="reduce">
+      <input type="number" name="qty" step="0.01" min="0.01" id="editReduceStockQty" placeholder="Jumlah" required />
+      <select name="reason_template" id="editReduceStockReason" required>
         <option value="KOTOR">Kotor/Kontaminasi</option>
         <option value="SUSUT">Susut/Menguap</option>
         <option value="RUSAK">Rusak</option>
         <option value="LAINNYA">Lainnya…</option>
       </select>
-      <input type="text" name="reason_other" id="reduceStockModalReasonOther" placeholder="Tulis alasan…" style="display:none" />
+      <input type="text" name="reason_other" id="editReduceStockReasonOther" placeholder="Tulis alasan…" style="display:none" />
       <input type="text" name="note" placeholder="Catatan (opsional)" />
       <button type="submit" class="pill-btn danger" style="width:100%; padding:12px">Kurangi Stok</button>
     </form>
@@ -672,78 +737,84 @@
       countUp(el, 900);
     });
 
-    // Modal Edit/+Stok/-Stok: satu modal per aksi dipakai bersama semua
-    // baris, selalu dipusatkan di layar (position:fixed + flex center) --
+    // Modal Edit gabungan (Info / +Stok / -Stok dalam 1 modal, 1 sub-tab
+    // switch) -- selalu dipusatkan di layar (position:fixed + flex center)
     // menggantikan popover per-baris yang sebelumnya bisa tidak muncul
     // sama sekali di baris paling bawah (ke-clip oleh .table-wrap yang
-    // overflow-x:auto otomatis membuat overflow-y ikut auto).
-    function wireModal(overlayId, closeFnName) {
-      var overlay = document.getElementById(overlayId);
-      window[closeFnName] = function () { overlay.classList.remove("open"); };
-      overlay.addEventListener("click", function (e) {
-        if (e.target === overlay) window[closeFnName]();
-      });
-      return overlay;
-    }
-    var editOverlay = wireModal("editModalOverlay", "closeEditModal");
-    var addStockOverlay = wireModal("addStockModalOverlay", "closeAddStockModal");
-    var reduceStockOverlay = wireModal("reduceStockModalOverlay", "closeReduceStockModal");
+    // overflow-x:auto otomatis membuat overflow-y ikut auto), dan
+    // meringkas 3 tombol aksi (Edit/+Stok/-Stok) jadi 1 tombol "Edit".
+    var editOverlay = document.getElementById("editModalOverlay");
+    window.closeEditModal = function () { editOverlay.classList.remove("open"); };
+    editOverlay.addEventListener("click", function (e) {
+      if (e.target === editOverlay) closeEditModal();
+    });
 
-    var editForm = document.getElementById("editModalForm");
+    var editInfoForm = document.getElementById("editInfoForm");
     var editNameInp = document.getElementById("editModalNameInp");
     var editUnitInp = document.getElementById("editModalUnitInp");
+    var editCategoryInp = document.getElementById("editModalCategoryInp");
     var editModalName = document.getElementById("editModalName");
-    window.openEditModal = function (id, name, unit) {
-      editForm.action = "/finance/materials/" + id + "/edit";
+
+    var editAddStockForm = document.getElementById("editAddStockForm");
+    var editAddStockQty = document.getElementById("editAddStockQty");
+
+    var editReduceStockForm = document.getElementById("editReduceStockForm");
+    var editReduceStockQty = document.getElementById("editReduceStockQty");
+    var editReduceStockReason = document.getElementById("editReduceStockReason");
+    var editReduceStockReasonOther = document.getElementById("editReduceStockReasonOther");
+    function syncEditReduceStockReason() {
+      var isOther = editReduceStockReason.value === "LAINNYA";
+      editReduceStockReasonOther.style.display = isOther ? "block" : "none";
+      editReduceStockReasonOther.required = isOther;
+    }
+    editReduceStockReason.addEventListener("change", syncEditReduceStockReason);
+    syncEditReduceStockReason();
+
+    function activateEditTab(tab) {
+      document.querySelectorAll(".edit-tab-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-edit-tab") === tab);
+      });
+      document.querySelectorAll(".edit-tab-panel").forEach(function (p) {
+        p.classList.toggle("active", p.getAttribute("data-edit-panel") === tab);
+      });
+    }
+    document.querySelectorAll(".edit-tab-btn").forEach(function (b) {
+      b.addEventListener("click", function () { activateEditTab(b.getAttribute("data-edit-tab")); });
+    });
+
+    window.openEditModal = function (id, name, unit, category, qty) {
+      editInfoForm.action = "/finance/materials/" + id + "/edit";
       editNameInp.value = name;
       editUnitInp.value = unit;
+      editCategoryInp.value = category || "";
+
+      editAddStockForm.action = "/finance/materials/" + id + "/add-stock";
+      editAddStockQty.placeholder = "Jumlah (" + unit + ")";
+
+      editReduceStockForm.action = "/finance/materials/" + id + "/reduce-stock";
+      editReduceStockQty.placeholder = "Jumlah (" + unit + ")";
+      editReduceStockQty.max = qty;
+
       editModalName.textContent = name;
+      activateEditTab("info");
       editOverlay.classList.add("open");
     };
 
-    var addStockForm = document.getElementById("addStockModalForm");
-    var addStockQty = document.getElementById("addStockModalQty");
-    var addStockModalName = document.getElementById("addStockModalName");
-    window.openAddStockModal = function (id, name, unit) {
-      addStockForm.action = "/finance/materials/" + id + "/add-stock";
-      addStockQty.placeholder = "Jumlah (" + unit + ")";
-      addStockModalName.textContent = name;
-      addStockOverlay.classList.add("open");
-    };
-
-    var reduceStockForm = document.getElementById("reduceStockModalForm");
-    var reduceStockQty = document.getElementById("reduceStockModalQty");
-    var reduceStockModalName = document.getElementById("reduceStockModalName");
-    var reduceStockReason = document.getElementById("reduceStockModalReason");
-    var reduceStockReasonOther = document.getElementById("reduceStockModalReasonOther");
-    function syncReduceStockReason() {
-      var isOther = reduceStockReason.value === "LAINNYA";
-      reduceStockReasonOther.style.display = isOther ? "block" : "none";
-      reduceStockReasonOther.required = isOther;
-    }
-    reduceStockReason.addEventListener("change", syncReduceStockReason);
-    syncReduceStockReason();
-    window.openReduceStockModal = function (id, name, unit, qty) {
-      reduceStockForm.action = "/finance/materials/" + id + "/reduce-stock";
-      reduceStockQty.placeholder = "Jumlah (" + unit + ")";
-      reduceStockQty.max = qty;
-      reduceStockModalName.textContent = name;
-      reduceStockOverlay.classList.add("open");
-    };
-
     document.addEventListener("click", function (e) {
-      var btn;
-      if ((btn = e.target.closest(".btn-open-edit"))) {
-        openEditModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"));
-      } else if ((btn = e.target.closest(".btn-open-addstock"))) {
-        openAddStockModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"));
-      } else if ((btn = e.target.closest(".btn-open-reducestock"))) {
-        openReduceStockModal(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-unit"), btn.getAttribute("data-qty"));
+      var btn = e.target.closest(".btn-open-edit");
+      if (btn) {
+        openEditModal(
+          btn.getAttribute("data-id"),
+          btn.getAttribute("data-name"),
+          btn.getAttribute("data-unit"),
+          btn.getAttribute("data-category"),
+          btn.getAttribute("data-qty")
+        );
       }
     });
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape") return;
-      closeEditModal(); closeAddStockModal(); closeReduceStockModal();
+      closeEditModal();
     });
 
     // Tab switch: Barang Gudang / Hutang / Piutang -- supaya Hutang & Piutang
