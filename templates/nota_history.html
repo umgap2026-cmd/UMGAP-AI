@@ -365,7 +365,7 @@
             <div style="display:flex; gap:6px; flex-wrap:wrap">
               <a class="pill-btn primary" href="/nota/{{ inv.id }}">Lihat</a>
               <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
-              <button type="button" class="pill-btn danger" onclick="openDeleteModal({{ inv.id }}, {{ (inv.invoice_no or ('Nota #' ~ inv.id))|tojson }})">Hapus</button>
+              <button type="button" class="pill-btn danger btn-open-delete" data-id="{{ inv.id }}" data-invoice-no="{{ inv.invoice_no or ('Nota #' ~ inv.id) }}">Hapus</button>
             </div>
           </div>
         </div>
@@ -404,7 +404,7 @@
                 <div style="display:flex; gap:6px; flex-wrap:wrap">
                   <a class="pill-btn" href="/nota/{{ inv.id }}">Lihat</a>
                   <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
-                  <button type="button" class="pill-btn danger" onclick="openDeleteModal({{ inv.id }}, {{ (inv.invoice_no or ('Nota #' ~ inv.id))|tojson }})">Hapus</button>
+                  <button type="button" class="pill-btn danger btn-open-delete" data-id="{{ inv.id }}" data-invoice-no="{{ inv.invoice_no or ('Nota #' ~ inv.id) }}">Hapus</button>
                 </div>
               </td>
             </tr>
@@ -500,6 +500,12 @@
     window.closeDeleteModal = function () {
       deleteOverlay.classList.remove("open");
     };
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest(".btn-open-delete");
+      if (btn) {
+        openDeleteModal(parseInt(btn.getAttribute("data-id"), 10), btn.getAttribute("data-invoice-no"));
+      }
+    });
     deleteOverlay.addEventListener("click", function (e) {
       if (e.target === deleteOverlay) closeDeleteModal();
     });
