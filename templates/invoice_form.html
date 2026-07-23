@@ -690,7 +690,14 @@
     function fmtQty(v) {
       var n = qtyNum(v);
       if (!n) return "0";
-      return n.toLocaleString("id-ID", { maximumFractionDigits: 3 });
+      // Sengaja TIDAK pakai toLocaleString/grouping titik ribuan di sini --
+      // hasilnya (mis. "1.850") akan salah dibaca ulang oleh qtyNum() sebagai
+      // desimal (1.85) kalau field ini re-format lagi saat blur (misalnya
+      // pindah tab/minimize browser memicu blur). Cukup pakai koma sebagai
+      // pemisah desimal, tanpa titik ribuan, supaya aman di-parse ulang.
+      var s = n.toFixed(3).replace(/\.?0+$/, "");
+      if (s === "" || s === "-") s = "0";
+      return s.replace(".", ",");
     }
     function rowQty(r) { return qtyNum(r.querySelector(".item-qty").value || "0"); }
     function rowPrice(r) { return qtyNum(r.querySelector(".item-price").value || "0"); }
