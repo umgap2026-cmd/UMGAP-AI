@@ -8,6 +8,7 @@ from db import get_conn
 from core import (
     is_logged_in,
     owner_or_admin_required,
+    owner_required,
     get_materials_with_stock,
     get_company_profile,
     set_company_profile,
@@ -17,6 +18,9 @@ from core import (
     get_fin_invoice_detail,
     settle_fin_debt_for_transaction,
     cancel_fin_transaction,
+    delete_nota_transaction,
+    list_deleted_nota,
+    purge_fin_transaction,
     get_notif_count,
 )
 
@@ -202,6 +206,72 @@ def nota_cancel(txn_id):
         flash(str(e), "danger")
 
     return redirect("/nota")
+
+
+REASON_TEMPLATES = {
+    "SALAH_INPUT": "Salah input data",
+    "DUPLIKAT": "Nota duplikat",
+    "BATAL_PELANGGAN": "Dibatalkan pelanggan",
+    "BATAL_PEMASOK": "Dibatalkan pemasok",
+    "SALAH_JUMLAH_HARGA": "Kesalahan jumlah/harga barang",
+    "UJI_COBA": "Nota uji coba",
+}
+
+
+# ---------- HAPUS NOTA (soft-delete) ----------
+@nota_bp.route("/nota/<int:txn_id>/delete", methods=["POST"])
+def nota_delete(txn_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    mode = (request.form.get("mode") or "KEEP").strip().upper()
+    reason_template = (request.form.get("reason_template") or "").strip().upper()
+    if reason_template == "LAINNYA":
+        reason = (request.form.get("reason_other") or "").strip()
+    else:
+        reason = REASON_TEMPLATES.get(reason_template, reason_template)
+
+    try:
+        delete_nota_transaction(txn_id, mode, reason, session.get("user_id"))
+        if mode == "REVERSE":
+            flash("Nota dihapus, stok & keuangan sudah dikembalikan.", "success")
+        else:
+            flash("Nota dihapus dari riwayat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect("/nota")
+
+
+# ---------- ARSIP NOTA TERHAPUS (owner-only) ----------
+@nota_bp.route("/nota/deleted")
+def nota_deleted():
+    deny = owner_required()
+    if deny:
+        return deny
+
+    return render_template(
+        "nota_deleted.html",
+        deleted=list_deleted_nota(),
+        notif_count=get_notif_count(),
+    )
+
+
+# ---------- HAPUS PERMANEN (owner-only) ----------
+@nota_bp.route("/nota/<int:txn_id>/purge", methods=["POST"])
+def nota_purge(txn_id):
+    deny = owner_required()
+    if deny:
+        return deny
+
+    try:
+        purge_fin_transaction(txn_id)
+        flash("Nota dihapus permanen.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect("/nota/deleted")
 
 
 # ---------- PROFIL PERUSAHAAN ----------

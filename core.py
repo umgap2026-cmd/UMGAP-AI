@@ -253,7 +253,9 @@ def _ensure_transaction_cancel_columns(cur):
         ALTER TABLE fin_transactions
             ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
             ADD COLUMN IF NOT EXISTS cancelled_by INTEGER NULL,
-            ADD COLUMN IF NOT EXISTS print_size VARCHAR(20) NULL;
+            ADD COLUMN IF NOT EXISTS print_size VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS delete_reason TEXT NULL,
+            ADD COLUMN IF NOT EXISTS delete_mode VARCHAR(20) NULL;
     """)
 
 def _table_exists(cur, table):
@@ -785,6 +787,15 @@ def owner_or_admin_required():
         return redirect(url_for("auth.login"))
     if session.get("role") not in ("admin", "owner"):
         flash("Akses ditolak. Khusus admin/owner.", "danger")
+        return redirect(url_for("dashboard.dashboard"))
+    return None
+
+
+def owner_required():
+    if not session.get("user_id"):
+        return redirect(url_for("auth.login"))
+    if session.get("role") != "owner":
+        flash("Akses ditolak. Khusus owner.", "danger")
         return redirect(url_for("dashboard.dashboard"))
     return None
 
@@ -1373,6 +1384,143 @@ def cancel_fin_transaction(txn_id, cancelled_by):
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal membatalkan nota: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_nota_transaction(txn_id, mode, reason, deleted_by):
+    """
+    Hapus nota dari Riwayat Nota (soft-delete — nota TIDAK benar-benar
+    hilang dari database, hanya disembunyikan dari get_invoice_history()
+    lewat kolom cancelled_at yang sudah dipakai bersama).
+
+    mode:
+      - "REVERSE": kembalikan stok & hutang/piutang (delegasi penuh ke
+        cancel_fin_transaction, termasuk validasi & guard-nya).
+      - "KEEP": hapus dari riwayat saja, stok & fin_debts TIDAK disentuh.
+
+    Nota yang sudah dihapus tetap terlihat lewat list_deleted_nota()
+    (halaman arsip khusus owner) sampai dihapus permanen lewat
+    purge_fin_transaction().
+    """
+    mode = (mode or "").strip().upper()
+    if mode not in ("REVERSE", "KEEP"):
+        raise ValueError("Mode hapus tidak valid.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("Alasan penghapusan wajib diisi.")
+
+    if mode == "REVERSE":
+        cancel_fin_transaction(txn_id, deleted_by)
+    else:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            _ensure_transaction_cancel_columns(cur)
+            cur.execute("""
+                SELECT id, type, cancelled_at
+                FROM fin_transactions WHERE id = %s FOR UPDATE;
+            """, (txn_id,))
+            txn = cur.fetchone()
+            if not txn:
+                raise ValueError("Nota tidak ditemukan.")
+            if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
+                raise ValueError("Nota jenis ini tidak bisa dihapus dari sini.")
+            if txn["cancelled_at"] is not None:
+                raise ValueError("Nota ini sudah pernah dihapus/dibatalkan.")
+
+            cur.execute("""
+                UPDATE fin_transactions
+                SET cancelled_at = NOW(), cancelled_by = %s
+                WHERE id = %s;
+            """, (deleted_by, txn_id))
+            conn.commit()
+        except ValueError:
+            conn.rollback()
+            raise
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(f"Gagal menghapus nota: {e}")
+        finally:
+            cur.close()
+            conn.close()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            UPDATE fin_transactions SET delete_reason = %s, delete_mode = %s WHERE id = %s;
+        """, (reason, mode, txn_id))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_deleted_nota():
+    """Daftar nota yang sudah dihapus/dibatalkan — arsip khusus owner."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT
+                t.id, t.type, t.note, t.party_name, t.total_amount,
+                t.delete_reason, t.delete_mode, t.cancelled_at,
+                TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                u.name AS cancelled_by_name,
+                TO_CHAR(t.cancelled_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS cancelled_at_wib
+            FROM fin_transactions t
+            LEFT JOIN users u ON u.id = t.cancelled_by
+            WHERE t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')
+              AND t.cancelled_at IS NOT NULL
+            ORDER BY t.cancelled_at DESC;
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            invoice_no, payment_method, _extra = _parse_nota_note(r.get("note"))
+            r["invoice_no"] = invoice_no
+            r["payment_method"] = payment_method
+            r["grand_total"] = float(r.get("total_amount") or 0)
+        return rows
+    finally:
+        cur.close()
+        conn.close()
+
+
+def purge_fin_transaction(txn_id):
+    """
+    Hapus PERMANEN sebuah nota dari database. Nota harus sudah di-soft-delete
+    (cancelled_at terisi) lebih dulu lewat delete_nota_transaction(). Aksi ini
+    tidak bisa dibatalkan — hanya dipanggil dari alur khusus owner.
+    Urutan delete mengikuti pola delete_fin_material(): fin_stock_ledger →
+    fin_transaction_items → fin_debts → fin_transactions.
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT id, cancelled_at FROM fin_transactions WHERE id = %s;", (txn_id,))
+        txn = cur.fetchone()
+        if not txn:
+            raise ValueError("Nota tidak ditemukan.")
+        if txn["cancelled_at"] is None:
+            raise ValueError("Nota harus dihapus dari riwayat dulu sebelum dihapus permanen.")
+
+        cur.execute("DELETE FROM fin_stock_ledger WHERE transaction_id = %s;", (txn_id,))
+        cur.execute("DELETE FROM fin_transaction_items WHERE transaction_id = %s;", (txn_id,))
+        cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
+        cur.execute("DELETE FROM fin_transactions WHERE id = %s;", (txn_id,))
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus permanen: {e}")
     finally:
         cur.close()
         conn.close()

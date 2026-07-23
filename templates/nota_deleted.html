@@ -32,7 +32,6 @@
   @media (min-width: 600px) { .wrap { max-width: 720px; } }
   @media (min-width: 960px) { .wrap { max-width: 1100px; } }
 
-  /* ── ANIMASI ── */
   @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(18px); }
     to { opacity: 1; transform: translateY(0); }
@@ -40,7 +39,6 @@
   .fade-up { opacity: 0; animation: fadeInUp 0.55s ease-out forwards; }
   .fade-up.d1 { animation-delay: 0.06s; }
   .fade-up.d2 { animation-delay: 0.12s; }
-  .fade-up.d3 { animation-delay: 0.18s; }
   .item-row.fade-up { animation-duration: 0.4s; }
   @keyframes barPan {
     0%, 100% { background-position: 0% 50%; }
@@ -96,8 +94,8 @@
 
   /* ── HERO ── */
   .hero-strip {
-    margin-top: 14px; background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #4f8fbf 100%);
-    border-radius: var(--radius); box-shadow: 0 16px 38px rgba(30, 58, 95, 0.26);
+    margin-top: 14px; background: linear-gradient(135deg, #3f1e1e 0%, #b91c1c 55%, #ef4444 100%);
+    border-radius: var(--radius); box-shadow: 0 16px 38px rgba(95, 30, 30, 0.26);
     padding: 18px 20px; display: flex; align-items: center; justify-content: space-between;
     gap: 14px; position: relative; overflow: hidden;
   }
@@ -136,30 +134,6 @@
   .inner { border-radius: 20px; background: #f3f5f9; box-shadow: var(--shadow-in); padding: 18px 14px 16px; }
   .sec-title { font-size: 16px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
   .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
-  .divider { height: 1px; background: rgba(125, 138, 166, 0.18); border-radius: 999px; margin: 14px 0; }
-
-  /* ── FORM ── */
-  label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
-  .field { margin-bottom: 12px; }
-  input[type="text"], input[type="date"], select {
-    width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb;
-    box-shadow: var(--soft-in); padding: 13px 14px; font-size: 14px; color: var(--text);
-    -webkit-appearance: none; appearance: none; font-family: inherit; transition: box-shadow 0.2s;
-  }
-  input:focus, select:focus { box-shadow: var(--soft-in), 0 0 0 3px rgba(37, 99, 235, 0.15); }
-  input::placeholder { color: var(--muted); font-size: 13px; }
-  .filter-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 10px; align-items: end; }
-  @media (max-width: 820px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 460px) { .filter-grid { grid-template-columns: 1fr; } }
-
-  .btn-submit {
-    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px;
-    border: none; border-radius: 15px; cursor: pointer; font-weight: 900; font-size: 14px;
-    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff;
-    box-shadow: 0 12px 22px rgba(37, 99, 235, 0.24); font-family: inherit;
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3); }
 
   .pill-btn {
     border: none; border-radius: 12px; padding: 9px 14px; font-weight: 900; font-size: 12px;
@@ -168,7 +142,8 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
   .pill-btn:hover { transform: translateY(-1px); }
-  .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
+  .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
+  .pill-btn.danger:hover { background: rgba(185, 28, 28, 0.18); }
 
   .badge {
     display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px;
@@ -182,13 +157,13 @@
     position: relative; overflow: hidden; transition: transform 0.15s;
   }
   .item-row:hover { transform: translateY(-1px); }
-  .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--good); }
-  .item-row.unpaid::before { background: var(--bad); }
+  .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--bad); }
   .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .item-name { font-size: 14px; font-weight: 900; color: var(--text); }
   .item-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
-  .item-val { font-size: 14px; font-weight: 1000; color: var(--blue); text-align: right; white-space: nowrap; }
-  .item-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .item-val { font-size: 14px; font-weight: 1000; color: var(--bad); text-align: right; white-space: nowrap; }
+  .item-note { font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; }
+  .item-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px; }
   .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
 
   /* ── DESKTOP TABLE ── */
@@ -209,26 +184,6 @@
   tbody tr:hover { background: #f7f9ff; }
   td .muted { color: var(--muted); }
   td strong { font-weight: 900; }
-
-  .footer-hint { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); }
-
-  /* mini popover (hapus nota) */
-  details.mini-pop { position: relative; display: inline-block; }
-  details.mini-pop > summary { list-style: none; }
-  details.mini-pop > summary::-webkit-details-marker { display: none; }
-  details.mini-pop .pop-panel {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; background: #fff;
-    border-radius: 14px; box-shadow: var(--shadow-out); border: 1px solid rgba(37, 99, 235, 0.08);
-    padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 260px;
-  }
-  .del-radio-grid { display: flex; flex-direction: column; gap: 6px; }
-  .del-radio {
-    display: flex; align-items: center; gap: 8px; background: #f2f5fb; border-radius: 10px;
-    padding: 9px 10px; font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer;
-  }
-  .del-radio input { accent-color: var(--blue); }
-  .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
-  .pill-btn.danger:hover { background: rgba(185, 28, 28, 0.18); }
 </style>
 
 <div class="screen">
@@ -238,16 +193,16 @@
       <div class="head-top">
         <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
         <div class="head-title">
-          <h1>📋 Riwayat Nota</h1>
-          <p>Semua nota jual &amp; beli yang tercatat</p>
+          <h1>🗄️ Nota Terhapus</h1>
+          <p>Arsip khusus owner — data tidak benar-benar hilang</p>
         </div>
         <div class="hdr-right">
-          <div class="userpill"><span class="dot"></span><span class="uname">{{ session.get("user_name","Admin") }}</span></div>
+          <div class="userpill"><span class="dot"></span><span class="uname">{{ session.get("user_name","Owner") }}</span></div>
           <a href="/notifications" class="action-btn" aria-label="Notifikasi">
             <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M3 7l9 6 9-6"></path></svg>
             {% if notif_count %}<span class="notif-badge">{{ notif_count }}</span>{% endif %}
           </a>
-          <a href="{{ '/admin/dashboard' if session.get('role')=='admin' else url_for('dashboard.dashboard') }}" class="action-btn" aria-label="Kembali">
+          <a href="/nota" class="action-btn" aria-label="Kembali">
             <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
           </a>
         </div>
@@ -258,159 +213,107 @@
     <!-- HERO -->
     <div class="hero-strip fade-up">
       <div class="hero-left">
-        <div class="hero-title"><div class="hero-ico">📋</div><span>Riwayat Nota</span></div>
-        <div class="hero-sub">Sesuai filter yang dipilih</div>
+        <div class="hero-title"><div class="hero-ico">🗑️</div><span>Nota Terhapus</span></div>
+        <div class="hero-sub">Hanya owner yang bisa hapus permanen</div>
       </div>
       <div class="hero-right">
         <div class="total-badge">
-          <div class="total-val" id="heroTotal" data-count="{{ total }}">0</div>
-          <div class="total-lbl">Nota Ditemukan</div>
+          <div class="total-val" id="heroTotal" data-count="{{ deleted|length }}">0</div>
+          <div class="total-lbl">Nota di Arsip</div>
         </div>
       </div>
     </div>
 
     <!-- QUICK ACTIONS -->
     <div class="quick-actions fade-up d1">
-      <a href="/nota/new" class="link-card">
-        <div class="link-ico">🧾</div>
-        <div><div class="link-ttl">+ Buat Nota</div><div class="link-sub">Nota jual/beli baru</div></div>
+      <a href="/nota" class="link-card">
+        <div class="link-ico">📋</div>
+        <div><div class="link-ttl">Riwayat Nota</div><div class="link-sub">Kembali ke nota aktif</div></div>
       </a>
       <a href="/finance" class="link-card">
         <div class="link-ico">💰</div>
         <div><div class="link-ttl">Finance</div><div class="link-sub">Stok, hutang &amp; piutang</div></div>
       </a>
-      {% if session.get('role') == 'owner' %}
-      <a href="/nota/deleted" class="link-card">
-        <div class="link-ico">🗄️</div>
-        <div><div class="link-ttl">Nota Terhapus</div><div class="link-sub">Arsip &amp; hapus permanen</div></div>
-      </a>
-      {% endif %}
-    </div>
-
-    <!-- FILTER -->
-    <div class="main-card fade-up d2">
-      <div class="inner">
-        <div class="sec-title">🔍 Filter Pencarian</div>
-        <div class="sec-desc">{{ total }} nota ditemukan</div>
-        <div class="divider"></div>
-        <form method="get" action="/nota" class="filter-grid">
-          <div class="field">
-            <label>Cari</label>
-            <input type="text" name="q" value="{{ q }}" placeholder="No nota / nama customer / kasir…" />
-          </div>
-          <div class="field">
-            <label>Jenis</label>
-            <select name="type">
-              <option value="" {{ "selected" if not type_f }}>Semua</option>
-              <option value="JUAL" {{ "selected" if type_f == "JUAL" }}>Jual</option>
-              <option value="BELI" {{ "selected" if type_f == "BELI" }}>Beli</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select name="status">
-              <option value="" {{ "selected" if not status_f }}>Semua</option>
-              <option value="LUNAS" {{ "selected" if status_f == "LUNAS" }}>Lunas</option>
-              <option value="BELUM" {{ "selected" if status_f == "BELUM" }}>Belum Lunas</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Dari Tanggal</label>
-            <input type="date" name="date_from" value="{{ date_from }}" />
-          </div>
-          <div class="field">
-            <label>Sampai Tanggal</label>
-            <input type="date" name="date_to" value="{{ date_to }}" />
-          </div>
-          <div class="field" style="grid-column: 1 / -1; margin-bottom: 0">
-            <button type="submit" class="btn-submit">Cari</button>
-          </div>
-        </form>
-      </div>
     </div>
 
     <!-- LIST -->
-    <div class="main-card fade-up d3">
+    <div class="main-card fade-up d2">
       <div class="inner">
-        <div class="sec-title">🧾 Daftar Nota</div>
-        <div class="sec-desc">{{ total }} nota ditemukan</div>
+        <div class="sec-title">🗑️ Daftar Nota Terhapus</div>
+        <div class="sec-desc">{{ deleted|length }} nota &bull; hapus permanen tidak bisa dibatalkan</div>
       </div>
 
       <!-- MOBILE cards -->
       <div class="item-list mobile-only">
-        {% for inv in invoices %}
-        <div class="item-row fade-up {{ 'unpaid' if not inv.is_paid }}" style="animation-delay: {{ (loop.index0 * 0.03) | round(2) }}s">
+        {% for inv in deleted %}
+        <div class="item-row fade-up" style="animation-delay: {{ (loop.index0 * 0.03) | round(2) }}s">
           <div class="item-top">
             <div>
-              <div class="item-name">{{ inv.invoice_no }}</div>
-              <div class="item-meta">{{ inv.created_at_wib or "-" }} &bull; {{ inv.customer_name or "-" }}</div>
-              <div class="item-meta">Kasir {{ inv.created_by_name or "-" }} &bull; {{ inv.payment_method }}</div>
+              <div class="item-name">{{ inv.invoice_no or ("Nota #" ~ inv.id) }}</div>
+              <div class="item-meta">{{ inv.party_name or "-" }} &bull; {{ "Jual" if inv.type == "JUAL_INVOICE" else "Beli" }}</div>
+              <div class="item-meta">Dihapus oleh {{ inv.cancelled_by_name or "-" }} &bull; {{ inv.cancelled_at_wib or "-" }}</div>
+              <div class="item-note">Alasan: {{ inv.delete_reason or "-" }}</div>
             </div>
             <div class="item-val">Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</div>
           </div>
           <div class="item-actions">
-            {% if inv.is_paid %}
-            <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
+            {% if inv.delete_mode == "REVERSE" %}
+            <span class="badge" style="color: var(--blue); border-color: var(--blue)">🔄 Stok &amp; Uang Dikembalikan</span>
             {% else %}
-            <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
+            <span class="badge" style="color: var(--muted); border-color: var(--muted)">🗑️ Hapus Saja</span>
             {% endif %}
-            <div style="display:flex; gap:6px">
-              <a class="pill-btn primary" href="/nota/{{ inv.id }}">Lihat</a>
-              {% include "_nota_delete_popover.html" %}
-            </div>
+            <form method="post" action="/nota/{{ inv.id }}/purge"
+                  onsubmit="return confirm('Hapus PERMANEN nota {{ inv.invoice_no or inv.id }}? Data akan hilang SELAMANYA dan tidak bisa dikembalikan. Lanjutkan?');">
+              <button type="submit" class="pill-btn danger">Hapus Permanen</button>
+            </form>
           </div>
         </div>
         {% else %}
-        <p class="empty-hint">Belum ada nota yang cocok dengan filter ini.</p>
+        <p class="empty-hint">Belum ada nota yang dihapus.</p>
         {% endfor %}
       </div>
 
       <!-- DESKTOP table -->
       <div class="table-wrap desktop-only">
-        {% if invoices %}
+        {% if deleted %}
         <table>
           <thead>
             <tr>
-              <th>No Nota</th><th>Tanggal</th><th>Customer</th><th>Kasir</th>
-              <th>Metode</th><th>Total</th><th>Status</th><th></th>
+              <th>No Nota</th><th>Party</th><th>Jenis</th><th>Total</th>
+              <th>Mode</th><th>Alasan</th><th>Dihapus Oleh</th><th></th>
             </tr>
           </thead>
           <tbody>
-            {% for inv in invoices %}
+            {% for inv in deleted %}
             <tr>
-              <td><strong>{{ inv.invoice_no }}</strong></td>
-              <td class="muted">{{ inv.created_at_wib or "-" }}</td>
-              <td>{{ inv.customer_name or "-" }}</td>
-              <td class="muted">{{ inv.created_by_name or "-" }}</td>
-              <td class="muted">{{ inv.payment_method }}</td>
+              <td><strong>{{ inv.invoice_no or ("Nota #" ~ inv.id) }}</strong></td>
+              <td>{{ inv.party_name or "-" }}</td>
+              <td class="muted">{{ "Jual" if inv.type == "JUAL_INVOICE" else "Beli" }}</td>
               <td>Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</td>
               <td>
-                {% if inv.is_paid %}
-                <span class="badge" style="color: var(--good); border-color: var(--good)">✅ Lunas</span>
+                {% if inv.delete_mode == "REVERSE" %}
+                <span class="badge" style="color: var(--blue); border-color: var(--blue)">🔄 Dikembalikan</span>
                 {% else %}
-                <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
+                <span class="badge" style="color: var(--muted); border-color: var(--muted)">🗑️ Hapus Saja</span>
                 {% endif %}
               </td>
+              <td class="muted">{{ inv.delete_reason or "-" }}</td>
+              <td class="muted">{{ inv.cancelled_by_name or "-" }}<br /><span style="font-size:11px">{{ inv.cancelled_at_wib or "-" }}</span></td>
               <td>
-                <div style="display:flex; gap:6px">
-                  <a class="pill-btn" href="/nota/{{ inv.id }}">Lihat</a>
-                  {% include "_nota_delete_popover.html" %}
-                </div>
+                <form method="post" action="/nota/{{ inv.id }}/purge"
+                      onsubmit="return confirm('Hapus PERMANEN nota {{ inv.invoice_no or inv.id }}? Data akan hilang SELAMANYA dan tidak bisa dikembalikan. Lanjutkan?');">
+                  <button type="submit" class="pill-btn danger">Hapus Permanen</button>
+                </form>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <p class="empty-hint">Belum ada nota yang cocok dengan filter ini.</p>
+        <p class="empty-hint">Belum ada nota yang dihapus.</p>
         {% endif %}
       </div>
     </div>
-
-    <p class="footer-hint">
-      Nota lama (sebelum sistem gudang) tersimpan terpisah sebagai arsip —
-      hubungi admin kalau butuh salinan nota lama.
-    </p>
   </div>
 </div>
 
@@ -431,29 +334,6 @@
     }
     document.querySelectorAll("[data-count]").forEach(function (el) {
       countUp(el, 700);
-    });
-
-    // Tutup mini-pop lain saat salah satu dibuka
-    document.querySelectorAll("details.mini-pop").forEach(function (d) {
-      d.addEventListener("toggle", function () {
-        if (d.open) {
-          document.querySelectorAll("details.mini-pop[open]").forEach(function (o) {
-            if (o !== d) o.removeAttribute("open");
-          });
-        }
-      });
-    });
-
-    // Tampilkan input alasan manual kalau pilih "Lainnya"
-    document.querySelectorAll("select.nota-del-reason").forEach(function (sel) {
-      var other = sel.closest("form").querySelector(".nota-del-reason-other");
-      function sync() {
-        var isOther = sel.value === "LAINNYA";
-        other.style.display = isOther ? "block" : "none";
-        other.required = isOther;
-      }
-      sel.addEventListener("change", sync);
-      sync();
     });
   })();
 </script>
@@ -488,7 +368,7 @@
 </style>
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
-    <a class="nav-item" href="{{ '/admin/dashboard' if session.get('role')=='admin' else '/dashboard' }}">
+    <a class="nav-item" href="{{ '/admin/dashboard' if session.get('role')=='admin' else url_for('dashboard.dashboard') }}">
       <span class="nav-ico"><svg viewBox="0 0 24 24">
         <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
         <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
