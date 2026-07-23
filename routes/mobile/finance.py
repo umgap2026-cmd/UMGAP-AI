@@ -14,6 +14,7 @@ from core import (
     mobile_api_response, mobile_api_login_required, send_wa as _send_wa,
     _ensure_transaction_cancel_columns,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
+    add_fin_material_stock,
     create_fin_purchase, create_fin_sale_kasir, create_fin_expense,
     list_fin_debts, pay_fin_debt, get_fin_stock_history,
     get_fin_daily_report, get_fin_weekly_report,
@@ -494,6 +495,43 @@ def add_material():
             data=_clean(result))
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+# ════════════════════════════════════════════════════════════════
+#  TAMBAH STOK KE BARANG YANG SUDAH ADA
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/materials/<int:material_id>/add-stock",
+                         methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def add_material_stock(material_id):
+    """
+    Tambah stok untuk barang gudang yang sudah ada (mis. stoknya masih 0),
+    tanpa lewat alur Nota/Kasir Beli formal ke pemasok.
+    Body JSON: { "qty": 10.0, "price": 185000, "note": "..." (opsional) }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        result = add_fin_material_stock(
+            material_id,
+            qty=data.get("qty"),
+            price=data.get("price"),
+            note=data.get("note"),
+            created_by=request.mobile_user.get("id"),
+        )
+        return mobile_api_response(ok=True,
+            message=f"Stok '{result['name']}' berhasil ditambah.",
+            data=_clean(result))
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
 # ════════════════════════════════════════════════════════════════

@@ -963,6 +963,28 @@ class ApiService {
     return _asMap(_asMap(res.data)['data']);
   }
 
+  /// Tambah stok untuk barang gudang yang SUDAH ADA (mis. stoknya masih 0),
+  /// tanpa lewat alur Nota/Kasir Beli formal ke pemasok.
+  static Future<Map<String, dynamic>> financeAddMaterialStock({
+    required int materialId,
+    required double qty,
+    required int price,
+    String note = '',
+  }) async {
+    final authHeaders = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/materials/$materialId/add-stock",
+      data: {
+        "qty":   qty,
+        "price": price,
+        "note":  note,
+      },
+      options: Options(headers: authHeaders),
+    );
+    _ensureOk(res, "Gagal menambah stok");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
   // ── Finance: Beli dari orang ───────────────
   static Future<Map<String, dynamic>> financeBeli({
     required String partyName,

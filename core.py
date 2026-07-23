@@ -1713,6 +1713,89 @@ def add_fin_material(name, unit, init_qty, init_price, note, created_by):
         conn.close()
 
 
+def add_fin_material_stock(material_id, qty, price, note, created_by):
+    """
+    Tambah stok untuk barang gudang yang SUDAH ADA — beda dari
+    add_fin_material() yang cuma bisa isi stok awal saat barang baru
+    dibuat. Dipakai untuk kasus barang sudah tercatat di fin_materials
+    tapi qty_kg masih 0 (atau memang perlu ditambah stok tanpa lewat
+    alur Nota/Kasir Beli formal ke pemasok). Insert transaksi 'BELI'
+    (party_name='Penyesuaian Stok') + update stok AVCO arah IN.
+    Raise ValueError kalau barang tidak ditemukan/nonaktif atau input
+    tidak valid. Return dict {id, name, qty_kg, avg_cost_per_kg, total_value}.
+    """
+    try:
+        qty = float(qty or 0)
+    except (TypeError, ValueError):
+        qty = 0
+    try:
+        price = float(price or 0)
+    except (TypeError, ValueError):
+        price = 0
+    note = (note or "").strip()
+
+    if qty <= 0:
+        raise ValueError("Jumlah stok harus lebih dari 0.")
+    if price <= 0:
+        raise ValueError("Harga/biaya per satuan wajib diisi.")
+
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+
+        cur.execute("""
+            INSERT INTO fin_transactions
+                (type, party_name, party_type, note, is_debt, total_amount, created_by)
+            VALUES ('BELI', 'Penyesuaian Stok', 'SUPPLIER', %s, FALSE, %s, %s)
+            RETURNING id;
+        """, (
+            note or f"Tambah stok {mat['name']}",
+            qty * price,
+            created_by,
+        ))
+        txn_id = cur.fetchone()["id"]
+
+        cur.execute("""
+            INSERT INTO fin_transaction_items
+                (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+            VALUES (%s, %s, %s, %s, %s);
+        """, (txn_id, material_id, qty, price, qty * price))
+
+        _update_stock_avco(
+            cur, material_id, qty, price, 'IN', txn_id,
+            note=note or f"Tambah stok {mat['name']}")
+
+        conn.commit()
+
+        cur.execute("""
+            SELECT m.id, m.name,
+                   COALESCE(s.qty_kg, 0)          AS qty_kg,
+                   COALESCE(s.avg_cost_per_kg, 0)  AS avg_cost_per_kg,
+                   COALESCE(s.total_value, 0)      AS total_value
+            FROM fin_materials m
+            LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+            WHERE m.id = %s;
+        """, (material_id,))
+        return dict(cur.fetchone())
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal tambah stok: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def edit_fin_material(material_id, name, unit):
     """Edit nama & satuan barang gudang."""
     name = (name or "").strip()

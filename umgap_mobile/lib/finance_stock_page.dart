@@ -198,6 +198,115 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
     );
   }
 
+  Future<void> _showAddStock(Map<String, dynamic> material) async {
+    final qtyCtrl   = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final matName   = '${material['name']}';
+    final matUnit   = '${material['unit'] ?? 'kg'}';
+    final matId     = (material['id'] as num).toInt();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          bool saving = false;
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+                bottom: bottom + 24, left: 20, right: 20, top: 6),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 18),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF00838F).withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.add_shopping_cart_rounded,
+                        color: Color(0xFF00838F), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Tambah Stok $matName',
+                        overflow: TextOverflow.ellipsis, maxLines: 1,
+                        style: TextStyle(fontSize: _rfs(ctx, 16),
+                            fontWeight: FontWeight.w800)),
+                    Text('Untuk barang yang stoknya kurang/habis',
+                        style: TextStyle(fontSize: _rfs(ctx, 11),
+                            color: const Color(0xFF90A4AE))),
+                  ])),
+                ]),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(child: _StockField(controller: qtyCtrl,
+                      label: 'Jumlah ($matUnit) *', hint: '0',
+                      icon: Icons.inventory_2_rounded, autofocus: true,
+                      keyboard: const TextInputType.numberWithOptions(decimal: true))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _StockField(controller: priceCtrl,
+                      label: 'Harga/$matUnit *', hint: '0',
+                      icon: Icons.price_check_rounded,
+                      keyboard: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly])),
+                ]),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity, height: 50,
+                  child: ElevatedButton(
+                    onPressed: saving ? null : () async {
+                      final qty   = double.tryParse(qtyCtrl.text.trim()) ?? 0;
+                      final price = int.tryParse(priceCtrl.text.trim()) ?? 0;
+                      if (qty <= 0) { uSnack(context, 'Jumlah stok harus lebih dari 0', isError: true); return; }
+                      if (price <= 0) { uSnack(context, 'Harga wajib diisi', isError: true); return; }
+                      setS(() => saving = true);
+                      try {
+                        await ApiService.financeAddMaterialStock(
+                            materialId: matId, qty: qty, price: price);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) { uSnack(context, '✓ Stok "$matName" berhasil ditambah'); await _load(); }
+                      } catch (e) {
+                        if (mounted) uSnack(context, e.toString(), isError: true);
+                        setS(() => saving = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00838F),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0),
+                    child: saving
+                        ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                        : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.save_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Tambah Stok', style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w800,
+                          fontSize: _rfs(ctx, 15))),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -262,7 +371,9 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
                       boxShadow: UShadow.card),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(URadius.lg),
-                    child: IntrinsicHeight(
+                    child: InkWell(
+                      onTap: () => _showAddStock(m),
+                      child: IntrinsicHeight(
                       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         // Accent bar kiri
                         Container(width: 5, color: color),
@@ -319,7 +430,17 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
                                         color: UColors.textLight)),
                               ]),
                         ),
+
+                        // Tombol tambah stok
+                        Container(
+                          alignment: Alignment.center,
+                          padding: EdgeInsets.symmetric(horizontal: _rfs(ctx, 8)),
+                          child: Icon(Icons.add_circle_rounded,
+                              color: const Color(0xFF00838F).withOpacity(0.8),
+                              size: _rfs(ctx, 22)),
+                        ),
                       ]),
+                    ),
                     ),
                   ),
                 );

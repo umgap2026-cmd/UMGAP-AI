@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash
 from core import (
     owner_or_admin_required,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
+    add_fin_material_stock,
     list_fin_debts, pay_fin_debt,
 )
 
@@ -58,6 +59,28 @@ def finance_materials_edit(material_id):
     try:
         edit_fin_material(material_id, request.form.get("name"), request.form.get("unit"))
         flash("Barang berhasil diperbarui.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/materials/<int:material_id>/add-stock", methods=["POST"])
+def finance_materials_add_stock(material_id):
+    """Tambah stok untuk barang yang sudah ada (mis. stoknya masih 0),
+    tanpa lewat alur Nota/Kasir Beli formal ke pemasok."""
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        result = add_fin_material_stock(
+            material_id,
+            qty=request.form.get("qty"),
+            price=request.form.get("price"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        flash(f"Stok '{result['name']}' berhasil ditambah.", "success")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")

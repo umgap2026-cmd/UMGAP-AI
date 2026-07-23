@@ -100,7 +100,17 @@
         <td>{{ "%.1f"|format(m.qty_kg) }}</td>
         <td class="muted">Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</td>
         <td><strong>Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}</strong></td>
-        <td>
+        <td style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
+          <details style="position:relative">
+            <summary class="btn" style="padding: 8px 10px; cursor:pointer; list-style:none">+ Stok</summary>
+            <form method="post" action="/finance/materials/{{ m.id }}/add-stock"
+                  style="position:absolute; right:0; top:36px; z-index:10; background:var(--card-bg,#fff); border:1px solid var(--border,#ddd); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px; min-width:200px; box-shadow:0 4px 12px rgba(0,0,0,.12)">
+              <input type="number" name="qty" step="0.01" min="0.01" placeholder="Jumlah ({{ m.unit }})" required />
+              <input type="number" name="price" step="1" min="1" placeholder="Harga/satuan (Rp)" required />
+              <input type="text" name="note" placeholder="Catatan (opsional)" />
+              <button type="submit" class="btn btn-primary" style="padding: 8px 10px">Tambah Stok</button>
+            </form>
+          </details>
           <form method="post" action="/finance/materials/{{ m.id }}/delete"
                 onsubmit="return confirm('Nonaktifkan barang {{ m.name }}? Stok & riwayatnya akan dibersihkan.');">
             <button type="submit" class="btn btn-danger">Hapus</button>
