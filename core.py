@@ -22,7 +22,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 import pytz
 from flask import session, request, redirect, abort, jsonify, url_for, flash
 from dotenv import load_dotenv
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from authlib.integrations.flask_client import OAuth
 from werkzeug.utils import secure_filename
 
@@ -1110,6 +1110,162 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         conn.close()
 
 
+def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, payment_method,
+                                    notes, discount, is_paid, items, edited_by):
+    """
+    Edit nota JUAL_INVOICE/BELI_GUDANG yang sudah ada: balikkan efek stok &
+    hutang/piutang LAMA (pola sama dengan cancel_fin_transaction), lalu
+    terapkan efek BARU dari item yang diedit (pola sama dengan
+    create_fin_invoice/create_fin_purchase_invoice). invoice_no & jenis nota
+    (JUAL/BELI) TIDAK berubah. Tidak bisa dipakai kalau hutang/piutangnya
+    sudah ada cicilan/pembayaran, atau nota-nya sudah dihapus/dibatalkan.
+    Return dict {invoice_id, invoice_no, total}.
+    """
+    from routes.mobile.finance import _update_stock_avco, _reverse_stock_movement
+
+    customer_name = (customer_name or "").strip()
+    if not customer_name:
+        raise ValueError("Nama customer/pemasok wajib diisi.")
+    if not items:
+        raise ValueError("Minimal 1 item barang.")
+
+    discount = float(discount or 0)
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+
+        cur.execute("""
+            SELECT id, type, note, cancelled_at
+            FROM fin_transactions WHERE id = %s FOR UPDATE;
+        """, (txn_id,))
+        txn = cur.fetchone()
+        if not txn:
+            raise ValueError("Nota tidak ditemukan.")
+        if txn["type"] not in ("JUAL_INVOICE", "BELI_GUDANG"):
+            raise ValueError("Nota jenis ini tidak bisa diedit dari sini.")
+        if txn["cancelled_at"] is not None:
+            raise ValueError("Nota yang sudah dihapus tidak bisa diedit.")
+
+        is_beli = txn["type"] == "BELI_GUDANG"
+        invoice_no, _pm, _extra = _parse_nota_note(txn["note"])
+        if not invoice_no:
+            raise ValueError("Nomor nota tidak valid untuk diedit.")
+
+        cur.execute("SELECT id, paid_amount FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
+        debt = cur.fetchone()
+        if debt and float(debt["paid_amount"] or 0) > 0:
+            raise ValueError(
+                "Nota ini tidak bisa diedit karena hutang/piutangnya sudah "
+                "ada cicilan/pembayaran. Batalkan pembayarannya dulu."
+            )
+
+        for item in items:
+            mat_id = item.get("material_id")
+            if not mat_id:
+                raise ValueError("material_id wajib di setiap item.")
+            cur.execute(
+                "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+                (int(mat_id),)
+            )
+            if not cur.fetchone():
+                raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
+
+        # Balikkan stok dari item-item LAMA
+        cur.execute("""
+            SELECT material_id, qty_kg, price_per_kg
+            FROM fin_transaction_items WHERE transaction_id = %s;
+        """, (txn_id,))
+        old_items = cur.fetchall()
+        original_movement = 'IN' if is_beli else 'OUT'
+        for it in old_items:
+            _reverse_stock_movement(
+                cur, it["material_id"], float(it["qty_kg"]), txn_id,
+                original_movement, note=f"Edit nota {invoice_no} (versi lama)")
+
+        cur.execute("DELETE FROM fin_transaction_items WHERE transaction_id = %s;", (txn_id,))
+
+        # Untuk JUAL, cek stok cukup untuk item-item BARU (setelah reversal di atas)
+        if not is_beli:
+            for item in items:
+                mat_id = int(item["material_id"])
+                qty = float(item.get("qty", 0))
+                cur.execute("""
+                    SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                    FROM fin_materials m
+                    LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                    WHERE m.id=%s;
+                """, (mat_id,))
+                row = cur.fetchone()
+                if not row or float(row["qty"]) < qty:
+                    stok_ada = float(row["qty"]) if row else 0
+                    raise ValueError(
+                        f"Stok {row['name'] if row else mat_id} tidak cukup untuk perubahan ini. "
+                        f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
+                    )
+
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
+        grand_total = max(0.0, subtotal_bruto - discount)
+
+        for item in items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            if is_beli:
+                _update_stock_avco(
+                    cur, mat_id, qty, price, 'IN', txn_id,
+                    note=f"Edit nota {invoice_no} — {customer_name}")
+            else:
+                cur.execute(
+                    "SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                    (mat_id,))
+                avg_row = cur.fetchone()
+                avg = float(avg_row["avg"]) if avg_row else 0
+                _update_stock_avco(
+                    cur, mat_id, qty, avg, 'OUT', txn_id,
+                    note=f"Edit nota {invoice_no} — {customer_name}")
+
+        is_debt = not is_paid
+        new_note = f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else "")
+        cur.execute("""
+            UPDATE fin_transactions
+            SET party_name = %s, note = %s, is_debt = %s, total_amount = %s
+            WHERE id = %s;
+        """, (customer_name, new_note, is_debt, grand_total, txn_id))
+
+        cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
+        if is_debt and customer_name:
+            debt_type = 'HUTANG' if is_beli else 'PIUTANG'
+            party_type = 'SUPPLIER' if is_beli else 'PELANGGAN'
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (debt_type, customer_name, party_type, grand_total, grand_total, txn_id,
+                  f"Nota {invoice_no} — belum dibayar (hasil edit)"))
+
+        conn.commit()
+        return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal edit nota: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_fin_invoice_detail(txn_id):
     """
     Ambil 1 nota (fin_transactions, JUAL_INVOICE atau BELI_GUDANG) beserta
@@ -1140,7 +1296,7 @@ def get_fin_invoice_detail(txn_id):
         invoice_no, payment_method, extra_notes = _parse_nota_note(row.get("note"))
 
         cur.execute("""
-            SELECT m.name AS product_name, ti.qty_kg AS qty,
+            SELECT ti.material_id, m.name AS product_name, m.unit, ti.qty_kg AS qty,
                    ti.price_per_kg AS price, ti.subtotal
             FROM fin_transaction_items ti
             LEFT JOIN fin_materials m ON m.id = ti.material_id
@@ -1148,7 +1304,9 @@ def get_fin_invoice_detail(txn_id):
             ORDER BY ti.id ASC;
         """, (txn_id,))
         items = [{
+            "material_id": r.get("material_id"),
             "product_name": r.get("product_name") or "-",
+            "unit": r.get("unit") or "",
             "qty": float(r["qty"] or 0),
             "price": int(r["price"] or 0),
             "subtotal": float(r["subtotal"] or 0),
@@ -1521,6 +1679,116 @@ def purge_fin_transaction(txn_id):
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal menghapus permanen: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _ensure_nota_drafts_schema(cur):
+    """Lazy-migration: tabel draft nota (bisa banyak per user, dipakai
+    supaya pembuatan nota tidak hilang kalau accidental-exit)."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS nota_drafts (
+            id SERIAL PRIMARY KEY,
+            created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            nota_type VARCHAR(10) NOT NULL DEFAULT 'JUAL',
+            draft_name VARCHAR(120),
+            form_data JSONB NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+
+def list_nota_drafts(user_id):
+    """Daftar draft nota milik satu user, terbaru duluan."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_nota_drafts_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT id, nota_type, draft_name, form_data,
+                   TO_CHAR(updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                           'YYYY-MM-DD HH24:MI:SS') AS updated_at_wib
+            FROM nota_drafts
+            WHERE created_by = %s
+            ORDER BY updated_at DESC;
+        """, (user_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
+def save_nota_draft(user_id, nota_type, draft_name, form_data):
+    """
+    Simpan draft BARU (selalu insert, bukan update, supaya bisa banyak
+    draft sekaligus). Kalau draft_name kosong, auto-generate dari nama
+    customer/pemasok di form_data + waktu WIB. Draft user yang sama di
+    luar 30 draft terbaru otomatis dibuang supaya tabel tidak membengkak.
+    Return dict draft yang baru disimpan.
+    """
+    nota_type = (nota_type or "JUAL").strip().upper()
+    if nota_type not in ("JUAL", "BELI"):
+        nota_type = "JUAL"
+
+    draft_name = (draft_name or "").strip()
+    if not draft_name:
+        who = (form_data or {}).get("customer_name") or "Draft"
+        draft_name = f"{who} — {_now_wib_naive().strftime('%d/%m %H:%M')}"
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_nota_drafts_schema(cur)
+        cur.execute("""
+            INSERT INTO nota_drafts (created_by, nota_type, draft_name, form_data)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, nota_type, draft_name, form_data,
+                      TO_CHAR(updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                              'YYYY-MM-DD HH24:MI:SS') AS updated_at_wib;
+        """, (user_id, nota_type, draft_name, Json(form_data or {})))
+        draft = dict(cur.fetchone())
+
+        cur.execute("""
+            DELETE FROM nota_drafts
+            WHERE created_by = %s
+              AND id NOT IN (
+                  SELECT id FROM nota_drafts
+                  WHERE created_by = %s
+                  ORDER BY updated_at DESC
+                  LIMIT 30
+              );
+        """, (user_id, user_id))
+
+        conn.commit()
+        return draft
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menyimpan draft: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_nota_draft(draft_id, user_id):
+    """Hapus 1 draft milik user tsb. Raise ValueError kalau tidak ketemu/bukan miliknya."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            DELETE FROM nota_drafts WHERE id = %s AND created_by = %s RETURNING id;
+        """, (draft_id, user_id))
+        if not cur.fetchone():
+            raise ValueError("Draft tidak ditemukan.")
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus draft: {e}")
     finally:
         cur.close()
         conn.close()

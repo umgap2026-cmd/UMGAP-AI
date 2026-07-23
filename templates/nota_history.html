@@ -354,8 +354,9 @@
             {% else %}
             <span class="badge" style="color: var(--bad); border-color: var(--bad)">⏳ Belum</span>
             {% endif %}
-            <div style="display:flex; gap:6px">
+            <div style="display:flex; gap:6px; flex-wrap:wrap">
               <a class="pill-btn primary" href="/nota/{{ inv.id }}">Lihat</a>
+              <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
               {% include "_nota_delete_popover.html" %}
             </div>
           </div>
@@ -392,8 +393,9 @@
                 {% endif %}
               </td>
               <td>
-                <div style="display:flex; gap:6px">
+                <div style="display:flex; gap:6px; flex-wrap:wrap">
                   <a class="pill-btn" href="/nota/{{ inv.id }}">Lihat</a>
+                  <a class="pill-btn" href="/nota/{{ inv.id }}/edit">✏️ Edit</a>
                   {% include "_nota_delete_popover.html" %}
                 </div>
               </td>

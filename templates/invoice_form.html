@@ -290,6 +290,21 @@
   .link-ttl { font-weight: 900; font-size: 13px; }
   .link-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
+  /* draft list */
+  .pill-btn {
+    border: none; border-radius: 10px; padding: 8px 12px; font-weight: 900; font-size: 11px;
+    cursor: pointer; font-family: inherit; transition: transform 0.15s;
+    background: #eef2ff; color: var(--blue); white-space: nowrap;
+  }
+  .pill-btn:hover { transform: translateY(-1px); }
+  .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
+  .draft-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #f2f5fb; border-radius: 12px; padding: 10px 12px;
+  }
+  .draft-name { font-weight: 900; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
   /* company profile mini */
   .co-row { display: flex; align-items: center; gap: 11px; }
   .co-logo {
@@ -344,10 +359,10 @@
     <div class="hero-strip">
       <div class="hero-left">
         <div class="hero-title">
-          <div class="hero-ico" id="heroIco">🧾</div>
-          <span id="heroTitle">Buat Nota Jual</span>
+          <div class="hero-ico" id="heroIco">{{ '✏️' if edit_mode else '🧾' }}</div>
+          <span id="heroTitle">{{ ('Edit Nota ' ~ edit_invoice.invoice_no) if edit_mode else 'Buat Nota Jual' }}</span>
         </div>
-        <div class="hero-sub" id="heroSub">Buat nota dari stok gudang, cetak &amp; kirim WhatsApp.</div>
+        <div class="hero-sub" id="heroSub">{{ 'Ubah item, jumlah, harga, atau data pembeli/pemasok.' if edit_mode else 'Buat nota dari stok gudang, cetak & kirim WhatsApp.' }}</div>
       </div>
       <div class="hero-right">
         <div class="total-badge">
@@ -365,9 +380,40 @@
       </div>
     </a>
 
-    <form method="post" id="invForm">
+    {% if not edit_mode and drafts %}
+    <div class="main-card" style="margin-top: 14px">
+      <div class="inner">
+        <div class="sec-title">📝 Draft Tersimpan ({{ drafts|length }})</div>
+        <div class="sec-desc">Lanjutkan nota yang belum selesai dibuat</div>
+        <div class="divider"></div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          {% for d in drafts %}
+          <div class="draft-row">
+            <div style="min-width:0">
+              <div class="draft-name">{{ '🛒' if d.nota_type == 'JUAL' else '📦' }} {{ d.draft_name }}</div>
+              <div class="draft-meta">{{ (d.form_data.items|length) if d.form_data.items else 0 }} item &bull; {{ d.updated_at_wib }}</div>
+            </div>
+            <div style="display:flex; gap:6px; flex:0 0 auto">
+              <button type="button" class="pill-btn" style="background:linear-gradient(180deg,#2563eb,#1d4ed8); color:#fff" onclick="loadDraft({{ d.id }})">Buka</button>
+              <form method="post" action="/nota/drafts/{{ d.id }}/delete" onsubmit="return confirm('Hapus draft ini?');">
+                <button type="submit" class="pill-btn danger">Hapus</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <script type="application/json" id="draftsData">{{ drafts|tojson }}</script>
+    {% endif %}
+
+    {% if edit_mode %}
+    <script type="application/json" id="editItemsData">{{ edit_items|tojson }}</script>
+    {% endif %}
+
+    <form method="post" id="invForm" action="{{ ('/nota/%d/edit'|format(edit_invoice.id)) if edit_mode else '/nota/new' }}">
       <input type="hidden" name="items_json" id="itemsJsonInput" value="[]" />
-      <input type="hidden" name="is_paid" id="isPaidInp" value="1" />
+      <input type="hidden" name="is_paid" id="isPaidInp" value="{{ '0' if edit_mode and not edit_invoice.is_paid else '1' }}" />
 
       <div class="form-split" style="margin-top: 14px">
         <!-- LEFT: info & pembayaran -->
@@ -375,34 +421,39 @@
           <div class="main-card">
             <div class="inner">
               <div class="sec-title">🔀 Jenis Nota</div>
-              <div class="sec-desc">Barang keluar (jual) atau masuk (beli) gudang</div>
+              <div class="sec-desc">{{ 'Jenis nota tidak bisa diubah saat edit' if edit_mode else 'Barang keluar (jual) atau masuk (beli) gudang' }}</div>
               <div class="divider"></div>
               <div class="opt-grid c2">
                 <div class="opt">
-                  <input type="radio" name="nota_type" id="nt-jual" value="JUAL" checked />
+                  <input type="radio" name="nota_type" id="nt-jual" value="JUAL"
+                         {{ 'checked' if not edit_mode or edit_invoice.nota_type == 'JUAL' else '' }}
+                         {{ 'disabled' if edit_mode else '' }} />
                   <label for="nt-jual"><span class="ico">🛒</span>Nota Jual</label>
                 </div>
                 <div class="opt">
-                  <input type="radio" name="nota_type" id="nt-beli" value="BELI" />
+                  <input type="radio" name="nota_type" id="nt-beli" value="BELI"
+                         {{ 'checked' if edit_mode and edit_invoice.nota_type == 'BELI' else '' }}
+                         {{ 'disabled' if edit_mode else '' }} />
                   <label for="nt-beli"><span class="ico">📦</span>Nota Beli</label>
                 </div>
               </div>
+              {% if edit_mode %}<input type="hidden" name="nota_type" value="{{ edit_invoice.nota_type }}" />{% endif %}
             </div>
           </div>
 
           <div class="main-card">
             <div class="inner">
-              <div class="sec-title" id="custCardTitle">👤 Info Pelanggan</div>
-              <div class="sec-desc" id="custCardSub">Nama &amp; nomor WhatsApp customer</div>
+              <div class="sec-title" id="custCardTitle">{{ '🚚 Info Pemasok' if edit_mode and edit_invoice.nota_type == 'BELI' else '👤 Info Pelanggan' }}</div>
+              <div class="sec-desc" id="custCardSub">{{ 'Nama & nomor WhatsApp pemasok/orang' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama & nomor WhatsApp customer' }}</div>
               <div class="divider"></div>
               <div class="row2">
                 <div class="field">
-                  <label id="custNameLbl">Nama Customer *</label>
-                  <input type="text" name="customer_name" placeholder="Wajib diisi…" autocomplete="off" required />
+                  <label id="custNameLbl">{{ 'Nama Pemasok *' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
+                  <input type="text" name="customer_name" placeholder="Wajib diisi…" autocomplete="off" required value="{{ edit_invoice.customer_name if edit_mode else '' }}" />
                 </div>
                 <div class="field">
                   <label>No. WhatsApp</label>
-                  <input type="tel" name="customer_phone" placeholder="08xx…" autocomplete="off" />
+                  <input type="tel" name="customer_phone" placeholder="08xx…" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
 
@@ -433,15 +484,15 @@
                 <label>Metode Pembayaran</label>
                 <div class="opt-grid c3">
                   <div class="opt">
-                    <input type="radio" name="payment_method" id="pm-c" value="CASH" checked />
+                    <input type="radio" name="payment_method" id="pm-c" value="CASH" {{ 'checked' if not edit_mode or edit_invoice.payment_method == 'CASH' else '' }} />
                     <label for="pm-c"><span class="ico">💵</span>Cash</label>
                   </div>
                   <div class="opt">
-                    <input type="radio" name="payment_method" id="pm-t" value="TRANSFER" />
+                    <input type="radio" name="payment_method" id="pm-t" value="TRANSFER" {{ 'checked' if edit_mode and edit_invoice.payment_method == 'TRANSFER' else '' }} />
                     <label for="pm-t"><span class="ico">🏦</span>Transfer</label>
                   </div>
                   <div class="opt">
-                    <input type="radio" name="payment_method" id="pm-q" value="QRIS" />
+                    <input type="radio" name="payment_method" id="pm-q" value="QRIS" {{ 'checked' if edit_mode and edit_invoice.payment_method == 'QRIS' else '' }} />
                     <label for="pm-q"><span class="ico">📱</span>QRIS</label>
                   </div>
                 </div>
@@ -449,11 +500,13 @@
 
               <div class="field" style="margin-bottom: 0">
                 <label>Status Pembayaran</label>
-                <div class="pay-switch" id="ptog" onclick="togglePaid()">
-                  <span class="pay-ico" id="ptIco">✅</span>
+                <div class="pay-switch{{ '' if not edit_mode or edit_invoice.is_paid else ' off' }}" id="ptog" onclick="togglePaid()">
+                  <span class="pay-ico" id="ptIco">{{ '✅' if not edit_mode or edit_invoice.is_paid else '⏳' }}</span>
                   <div class="pay-info">
-                    <div class="pay-ttl" id="ptTtl">Lunas</div>
-                    <div class="pay-sub" id="ptSub">Pembayaran sudah diterima</div>
+                    <div class="pay-ttl" id="ptTtl">{{ 'Lunas' if not edit_mode or edit_invoice.is_paid else 'Belum Lunas' }}</div>
+                    <div class="pay-sub" id="ptSub">
+                      {% if edit_mode and not edit_invoice.is_paid %}{{ 'Tagihan masih berjalan (hutang)' if edit_invoice.nota_type == 'BELI' else 'Tagihan masih berjalan (piutang)' }}{% else %}{{ 'Sudah dibayar penuh ke pemasok' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Pembayaran sudah diterima' }}{% endif %}
+                    </div>
                   </div>
                   <div class="sw-tog"><div class="sw-k"></div></div>
                 </div>
@@ -467,7 +520,7 @@
           <div class="main-card">
             <div class="inner">
               <div class="sec-title">🛍️ Item Nota</div>
-              <div class="sec-desc" id="itemsCardSub">Barang gudang, qty &amp; harga jual</div>
+              <div class="sec-desc" id="itemsCardSub">{{ 'Barang gudang, qty & harga beli' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Barang gudang, qty & harga jual' }}</div>
               <div class="divider"></div>
 
               <div id="itemList">
@@ -523,15 +576,15 @@
               <div class="divider"></div>
 
               <div class="field">
-                <label id="discLbl">Diskon (Rp)</label>
+                <label id="discLbl">{{ 'DP Sudah Dibayar (Rp)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Diskon (Rp)' }}</label>
                 <div class="disc-row">
-                  <input type="number" name="discount" id="discInp" min="0" value="0" placeholder="0" />
+                  <input type="number" name="discount" id="discInp" min="0" value="{{ edit_invoice.discount|round|int if edit_mode else 0 }}" placeholder="0" />
                   <div class="disc-badge" id="discBadge">- Rp 0</div>
                 </div>
               </div>
               <div class="field" style="margin-bottom: 0">
                 <label>Catatan</label>
-                <textarea name="notes" placeholder="DP, keterangan…" style="min-height: 60px"></textarea>
+                <textarea name="notes" placeholder="DP, keterangan…" style="min-height: 60px">{{ edit_invoice.notes if edit_mode else '' }}</textarea>
               </div>
             </div>
           </div>
@@ -544,10 +597,22 @@
             <div class="grand-val" id="grandTotal">Rp 0</div>
           </div>
 
+          {% if edit_mode %}
           <button type="submit" class="btn-submit">
             <svg viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
-            Simpan &amp; Buka Nota
+            Simpan Perubahan
           </button>
+          {% else %}
+          <div style="display:flex; gap:8px; margin-top:14px">
+            <button type="button" class="btn-submit" id="btnSaveDraft" style="flex:1; margin-top:0; background:#eef2ff; color:var(--blue); box-shadow:none">
+              💾 Simpan Draft
+            </button>
+            <button type="submit" class="btn-submit" style="flex:2; margin-top:0">
+              <svg viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
+              Simpan &amp; Buka Nota
+            </button>
+          </div>
+          {% endif %}
         </div>
       </div>
     </form>
@@ -562,6 +627,7 @@
     var DI = document.getElementById("discInp"),
       DB = document.getElementById("discBadge"),
       DL = document.getElementById("discLine");
+    var blankRowTemplate = L.querySelector(".item-row").cloneNode(true);
 
     function rp(n) { return "Rp " + Math.round(n || 0).toLocaleString("id-ID"); }
     function qtyNum(v) {
@@ -703,7 +769,43 @@
       bindRow(c);
       grand();
     });
-    L.querySelectorAll(".item-row").forEach(bindRow);
+    // ── Prefill item rows (edit nota / buka draft) ──
+    function fillRowFromItem(row, it) {
+      var matWrap = row.querySelector(".item-material");
+      var lovItem = matWrap.querySelector('.lov-item[data-id="' + it.material_id + '"]');
+      var name = lovItem ? lovItem.childNodes[0].textContent.trim() : (it.material_name || it.product_name || "Barang");
+      var stock = lovItem ? lovItem.getAttribute("data-stock") : "0";
+      var unit = lovItem ? lovItem.getAttribute("data-unit") : (it.unit || "");
+      matWrap.setAttribute("data-value", it.material_id);
+      matWrap.setAttribute("data-stock", stock || "0");
+      matWrap.setAttribute("data-unit", unit || "");
+      var btn = matWrap.querySelector(".lov-btn"), btnText = matWrap.querySelector(".lov-btn-text");
+      btnText.textContent = name + " · stok " + parseFloat(stock || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+      btn.classList.remove("placeholder");
+      row.querySelector(".item-qty").value = fmtQty(it.qty);
+      row.querySelector(".item-price").value = it.price;
+    }
+    function applyItemsSnapshot(items) {
+      L.querySelectorAll(".item-row").forEach(function (r) { r.remove(); });
+      (items && items.length ? items : [{}]).forEach(function (it) {
+        var row = blankRowTemplate.cloneNode(true);
+        L.appendChild(row);
+        if (it.material_id) fillRowFromItem(row, it);
+        bindRow(row);
+      });
+      grand();
+    }
+
+    var initialEditItems = null;
+    var editDataEl = document.getElementById("editItemsData");
+    if (editDataEl) {
+      try { initialEditItems = JSON.parse(editDataEl.textContent || "[]"); } catch (e) { initialEditItems = null; }
+    }
+    if (initialEditItems && initialEditItems.length) {
+      applyItemsSnapshot(initialEditItems);
+    } else {
+      L.querySelectorAll(".item-row").forEach(bindRow);
+    }
     DI.addEventListener("input", grand);
     grand();
 
@@ -758,7 +860,7 @@
       document.getElementById("itemsJsonInput").value = JSON.stringify(items);
     });
 
-    var isPaid = true;
+    var isPaid = document.getElementById("isPaidInp").value === "1";
     window.togglePaid = function () {
       isPaid = !isPaid;
       var checked = document.querySelector('input[name="nota_type"]:checked');
@@ -770,6 +872,101 @@
       document.getElementById("ptSub").textContent = isPaid ? t.ptSub : t.ptSubOff;
       document.getElementById("isPaidInp").value = isPaid ? "1" : "0";
     };
+
+    // ── Draft: simpan, buka, hapus ──
+    function applyFormFieldsSnapshot(data) {
+      document.querySelector('input[name="customer_name"]').value = data.customer_name || "";
+      document.querySelector('input[name="customer_phone"]').value = data.customer_phone || "";
+      DI.value = data.discount || 0;
+      document.querySelector('textarea[name="notes"]').value = data.notes || "";
+      var pmRadio = document.querySelector('input[name="payment_method"][value="' + (data.payment_method || "CASH") + '"]');
+      if (pmRadio) pmRadio.checked = true;
+      var typeRadio = document.querySelector('input[name="nota_type"][value="' + (data.nota_type || "JUAL") + '"]');
+      if (typeRadio && !typeRadio.disabled) {
+        typeRadio.checked = true;
+        applyNotaType(typeRadio.value);
+      }
+      isPaid = data.is_paid !== false;
+      document.getElementById("isPaidInp").value = isPaid ? "1" : "0";
+      var checked = document.querySelector('input[name="nota_type"]:checked');
+      var t = TXT[checked ? checked.value : "JUAL"] || TXT.JUAL;
+      var el = document.getElementById("ptog");
+      el.className = "pay-switch" + (isPaid ? "" : " off");
+      document.getElementById("ptIco").textContent = isPaid ? "✅" : "⏳";
+      document.getElementById("ptTtl").textContent = isPaid ? t.ptTtl : "Belum Lunas";
+      document.getElementById("ptSub").textContent = isPaid ? t.ptSub : t.ptSubOff;
+      grand();
+    }
+
+    var DRAFTS = [];
+    var draftsDataEl = document.getElementById("draftsData");
+    if (draftsDataEl) {
+      try { DRAFTS = JSON.parse(draftsDataEl.textContent || "[]"); } catch (e) { DRAFTS = []; }
+    }
+    window.loadDraft = function (id) {
+      var found = DRAFTS.filter(function (x) { return x.id === id; });
+      var d = found[0];
+      if (!d || !d.form_data) return;
+      applyFormFieldsSnapshot(d.form_data);
+      applyItemsSnapshot(d.form_data.items || []);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    var btnSaveDraft = document.getElementById("btnSaveDraft");
+    if (btnSaveDraft) {
+      btnSaveDraft.addEventListener("click", function () {
+        var items = [];
+        L.querySelectorAll(".item-row").forEach(function (r) {
+          var s = r.querySelector(".item-material");
+          var val = s.getAttribute("data-value");
+          if (!val) return;
+          items.push({
+            material_id: parseInt(val, 10),
+            qty: rowQty(r),
+            price: rowPrice(r),
+            material_name: (s.querySelector(".lov-btn-text").textContent || "").split(" · ")[0],
+            unit: s.getAttribute("data-unit") || "",
+          });
+        });
+        var checkedType = document.querySelector('input[name="nota_type"]:checked');
+        var payload = {
+          nota_type: checkedType ? checkedType.value : "JUAL",
+          form_data: {
+            nota_type: checkedType ? checkedType.value : "JUAL",
+            customer_name: document.querySelector('input[name="customer_name"]').value || "",
+            customer_phone: document.querySelector('input[name="customer_phone"]').value || "",
+            payment_method: (document.querySelector('input[name="payment_method"]:checked') || {}).value || "CASH",
+            is_paid: isPaid,
+            discount: parseInt(DI.value || "0", 10) || 0,
+            notes: document.querySelector('textarea[name="notes"]').value || "",
+            items: items,
+          },
+        };
+        var origText = btnSaveDraft.textContent;
+        btnSaveDraft.disabled = true;
+        fetch("/nota/drafts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            btnSaveDraft.disabled = false;
+            if (res.ok) {
+              btnSaveDraft.textContent = "✓ Tersimpan";
+              setTimeout(function () { btnSaveDraft.textContent = origText; }, 1800);
+            } else {
+              alert(res.message || "Gagal menyimpan draft.");
+              btnSaveDraft.textContent = origText;
+            }
+          })
+          .catch(function () {
+            btnSaveDraft.disabled = false;
+            btnSaveDraft.textContent = origText;
+            alert("Gagal menyimpan draft (koneksi bermasalah).");
+          });
+      });
+    }
   })();
 </script>
 {% endblock %} {% block bottom_nav %}

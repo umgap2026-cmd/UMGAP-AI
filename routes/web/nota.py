@@ -14,6 +14,7 @@ from core import (
     set_company_profile,
     create_fin_invoice,
     create_fin_purchase_invoice,
+    update_fin_invoice_transaction,
     get_invoice_history,
     get_fin_invoice_detail,
     settle_fin_debt_for_transaction,
@@ -21,6 +22,9 @@ from core import (
     delete_nota_transaction,
     list_deleted_nota,
     purge_fin_transaction,
+    list_nota_drafts,
+    save_nota_draft,
+    delete_nota_draft,
     get_notif_count,
 )
 
@@ -76,7 +80,94 @@ def nota_new():
         materials=get_materials_with_stock(),
         company_profile=get_company_profile(),
         notif_count=get_notif_count(),
+        drafts=list_nota_drafts(session.get("user_id")),
+        edit_mode=False,
     )
+
+
+# ---------- EDIT NOTA ----------
+@nota_bp.route("/nota/<int:txn_id>/edit", methods=["GET", "POST"])
+def nota_edit(txn_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    if request.method == "POST":
+        try:
+            items = json.loads(request.form.get("items_json") or "[]")
+        except Exception:
+            items = []
+
+        is_paid = str(request.form.get("is_paid") or "1") in ("1", "true", "True", "on", "yes")
+
+        try:
+            result = update_fin_invoice_transaction(
+                txn_id,
+                customer_name=request.form.get("customer_name"),
+                customer_phone=request.form.get("customer_phone"),
+                payment_method=request.form.get("payment_method") or "CASH",
+                notes=request.form.get("notes"),
+                discount=request.form.get("discount") or 0,
+                is_paid=is_paid,
+                items=items,
+                edited_by=session.get("user_id"),
+            )
+            flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
+            return redirect(f"/nota/{result['invoice_id']}")
+        except ValueError as e:
+            flash(str(e), "danger")
+            return redirect(f"/nota/{txn_id}/edit")
+
+    invoice, items = get_fin_invoice_detail(txn_id)
+    if not invoice:
+        flash("Nota tidak ditemukan.", "danger")
+        return redirect("/nota")
+
+    return render_template(
+        "invoice_form.html",
+        materials=get_materials_with_stock(),
+        company_profile=get_company_profile(),
+        notif_count=get_notif_count(),
+        drafts=[],
+        edit_mode=True,
+        edit_invoice=invoice,
+        edit_items=items,
+    )
+
+
+# ---------- DRAFT NOTA ----------
+@nota_bp.route("/nota/drafts", methods=["POST"])
+def nota_draft_save():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    data = request.get_json(silent=True) or {}
+    try:
+        draft = save_nota_draft(
+            session.get("user_id"),
+            data.get("nota_type"),
+            data.get("draft_name"),
+            data.get("form_data") or {},
+        )
+        return jsonify({"ok": True, "draft": draft})
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+
+
+@nota_bp.route("/nota/drafts/<int:draft_id>/delete", methods=["POST"])
+def nota_draft_delete(draft_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        delete_nota_draft(draft_id, session.get("user_id"))
+        flash("Draft dihapus.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect("/nota/new")
 
 
 # ---------- RIWAYAT ----------
