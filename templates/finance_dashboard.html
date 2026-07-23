@@ -148,6 +148,29 @@
   .stat-pill.red .s-num { color: var(--bad); }
   .stat-pill.green .s-num { color: var(--good); }
   .s-lbl { font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 3px; }
+  .stat-pill { cursor: pointer; }
+
+  /* ── TAB SWITCH ── */
+  .tab-switch {
+    display: flex; gap: 6px; margin-top: 14px; background: #fff; border-radius: 16px;
+    padding: 6px; box-shadow: var(--shadow-out); position: sticky; top: 8px; z-index: 40;
+  }
+  .tab-btn {
+    flex: 1; border: none; background: none; border-radius: 12px; padding: 10px 6px;
+    font-size: 12px; font-weight: 900; color: var(--muted); cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--blue); }
+  .tab-btn.active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff;
+    box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24);
+  }
+  .tab-count {
+    font-size: 10px; background: rgba(0, 0, 0, 0.08); border-radius: 999px; padding: 1px 6px; font-weight: 900;
+  }
+  .tab-btn.active .tab-count { background: rgba(255, 255, 255, 0.25); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
   /* ── MAIN CARD ── */
   .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
@@ -305,21 +328,35 @@
 
     <!-- STAT PILLS -->
     <div class="stat-row fade-up d2">
-      <div class="stat-pill blue">
+      <div class="stat-pill blue" data-jump="barang">
         <div class="s-num" id="statStok" data-count="{{ total_value|round|int }}">Rp 0</div>
         <div class="s-lbl">Nilai Stok</div>
       </div>
-      <div class="stat-pill red">
+      <div class="stat-pill red" data-jump="hutang">
         <div class="s-num" id="statHutang" data-count="{{ debts.total_hutang|round|int }}">Rp 0</div>
         <div class="s-lbl">Hutang ke Pemasok</div>
       </div>
-      <div class="stat-pill green">
+      <div class="stat-pill green" data-jump="piutang">
         <div class="s-num" id="statPiutang" data-count="{{ debts.total_piutang|round|int }}">Rp 0</div>
         <div class="s-lbl">Piutang Pelanggan</div>
       </div>
     </div>
 
+    <!-- TAB SWITCH -->
+    <div class="tab-switch fade-up d2">
+      <button type="button" class="tab-btn active" data-tab="barang">
+        📦 Barang <span class="tab-count">{{ materials|length }}</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="hutang">
+        🔴 Hutang <span class="tab-count">{{ debts.hutang|length }}</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="piutang">
+        🟢 Piutang <span class="tab-count">{{ debts.piutang|length }}</span>
+      </button>
+    </div>
+
     <!-- ═══ BARANG GUDANG ═══ -->
+    <div class="tab-panel active" data-tab-panel="barang">
     <div class="main-card fade-up d3">
       <div class="inner">
         <div class="sec-title">📦 Barang Gudang</div>
@@ -439,8 +476,11 @@
         {% endif %}
       </div>
     </div>
+    </div>
+    <!-- /tab-panel barang -->
 
     <!-- ═══ HUTANG KE PEMASOK ═══ -->
+    <div class="tab-panel" data-tab-panel="hutang">
     <div class="main-card fade-up d4">
       <div class="inner">
         <div class="sec-title" style="color: var(--bad)">🔴 Hutang ke Pemasok</div>
@@ -501,8 +541,11 @@
         {% endif %}
       </div>
     </div>
+    </div>
+    <!-- /tab-panel hutang -->
 
     <!-- ═══ PIUTANG PELANGGAN ═══ -->
+    <div class="tab-panel" data-tab-panel="piutang">
     <div class="main-card fade-up d5">
       <div class="inner">
         <div class="sec-title" style="color: var(--good)">🟢 Piutang Pelanggan</div>
@@ -563,6 +606,8 @@
         {% endif %}
       </div>
     </div>
+    </div>
+    <!-- /tab-panel piutang -->
 
   </div>
 </div>
@@ -626,6 +671,26 @@
     });
     window.addEventListener("scroll", function () { closeAllMiniPop(null); }, true);
     window.addEventListener("resize", function () { closeAllMiniPop(null); });
+
+    // Tab switch: Barang Gudang / Hutang / Piutang -- supaya Hutang & Piutang
+    // langsung bisa dibuka tanpa scroll panjang kalau daftar barang sudah banyak.
+    function activateTab(tab) {
+      document.querySelectorAll(".tab-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-tab") === tab);
+      });
+      document.querySelectorAll(".tab-panel").forEach(function (p) {
+        p.classList.toggle("active", p.getAttribute("data-tab-panel") === tab);
+      });
+    }
+    document.querySelectorAll(".tab-btn").forEach(function (b) {
+      b.addEventListener("click", function () { activateTab(b.getAttribute("data-tab")); });
+    });
+    document.querySelectorAll(".stat-pill[data-jump]").forEach(function (p) {
+      p.addEventListener("click", function () {
+        activateTab(p.getAttribute("data-jump"));
+        document.querySelector(".tab-switch").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   })();
 </script>
 {% endblock %}
