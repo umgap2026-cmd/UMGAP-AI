@@ -433,16 +433,41 @@
       countUp(el, 700);
     });
 
-    // Tutup mini-pop lain saat salah satu dibuka
+    // Popover mini-pop: tutup yang lain saat satu dibuka, dan posisikan
+    // "fixed" mengikuti tombolnya — supaya tidak ke-clip oleh .table-wrap
+    // (overflow-x:auto otomatis membuat overflow-y ikut auto & memotong
+    // popover yang posisinya absolute di dalamnya).
+    function closeAllMiniPop(except) {
+      document.querySelectorAll("details.mini-pop[open]").forEach(function (o) {
+        if (o !== except) o.removeAttribute("open");
+      });
+    }
+    function positionPopPanel(d) {
+      var panel = d.querySelector(".pop-panel");
+      var summary = d.querySelector("summary");
+      if (!panel || !summary) return;
+      var rect = summary.getBoundingClientRect();
+      var pw = panel.offsetWidth || 260;
+      var ph = panel.offsetHeight || 200;
+      var left = Math.min(rect.right - pw, window.innerWidth - pw - 10);
+      left = Math.max(left, 10);
+      var top = rect.bottom + 8;
+      if (top + ph > window.innerHeight - 10) top = Math.max(10, rect.top - ph - 8);
+      panel.style.position = "fixed";
+      panel.style.left = left + "px";
+      panel.style.top = top + "px";
+      panel.style.right = "auto";
+    }
     document.querySelectorAll("details.mini-pop").forEach(function (d) {
       d.addEventListener("toggle", function () {
         if (d.open) {
-          document.querySelectorAll("details.mini-pop[open]").forEach(function (o) {
-            if (o !== d) o.removeAttribute("open");
-          });
+          closeAllMiniPop(d);
+          positionPopPanel(d);
         }
       });
     });
+    window.addEventListener("scroll", function () { closeAllMiniPop(null); }, true);
+    window.addEventListener("resize", function () { closeAllMiniPop(null); });
 
     // Tampilkan input alasan manual kalau pilih "Lainnya"
     document.querySelectorAll("select.nota-del-reason").forEach(function (sel) {
