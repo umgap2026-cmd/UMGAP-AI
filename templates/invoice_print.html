@@ -130,6 +130,19 @@
     display: none; align-items: center; justify-content: center; padding: 16px;
   }
   .modal-overlay.open { display: flex; }
+
+  /* ── ZOOM PREVIEW FAKTUR (ketuk gambar kecil di HP utk perbesar) ── */
+  .zoom-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88); z-index: 300;
+    display: none; overflow: auto; -webkit-overflow-scrolling: touch;
+  }
+  .zoom-overlay.open { display: block; }
+  .zoom-inner { padding: 56px 16px 40px; display: flex; justify-content: center; min-width: max-content; }
+  .zoom-close {
+    position: fixed; top: 12px; right: 12px; z-index: 301; width: 40px; height: 40px;
+    border-radius: 999px; border: none; background: #fff; color: #111; font-size: 16px;
+    font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35); font-family: inherit;
+  }
   .modal-box {
     background: #fff; border-radius: 20px; box-shadow: var(--shadow-out);
     padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto;
@@ -357,7 +370,7 @@
       <div class="main-card pv-only">
         <div class="inner" style="background: #eef0f4">
           <div class="sec-title">🧾 Preview Faktur</div>
-          <div class="sec-desc">Tampilan sesuai kertas continuous form printer</div>
+          <div class="sec-desc">Tampilan sesuai kertas continuous form printer <span id="pvZoomHint" style="display:none; color: var(--blue); font-weight: 700;">&bull; ketuk gambar utk memperbesar 🔍</span></div>
           <div class="divider"></div>
           <div class="pv-body">
             <div class="faktur" id="fakturEl">
@@ -489,6 +502,12 @@
     </form>
   </div>
 </div>
+
+<!-- ZOOM PREVIEW FAKTUR (ketuk gambar kecil di HP utk perbesar/dibaca jelas) -->
+<div class="zoom-overlay" id="fakturZoomOverlay">
+  <button type="button" class="zoom-close" onclick="closeFakturZoom()">✕</button>
+  <div class="zoom-inner" id="fakturZoomInner"></div>
+</div>
 {% endif %}
 
 <script>
@@ -572,21 +591,21 @@
   });
 
   // Preview faktur dibuat pas ukuran kertas continuous form (9.5in) --
-  // terlalu lebar utk layar HP. Skala otomatis biar muat tanpa perlu
-  // geser/zoom manual (bukan sekadar overflow-x:auto yang bikin "gepeng"
-  // dibaca -- ini benar-benar mengecilkan seluruh dokumennya secara utuh).
+  // hampir selalu lebih lebar dari kolom yang tersedia (HP MAUPUN layar
+  // desktop yang belum lebar-lebar amat). Skala otomatis biar selalu pas
+  // dgn lebar kolom yang ada -- dicek tiap resize, TIDAK pakai breakpoint
+  // tetap (960px dst), supaya tetap benar di lebar layar berapapun. Kalau
+  // kolomnya memang cukup lebar (scale=1), tetap tampil ukuran asli.
   (function () {
     var pvBody = document.querySelector(".pv-body");
     var faktur = document.getElementById("fakturEl");
+    var zoomHint = document.getElementById("pvZoomHint");
+    var zoomOverlay = document.getElementById("fakturZoomOverlay");
+    var zoomInner = document.getElementById("fakturZoomInner");
     if (!pvBody || !faktur) return;
+    var lastScale = 1;
+
     function fitFaktur() {
-      if (window.innerWidth >= 960) {
-        faktur.style.transform = "";
-        faktur.style.marginLeft = "";
-        pvBody.style.height = "";
-        pvBody.style.justifyContent = "";
-        return;
-      }
       // PENTING: flexbox menghitung posisi "center" pakai ukuran ASLI
       // (sebelum transform) -- kalau tetap justify-content:center, sisi
       // kiri dokumen yang sudah diskalakan bisa "terpotong" keluar layar
@@ -594,7 +613,7 @@
       // pindah ke flex-start, lalu tengahkan manual pakai margin-left --
       // margin (beda dgn justify-content) dihitung SEBELUM transform,
       // jadi titik asal transform-origin:top-left ikut kegeser bareng
-      // margin-nya & hasil skalanya benar-benar center.
+      // margin-nya & hasil skalanya benar-benar center, di skala berapapun.
       pvBody.style.justifyContent = "flex-start";
       faktur.style.transform = "";
       faktur.style.marginLeft = "";
@@ -608,10 +627,37 @@
       faktur.style.transform = "scale(" + scale + ")";
       faktur.style.marginLeft = Math.round(centerOffset) + "px";
       pvBody.style.height = Math.ceil(naturalHeight * scale) + "px";
+      lastScale = scale;
+      faktur.style.cursor = scale < 1 ? "zoom-in" : "";
+      if (zoomHint) zoomHint.style.display = scale < 0.999 ? "inline" : "none";
     }
     window.addEventListener("resize", fitFaktur);
     fitFaktur();
     setTimeout(fitFaktur, 200);
+
+    if (zoomOverlay && zoomInner) {
+      window.closeFakturZoom = function () {
+        zoomOverlay.classList.remove("open");
+        zoomInner.innerHTML = "";
+      };
+      zoomOverlay.addEventListener("click", function (e) {
+        if (e.target === zoomOverlay) closeFakturZoom();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && zoomOverlay.classList.contains("open")) closeFakturZoom();
+      });
+      faktur.addEventListener("click", function () {
+        if (lastScale >= 0.999) return;
+        var clone = faktur.cloneNode(true);
+        clone.removeAttribute("id");
+        clone.style.transform = "";
+        clone.style.marginLeft = "";
+        clone.style.cursor = "";
+        zoomInner.innerHTML = "";
+        zoomInner.appendChild(clone);
+        zoomOverlay.classList.add("open");
+      });
+    }
   })();
 </script>
 {% endblock %} {% block bottom_nav %}
