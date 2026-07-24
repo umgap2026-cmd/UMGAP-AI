@@ -603,7 +603,7 @@
                             <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}"
                                  data-unit="{{ m.unit }}" data-avg-cost="{{ m.avg_cost_per_kg }}" data-search="{{ m.name|lower }}">
                               {{ m.name }}
-                              <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}</span>
+                              <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }} &middot; HPP Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</span>
                             </div>
                             {% endfor %}
                             {% endfor %}
@@ -844,6 +844,12 @@
     }
 
     // ── List-of-value: searchable item picker ──
+    function lovLabel(name, stock, unit, avgCost) {
+      var label = name + " · stok " + parseFloat(stock || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+      var cost = parseFloat(avgCost || 0);
+      if (cost > 0) label += " · HPP " + rp(cost);
+      return label;
+    }
     function selectLovItem(wrap, it) {
       var btn = wrap.querySelector(".lov-btn");
       var btnText = wrap.querySelector(".lov-btn-text");
@@ -857,7 +863,7 @@
       wrap.setAttribute("data-unit", unit);
       wrap.setAttribute("data-avg-cost", avgCost);
       wrap.setAttribute("data-name", name);
-      btnText.textContent = name + " · stok " + parseFloat(stock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+      btnText.textContent = lovLabel(name, stock, unit, avgCost);
       btn.classList.remove("placeholder");
       wrap.classList.remove("open");
       wrap.dispatchEvent(new Event("lovchange"));
@@ -870,11 +876,14 @@
       item.setAttribute("data-id", mat.material_id);
       item.setAttribute("data-stock", mat.init_qty || 0);
       item.setAttribute("data-unit", mat.unit);
+      item.setAttribute("data-avg-cost", mat.avg_cost || 0);
       item.setAttribute("data-search", String(mat.name || "").toLowerCase());
       item.textContent = mat.name;
       var stk = document.createElement("span");
       stk.className = "stk";
-      stk.textContent = "stok " + parseFloat(mat.init_qty || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + mat.unit;
+      var stkText = "stok " + parseFloat(mat.init_qty || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + mat.unit;
+      if (mat.avg_cost > 0) stkText += " · HPP " + rp(mat.avg_cost);
+      stk.textContent = stkText;
       item.appendChild(stk);
       item.addEventListener("click", function () { selectLovItem(wrap, item); });
       if (emptyEl) list.insertBefore(item, emptyEl); else list.appendChild(item);
@@ -1003,6 +1012,7 @@
               newSubmit.disabled = false;
               if (!res.ok) { alert(res.message || "Gagal menambah barang."); return; }
               var mat = res.material;
+              mat.avg_cost = stockMode === "fill" ? payload.init_price : 0;
               var selfItem = null;
               document.querySelectorAll(".lov").forEach(function (otherWrap) {
                 var added = addLovItemToList(otherWrap, mat);
@@ -1088,7 +1098,7 @@
       matWrap.setAttribute("data-avg-cost", avgCost || "0");
       matWrap.setAttribute("data-name", name);
       var btn = matWrap.querySelector(".lov-btn"), btnText = matWrap.querySelector(".lov-btn-text");
-      btnText.textContent = name + " · stok " + parseFloat(stock || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+      btnText.textContent = lovLabel(name, stock, unit, avgCost);
       btn.classList.remove("placeholder");
       row.querySelector(".item-qty").value = fmtQty(it.qty);
       row.querySelector(".item-price").value = it.price;
@@ -1371,7 +1381,11 @@
         it.setAttribute("data-stock", newStock);
         it.setAttribute("data-avg-cost", newAvgCost);
         var stk = it.querySelector(".stk");
-        if (stk) stk.textContent = "stok " + parseFloat(newStock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + (it.getAttribute("data-unit") || "");
+        if (stk) {
+          var stkText = "stok " + parseFloat(newStock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + (it.getAttribute("data-unit") || "");
+          if (newAvgCost > 0) stkText += " · HPP " + rp(newAvgCost);
+          stk.textContent = stkText;
+        }
       });
       document.querySelectorAll('.lov[data-value="' + materialId + '"]').forEach(function (wrap) {
         wrap.setAttribute("data-stock", newStock);
@@ -1379,7 +1393,7 @@
         var btnText = wrap.querySelector(".lov-btn-text");
         var unit = wrap.getAttribute("data-unit") || "";
         var name = wrap.getAttribute("data-name") || btnText.textContent.split(" · stok ")[0];
-        btnText.textContent = name + " · stok " + parseFloat(newStock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+        btnText.textContent = lovLabel(name, newStock, unit, newAvgCost);
         wrap.dispatchEvent(new Event("lovchange"));
       });
     }
