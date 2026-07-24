@@ -465,6 +465,14 @@
 
     {% if edit_mode %}
     <script type="application/json" id="editItemsData">{{ edit_items|tojson }}</script>
+    {% set _adj = [] %}
+    {% if edit_invoice.dp_amount and edit_invoice.dp_amount > 0 %}
+      {% set _ = _adj.append({"type": "DP", "amount": edit_invoice.dp_amount}) %}
+    {% endif %}
+    {% if edit_invoice.ongkir_potongan_amount and edit_invoice.ongkir_potongan_amount > 0 %}
+      {% set _ = _adj.append({"type": "ONGKIR", "amount": edit_invoice.ongkir_potongan_amount, "mode": "POTONGAN"}) %}
+    {% endif %}
+    <script type="application/json" id="editAdjustmentsData">{{ _adj|tojson }}</script>
     {% endif %}
 
     <form method="post" id="invForm" action="{{ ('/nota/%d/edit'|format(edit_invoice.id)) if edit_mode else '/nota/new' }}">
@@ -678,7 +686,7 @@
                     </div>
                     <div class="field" style="margin-bottom: 0">
                       <label style="margin-bottom: 5px">Jumlah (Rp)</label>
-                      <input type="number" class="adj-amount" min="0" placeholder="0" value="{{ edit_invoice.discount|round|int if edit_mode and edit_invoice.discount else '' }}" />
+                      <input type="number" class="adj-amount" min="0" placeholder="0" />
                     </div>
                   </div>
                   <div class="adj-ongkir-toggle lov-new-toggle" style="display:none; margin-top: 8px">
@@ -1124,6 +1132,12 @@
     } else {
       L.querySelectorAll(".item-row").forEach(bindRow);
     }
+
+    var initialEditAdjustments = null;
+    var editAdjDataEl = document.getElementById("editAdjustmentsData");
+    if (editAdjDataEl) {
+      try { initialEditAdjustments = JSON.parse(editAdjDataEl.textContent || "[]"); } catch (e) { initialEditAdjustments = null; }
+    }
     // ── Potongan & Biaya (DP, Ongkir, dst -- bisa tambah berkali-kali) ──
     function bindAdjRow(row) {
       var typeSel = row.querySelector(".adj-type");
@@ -1158,7 +1172,11 @@
       });
       syncType();
     }
-    AJ.querySelectorAll(".adj-row").forEach(bindAdjRow);
+    if (initialEditAdjustments && initialEditAdjustments.length) {
+      applyAdjustmentsSnapshot(initialEditAdjustments);
+    } else {
+      AJ.querySelectorAll(".adj-row").forEach(bindAdjRow);
+    }
     document.getElementById("btnAddAdj").addEventListener("click", function () {
       var row = adjBlankTemplate.cloneNode(true);
       row.querySelector(".adj-amount").value = "";

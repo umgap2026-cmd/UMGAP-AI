@@ -372,6 +372,19 @@ def _ensure_fin_expense_schema(cur):
         """)
 
 
+def _ensure_fin_discount_breakdown_schema(cur):
+    """Lazy-migration: simpan rincian potongan nota (DP vs Ongkir-potongan)
+    secara terpisah -- supaya nota tercetak bisa menampilkan label yang
+    benar ("DP" / "Ongkir") alih-alih "Diskon" generik yang sebelumnya
+    melebur keduanya jadi satu angka."""
+    if not _col_exists(cur, "fin_transactions", "dp_amount"):
+        cur.execute("""
+            ALTER TABLE fin_transactions
+                ADD COLUMN IF NOT EXISTS dp_amount NUMERIC(14,2) NULL,
+                ADD COLUMN IF NOT EXISTS ongkir_potongan_amount NUMERIC(14,2) NULL;
+        """)
+
+
 def create_fin_expense_entry(category, amount, note, created_by):
     """Catat 1 beban/pengeluaran operasional (bukan lewat nota) -- kategori
     bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat).
@@ -1707,6 +1720,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
+        _ensure_fin_discount_breakdown_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1748,13 +1762,14 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         is_debt = not is_paid
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s)
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
+                 dp_amount, ongkir_potongan_amount)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             customer_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -1848,6 +1863,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
+        _ensure_fin_discount_breakdown_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1872,13 +1888,14 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         is_debt = not is_paid
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
-            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s)
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
+                 dp_amount, ongkir_potongan_amount)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             supplier_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -1963,6 +1980,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
+        _ensure_fin_discount_breakdown_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -2072,9 +2090,10 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         new_note = f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else "")
         cur.execute("""
             UPDATE fin_transactions
-            SET party_name = %s, note = %s, is_debt = %s, total_amount = %s
+            SET party_name = %s, note = %s, is_debt = %s, total_amount = %s,
+                dp_amount = %s, ongkir_potongan_amount = %s
             WHERE id = %s;
-        """, (customer_name, new_note, is_debt, grand_total, txn_id))
+        """, (customer_name, new_note, is_debt, grand_total, total_dp, ongkir_potongan, txn_id))
 
         cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
         if is_debt and customer_name:
@@ -2121,11 +2140,13 @@ def get_fin_invoice_detail(txn_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_discount_breakdown_schema(cur)
         conn.commit()
 
         cur.execute("""
             SELECT t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
                    t.total_amount, t.created_at, t.print_size, t.cancelled_at,
+                   t.dp_amount, t.ongkir_potongan_amount,
                    u.name AS created_by_name
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
@@ -2159,6 +2180,19 @@ def get_fin_invoice_detail(txn_id):
         profile = get_company_profile()
         nota_type = "BELI" if row.get("type") == "BELI_GUDANG" else "JUAL"
 
+        total_discount = max(0.0, items_subtotal - grand_total)
+        dp_amount = float(row.get("dp_amount") or 0)
+        ongkir_potongan_amount = float(row.get("ongkir_potongan_amount") or 0)
+        discount_breakdown = []
+        if dp_amount > 0:
+            discount_breakdown.append({"label": "DP", "amount": dp_amount})
+        if ongkir_potongan_amount > 0:
+            discount_breakdown.append({"label": "Ongkir", "amount": ongkir_potongan_amount})
+        if not discount_breakdown and total_discount > 0:
+            # Nota lama dari sebelum kolom dp_amount/ongkir_potongan_amount
+            # ada -- rincian aslinya tidak tersimpan, tampilkan generik.
+            discount_breakdown.append({"label": "Diskon", "amount": total_discount})
+
         invoice = {
             "id": row["id"],
             "nota_type": nota_type,
@@ -2168,7 +2202,10 @@ def get_fin_invoice_detail(txn_id):
             "created_by_name": row.get("created_by_name"),
             "payment_method": payment_method,
             "subtotal": items_subtotal,
-            "discount": max(0.0, items_subtotal - grand_total),
+            "discount": total_discount,
+            "discount_breakdown": discount_breakdown,
+            "dp_amount": dp_amount,
+            "ongkir_potongan_amount": ongkir_potongan_amount,
             "grand_total": grand_total,
             "notes": extra_notes,
             "print_size": row.get("print_size") or "80mm",

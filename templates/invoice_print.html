@@ -269,7 +269,9 @@
               <span class="mg-lbl">Bayar</span><span class="mg-val">{{ invoice.payment_method }}</span>
               {% if invoice.discount and invoice.discount > 0 %}
               <span class="mg-lbl">Subtotal</span><span class="mg-val">Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}</span>
-              <span class="mg-lbl">Diskon</span><span class="mg-val" style="color: var(--bad)">- Rp {{ "{:,}".format(invoice.discount).replace(",",".") }}</span>
+              {% for d in (invoice.discount_breakdown or [{"label": "Diskon", "amount": invoice.discount}]) %}
+              <span class="mg-lbl">{{ d.label }}</span><span class="mg-val" style="color: var(--bad)">- Rp {{ "{:,}".format(d.amount).replace(",",".") }}</span>
+              {% endfor %}
               {% endif %}
               <span class="mg-lbl">Total</span><span class="mg-val" style="font-size:14px">Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</span>
               {% if invoice.notes %}<span class="mg-lbl">Catatan</span><span class="mg-val">{{ invoice.notes }}</span>{% endif %}
@@ -401,10 +403,12 @@
                     <td colspan="3" class="lbl">Subtotal</td>
                     <td colspan="2">Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}</td>
                   </tr>
+                  {% for d in (invoice.discount_breakdown or [{"label": "Diskon", "amount": invoice.discount}]) %}
                   <tr>
-                    <td colspan="3" class="lbl disc">Diskon</td>
-                    <td colspan="2" class="disc">- Rp {{ "{:,}".format(invoice.discount).replace(",",".") }}</td>
+                    <td colspan="3" class="lbl disc">{{ d.label }}</td>
+                    <td colspan="2" class="disc">- Rp {{ "{:,}".format(d.amount).replace(",",".") }}</td>
                   </tr>
+                  {% endfor %}
                   {% endif %}
                   <tr>
                     <td colspan="3" class="grand-lbl">TOTAL</td>

@@ -409,12 +409,14 @@
               Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}
             </td>
           </tr>
+          {% for d in (invoice.discount_breakdown or [{"label": "Diskon", "amount": invoice.discount}]) %}
           <tr>
-            <td colspan="3" class="lbl disc">Diskon</td>
+            <td colspan="3" class="lbl disc">{{ d.label }}</td>
             <td colspan="2" class="disc">
-              - Rp {{ "{:,}".format(invoice.discount).replace(",",".") }}
+              - Rp {{ "{:,}".format(d.amount).replace(",",".") }}
             </td>
           </tr>
+          {% endfor %}
           {% endif %}
           <tr>
             <td colspan="3" class="grand-lbl">TOTAL</td>
