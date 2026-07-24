@@ -279,27 +279,31 @@ def _ensure_fin_returns_schema(cur):
 
 def _ensure_fin_materials_schema(cur):
     """Lazy-migration: kolom kategori barang gudang (tembaga, kuningan, dst),
-    bebas diubah admin -- teks bebas, bukan enum tetap."""
-    cur.execute("""
-        ALTER TABLE fin_materials
-            ADD COLUMN IF NOT EXISTS category VARCHAR(80) NULL;
-    """)
+    bebas diubah admin -- teks bebas, bukan enum tetap. Dicek dulu lewat
+    information_schema (bukan langsung ALTER) supaya request normal tidak
+    berulang kali minta ACCESS EXCLUSIVE lock di tabel yang sering dipakai."""
+    if not _col_exists(cur, "fin_materials", "category"):
+        cur.execute("""
+            ALTER TABLE fin_materials
+                ADD COLUMN IF NOT EXISTS category VARCHAR(80) NULL;
+        """)
 
 
 def _ensure_fin_activity_log_schema(cur):
     """Lazy-migration: log aktivitas barang gudang (tambah/ubah/tambah stok/
     kurangi stok/hapus) supaya ketahuan siapa melakukan apa & kapan."""
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS fin_activity_log (
-            id SERIAL PRIMARY KEY,
-            action VARCHAR(30) NOT NULL,
-            material_id INTEGER NULL REFERENCES fin_materials(id),
-            material_name TEXT NOT NULL,
-            detail TEXT,
-            created_by INTEGER REFERENCES users(id),
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+    if not _table_exists(cur, "fin_activity_log"):
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fin_activity_log (
+                id SERIAL PRIMARY KEY,
+                action VARCHAR(30) NOT NULL,
+                material_id INTEGER NULL REFERENCES fin_materials(id),
+                material_name TEXT NOT NULL,
+                detail TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
 
 def _log_fin_activity(cur, action, material_id, material_name, detail, created_by):
@@ -358,32 +362,38 @@ STARTER_EXPENSE_CATEGORIES = ["Uang Makan", "Karyawan", "BBM", "Dana Darurat", "
 
 def _ensure_fin_expense_schema(cur):
     """Lazy-migration: kategori beban (biaya operasional bebas -- Uang Makan,
-    Karyawan, BBM, Dana Darurat, dst), admin bisa tambah sendiri."""
-    cur.execute("""
-        ALTER TABLE fin_transactions
-            ADD COLUMN IF NOT EXISTS expense_category VARCHAR(80) NULL;
-    """)
+    Karyawan, BBM, Dana Darurat, dst), admin bisa tambah sendiri. Dicek dulu
+    lewat information_schema supaya tidak berulang kali minta lock ALTER di
+    fin_transactions (tabel yang sering diakses)."""
+    if not _col_exists(cur, "fin_transactions", "expense_category"):
+        cur.execute("""
+            ALTER TABLE fin_transactions
+                ADD COLUMN IF NOT EXISTS expense_category VARCHAR(80) NULL;
+        """)
 
 
 def _ensure_fin_trips_schema(cur):
     """Lazy-migration: Mode Perjalanan -- kelompokkan nota Beli/Jual + beban
     perjalanan (BBM, makan, gaji sopir) di bawah 1 perjalanan bernama, supaya
-    bisa dilihat untung/rugi per perjalanan."""
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS fin_trips (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            trip_date DATE NOT NULL DEFAULT CURRENT_DATE,
-            note TEXT,
-            status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
-            created_by INTEGER REFERENCES users(id),
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    cur.execute("""
-        ALTER TABLE fin_transactions
-            ADD COLUMN IF NOT EXISTS trip_id INTEGER NULL REFERENCES fin_trips(id);
-    """)
+    bisa dilihat untung/rugi per perjalanan. Dicek dulu lewat information_schema
+    supaya tidak berulang kali minta ACCESS EXCLUSIVE lock di fin_transactions."""
+    if not _table_exists(cur, "fin_trips"):
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fin_trips (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                trip_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                note TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+    if not _col_exists(cur, "fin_transactions", "trip_id"):
+        cur.execute("""
+            ALTER TABLE fin_transactions
+                ADD COLUMN IF NOT EXISTS trip_id INTEGER NULL REFERENCES fin_trips(id);
+        """)
 
 
 def create_fin_expense_entry(category, amount, note, created_by, trip_id=None):
@@ -423,6 +433,76 @@ def create_fin_expense_entry(category, amount, note, created_by, trip_id=None):
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal mencatat beban: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def edit_fin_expense_entry(expense_id, category, amount, note):
+    """Ubah kategori/jumlah/catatan 1 baris Beban yang sudah tercatat
+    (termasuk Ongkir yang tertaut nota -- boleh diedit di sini kalau perlu
+    dikoreksi). Return dict {id, category, amount}."""
+    category = (category or "").strip()
+    try:
+        amount = float(amount or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+    note = (note or "").strip()
+
+    if not category:
+        raise ValueError("Kategori beban wajib diisi.")
+    if amount <= 0:
+        raise ValueError("Jumlah beban harus lebih dari 0.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_expense_schema(cur)
+        cur.execute(
+            "SELECT id FROM fin_transactions WHERE id=%s AND type='PENGELUARAN';",
+            (expense_id,))
+        if not cur.fetchone():
+            raise ValueError("Beban tidak ditemukan.")
+
+        cur.execute("""
+            UPDATE fin_transactions
+            SET party_name = %s, expense_category = %s, total_amount = %s, note = %s
+            WHERE id = %s;
+        """, (category, category, amount, note or None, expense_id))
+        conn.commit()
+        return {"id": expense_id, "category": category, "amount": amount}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mengubah beban: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_expense_entry(expense_id):
+    """Hapus 1 baris Beban. Return kategorinya (utk pesan konfirmasi)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT party_name FROM fin_transactions WHERE id=%s AND type='PENGELUARAN';",
+            (expense_id,))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("Beban tidak ditemukan.")
+        cur.execute("DELETE FROM fin_transaction_items WHERE transaction_id = %s;", (expense_id,))
+        cur.execute("DELETE FROM fin_transactions WHERE id = %s;", (expense_id,))
+        conn.commit()
+        return row["party_name"]
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus beban: {e}")
     finally:
         cur.close()
         conn.close()
@@ -3351,6 +3431,122 @@ def pay_fin_debt(debt_id, pay_amount):
     except Exception as e:
         conn.rollback()
         raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_debt_entry(debt_type, party_name, amount, note):
+    """Catat hutang/piutang manual (bukan tertaut nota) -- mis. hutang ke
+    pemasok/piutang ke pelanggan di luar transaksi Nota. Return dict {id}."""
+    debt_type = (debt_type or "").strip().upper()
+    party_name = (party_name or "").strip()
+    note = (note or "").strip()
+    try:
+        amount = float(amount or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+
+    if debt_type not in ("HUTANG", "PIUTANG"):
+        raise ValueError("Jenis tidak valid.")
+    if not party_name:
+        raise ValueError("Nama wajib diisi.")
+    if amount <= 0:
+        raise ValueError("Jumlah harus lebih dari 0.")
+
+    party_type = "SUPPLIER" if debt_type == "HUTANG" else "PELANGGAN"
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO fin_debts
+                (type, party_name, party_type, amount, remaining, note)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (debt_type, party_name, party_type, amount, amount, note or None))
+        debt_id = cur.fetchone()["id"]
+        conn.commit()
+        return {"id": debt_id, "party_name": party_name}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def edit_fin_debt(debt_id, party_name, amount, note):
+    """Ubah nama/jumlah/catatan hutang-piutang. Jumlah tidak boleh kurang
+    dari yang sudah dibayar. Return dict {id, remaining, is_settled}."""
+    party_name = (party_name or "").strip()
+    note = (note or "").strip()
+    try:
+        amount = float(amount or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+
+    if not party_name:
+        raise ValueError("Nama wajib diisi.")
+    if amount <= 0:
+        raise ValueError("Jumlah harus lebih dari 0.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "SELECT id, paid_amount FROM fin_debts WHERE id = %s;", (debt_id,))
+        debt = cur.fetchone()
+        if not debt:
+            raise ValueError("Data tidak ditemukan.")
+
+        paid_amount = float(debt["paid_amount"] or 0)
+        if amount < paid_amount:
+            raise ValueError(
+                f"Jumlah tidak boleh kurang dari yang sudah dibayar (Rp {paid_amount:,.0f}).")
+
+        remaining = max(0.0, amount - paid_amount)
+        is_settled = remaining <= 0
+        cur.execute("""
+            UPDATE fin_debts
+            SET party_name = %s, amount = %s, remaining = %s, note = %s, is_settled = %s
+            WHERE id = %s;
+        """, (party_name, amount, remaining, note or None, is_settled, debt_id))
+        conn.commit()
+        return {"id": debt_id, "remaining": remaining, "is_settled": is_settled}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mengubah data: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_debt(debt_id):
+    """Hapus 1 baris hutang/piutang (tidak menyentuh nota asalnya kalau
+    ada). Return nama pihaknya (utk pesan konfirmasi)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT party_name FROM fin_debts WHERE id = %s;", (debt_id,))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("Data tidak ditemukan.")
+        cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt_id,))
+        conn.commit()
+        return row["party_name"]
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus: {e}")
     finally:
         cur.close()
         conn.close()

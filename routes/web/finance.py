@@ -4,9 +4,10 @@ from core import (
     owner_or_admin_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
-    list_fin_debts, pay_fin_debt,
+    list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     list_fin_categories, list_fin_activity_log,
     create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
+    edit_fin_expense_entry, delete_fin_expense_entry,
     create_fin_trip, list_fin_trips, get_fin_trip_detail,
     set_fin_trip_status,
 )
@@ -157,6 +158,44 @@ def finance_materials_delete(material_id):
 
 
 # ---------- HUTANG (ke pemasok) & PIUTANG ----------
+@finance_bp.route("/finance/debts/add", methods=["POST"])
+def finance_debts_add():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        create_fin_debt_entry(
+            debt_type=request.form.get("type"),
+            party_name=request.form.get("party_name"),
+            amount=request.form.get("amount"),
+            note=request.form.get("note"),
+        )
+        flash("Berhasil dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/debts/<int:debt_id>/edit", methods=["POST"])
+def finance_debts_edit(debt_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        edit_fin_debt(
+            debt_id,
+            party_name=request.form.get("party_name"),
+            amount=request.form.get("amount"),
+            note=request.form.get("note"),
+        )
+        flash("Berhasil diperbarui.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
 @finance_bp.route("/finance/debts/<int:debt_id>/pay", methods=["POST"])
 def finance_debts_pay(debt_id):
     deny = owner_or_admin_required()
@@ -166,6 +205,20 @@ def finance_debts_pay(debt_id):
     try:
         result = pay_fin_debt(debt_id, request.form.get("amount"))
         flash("Lunas! 🎉" if result["is_settled"] else "Pembayaran dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/debts/<int:debt_id>/delete", methods=["POST"])
+def finance_debts_delete(debt_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        name = delete_fin_debt(debt_id)
+        flash(f'"{name}" berhasil dihapus.', "success")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")
@@ -186,6 +239,39 @@ def finance_expenses_add():
             created_by=session.get("user_id"),
         )
         flash(f"Beban '{result['category']}' berhasil dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/expenses/<int:expense_id>/edit", methods=["POST"])
+def finance_expenses_edit(expense_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        edit_fin_expense_entry(
+            expense_id,
+            category=request.form.get("category"),
+            amount=request.form.get("amount"),
+            note=request.form.get("note"),
+        )
+        flash("Beban berhasil diperbarui.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/expenses/<int:expense_id>/delete", methods=["POST"])
+def finance_expenses_delete(expense_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        name = delete_fin_expense_entry(expense_id)
+        flash(f'Beban "{name}" berhasil dihapus.', "success")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")
