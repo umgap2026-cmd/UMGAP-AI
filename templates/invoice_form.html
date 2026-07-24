@@ -493,6 +493,17 @@
                   <input type="tel" name="customer_phone" placeholder="08xx… (opsional)" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
+              {% if trips %}
+              <div class="field">
+                <label>🚚 Kaitkan ke Perjalanan (opsional)</label>
+                <select name="trip_id" id="tripSelect">
+                  <option value="">— Tidak terkait perjalanan —</option>
+                  {% for t in trips %}
+                  <option value="{{ t.id }}" {{ 'selected' if edit_mode and edit_invoice.trip_id == t.id else '' }}>{{ t.name }} ({{ t.trip_date }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% endif %}
 
               <div class="divider"></div>
               <label>Info Perusahaan di Nota</label>
@@ -660,6 +671,10 @@
                     <button type="button" class="lov-new-toggle-btn active" data-mode="BEBAN">Kita yang bayar<br />(jadi beban)</button>
                     <button type="button" class="lov-new-toggle-btn" data-mode="POTONGAN">Mereka yang bayar<br />(kurangi nota)</button>
                   </div>
+                  <div class="field adj-category-wrap" style="display:none; margin-bottom: 0; margin-top: 8px">
+                    <label style="margin-bottom: 5px">Kategori Beban</label>
+                    <input type="text" class="adj-category" list="expenseCategoryList" placeholder="mis. Ongkir/Transportasi, BBM" />
+                  </div>
                   <div class="field-hint adj-hint" style="display:none; margin-top: 6px"></div>
                   <button type="button" class="adj-remove">✕ Hapus baris ini</button>
                 </div>
@@ -668,6 +683,9 @@
                 <span>+</span> Tambah Potongan/Biaya
               </button>
               <input type="hidden" name="adjustments_json" id="adjustmentsJsonInput" value="[]" />
+              <datalist id="expenseCategoryList">
+                {% for c in expense_categories %}<option value="{{ c }}"></option>{% endfor %}
+              </datalist>
 
               <div class="divider"></div>
 
@@ -760,7 +778,13 @@
         var amount = qtyNum(row.querySelector(".adj-amount").value || "0");
         if (amount <= 0) return;
         var entry = { type: type, amount: amount };
-        if (type === "ONGKIR") entry.mode = getAdjMode(row);
+        if (type === "ONGKIR") {
+          entry.mode = getAdjMode(row);
+          if (entry.mode === "BEBAN") {
+            var catInp = row.querySelector(".adj-category");
+            entry.category = catInp ? catInp.value.trim() : "";
+          }
+        }
         list.push(entry);
       });
       return list;
@@ -1055,12 +1079,14 @@
       var typeSel = row.querySelector(".adj-type");
       var amountInp = row.querySelector(".adj-amount");
       var toggleWrap = row.querySelector(".adj-ongkir-toggle");
+      var categoryWrap = row.querySelector(".adj-category-wrap");
       var hint = row.querySelector(".adj-hint");
       var removeBtn = row.querySelector(".adj-remove");
       function syncType() {
         var isOngkir = typeSel.value === "ONGKIR";
         toggleWrap.style.display = isOngkir ? "flex" : "none";
         hint.style.display = isOngkir ? "block" : "none";
+        categoryWrap.style.display = isOngkir && getAdjMode(row) === "BEBAN" ? "block" : "none";
         if (isOngkir) hint.textContent = ADJ_ONGKIR_HINTS[getAdjMode(row)];
         grand();
       }
@@ -1072,6 +1098,7 @@
             x.classList.toggle("active", x === b);
           });
           hint.textContent = ADJ_ONGKIR_HINTS[getAdjMode(row)];
+          categoryWrap.style.display = getAdjMode(row) === "BEBAN" ? "block" : "none";
           grand();
         });
       });
@@ -1173,6 +1200,9 @@
           row.querySelectorAll(".adj-ongkir-toggle .lov-new-toggle-btn").forEach(function (b) {
             b.classList.toggle("active", b.getAttribute("data-mode") === "POTONGAN");
           });
+        }
+        if (type === "ONGKIR" && a.category) {
+          row.querySelector(".adj-category").value = a.category;
         }
         AJ.appendChild(row);
         bindAdjRow(row);

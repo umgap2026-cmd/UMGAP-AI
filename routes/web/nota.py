@@ -29,6 +29,8 @@ from core import (
     save_nota_draft,
     delete_nota_draft,
     get_notif_count,
+    list_fin_trips_open,
+    list_fin_expense_categories,
 )
 
 RETURN_REASONS = {
@@ -61,6 +63,8 @@ def nota_new():
         except Exception:
             adjustments = []
 
+        trip_id = request.form.get("trip_id") or None
+
         try:
             if nota_type == "BELI":
                 result = create_fin_purchase_invoice(
@@ -73,6 +77,7 @@ def nota_new():
                     items=items,
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
+                    trip_id=trip_id,
                 )
             else:
                 result = create_fin_invoice(
@@ -85,6 +90,7 @@ def nota_new():
                     items=items,
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
+                    trip_id=trip_id,
                 )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
@@ -98,6 +104,8 @@ def nota_new():
         notif_count=get_notif_count(),
         drafts=list_nota_drafts(),
         edit_mode=False,
+        trips=list_fin_trips_open(),
+        expense_categories=list_fin_expense_categories(),
     )
 
 
@@ -121,6 +129,8 @@ def nota_edit(txn_id):
         except Exception:
             adjustments = []
 
+        trip_id = request.form.get("trip_id") or None
+
         try:
             result = update_fin_invoice_transaction(
                 txn_id,
@@ -133,6 +143,7 @@ def nota_edit(txn_id):
                 items=items,
                 edited_by=session.get("user_id"),
                 adjustments=adjustments,
+                trip_id=trip_id,
             )
             flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
             return redirect(f"/nota/{result['invoice_id']}")
@@ -154,6 +165,8 @@ def nota_edit(txn_id):
         edit_mode=True,
         edit_invoice=invoice,
         edit_items=items,
+        trips=list_fin_trips_open(),
+        expense_categories=list_fin_expense_categories(),
     )
 
 

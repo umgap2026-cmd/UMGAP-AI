@@ -6,6 +6,9 @@ from core import (
     add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt,
     list_fin_categories, list_fin_activity_log,
+    create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
+    create_fin_trip, list_fin_trips, get_fin_trip_detail,
+    set_fin_trip_status,
 )
 
 REDUCE_STOCK_REASONS = {
@@ -28,6 +31,9 @@ def finance_dashboard():
     debts = list_fin_debts()
     categories = list_fin_categories()
     activity_log = list_fin_activity_log()
+    expenses = list_fin_expenses()
+    expense_categories = list_fin_expense_categories()
+    expense_total = sum(float(e["total_amount"] or 0) for e in expenses)
 
     return render_template(
         "finance_dashboard.html",
@@ -36,6 +42,9 @@ def finance_dashboard():
         debts=debts,
         categories=categories,
         activity_log=activity_log,
+        expenses=expenses,
+        expense_categories=expense_categories,
+        expense_total=expense_total,
         notif_count=get_notif_count(),
     )
 
@@ -160,3 +169,112 @@ def finance_debts_pay(debt_id):
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")
+
+
+# ---------- BEBAN (biaya operasional) ----------
+@finance_bp.route("/finance/expenses/add", methods=["POST"])
+def finance_expenses_add():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        result = create_fin_expense_entry(
+            category=request.form.get("category"),
+            amount=request.form.get("amount"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        flash(f"Beban '{result['category']}' berhasil dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+# ---------- MODE PERJALANAN ----------
+@finance_bp.route("/finance/trips")
+def finance_trips():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    trips = list_fin_trips()
+    return render_template(
+        "finance_trips.html",
+        trips=trips,
+        notif_count=get_notif_count(),
+    )
+
+
+@finance_bp.route("/finance/trips/add", methods=["POST"])
+def finance_trips_add():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        result = create_fin_trip(
+            name=request.form.get("name"),
+            trip_date=request.form.get("trip_date"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        flash(f"Perjalanan '{result['name']}' dibuat.", "success")
+        return redirect(f"/finance/trips/{result['id']}")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance/trips")
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>")
+def finance_trip_detail(trip_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        trip = get_fin_trip_detail(trip_id)
+    except ValueError as e:
+        flash(str(e), "danger")
+        return redirect("/finance/trips")
+
+    return render_template(
+        "finance_trip_detail.html",
+        trip=trip,
+        expense_categories=list_fin_expense_categories(),
+        notif_count=get_notif_count(),
+    )
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>/expense", methods=["POST"])
+def finance_trip_add_expense(trip_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        create_fin_expense_entry(
+            category=request.form.get("category"),
+            amount=request.form.get("amount"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+            trip_id=trip_id,
+        )
+        flash("Beban perjalanan dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(f"/finance/trips/{trip_id}")
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>/status", methods=["POST"])
+def finance_trip_set_status(trip_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        result = set_fin_trip_status(trip_id, request.form.get("status"))
+        flash("Perjalanan ditandai selesai." if result["status"] == "SELESAI" else "Perjalanan dibuka kembali.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(f"/finance/trips/{trip_id}")

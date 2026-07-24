@@ -1,0 +1,286 @@
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f6f8fc; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+    --shadow-out: 0 20px 42px rgba(18, 32, 62, 0.11);
+    --shadow-in: inset 10px 10px 20px rgba(20, 40, 80, 0.13), inset -10px -10px 20px rgba(255, 255, 255, 0.92);
+    --soft-in: inset 6px 6px 12px rgba(20, 40, 80, 0.1), inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+    --radius: 24px; --pill: 999px; --blue: #2563eb; --good: #15803d; --bad: #b91c1c; --nav-h: 92px;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100svh;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+  .screen { min-height: 100svh; display: flex; justify-content: center; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .wrap { width: 100%; max-width: 480px; }
+  @media (min-width: 600px) { .wrap { max-width: 720px; } }
+  @media (min-width: 960px) { .wrap { max-width: 1060px; } }
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { opacity: 0; animation: fadeInUp 0.55s ease-out forwards; }
+  .item-row.fade-up { animation-duration: 0.4s; }
+  @keyframes barPan { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+  .head-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 12px; position: relative; overflow: hidden; }
+  .head-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+    background-size: 200% 100%; animation: barPan 6s ease-in-out infinite;
+  }
+  .head-top { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 46px; height: 46px; border-radius: 14px; background: #fff; box-shadow: 0 10px 20px rgba(18, 32, 62, 0.13); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: 0 0 auto; }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .head-title h1 { font-size: 16px; font-weight: 1000; color: #1e3252; }
+  .head-title p { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .action-btn {
+    position: relative; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 14px; background: #f3f6fc;
+    box-shadow: 0 10px 22px rgba(28, 55, 90, 0.16), inset 4px 4px 10px rgba(255, 255, 255, 0.92), inset -4px -4px 10px rgba(28, 55, 90, 0.08);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; text-decoration: none; transition: transform 0.15s;
+  }
+  .action-btn svg { width: 20px; height: 20px; stroke: #7b93c7; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .notif-badge { position: absolute; top: -5px; right: -5px; background: #ffd84d; color: #1f2937; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 999px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18); }
+  .rgb { height: 3px; border-radius: 999px; margin-top: 10px; background: linear-gradient(90deg, #f00 0%, #ff7a00 18%, #ffd500 36%, #00c853 58%, #00b0ff 78%, #8a2be2 100%); }
+
+  .mode-switch { display: flex; gap: 6px; margin-top: 14px; background: #fff; border-radius: 16px; padding: 6px; box-shadow: var(--shadow-out); touch-action: pan-y; }
+  .mode-btn { flex: 1; border: none; background: none; border-radius: 12px; padding: 11px 6px; font-size: 12.5px; font-weight: 900; color: var(--muted); cursor: pointer; font-family: inherit; text-align: center; text-decoration: none; transition: all 0.15s; }
+  .mode-btn.active { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
+
+  .hero-strip {
+    margin-top: 14px; background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #4f8fbf 100%);
+    border-radius: var(--radius); box-shadow: 0 16px 38px rgba(30, 58, 95, 0.26); padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; position: relative; overflow: hidden;
+  }
+  .hero-title { font-size: 15px; font-weight: 900; color: rgba(255, 255, 255, 0.85); display: flex; align-items: center; gap: 10px; }
+  .hero-ico { width: 38px; height: 38px; border-radius: 12px; flex: 0 0 38px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .hero-sub { font-size: 11px; color: rgba(255, 255, 255, 0.55); margin-top: 5px; margin-left: 48px; }
+
+  .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
+  .inner { border-radius: 20px; background: #f3f5f9; box-shadow: var(--shadow-in); padding: 18px 14px 16px; }
+  .sec-title { font-size: 16px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
+  .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .divider { height: 1px; background: rgba(125, 138, 166, 0.18); border-radius: 999px; margin: 14px 0; }
+
+  label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  .field { margin-bottom: 12px; }
+  input[type="text"], input[type="number"], input[type="date"] {
+    width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb; box-shadow: var(--soft-in);
+    padding: 13px 14px; font-size: 14px; color: var(--text); -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  input::placeholder { color: var(--muted); font-size: 13px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+  .add-toggle { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+  .add-toggle::-webkit-details-marker { display: none; }
+  .add-toggle-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 900; color: var(--blue); }
+  .add-toggle-care { font-size: 11px; color: var(--muted); transition: transform 0.15s; }
+  details[open] > .add-toggle .add-toggle-care { transform: rotate(180deg); }
+  .stack-form { margin-top: 14px; }
+
+  .btn-submit {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px; border: none;
+    border-radius: 15px; cursor: pointer; font-weight: 900; font-size: 14px;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff;
+    box-shadow: 0 12px 22px rgba(37, 99, 235, 0.24); font-family: inherit; margin-top: 6px;
+  }
+  .pill-btn { border: none; border-radius: 12px; padding: 9px 14px; font-weight: 900; font-size: 12px; cursor: pointer; font-family: inherit; background: #eef2ff; color: var(--blue); white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; }
+  .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
+
+  .item-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .item-row { background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 14px; position: relative; overflow: hidden; text-decoration: none; color: var(--text); display: block; }
+  .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--blue); }
+  .item-row.open::before { background: var(--good); }
+  .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .item-name { font-size: 14px; font-weight: 900; color: var(--text); }
+  .item-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
+  .status-badge { font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+  .status-badge.OPEN { background: rgba(21, 128, 61, 0.1); color: var(--good); }
+  .status-badge.SELESAI { background: rgba(100, 116, 139, 0.12); color: var(--muted); }
+  .trip-stats { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; font-size: 11.5px; }
+  .trip-stats span b { display: block; font-size: 13px; }
+  .profit-pos { color: var(--good); }
+  .profit-neg { color: var(--bad); }
+
+  .mobile-only { display: block; } .desktop-only { display: none; }
+  @media (min-width: 901px) { .mobile-only { display: none; } .desktop-only { display: block; } }
+  .table-wrap { margin-top: 14px; overflow-x: auto; border-radius: 16px; box-shadow: var(--shadow-out); }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 16px; overflow: hidden; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); font-weight: 900; padding: 12px 14px; background: #f7f9fc; }
+  tbody td { padding: 12px 14px; font-size: 13px; border-top: 1px solid rgba(125, 138, 166, 0.14); vertical-align: middle; }
+  tbody tr:hover { background: #f7f9ff; }
+  td .muted { color: var(--muted); }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
+        <div class="head-title">
+          <h1>🚚 Mode Perjalanan</h1>
+          <p>Kelompokkan nota beli/jual + beban jadi 1 perjalanan</p>
+        </div>
+        <div class="hdr-right">
+          <a href="/notifications" class="action-btn" aria-label="Notifikasi">
+            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M3 7l9 6 9-6"></path></svg>
+            {% if notif_count %}<span class="notif-badge">{{ notif_count }}</span>{% endif %}
+          </a>
+          <a href="/finance" class="action-btn" aria-label="Kembali">
+            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <div class="mode-switch" id="modeSwitch">
+      <a href="/finance" class="mode-btn">📦 Mode Gudang</a>
+      <a href="/finance/trips" class="mode-btn active">🚚 Mode Perjalanan</a>
+    </div>
+
+    <div class="hero-strip fade-up">
+      <div>
+        <div class="hero-title"><div class="hero-ico">🚚</div><span>Daftar Perjalanan</span></div>
+        <div class="hero-sub">{{ trips|length }} perjalanan tercatat</div>
+      </div>
+    </div>
+
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title">🚚 Perjalanan</div>
+        <div class="sec-desc">Beli/Jual di dalam 1 perjalanan tetap nota sungguhan (pengaruh stok & HPP seperti biasa), plus beban perjalanan (BBM, makan, gaji sopir) -- supaya kelihatan untung/rugi per perjalanan.</div>
+        <div class="divider"></div>
+
+        <details>
+          <summary class="add-toggle">
+            <span class="add-toggle-label">+ Buat Perjalanan Baru</span>
+            <span class="add-toggle-care">▾</span>
+          </summary>
+          <form method="post" action="/finance/trips/add" class="stack-form">
+            <div class="row2">
+              <div class="field"><label>Nama Perjalanan *</label><input type="text" name="name" placeholder="mis. Perjalanan Sumedang" required /></div>
+              <div class="field"><label>Tanggal</label><input type="date" name="trip_date" /></div>
+            </div>
+            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+            <button type="submit" class="btn-submit">Buat Perjalanan</button>
+          </form>
+        </details>
+      </div>
+
+      <!-- MOBILE cards -->
+      <div class="item-list mobile-only">
+        {% for t in trips %}
+        <a href="/finance/trips/{{ t.id }}" class="item-row fade-up {{ 'open' if t.status == 'OPEN' else '' }}" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
+          <div class="item-top">
+            <div>
+              <div class="item-name">{{ t.name }}</div>
+              <div class="item-meta">{{ t.trip_date }} &bull; {{ t.jumlah_nota }} nota &bull; oleh {{ t.created_by_name or "?" }}</div>
+            </div>
+            <span class="status-badge {{ t.status }}">{{ t.status }}</span>
+          </div>
+          <div class="trip-stats">
+            <span>Jual<b>Rp {{ "{:,}".format(t.omzet_jual | round | int).replace(",", ".") }}</b></span>
+            <span>Beli<b>Rp {{ "{:,}".format(t.belanja_beli | round | int).replace(",", ".") }}</b></span>
+            <span>Beban<b>Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</b></span>
+            <span>Untung/Rugi<b class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</b></span>
+          </div>
+        </a>
+        {% else %}
+        <p class="empty-hint">Belum ada perjalanan. Buat perjalanan baru di atas.</p>
+        {% endfor %}
+      </div>
+
+      <!-- DESKTOP table -->
+      <div class="table-wrap desktop-only">
+        {% if trips %}
+        <table>
+          <thead>
+            <tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Nota</th><th>Jual</th><th>Beli</th><th>Beban</th><th>Untung/Rugi</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for t in trips %}
+            <tr>
+              <td><strong>{{ t.name }}</strong></td>
+              <td class="muted">{{ t.trip_date }}</td>
+              <td><span class="status-badge {{ t.status }}">{{ t.status }}</span></td>
+              <td class="muted">{{ t.jumlah_nota }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.omzet_jual | round | int).replace(",", ".") }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.belanja_beli | round | int).replace(",", ".") }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</td>
+              <td><strong class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</strong></td>
+              <td><a href="/finance/trips/{{ t.id }}" class="pill-btn primary">Detail</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty-hint">Belum ada perjalanan. Buat perjalanan baru di atas.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var startX = null, startY = null;
+    document.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener("touchend", function (e) {
+      if (startX === null) return;
+      var dx = e.changedTouches[0].clientX - startX;
+      var dy = e.changedTouches[0].clientY - startY;
+      startX = null;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (dx > 0) window.location.href = "/finance";
+    }, { passive: true });
+  })();
+</script>
+{% endblock %}
+
+{% block bottom_nav %}
+<style>
+  .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(238, 241, 247, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 99; }
+  .nav-bar { max-width: 430px; margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 18px 35px rgba(18, 32, 62, 0.1); padding: 8px; display: flex; gap: 6px; }
+  .nav-item { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border-radius: 14px; color: #9fb1d6; font-weight: 800; text-decoration: none; font-size: 12px; border: none; background: none; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .nav-item.is-active { color: #2563eb; background: #f2f5fb; box-shadow: inset 6px 6px 12px rgba(20, 40, 80, 0.1), inset -6px -6px 12px rgba(255, 255, 255, 0.94); }
+  .nav-ico { width: 20px; height: 20px; flex: 0 0 20px; } .nav-ico svg { width: 100%; height: 100%; display: block; }
+  .stroke { stroke: currentColor; fill: none; } .fill { fill: currentColor; }
+  @media (max-width: 360px) { .nav-item span { display: none; } }
+</style>
+<div class="bottom-nav" data-bottom-nav>
+  <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
+    <a class="nav-item" href="{{ '/admin/dashboard' if session.get('role')=='admin' else '/dashboard' }}">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <rect class="fill" x="3" y="3" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="13" y="3" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="3" y="13" width="8" height="8" rx="1.6"></rect>
+        <rect class="fill" x="13" y="13" width="8" height="8" rx="1.6"></rect>
+      </svg></span>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-item is-active" href="/finance">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <rect class="stroke" x="3" y="4" width="18" height="18" rx="2" stroke-width="2.2" stroke-linecap="round"></rect>
+        <line class="stroke" x1="8" y1="9" x2="16" y2="9" stroke-width="2.2" stroke-linecap="round"></line>
+        <line class="stroke" x1="8" y1="13" x2="13" y2="13" stroke-width="2.2" stroke-linecap="round"></line>
+      </svg></span>
+      <span>Finance</span>
+    </a>
+    <a class="nav-item" href="/nota">
+      <span class="nav-ico"><svg viewBox="0 0 24 24">
+        <path class="stroke" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+        <rect class="stroke" x="9" y="3" width="6" height="4" rx="1" stroke-width="2.2"></rect>
+      </svg></span>
+      <span>Riwayat Nota</span>
+    </a>
+  </div>
+</div>
+{% endblock %}

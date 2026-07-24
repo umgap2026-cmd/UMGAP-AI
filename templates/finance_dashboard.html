@@ -121,6 +121,21 @@
   .total-lbl { font-size: 10px; color: rgba(255, 255, 255, 0.55); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
   @media (max-width: 380px) { .hero-right { display: none; } }
 
+  /* ── MODE SWITCH: Gudang / Perjalanan ── */
+  .mode-switch {
+    display: flex; gap: 6px; margin-top: 14px; background: #fff; border-radius: 16px;
+    padding: 6px; box-shadow: var(--shadow-out); touch-action: pan-y;
+  }
+  .mode-btn {
+    flex: 1; border: none; background: none; border-radius: 12px; padding: 11px 6px;
+    font-size: 12.5px; font-weight: 900; color: var(--muted); cursor: pointer; font-family: inherit;
+    text-align: center; text-decoration: none; transition: all 0.15s;
+  }
+  .mode-btn.active {
+    background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
+    box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24);
+  }
+
   /* ── QUICK ACTIONS ── */
   .quick-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
   .link-card {
@@ -134,7 +149,7 @@
   .link-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
   /* ── STAT PILLS ── */
-  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
   @media (max-width: 460px) { .stat-row { grid-template-columns: 1fr; } }
   .stat-pill {
     background: #fff; border-radius: 18px; box-shadow: var(--shadow-out); padding: 14px 16px;
@@ -298,6 +313,17 @@
   }
   select[name="category"], input[list="categoryList"] { width: 100%; }
 
+  /* ── FILTER (search + kategori dinamis) ── */
+  .filter-row { display: flex; gap: 8px; margin-top: 12px; }
+  .filter-row input[type="text"] { flex: 1 1 auto; min-width: 0; }
+  select {
+    border: none; outline: none; border-radius: 13px; background: #f2f5fb;
+    box-shadow: var(--soft-in); padding: 13px 14px; font-size: 13px; color: var(--text);
+    font-family: inherit; -webkit-appearance: none; appearance: none;
+  }
+  .filter-row select { flex: 0 0 150px; }
+  @media (max-width: 420px) { .filter-row { flex-direction: column; } .filter-row select { flex: 1 1 auto; } }
+
   /* ── MODAL EDIT: sub-tab Info / +Stok / -Stok ── */
   .edit-tab-switch { display: flex; gap: 6px; background: #f2f5fb; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
   .edit-tab-btn {
@@ -363,6 +389,12 @@
       </div>
     </div>
 
+    <!-- MODE SWITCH: Gudang / Perjalanan (bisa diklik & digeser jari) -->
+    <div class="mode-switch fade-up" id="modeSwitch">
+      <a href="/finance" class="mode-btn active">📦 Mode Gudang</a>
+      <a href="/finance/trips" class="mode-btn">🚚 Mode Perjalanan</a>
+    </div>
+
     <!-- QUICK ACTIONS -->
     <div class="quick-actions fade-up d1">
       <a href="/nota/new" class="link-card">
@@ -389,6 +421,10 @@
         <div class="s-num" id="statPiutang" data-count="{{ debts.total_piutang|round|int }}">Rp 0</div>
         <div class="s-lbl">Piutang Pelanggan</div>
       </div>
+      <div class="stat-pill red" data-jump="beban">
+        <div class="s-num" id="statBeban" data-count="{{ expense_total|round|int }}">Rp 0</div>
+        <div class="s-lbl">Total Beban</div>
+      </div>
     </div>
 
     <!-- TAB SWITCH -->
@@ -402,6 +438,9 @@
       <button type="button" class="tab-btn" data-tab="piutang">
         🟢 Piutang <span class="tab-count">{{ debts.piutang|length }}</span>
       </button>
+      <button type="button" class="tab-btn" data-tab="beban">
+        💸 Beban <span class="tab-count">{{ expenses|length }}</span>
+      </button>
       <button type="button" class="tab-btn" data-tab="log">
         📜 Log <span class="tab-count">{{ activity_log|length }}</span>
       </button>
@@ -413,6 +452,16 @@
       <div class="inner">
         <div class="sec-title">📦 Barang Gudang</div>
         <div class="sec-desc">{{ materials|length }} jenis barang aktif</div>
+
+        <div class="filter-row">
+          <input type="text" id="barangSearch" placeholder="🔍 Cari nama barang…" autocomplete="off" />
+          <select id="barangCategoryFilter">
+            <option value="">Semua Kategori</option>
+            {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+            <option value="Tanpa Kategori">Tanpa Kategori</option>
+          </select>
+        </div>
+
         <div class="divider"></div>
 
         <details>
@@ -444,11 +493,11 @@
       </datalist>
 
       <!-- MOBILE cards -->
-      <div class="item-list mobile-only">
+      <div class="item-list mobile-only" id="barangListMobile">
         {% for cat, group in materials|groupby('category') %}
-        <div class="cat-group-head">🏷️ {{ cat }} <span class="muted">({{ group|length }})</span></div>
+        <div class="cat-group-head" data-category="{{ cat }}">🏷️ {{ cat }} <span class="muted">({{ group|length }})</span></div>
         {% for m in group %}
-        <div class="item-row fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
+        <div class="item-row fade-up" data-search="{{ m.name|lower }}" data-category="{{ cat }}" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <div class="item-top">
             <div>
               <div class="item-name">{{ m.name }}</div>
@@ -474,15 +523,15 @@
       <!-- DESKTOP table -->
       <div class="table-wrap desktop-only">
         {% if materials %}
-        <table>
+        <table id="barangTableDesktop">
           <thead>
             <tr><th>Nama</th><th>Kategori</th><th>Satuan</th><th>Stok</th><th>HPP Rata²</th><th>Nilai Stok</th><th></th></tr>
           </thead>
           <tbody>
             {% for cat, group in materials|groupby('category') %}
-            <tr><td colspan="7" style="background:#f7f9fc; padding:8px 14px; font-size:11px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">🏷️ {{ cat }} ({{ group|length }})</td></tr>
+            <tr class="cat-group-row" data-category="{{ cat }}"><td colspan="7" style="background:#f7f9fc; padding:8px 14px; font-size:11px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">🏷️ {{ cat }} ({{ group|length }})</td></tr>
             {% for m in group %}
-            <tr>
+            <tr data-search="{{ m.name|lower }}" data-category="{{ cat }}">
               <td><strong>{{ m.name }}</strong></td>
               <td><span class="cat-badge">{{ m.category }}</span></td>
               <td class="muted">{{ m.unit }}</td>
@@ -640,6 +689,80 @@
     </div>
     </div>
     <!-- /tab-panel piutang -->
+
+    <!-- ═══ BEBAN (biaya operasional) ═══ -->
+    <div class="tab-panel" data-tab-panel="beban">
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title" style="color: var(--bad)">💸 Beban</div>
+        <div class="sec-desc">Rp {{ "{:,}".format(expense_total | round | int).replace(",", ".") }} &bull; {{ expenses|length }} catatan &bull; kategori bebas (mis. Uang Makan, Karyawan, BBM, Dana Darurat) &mdash; termasuk Ongkir dari nota yang kita tanggung</div>
+        <div class="divider"></div>
+
+        <details>
+          <summary class="add-toggle">
+            <span class="add-toggle-label">+ Catat Beban</span>
+            <span class="add-toggle-care">▾</span>
+          </summary>
+          <form method="post" action="/finance/expenses/add" class="stack-form">
+            <div class="row2">
+              <div class="field"><label>Kategori *</label><input type="text" name="category" list="expenseCategoryList" placeholder="mis. BBM, Uang Makan" required /></div>
+              <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
+            </div>
+            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+            <button type="submit" class="btn-submit">Simpan Beban</button>
+          </form>
+        </details>
+      </div>
+
+      <datalist id="expenseCategoryList">
+        {% for c in expense_categories %}<option value="{{ c }}"></option>{% endfor %}
+      </datalist>
+
+      <!-- MOBILE cards -->
+      <div class="item-list mobile-only">
+        {% for e in expenses %}
+        <div class="item-row red fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
+          <div class="item-top">
+            <div>
+              <div class="item-name">{{ e.category }}</div>
+              <div class="item-meta">{{ e.created_at_wib }} &bull; oleh {{ e.created_by_name or "?" }}</div>
+              {% if e.note %}<div class="item-note">{{ e.note }}</div>{% endif %}
+              {% if e.related_transaction_id %}<div class="item-note">🔗 tertaut nota #{{ e.related_transaction_id }}</div>{% endif %}
+            </div>
+            <div class="item-val">Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</div>
+          </div>
+        </div>
+        {% else %}
+        <p class="empty-hint">Belum ada beban tercatat.</p>
+        {% endfor %}
+      </div>
+
+      <!-- DESKTOP table -->
+      <div class="table-wrap desktop-only">
+        {% if expenses %}
+        <table>
+          <thead>
+            <tr><th>Kategori</th><th>Jumlah</th><th>Catatan</th><th>Tanggal</th><th>Oleh</th></tr>
+          </thead>
+          <tbody>
+            {% for e in expenses %}
+            <tr>
+              <td><span class="cat-badge">{{ e.category }}</span></td>
+              <td><strong>Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</strong></td>
+              <td class="muted">{{ e.note or ("Tertaut nota #" ~ e.related_transaction_id if e.related_transaction_id else "-") }}</td>
+              <td class="muted">{{ e.created_at_wib }}</td>
+              <td class="muted">{{ e.created_by_name or "?" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty-hint">Belum ada beban tercatat.</p>
+        {% endif %}
+      </div>
+    </div>
+    </div>
+    <!-- /tab-panel beban -->
 
     <!-- ═══ LOG AKTIVITAS BARANG GUDANG ═══ -->
     <div class="tab-panel" data-tab-panel="log">
@@ -836,6 +959,60 @@
         document.querySelector(".tab-switch").scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
+
+    // Search + filter kategori dinamis utk Barang Gudang (mobile card & tabel
+    // desktop sekaligus) -- kategori-nya bebas sesuai yang admin buat sendiri.
+    (function () {
+      var searchInp = document.getElementById("barangSearch");
+      var catFilter = document.getElementById("barangCategoryFilter");
+      if (!searchInp || !catFilter) return;
+
+      function applyFilter(containerSelector, rowSelector, headSelector) {
+        var container = document.querySelector(containerSelector);
+        if (!container) return;
+        var q = searchInp.value.trim().toLowerCase();
+        var cat = catFilter.value;
+        var visibleByCat = {};
+        container.querySelectorAll(rowSelector).forEach(function (row) {
+          var matchSearch = !q || (row.getAttribute("data-search") || "").indexOf(q) !== -1;
+          var rowCat = row.getAttribute("data-category") || "";
+          var matchCat = !cat || rowCat === cat;
+          var show = matchSearch && matchCat;
+          row.style.display = show ? "" : "none";
+          if (show) visibleByCat[rowCat] = true;
+        });
+        container.querySelectorAll(headSelector).forEach(function (head) {
+          var headCat = head.getAttribute("data-category") || "";
+          head.style.display = visibleByCat[headCat] ? "" : "none";
+        });
+      }
+
+      function applyAllFilters() {
+        applyFilter("#barangListMobile", ".item-row", ".cat-group-head");
+        applyFilter("#barangTableDesktop", "tbody tr[data-search]", ".cat-group-row");
+      }
+      searchInp.addEventListener("input", applyAllFilters);
+      catFilter.addEventListener("change", applyAllFilters);
+    })();
+
+    // Swipe kekanan-kiri utk pindah Mode Gudang <-> Mode Perjalanan (HP).
+    // Tombol di .mode-switch tetap ada sbg cara pindah di desktop/mouse.
+    (function () {
+      var startX = null, startY = null;
+      document.addEventListener("touchstart", function (e) {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+      document.addEventListener("touchend", function (e) {
+        if (startX === null) return;
+        var dx = e.changedTouches[0].clientX - startX;
+        var dy = e.changedTouches[0].clientY - startY;
+        startX = null;
+        if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        if (dx < 0) window.location.href = "/finance/trips";
+      }, { passive: true });
+    })();
   })();
 </script>
 {% endblock %}
