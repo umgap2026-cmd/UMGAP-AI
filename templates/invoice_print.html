@@ -205,6 +205,12 @@
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
     .split .main-card { margin-top: 0; }
   }
+  /* Di layar < 960px, faktur diskalakan via JS (lihat script di bawah) --
+     min-height 11in (ukuran kertas fisik) dibuang supaya tidak nyisain
+     ruang kosong panjang di bawah konten asli saat dipreview di HP. */
+  @media (max-width: 959px) {
+    .faktur { min-height: 0; }
+  }
 </style>
 
 <!-- DATA BRIDGE -->
@@ -583,8 +589,15 @@
       if (window.innerWidth >= 960) {
         faktur.style.transform = "";
         pvBody.style.height = "";
+        pvBody.style.justifyContent = "";
         return;
       }
+      // PENTING: flexbox menghitung posisi "center" pakai ukuran ASLI
+      // (sebelum transform) -- kalau tetap justify-content:center, sisi
+      // kiri dokumen yang sudah diskalakan bisa "terpotong" keluar layar
+      // (posisinya digeser kekiri seolah masih selebar aslinya). Makanya
+      // pindah ke flex-start dulu sebelum ukur & skala.
+      pvBody.style.justifyContent = "flex-start";
       faktur.style.transform = "";
       var naturalWidth = faktur.offsetWidth;
       var naturalHeight = faktur.offsetHeight;
