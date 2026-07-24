@@ -279,6 +279,25 @@
           </div>
         </div>
 
+        {% if invoice.related_expenses %}
+        <div class="main-card">
+          <div class="inner">
+            <div class="sec-title">🚚 Ongkir &amp; Beban Terkait</div>
+            <div class="sec-desc">Pengeluaran yang tertaut ke nota ini (kita yang bayar) -- tidak mengurangi total nota, tercatat terpisah di Finance &gt; Beban</div>
+            <div class="divider"></div>
+            {% for e in invoice.related_expenses %}
+            <div class="return-row">
+              <div>
+                <div class="return-name">{{ e.category }}</div>
+                <div class="return-meta">{{ e.note or '-' }} &bull; {{ e.created_at_wib }}</div>
+              </div>
+              <div class="return-val">Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
         {% if not invoice.cancelled_at %}
         <div class="main-card">
           <div class="inner">
@@ -551,6 +570,34 @@
     window.open(url, "_blank");
     setSt("ok", "✓ WhatsApp dibuka!");
   });
+
+  // Preview faktur dibuat pas ukuran kertas continuous form (9.5in) --
+  // terlalu lebar utk layar HP. Skala otomatis biar muat tanpa perlu
+  // geser/zoom manual (bukan sekadar overflow-x:auto yang bikin "gepeng"
+  // dibaca -- ini benar-benar mengecilkan seluruh dokumennya secara utuh).
+  (function () {
+    var pvBody = document.querySelector(".pv-body");
+    var faktur = document.getElementById("fakturEl");
+    if (!pvBody || !faktur) return;
+    function fitFaktur() {
+      if (window.innerWidth >= 960) {
+        faktur.style.transform = "";
+        pvBody.style.height = "";
+        return;
+      }
+      faktur.style.transform = "";
+      var naturalWidth = faktur.offsetWidth;
+      var naturalHeight = faktur.offsetHeight;
+      var availableWidth = pvBody.clientWidth - 4;
+      var scale = Math.min(1, availableWidth / naturalWidth);
+      faktur.style.transformOrigin = "top left";
+      faktur.style.transform = "scale(" + scale + ")";
+      pvBody.style.height = Math.ceil(naturalHeight * scale) + "px";
+    }
+    window.addEventListener("resize", fitFaktur);
+    fitFaktur();
+    setTimeout(fitFaktur, 200);
+  })();
 </script>
 {% endblock %} {% block bottom_nav %}
 <style>

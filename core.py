@@ -2193,6 +2193,18 @@ def get_fin_invoice_detail(txn_id):
             # ada -- rincian aslinya tidak tersimpan, tampilkan generik.
             discount_breakdown.append({"label": "Diskon", "amount": total_discount})
 
+        cur.execute("""
+            SELECT id, party_name,
+                   COALESCE(NULLIF(TRIM(expense_category), ''), party_name) AS category,
+                   note, total_amount,
+                   TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+            FROM fin_transactions
+            WHERE related_transaction_id = %s AND type = 'PENGELUARAN'
+            ORDER BY created_at ASC;
+        """, (txn_id,))
+        related_expenses = [dict(r) for r in cur.fetchall()]
+
         invoice = {
             "id": row["id"],
             "nota_type": nota_type,
@@ -2206,6 +2218,7 @@ def get_fin_invoice_detail(txn_id):
             "discount_breakdown": discount_breakdown,
             "dp_amount": dp_amount,
             "ongkir_potongan_amount": ongkir_potongan_amount,
+            "related_expenses": related_expenses,
             "grand_total": grand_total,
             "notes": extra_notes,
             "print_size": row.get("print_size") or "80mm",
