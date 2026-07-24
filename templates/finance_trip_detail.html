@@ -45,13 +45,13 @@
 
   .status-badge { font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .status-badge.OPEN { background: rgba(21, 128, 61, 0.1); color: var(--good); }
-  .status-badge.SELESAI { background: rgba(100, 116, 139, 0.12); color: var(--muted); }
+  .status-badge.CLOSED { background: rgba(100, 116, 139, 0.12); color: var(--muted); }
+  .status-badge.CANCELLED { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
 
   .hero-strip {
     margin-top: 14px; background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #4f8fbf 100%);
     border-radius: var(--radius); box-shadow: 0 16px 38px rgba(30, 58, 95, 0.26); padding: 18px 20px; position: relative; overflow: hidden;
   }
-  .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hero-title { font-size: 16px; font-weight: 900; color: #fff; }
   .hero-sub { font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-top: 4px; }
   .hero-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
@@ -61,6 +61,8 @@
   .profit-pos { color: #86efac !important; }
   .profit-neg { color: #fca5a5 !important; }
 
+  .action-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
   .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
   .inner { border-radius: 20px; background: #f3f5f9; box-shadow: var(--shadow-in); padding: 18px 14px 16px; }
   .sec-title { font-size: 16px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
@@ -69,20 +71,14 @@
 
   label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
   .field { margin-bottom: 12px; }
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], select {
     width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb; box-shadow: var(--soft-in);
     padding: 13px 14px; font-size: 14px; color: var(--text); -webkit-appearance: none; appearance: none; font-family: inherit;
   }
   input::placeholder { color: var(--muted); font-size: 13px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  @media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
-
-  .add-toggle { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
-  .add-toggle::-webkit-details-marker { display: none; }
-  .add-toggle-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 900; color: var(--blue); }
-  .add-toggle-care { font-size: 11px; color: var(--muted); transition: transform 0.15s; }
-  details[open] > .add-toggle .add-toggle-care { transform: rotate(180deg); }
-  .stack-form { margin-top: 14px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px) { .row2, .row3 { grid-template-columns: 1fr; } }
 
   .btn-submit {
     display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px; border: none;
@@ -93,9 +89,10 @@
   .pill-btn { border: none; border-radius: 12px; padding: 9px 14px; font-weight: 900; font-size: 12px; cursor: pointer; font-family: inherit; background: #eef2ff; color: var(--blue); white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; }
   .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
   .pill-btn.ghost { background: rgba(100,116,139,0.12); color: var(--muted); }
+  .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
 
   .item-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .item-row { background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 14px; position: relative; overflow: hidden; text-decoration: none; color: var(--text); display: block; }
+  .item-row { background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 14px; position: relative; overflow: hidden; }
   .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--blue); }
   .item-row.red::before { background: var(--bad); }
   .item-row.green::before { background: var(--good); }
@@ -106,8 +103,12 @@
   .item-row.red .item-val { color: var(--bad); }
   .item-row.green .item-val { color: var(--good); }
   .item-note { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
+  .type-badge { font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+  .type-badge.JUAL { background: rgba(21, 128, 61, 0.1); color: var(--good); }
+  .type-badge.BELI { background: rgba(37, 99, 235, 0.1); color: var(--blue); }
+  .type-badge.EXPENSE { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
   .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
-  .cat-badge { display: inline-flex; align-items: center; background: #eef2ff; color: var(--blue); border-radius: var(--pill); padding: 5px 11px; font-size: 11px; font-weight: 900; white-space: nowrap; }
+  .closed-hint { text-align: center; padding: 14px; color: var(--muted); font-size: 12.5px; background: #f2f5fb; border-radius: 14px; }
 
   .mobile-only { display: block; } .desktop-only { display: none; }
   @media (min-width: 901px) { .mobile-only { display: none; } .desktop-only { display: block; } }
@@ -125,7 +126,7 @@
       <div class="head-top">
         <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
         <div class="head-title">
-          <h1>{{ trip.name }}</h1>
+          <h1>{{ trip.note or ("Perjalanan #" ~ trip.id) }}</h1>
           <p>{{ trip.trip_date }} &bull; oleh {{ trip.created_by_name or "?" }}</p>
         </div>
         <div class="hdr-right">
@@ -139,131 +140,200 @@
     </div>
 
     <div class="hero-strip fade-up">
-      <div class="hero-top">
-        <div>
-          <div class="hero-title">🚚 Ringkasan Perjalanan</div>
-          {% if trip.note %}<div class="hero-sub">{{ trip.note }}</div>{% endif %}
-        </div>
-      </div>
+      <div class="hero-title">🚚 Ringkasan Perjalanan</div>
       <div class="hero-stats">
-        <div><div class="hero-stat-lbl">Omzet Jual</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.omzet_jual | round | int).replace(",", ".") }}</div></div>
-        <div><div class="hero-stat-lbl">Belanja Beli</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.belanja_beli | round | int).replace(",", ".") }}</div></div>
-        <div><div class="hero-stat-lbl">Total Beban</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_beban | round | int).replace(",", ".") }}</div></div>
+        <div><div class="hero-stat-lbl">Jual</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_jual | round | int).replace(",", ".") }}</div></div>
+        <div><div class="hero-stat-lbl">Beli</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_beli | round | int).replace(",", ".") }}</div></div>
+        <div><div class="hero-stat-lbl">Beban</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_beban | round | int).replace(",", ".") }}</div></div>
         <div><div class="hero-stat-lbl">Untung/Rugi</div><div class="hero-stat-val {{ 'profit-pos' if trip.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(trip.profit | round | int).replace(",", ".") }}</div></div>
       </div>
     </div>
 
-    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
-      <a href="/nota/new" class="pill-btn primary">+ Buat Nota (pilih perjalanan ini)</a>
-      <form method="post" action="/finance/trips/{{ trip.id }}/status" style="display:inline">
-        <input type="hidden" name="status" value="{{ 'SELESAI' if trip.status == 'OPEN' else 'OPEN' }}" />
-        <button type="submit" class="pill-btn ghost">{{ 'Tandai Selesai' if trip.status == 'OPEN' else 'Buka Lagi' }}</button>
+    <div class="action-row">
+      {% if trip.status == 'OPEN' %}
+      <form method="post" action="/finance/trips/{{ trip.id }}/close" onsubmit="return confirm('Tutup perjalanan ini? Ringkasan akhir akan disimpan.');">
+        <button type="submit" class="pill-btn primary">✅ Tutup Perjalanan</button>
+      </form>
+      <form method="post" action="/finance/trips/{{ trip.id }}/cancel" onsubmit="return confirm('Batalkan perjalanan ini?');">
+        <button type="submit" class="pill-btn ghost">Batalkan</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/finance/trips/{{ trip.id }}/delete" onsubmit="return confirm('Hapus perjalanan ini beserta semua catatan jual/beli/beban di dalamnya? Tidak bisa dibatalkan.');">
+        <button type="submit" class="pill-btn danger">Hapus Perjalanan</button>
       </form>
     </div>
 
-    <!-- NOTA di perjalanan ini -->
+    {% if trip.status != 'OPEN' %}
+    <div class="main-card fade-up">
+      <p class="closed-hint">Perjalanan ini sudah {{ 'ditutup' if trip.status == 'CLOSED' else 'dibatalkan' }} -- tidak bisa tambah jual/beli/beban baru.</p>
+    </div>
+    {% else %}
+
+    <!-- LAPAK -->
     <div class="main-card fade-up">
       <div class="inner">
-        <div class="sec-title">🧾 Nota di Perjalanan Ini</div>
-        <div class="sec-desc">{{ trip.notas|length }} nota Beli/Jual tertaut ke perjalanan ini</div>
+        <div class="sec-title">🏪 Lapak</div>
+        <div class="sec-desc">Mitra jual/beli di perjalanan ini (opsional -- bisa juga isi nama langsung saat Jual)</div>
+        <div class="divider"></div>
+        <form method="post" action="/finance/trips/{{ trip.id }}/party" class="row2" style="align-items:end">
+          <div class="field" style="margin-bottom:0"><label>Nama Lapak</label><input type="text" name="name" placeholder="mis. Lapak Pak Budi" required /></div>
+          <button type="submit" class="btn-submit" style="margin-top:0">+ Tambah Lapak</button>
+        </form>
       </div>
-      <div class="item-list mobile-only">
-        {% for n in trip.notas %}
-        <a href="/nota/{{ n.id }}" class="item-row {{ 'green' if n.type == 'JUAL_INVOICE' else 'red' }}">
-          <div class="item-top">
-            <div>
-              <div class="item-name">{{ n.invoice_no or ("Nota #" ~ n.id) }} {% if n.cancelled_at %}<span class="muted">(dihapus)</span>{% endif %}</div>
-              <div class="item-meta">{{ 'Jual ke' if n.type == 'JUAL_INVOICE' else 'Beli dari' }} {{ n.party_name or '-' }} &bull; {{ n.created_at_wib }}</div>
-            </div>
-            <div class="item-val">Rp {{ "{:,}".format(n.total_amount | round | int).replace(",", ".") }}</div>
-          </div>
-        </a>
+      <div class="item-list">
+        {% for p in trip.parties %}
+        <div class="item-row">
+          <div class="item-name">{{ p.name }}</div>
+          {% if p.note %}<div class="item-note">{{ p.note }}</div>{% endif %}
+        </div>
         {% else %}
-        <p class="empty-hint">Belum ada nota di perjalanan ini. Buat nota baru &amp; pilih perjalanan ini di form-nya.</p>
+        <p class="empty-hint">Belum ada lapak. Bisa juga langsung isi nama baru saat mencatat Jual.</p>
         {% endfor %}
-      </div>
-      <div class="table-wrap desktop-only">
-        {% if trip.notas %}
-        <table>
-          <thead><tr><th>Nota</th><th>Jenis</th><th>Pihak</th><th>Tanggal</th><th>Jumlah</th><th></th></tr></thead>
-          <tbody>
-            {% for n in trip.notas %}
-            <tr>
-              <td><strong>{{ n.invoice_no or ("Nota #" ~ n.id) }}</strong>{% if n.cancelled_at %} <span class="muted">(dihapus)</span>{% endif %}</td>
-              <td class="muted">{{ 'Jual' if n.type == 'JUAL_INVOICE' else 'Beli' }}</td>
-              <td class="muted">{{ n.party_name or '-' }}</td>
-              <td class="muted">{{ n.created_at_wib }}</td>
-              <td><strong>Rp {{ "{:,}".format(n.total_amount | round | int).replace(",", ".") }}</strong></td>
-              <td><a href="/nota/{{ n.id }}" class="pill-btn">Lihat</a></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <p class="empty-hint">Belum ada nota di perjalanan ini. Buat nota baru &amp; pilih perjalanan ini di form-nya.</p>
-        {% endif %}
       </div>
     </div>
 
-    <!-- BEBAN perjalanan -->
+    <!-- JUAL -->
     <div class="main-card fade-up">
       <div class="inner">
-        <div class="sec-title" style="color: var(--bad)">💸 Beban Perjalanan</div>
+        <div class="sec-title" style="color: var(--good)">🟢 Jual</div>
+        <div class="sec-desc">Jual barang gudang ke lapak/pembeli di perjalanan ini -- stok otomatis berkurang</div>
+        <div class="divider"></div>
+        <form method="post" action="/finance/trips/{{ trip.id }}/sell">
+          <div class="row2">
+            <div class="field">
+              <label>Barang *</label>
+              <select name="material_id" required>
+                <option value="">— Pilih Barang —</option>
+                {% for m in materials %}
+                <option value="{{ m.id }}">{{ m.name }} (stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label>Lapak</label>
+              {% if trip.parties %}
+              <select name="party_id" onchange="document.getElementById('sellPartyName_{{ trip.id }}').style.display = this.value ? 'none' : 'block';">
+                <option value="">— Pilih / isi nama baru di bawah —</option>
+                {% for p in trip.parties %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+              {% endif %}
+            </div>
+          </div>
+          <div class="field" id="sellPartyName_{{ trip.id }}"><label>Atau Nama Lapak Baru</label><input type="text" name="party_name" placeholder="opsional" /></div>
+          <div class="row3">
+            <div class="field"><label>Qty (kg) *</label><input type="number" step="0.01" name="qty_kg" min="0.01" placeholder="0" required /></div>
+            <div class="field"><label>Harga/kg (Rp) *</label><input type="number" name="price_per_kg" min="1" placeholder="0" required /></div>
+            <div class="field">
+              <label>Metode Bayar</label>
+              <select name="payment_type">
+                <option value="CASH">Cash</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="HUTANG">Hutang (piutang)</option>
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+          <button type="submit" class="btn-submit">Catat Penjualan</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- BELI -->
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title" style="color: var(--blue)">🔵 Beli</div>
+        <div class="sec-desc">Beli barang selama perjalanan -- stok otomatis bertambah (HPP disesuaikan AVCO)</div>
+        <div class="divider"></div>
+        <form method="post" action="/finance/trips/{{ trip.id }}/buy">
+          <div class="row2">
+            <div class="field">
+              <label>Barang *</label>
+              <select name="material_id" required>
+                <option value="">— Pilih Barang —</option>
+                {% for m in materials %}
+                <option value="{{ m.id }}">{{ m.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field"><label>Qty (kg) *</label><input type="number" step="0.01" name="qty_kg" min="0.01" placeholder="0" required /></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Harga/kg (Rp) *</label><input type="number" name="price_per_kg" min="1" placeholder="0" required /></div>
+            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+          </div>
+          <button type="submit" class="btn-submit">Catat Pembelian</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- BEBAN -->
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title" style="color: var(--bad)">🔴 Beban</div>
         <div class="sec-desc">BBM, makan, gaji sopir, dan biaya lain selama perjalanan ini</div>
         <div class="divider"></div>
-        <details>
-          <summary class="add-toggle">
-            <span class="add-toggle-label">+ Catat Beban Perjalanan</span>
-            <span class="add-toggle-care">▾</span>
-          </summary>
-          <form method="post" action="/finance/trips/{{ trip.id }}/expense" class="stack-form">
-            <div class="row2">
-              <div class="field"><label>Kategori *</label><input type="text" name="category" list="expenseCategoryList" placeholder="mis. BBM, Makan, Gaji Sopir" required /></div>
-              <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
-            </div>
-            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
-            <button type="submit" class="btn-submit">Simpan Beban</button>
-          </form>
-        </details>
+        <form method="post" action="/finance/trips/{{ trip.id }}/expense">
+          <div class="row2">
+            <div class="field"><label>Nama Beban *</label><input type="text" name="expense_name" placeholder="mis. BBM, Makan, Gaji Sopir" required /></div>
+            <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="subtotal" min="1" placeholder="0" required /></div>
+          </div>
+          <button type="submit" class="btn-submit">Catat Beban</button>
+        </form>
       </div>
-      <datalist id="expenseCategoryList">
-        {% for c in expense_categories %}<option value="{{ c }}"></option>{% endfor %}
-      </datalist>
+    </div>
+    {% endif %}
 
+    <!-- RIWAYAT ITEM -->
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title">📜 Riwayat</div>
+        <div class="sec-desc">{{ trip.items|length }} catatan jual/beli/beban di perjalanan ini</div>
+      </div>
       <div class="item-list mobile-only">
-        {% for e in trip.expenses %}
-        <div class="item-row red">
+        {% for i in trip.items %}
+        <div class="item-row {{ 'green' if i.type == 'JUAL' else ('red' if i.type in ('EXPENSE','RETURN') else '') }}">
           <div class="item-top">
             <div>
-              <div class="item-name">{{ e.category }}</div>
-              <div class="item-meta">{{ e.created_at_wib }} &bull; oleh {{ e.created_by_name or "?" }}</div>
-              {% if e.note %}<div class="item-note">{{ e.note }}</div>{% endif %}
+              <div class="item-name">
+                <span class="type-badge {{ i.type }}">{{ i.type }}</span>
+                {{ i.expense_name or i.material_name or '-' }}
+              </div>
+              <div class="item-meta">
+                {% if i.type in ('JUAL','BELI') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }} &times; Rp {{ "{:,}".format(i.price_per_kg | round | int).replace(",", ".") }}{% endif %}
+                {% if i.party_name %} &bull; {{ i.party_name }}{% endif %}
+                &bull; {{ i.created_at_wib }}
+              </div>
+              {% if i.note %}<div class="item-note">{{ i.note }}</div>{% endif %}
             </div>
-            <div class="item-val">Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</div>
+            <div class="item-val">Rp {{ "{:,}".format(i.subtotal | round | int).replace(",", ".") }}</div>
           </div>
         </div>
         {% else %}
-        <p class="empty-hint">Belum ada beban tercatat utk perjalanan ini.</p>
+        <p class="empty-hint">Belum ada catatan di perjalanan ini.</p>
         {% endfor %}
       </div>
       <div class="table-wrap desktop-only">
-        {% if trip.expenses %}
+        {% if trip.items %}
         <table>
-          <thead><tr><th>Kategori</th><th>Jumlah</th><th>Catatan</th><th>Tanggal</th><th>Oleh</th></tr></thead>
+          <thead><tr><th>Jenis</th><th>Barang/Nama</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Lapak</th><th>Tanggal</th></tr></thead>
           <tbody>
-            {% for e in trip.expenses %}
+            {% for i in trip.items %}
             <tr>
-              <td><span class="cat-badge">{{ e.category }}</span></td>
-              <td><strong>Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</strong></td>
-              <td class="muted">{{ e.note or "-" }}</td>
-              <td class="muted">{{ e.created_at_wib }}</td>
-              <td class="muted">{{ e.created_by_name or "?" }}</td>
+              <td><span class="type-badge {{ i.type }}">{{ i.type }}</span></td>
+              <td>{{ i.expense_name or i.material_name or '-' }}</td>
+              <td class="muted">{% if i.type in ('JUAL','BELI') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }}{% else %}-{% endif %}</td>
+              <td class="muted">{% if i.type in ('JUAL','BELI') %}Rp {{ "{:,}".format(i.price_per_kg | round | int).replace(",", ".") }}{% else %}-{% endif %}</td>
+              <td><strong>Rp {{ "{:,}".format(i.subtotal | round | int).replace(",", ".") }}</strong></td>
+              <td class="muted">{{ i.party_name or "-" }}</td>
+              <td class="muted">{{ i.created_at_wib }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <p class="empty-hint">Belum ada beban tercatat utk perjalanan ini.</p>
+        <p class="empty-hint">Belum ada catatan di perjalanan ini.</p>
         {% endif %}
       </div>
     </div>

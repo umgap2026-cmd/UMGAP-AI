@@ -99,7 +99,8 @@
   .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
   .status-badge { font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .status-badge.OPEN { background: rgba(21, 128, 61, 0.1); color: var(--good); }
-  .status-badge.SELESAI { background: rgba(100, 116, 139, 0.12); color: var(--muted); }
+  .status-badge.CLOSED { background: rgba(100, 116, 139, 0.12); color: var(--muted); }
+  .status-badge.CANCELLED { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
   .trip-stats { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; font-size: 11.5px; }
   .trip-stats span b { display: block; font-size: 13px; }
   .profit-pos { color: var(--good); }
@@ -122,7 +123,7 @@
         <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
         <div class="head-title">
           <h1>🚚 Mode Perjalanan</h1>
-          <p>Kelompokkan nota beli/jual + beban jadi 1 perjalanan</p>
+          <p>Catat beli/jual/beban selama 1 perjalanan (mis. ke Jakarta)</p>
         </div>
         <div class="hdr-right">
           <a href="/notifications" class="action-btn" aria-label="Notifikasi">
@@ -152,7 +153,7 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title">🚚 Perjalanan</div>
-        <div class="sec-desc">Beli/Jual di dalam 1 perjalanan tetap nota sungguhan (pengaruh stok & HPP seperti biasa), plus beban perjalanan (BBM, makan, gaji sopir) -- supaya kelihatan untung/rugi per perjalanan.</div>
+        <div class="sec-desc">Catat langsung Jual (ke lapak), Beli, dan Beban (BBM, makan, gaji sopir) selama 1 perjalanan -- terpisah dari Nota gudang biasa, stok tetap ikut disesuaikan otomatis (AVCO). Supaya kelihatan untung/rugi per perjalanan.</div>
         <div class="divider"></div>
 
         <details>
@@ -162,11 +163,10 @@
           </summary>
           <form method="post" action="/finance/trips/add" class="stack-form">
             <div class="row2">
-              <div class="field"><label>Nama Perjalanan *</label><input type="text" name="name" placeholder="mis. Perjalanan Sumedang" required /></div>
+              <div class="field"><label>Nama/Catatan Perjalanan</label><input type="text" name="note" placeholder="mis. Perjalanan Sumedang" /></div>
               <div class="field"><label>Tanggal</label><input type="date" name="trip_date" /></div>
             </div>
-            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
-            <button type="submit" class="btn-submit">Buat Perjalanan</button>
+            <button type="submit" class="btn-submit">Buka Perjalanan</button>
           </form>
         </details>
       </div>
@@ -177,14 +177,14 @@
         <a href="/finance/trips/{{ t.id }}" class="item-row fade-up {{ 'open' if t.status == 'OPEN' else '' }}" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <div class="item-top">
             <div>
-              <div class="item-name">{{ t.name }}</div>
-              <div class="item-meta">{{ t.trip_date }} &bull; {{ t.jumlah_nota }} nota &bull; oleh {{ t.created_by_name or "?" }}</div>
+              <div class="item-name">{{ t.note or ("Perjalanan #" ~ t.id) }}</div>
+              <div class="item-meta">{{ t.trip_date }} &bull; {{ t.total_items }} item &bull; oleh {{ t.created_by_name or "?" }}</div>
             </div>
             <span class="status-badge {{ t.status }}">{{ t.status }}</span>
           </div>
           <div class="trip-stats">
-            <span>Jual<b>Rp {{ "{:,}".format(t.omzet_jual | round | int).replace(",", ".") }}</b></span>
-            <span>Beli<b>Rp {{ "{:,}".format(t.belanja_beli | round | int).replace(",", ".") }}</b></span>
+            <span>Jual<b>Rp {{ "{:,}".format(t.total_jual | round | int).replace(",", ".") }}</b></span>
+            <span>Beli<b>Rp {{ "{:,}".format(t.total_beli | round | int).replace(",", ".") }}</b></span>
             <span>Beban<b>Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</b></span>
             <span>Untung/Rugi<b class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</b></span>
           </div>
@@ -199,17 +199,17 @@
         {% if trips %}
         <table>
           <thead>
-            <tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Nota</th><th>Jual</th><th>Beli</th><th>Beban</th><th>Untung/Rugi</th><th></th></tr>
+            <tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Item</th><th>Jual</th><th>Beli</th><th>Beban</th><th>Untung/Rugi</th><th></th></tr>
           </thead>
           <tbody>
             {% for t in trips %}
             <tr>
-              <td><strong>{{ t.name }}</strong></td>
+              <td><strong>{{ t.note or ("Perjalanan #" ~ t.id) }}</strong></td>
               <td class="muted">{{ t.trip_date }}</td>
               <td><span class="status-badge {{ t.status }}">{{ t.status }}</span></td>
-              <td class="muted">{{ t.jumlah_nota }}</td>
-              <td class="muted">Rp {{ "{:,}".format(t.omzet_jual | round | int).replace(",", ".") }}</td>
-              <td class="muted">Rp {{ "{:,}".format(t.belanja_beli | round | int).replace(",", ".") }}</td>
+              <td class="muted">{{ t.total_items }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.total_jual | round | int).replace(",", ".") }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.total_beli | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</td>
               <td><strong class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</strong></td>
               <td><a href="/finance/trips/{{ t.id }}" class="pill-btn primary">Detail</a></td>

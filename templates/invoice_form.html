@@ -493,18 +493,6 @@
                   <input type="tel" name="customer_phone" placeholder="08xx… (opsional)" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
-              {% if trips %}
-              <div class="field">
-                <label>🚚 Kaitkan ke Perjalanan (opsional)</label>
-                <select name="trip_id" id="tripSelect">
-                  <option value="">— Tidak terkait perjalanan —</option>
-                  {% for t in trips %}
-                  <option value="{{ t.id }}" {{ 'selected' if edit_mode and edit_invoice.trip_id == t.id else '' }}>{{ t.name }} ({{ t.trip_date }})</option>
-                  {% endfor %}
-                </select>
-              </div>
-              {% endif %}
-
               <div class="divider"></div>
               <label>Info Perusahaan di Nota</label>
               <div class="co-row">

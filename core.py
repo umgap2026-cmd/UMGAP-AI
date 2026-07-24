@@ -372,41 +372,16 @@ def _ensure_fin_expense_schema(cur):
         """)
 
 
-def _ensure_fin_trips_schema(cur):
-    """Lazy-migration: Mode Perjalanan -- kelompokkan nota Beli/Jual + beban
-    perjalanan (BBM, makan, gaji sopir) di bawah 1 perjalanan bernama, supaya
-    bisa dilihat untung/rugi per perjalanan. Dicek dulu lewat information_schema
-    supaya tidak berulang kali minta ACCESS EXCLUSIVE lock di fin_transactions."""
-    if not _table_exists(cur, "fin_trips"):
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS fin_trips (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                trip_date DATE NOT NULL DEFAULT CURRENT_DATE,
-                note TEXT,
-                status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
-                created_by INTEGER REFERENCES users(id),
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-    if not _col_exists(cur, "fin_transactions", "trip_id"):
-        cur.execute("""
-            ALTER TABLE fin_transactions
-                ADD COLUMN IF NOT EXISTS trip_id INTEGER NULL REFERENCES fin_trips(id);
-        """)
-
-
-def create_fin_expense_entry(category, amount, note, created_by, trip_id=None):
+def create_fin_expense_entry(category, amount, note, created_by):
     """Catat 1 beban/pengeluaran operasional (bukan lewat nota) -- kategori
-    bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat), opsional
-    dikaitkan ke Mode Perjalanan (trip_id). Return dict {id, category, amount}."""
+    bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat).
+    Return dict {id, category, amount}."""
     category = (category or "").strip()
     try:
         amount = float(amount or 0)
     except (TypeError, ValueError):
         amount = 0.0
     note = (note or "").strip()
-    trip_id = int(trip_id) if trip_id else None
 
     if not category:
         raise ValueError("Kategori beban wajib diisi.")
@@ -417,13 +392,12 @@ def create_fin_expense_entry(category, amount, note, created_by, trip_id=None):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_expense_schema(cur)
-        _ensure_fin_trips_schema(cur)
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, note, total_amount, created_by, expense_category, trip_id)
-            VALUES ('PENGELUARAN', %s, %s, %s, %s, %s, %s)
+                (type, party_name, note, total_amount, created_by, expense_category)
+            VALUES ('PENGELUARAN', %s, %s, %s, %s, %s)
             RETURNING id;
-        """, (category, note or None, amount, created_by, category, trip_id))
+        """, (category, note or None, amount, created_by, category))
         expense_id = cur.fetchone()["id"]
         conn.commit()
         return {"id": expense_id, "category": category, "amount": amount}
@@ -510,33 +484,26 @@ def delete_fin_expense_entry(expense_id):
         conn.close()
 
 
-def list_fin_expenses(limit=200, trip_id=None):
+def list_fin_expenses(limit=200):
     """Riwayat beban/pengeluaran (termasuk Ongkir yang tertaut nota &
-    penyesuaian stok), terbaru duluan. trip_id opsional utk filter 1 perjalanan."""
+    penyesuaian stok), terbaru duluan."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_expense_schema(cur)
-        _ensure_fin_trips_schema(cur)
-        conn.commit()
-        where = "WHERE t.type = 'PENGELUARAN'"
-        params = []
-        if trip_id is not None:
-            where += " AND t.trip_id = %s"
-            params.append(trip_id)
-        cur.execute(f"""
+        cur.execute("""
             SELECT t.id, t.party_name,
                    COALESCE(NULLIF(TRIM(t.expense_category), ''), t.party_name) AS category,
-                   t.note, t.total_amount, t.related_transaction_id, t.trip_id,
+                   t.note, t.total_amount, t.related_transaction_id,
                    t.created_by, u.name AS created_by_name,
                    TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
                            'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
-            {where}
+            WHERE t.type = 'PENGELUARAN'
             ORDER BY t.created_at DESC
             LIMIT %s;
-        """, params + [limit])
+        """, (limit,))
         return [dict(r) for r in cur.fetchall()]
     finally:
         cur.close()
@@ -567,106 +534,83 @@ def list_fin_expense_categories():
         conn.close()
 
 
-def create_fin_trip(name, trip_date, note, created_by):
-    """Buat 1 Perjalanan baru (Mode Perjalanan) -- wadah utk kelompokkan nota
-    Beli/Jual + beban perjalanan (BBM, makan, gaji sopir)."""
-    name = (name or "").strip()
+# ── MODE PERJALANAN ──
+# PENTING: fin_trips / fin_trip_items / fin_trip_parties SUDAH ADA lebih dulu
+# (dipakai fitur mobile "Perjalanan Jakarta" di routes/mobile/finance.py,
+# lihat trip_new/trip_sell/trip_buy/trip_expense/dst). Jangan bikin skema
+# baru dengan nama sama -- pakai skema yang sudah ada ini apa adanya.
+# Kolom fin_trips: id, trip_date, note, status ('OPEN'/'CLOSED'/'CANCELLED'),
+# created_by, pin, created_at, total_income, total_expense, net_result,
+# closed_at (TIDAK ADA kolom 'name' -- label perjalanan pakai 'note').
+# fin_trip_items: id, trip_id, party_id, type ('JUAL'/'BELI'/'EXPENSE'/
+# 'RETURN'), material_id, qty_kg, price_per_kg, subtotal, payment_type,
+# is_debt, expense_name, note, return_to_stock, created_at.
+# fin_trip_parties ("lapak"): id, trip_id, name, note, created_at.
+
+def create_fin_trip_web(note, trip_date, created_by):
+    """Buka Perjalanan baru. Return dict {id}."""
+    import random as _rand
     note = (note or "").strip()
-    if not name:
-        raise ValueError("Nama perjalanan wajib diisi.")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_fin_trips_schema(cur)
+        pin = ''.join(_rand.choices('0123456789', k=4))
         cur.execute("""
-            INSERT INTO fin_trips (name, trip_date, note, created_by)
-            VALUES (%s, COALESCE(%s, CURRENT_DATE), %s, %s)
+            INSERT INTO fin_trips (trip_date, note, status, created_by, pin)
+            VALUES (COALESCE(%s, CURRENT_DATE), %s, 'OPEN', %s, %s)
             RETURNING id;
-        """, (name, trip_date or None, note or None, created_by))
+        """, (trip_date or None, note or None, created_by, pin))
         trip_id = cur.fetchone()["id"]
         conn.commit()
-        return {"id": trip_id, "name": name}
-    except ValueError:
-        conn.rollback()
-        raise
+        return {"id": trip_id}
     except Exception as e:
         conn.rollback()
-        raise ValueError(f"Gagal membuat perjalanan: {e}")
+        raise ValueError(f"Gagal membuka perjalanan: {e}")
     finally:
         cur.close()
         conn.close()
 
 
-def list_fin_trips():
-    """Daftar semua Perjalanan + ringkasan omzet jual/belanja beli/beban/
-    untung-rugi tiap perjalanan, perjalanan OPEN duluan lalu terbaru duluan."""
+def list_fin_trips_web():
+    """Daftar semua Perjalanan + ringkasan jual/beli/beban/untung-rugi,
+    perjalanan OPEN duluan lalu terbaru duluan."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_fin_trips_schema(cur)
-        _ensure_transaction_cancel_columns(cur)
-        conn.commit()
         cur.execute("""
             SELECT
-                tr.id, tr.name, tr.trip_date, tr.note, tr.status,
-                tr.created_by, u.name AS created_by_name,
-                COALESCE((SELECT SUM(total_amount) FROM fin_transactions
-                          WHERE trip_id = tr.id AND type = 'JUAL_INVOICE'
-                            AND cancelled_at IS NULL), 0) AS omzet_jual,
-                COALESCE((SELECT SUM(total_amount) FROM fin_transactions
-                          WHERE trip_id = tr.id AND type = 'BELI_GUDANG'
-                            AND cancelled_at IS NULL), 0) AS belanja_beli,
-                COALESCE((SELECT SUM(total_amount) FROM fin_transactions
-                          WHERE trip_id = tr.id AND type = 'PENGELUARAN'), 0) AS total_beban,
-                (SELECT COUNT(*) FROM fin_transactions
-                 WHERE trip_id = tr.id AND type IN ('JUAL_INVOICE','BELI_GUDANG')
-                   AND cancelled_at IS NULL) AS jumlah_nota
-            FROM fin_trips tr
-            LEFT JOIN users u ON u.id = tr.created_by
-            ORDER BY (tr.status = 'OPEN') DESC, tr.trip_date DESC, tr.id DESC;
+                t.id, t.trip_date, t.note, t.status, t.created_by, t.created_at,
+                t.closed_at, u.name AS created_by_name,
+                COALESCE(SUM(CASE WHEN i.type='JUAL'    THEN i.subtotal ELSE 0 END), 0) AS total_jual,
+                COALESCE(SUM(CASE WHEN i.type='BELI'    THEN i.subtotal ELSE 0 END), 0) AS total_beli,
+                COALESCE(SUM(CASE WHEN i.type='EXPENSE' THEN i.subtotal ELSE 0 END), 0) AS total_beban,
+                COUNT(DISTINCT i.id) AS total_items
+            FROM fin_trips t
+            LEFT JOIN fin_trip_items i ON i.trip_id = t.id
+            LEFT JOIN users u ON u.id = t.created_by
+            GROUP BY t.id, u.name
+            ORDER BY (t.status = 'OPEN') DESC, t.created_at DESC;
         """)
         rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
-            r["profit"] = float(r["omzet_jual"] or 0) - float(r["belanja_beli"] or 0) - float(r["total_beban"] or 0)
+            r["profit"] = float(r["total_jual"] or 0) - float(r["total_beli"] or 0) - float(r["total_beban"] or 0)
         return rows
     finally:
         cur.close()
         conn.close()
 
 
-def list_fin_trips_open():
-    """Perjalanan berstatus OPEN saja -- utk dropdown pilih perjalanan di form Nota."""
+def get_fin_trip_web_detail(trip_id):
+    """Detail 1 Perjalanan: header + daftar lapak + daftar item (jual/beli/
+    beban/balikan) + ringkasan."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_fin_trips_schema(cur)
-        conn.commit()
         cur.execute("""
-            SELECT id, name, trip_date FROM fin_trips
-            WHERE status = 'OPEN' ORDER BY trip_date DESC, id DESC;
-        """)
-        return [dict(r) for r in cur.fetchall()]
-    finally:
-        cur.close()
-        conn.close()
-
-
-def get_fin_trip_detail(trip_id):
-    """Detail 1 Perjalanan: data perjalanan + daftar nota Beli/Jual +
-    daftar beban yang tertaut + total ringkasan."""
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        _ensure_fin_trips_schema(cur)
-        _ensure_transaction_cancel_columns(cur)
-        _ensure_fin_expense_schema(cur)
-        conn.commit()
-
-        cur.execute("""
-            SELECT tr.*, u.name AS created_by_name
-            FROM fin_trips tr LEFT JOIN users u ON u.id = tr.created_by
-            WHERE tr.id = %s;
+            SELECT t.*, u.name AS created_by_name
+            FROM fin_trips t LEFT JOIN users u ON u.id = t.created_by
+            WHERE t.id = %s;
         """, (trip_id,))
         trip = cur.fetchone()
         if not trip:
@@ -674,30 +618,37 @@ def get_fin_trip_detail(trip_id):
         trip = dict(trip)
 
         cur.execute("""
-            SELECT id, type, party_name, note, total_amount, is_debt, cancelled_at,
-                   TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
-            FROM fin_transactions
-            WHERE trip_id = %s AND type IN ('JUAL_INVOICE', 'BELI_GUDANG')
-            ORDER BY created_at DESC;
+            SELECT id, name, note FROM fin_trip_parties
+            WHERE trip_id = %s ORDER BY created_at;
         """, (trip_id,))
-        notas = [dict(r) for r in cur.fetchall()]
-        for n in notas:
-            invoice_no, _pm, _extra = _parse_nota_note(n["note"])
-            n["invoice_no"] = invoice_no
+        parties = [dict(r) for r in cur.fetchall()]
 
-        expenses = list_fin_expenses(trip_id=trip_id)
+        cur.execute("""
+            SELECT i.id, i.type, i.material_id, i.qty_kg, i.price_per_kg, i.subtotal,
+                   i.payment_type, i.is_debt, i.expense_name, i.note, i.party_id,
+                   i.return_to_stock,
+                   TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                   m.name AS material_name, m.unit AS material_unit,
+                   p.name AS party_name
+            FROM fin_trip_items i
+            LEFT JOIN fin_materials m ON m.id = i.material_id
+            LEFT JOIN fin_trip_parties p ON p.id = i.party_id
+            WHERE i.trip_id = %s
+            ORDER BY i.created_at DESC;
+        """, (trip_id,))
+        items = [dict(r) for r in cur.fetchall()]
 
-        omzet_jual = sum(float(n["total_amount"]) for n in notas if n["type"] == "JUAL_INVOICE" and not n["cancelled_at"])
-        belanja_beli = sum(float(n["total_amount"]) for n in notas if n["type"] == "BELI_GUDANG" and not n["cancelled_at"])
-        total_beban = sum(float(e["total_amount"]) for e in expenses)
+        total_jual = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "JUAL")
+        total_beli = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "BELI")
+        total_beban = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "EXPENSE")
 
-        trip["notas"] = notas
-        trip["expenses"] = expenses
-        trip["omzet_jual"] = omzet_jual
-        trip["belanja_beli"] = belanja_beli
+        trip["parties"] = parties
+        trip["items"] = items
+        trip["total_jual"] = total_jual
+        trip["total_beli"] = total_beli
         trip["total_beban"] = total_beban
-        trip["profit"] = omzet_jual - belanja_beli - total_beban
+        trip["profit"] = total_jual - total_beli - total_beban
         return trip
     except ValueError:
         raise
@@ -706,25 +657,296 @@ def get_fin_trip_detail(trip_id):
         conn.close()
 
 
-def set_fin_trip_status(trip_id, status):
-    """Ubah status Perjalanan (OPEN/SELESAI)."""
-    status = (status or "").strip().upper()
-    if status not in ("OPEN", "SELESAI"):
-        raise ValueError("Status tidak valid.")
+def add_fin_trip_party(trip_id, name, note):
+    """Tambah lapak (mitra jual/beli) di 1 Perjalanan. Return dict {id, name}."""
+    name = (name or "").strip()
+    note = (note or "").strip()
+    if not name:
+        raise ValueError("Nama lapak wajib diisi.")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_fin_trips_schema(cur)
-        cur.execute(
-            "UPDATE fin_trips SET status = %s WHERE id = %s RETURNING id;",
-            (status, trip_id))
-        row = cur.fetchone()
-        if not row:
-            conn.rollback()
+        cur.execute("SELECT id FROM fin_trips WHERE id = %s;", (trip_id,))
+        if not cur.fetchone():
             raise ValueError("Perjalanan tidak ditemukan.")
+        cur.execute("""
+            INSERT INTO fin_trip_parties (trip_id, name, note)
+            VALUES (%s, %s, %s) RETURNING id;
+        """, (trip_id, name, note or None))
+        party_id = cur.fetchone()["id"]
         conn.commit()
-        return {"id": trip_id, "status": status}
+        return {"id": party_id, "name": name}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menambah lapak: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _fin_trip_require_open(cur, trip_id):
+    cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+    t = cur.fetchone()
+    if not t:
+        raise ValueError("Perjalanan tidak ditemukan.")
+    if t["status"] != "OPEN":
+        raise ValueError("Perjalanan sudah ditutup/dibatalkan.")
+
+
+def record_fin_trip_sell(trip_id, material_id, qty_kg, price_per_kg, party_id, party_name, payment_type, note, created_by):
+    """Catat penjualan di 1 Perjalanan (mis. jual ke lapak Jakarta) -- stok
+    keluar (AVCO), piutang tercatat kalau metode bayar HUTANG."""
+    from routes.mobile.finance import _update_stock_avco
+
+    try:
+        material_id = int(material_id)
+        qty_kg = float(qty_kg)
+        price_per_kg = float(price_per_kg)
+    except (TypeError, ValueError):
+        raise ValueError("Barang, qty, dan harga wajib diisi dengan benar.")
+    if qty_kg <= 0 or price_per_kg <= 0:
+        raise ValueError("Qty dan harga harus lebih dari 0.")
+
+    payment_type = (payment_type or "CASH").strip().upper()
+    if payment_type not in ("CASH", "TRANSFER", "HUTANG"):
+        payment_type = "CASH"
+    is_debt = payment_type == "HUTANG"
+    note = (note or "").strip()
+    party_name = (party_name or "").strip()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _fin_trip_require_open(cur, trip_id)
+
+        if party_id:
+            party_id = int(party_id)
+        elif party_name:
+            cur.execute("""
+                INSERT INTO fin_trip_parties (trip_id, name)
+                VALUES (%s, %s) RETURNING id;
+            """, (trip_id, party_name))
+            party_id = cur.fetchone()["id"]
+        else:
+            party_id = None
+
+        cur.execute(
+            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+
+        cur.execute("""
+            SELECT COALESCE(qty_kg,0) AS qty, COALESCE(avg_cost_per_kg,0) AS avg
+            FROM fin_stock_summary WHERE material_id = %s;
+        """, (material_id,))
+        stock = cur.fetchone()
+        current_qty = float(stock["qty"]) if stock else 0.0
+        avg = float(stock["avg"]) if stock else 0.0
+        if qty_kg > current_qty:
+            raise ValueError(f"Stok {mat['name']} tidak cukup. Tersedia: {current_qty:.1f} kg.")
+
+        subtotal = qty_kg * price_per_kg
+        cur.execute("""
+            INSERT INTO fin_trip_items
+                (trip_id, party_id, type, material_id, qty_kg, price_per_kg, subtotal,
+                 payment_type, is_debt, note)
+            VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s);
+        """, (trip_id, party_id, material_id, qty_kg, price_per_kg, subtotal,
+              payment_type, is_debt, note or None))
+
+        _update_stock_avco(cur, material_id, qty_kg, avg, 'OUT', None,
+                            note=f"Jual perjalanan trip#{trip_id}")
+
+        if is_debt and party_id:
+            cur.execute("SELECT name FROM fin_trip_parties WHERE id = %s;", (party_id,))
+            prow = cur.fetchone()
+            pname = prow["name"] if prow else "Lapak Perjalanan"
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, note)
+                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s);
+            """, (pname, subtotal, subtotal, f"Jual perjalanan trip#{trip_id}"))
+
+        conn.commit()
+        return {"subtotal": subtotal}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat penjualan: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def record_fin_trip_buy(trip_id, material_id, qty_kg, price_per_kg, note):
+    """Catat pembelian di 1 Perjalanan (mis. beli barang di Jakarta) --
+    stok masuk (AVCO)."""
+    from routes.mobile.finance import _update_stock_avco
+
+    try:
+        material_id = int(material_id)
+        qty_kg = float(qty_kg)
+        price_per_kg = float(price_per_kg)
+    except (TypeError, ValueError):
+        raise ValueError("Barang, qty, dan harga wajib diisi dengan benar.")
+    if qty_kg <= 0 or price_per_kg <= 0:
+        raise ValueError("Qty dan harga harus lebih dari 0.")
+    note = (note or "").strip()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _fin_trip_require_open(cur, trip_id)
+
+        cur.execute(
+            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+
+        subtotal = qty_kg * price_per_kg
+        cur.execute("""
+            INSERT INTO fin_trip_items
+                (trip_id, type, material_id, qty_kg, price_per_kg, subtotal, note)
+            VALUES (%s, 'BELI', %s, %s, %s, %s, %s);
+        """, (trip_id, material_id, qty_kg, price_per_kg, subtotal, note or None))
+
+        _update_stock_avco(cur, material_id, qty_kg, price_per_kg, 'IN', None,
+                            note=f"Beli perjalanan trip#{trip_id}")
+
+        conn.commit()
+        return {"subtotal": subtotal}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat pembelian: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def record_fin_trip_expense(trip_id, expense_name, subtotal):
+    """Catat 1 beban perjalanan (mis. BBM, makan, gaji sopir)."""
+    expense_name = (expense_name or "").strip()
+    try:
+        subtotal = float(subtotal or 0)
+    except (TypeError, ValueError):
+        subtotal = 0.0
+    if not expense_name:
+        raise ValueError("Nama beban wajib diisi.")
+    if subtotal <= 0:
+        raise ValueError("Jumlah harus lebih dari 0.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _fin_trip_require_open(cur, trip_id)
+        cur.execute("""
+            INSERT INTO fin_trip_items (trip_id, type, expense_name, subtotal)
+            VALUES (%s, 'EXPENSE', %s, %s);
+        """, (trip_id, expense_name, subtotal))
+        conn.commit()
+        return {"expense_name": expense_name, "subtotal": subtotal}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat beban: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def close_fin_trip_web(trip_id):
+    """Tutup Perjalanan -- hitung & simpan total jual/beli+beban/untung-rugi."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t:
+            raise ValueError("Perjalanan tidak ditemukan.")
+        if t["status"] != "OPEN":
+            raise ValueError("Perjalanan sudah ditutup/dibatalkan.")
+
+        cur.execute("""
+            SELECT
+                COALESCE(SUM(CASE WHEN type='JUAL'    THEN subtotal ELSE 0 END), 0) AS jual,
+                COALESCE(SUM(CASE WHEN type='BELI'    THEN subtotal ELSE 0 END), 0) AS beli,
+                COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS expense
+            FROM fin_trip_items WHERE trip_id = %s;
+        """, (trip_id,))
+        totals = cur.fetchone()
+        total_jual = float(totals["jual"] or 0)
+        total_beli = float(totals["beli"] or 0)
+        total_expense = float(totals["expense"] or 0)
+        net = total_jual - total_beli - total_expense
+
+        cur.execute("""
+            UPDATE fin_trips
+            SET status = 'CLOSED', total_income = %s, total_expense = %s,
+                net_result = %s, closed_at = NOW()
+            WHERE id = %s;
+        """, (total_jual, total_beli + total_expense, net, trip_id))
+        conn.commit()
+        return {"net_result": net}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menutup perjalanan: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def cancel_fin_trip_web(trip_id):
+    """Batalkan Perjalanan (status jadi CANCELLED, tidak bisa kalau sudah CLOSED)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        t = cur.fetchone()
+        if not t:
+            raise ValueError("Perjalanan tidak ditemukan.")
+        if t["status"] == "CLOSED":
+            raise ValueError("Tidak bisa batalkan perjalanan yang sudah selesai.")
+        cur.execute("UPDATE fin_trips SET status = 'CANCELLED' WHERE id = %s;", (trip_id,))
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_trip_web(trip_id):
+    """Hapus Perjalanan beserta lapak & item-nya (ON DELETE CASCADE)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT id FROM fin_trips WHERE id = %s;", (trip_id,))
+        if not cur.fetchone():
+            raise ValueError("Perjalanan tidak ditemukan.")
+        cur.execute("DELETE FROM fin_trips WHERE id = %s;", (trip_id,))
+        conn.commit()
     except ValueError:
         conn.rollback()
         raise
@@ -1361,18 +1583,17 @@ def get_materials_with_stock():
         conn.close()
 
 
-def _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by, category=None, trip_id=None):
+def _record_ongkir_expense(cur, txn_id, invoice_no, ongkir, created_by, category=None):
     """Insert pengeluaran Ongkir tertaut ke nota (mode BEBAN -- kita yang
     bayar), dikategorikan sbg Beban (lihat _ensure_fin_expense_schema) supaya
-    kelihatan di halaman Beban & (kalau nota ini bagian dari Mode Perjalanan)
-    ikut terhitung sbg beban perjalanan itu."""
+    kelihatan di halaman Beban."""
     category = (category or "").strip() or "Ongkir/Transportasi"
     cur.execute("""
         INSERT INTO fin_transactions
             (type, party_name, note, total_amount, created_by,
-             related_transaction_id, expense_category, trip_id)
-        VALUES ('PENGELUARAN', %s, %s, %s, %s, %s, %s, %s);
-    """, (category, f"Ongkir nota {invoice_no}", ongkir, created_by, txn_id, category, trip_id))
+             related_transaction_id, expense_category)
+        VALUES ('PENGELUARAN', %s, %s, %s, %s, %s, %s);
+    """, (category, f"Ongkir nota {invoice_no}", ongkir, created_by, txn_id, category))
 
 
 def _sum_adjustments(adjustments):
@@ -1415,7 +1636,7 @@ def _sum_adjustments(adjustments):
 
 def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                         discount, is_paid, items, created_by, print_size=None,
-                        adjustments=None, trip_id=None):
+                        adjustments=None):
     """
     Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
     catat piutang jika belum lunas. Logic diextract dari
@@ -1447,13 +1668,11 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
     ongkir_beban = sum(e["amount"] for e in ongkir_beban_entries)
     discount += total_dp
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
-    trip_id = int(trip_id) if trip_id else None
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
-        _ensure_fin_trips_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1495,13 +1714,13 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         is_debt = not is_paid
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size, trip_id)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s)
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             customer_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, trip_id
+            is_debt, grand_total, created_by, print_size
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -1541,7 +1760,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
         for e in ongkir_beban_entries:
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], created_by,
-                                    category=e["category"], trip_id=trip_id)
+                                    category=e["category"])
 
         conn.commit()
 
@@ -1568,7 +1787,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
 def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
                                  discount, is_paid, items, created_by, print_size=None,
-                                 adjustments=None, trip_id=None):
+                                 adjustments=None):
     """
     Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
     (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
@@ -1590,13 +1809,11 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
     ongkir_beban = sum(e["amount"] for e in ongkir_beban_entries)
     discount += total_dp
     print_size = print_size if print_size in ("58mm", "80mm") else "80mm"
-    trip_id = int(trip_id) if trip_id else None
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
-        _ensure_fin_trips_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1621,13 +1838,13 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         is_debt = not is_paid
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size, trip_id)
-            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s)
+                (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             supplier_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, trip_id
+            is_debt, grand_total, created_by, print_size
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -1658,7 +1875,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
         for e in ongkir_beban_entries:
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], created_by,
-                                    category=e["category"], trip_id=trip_id)
+                                    category=e["category"])
 
         conn.commit()
 
@@ -1683,7 +1900,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
 def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, payment_method,
                                     notes, discount, is_paid, items, edited_by,
-                                    adjustments=None, trip_id=None):
+                                    adjustments=None):
     """
     Edit nota JUAL_INVOICE/BELI_GUDANG yang sudah ada: balikkan efek stok &
     hutang/piutang LAMA (pola sama dengan cancel_fin_transaction), lalu
@@ -1706,14 +1923,12 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
     total_dp, ongkir_beban_entries, ongkir_potongan = _sum_adjustments(adjustments)
     ongkir_beban = sum(e["amount"] for e in ongkir_beban_entries)
     discount += total_dp
-    trip_id = int(trip_id) if trip_id else None
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
-        _ensure_fin_trips_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -1823,9 +2038,9 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         new_note = f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else "")
         cur.execute("""
             UPDATE fin_transactions
-            SET party_name = %s, note = %s, is_debt = %s, total_amount = %s, trip_id = %s
+            SET party_name = %s, note = %s, is_debt = %s, total_amount = %s
             WHERE id = %s;
-        """, (customer_name, new_note, is_debt, grand_total, trip_id, txn_id))
+        """, (customer_name, new_note, is_debt, grand_total, txn_id))
 
         cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
         if is_debt and customer_name:
@@ -1844,7 +2059,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         """, (txn_id,))
         for e in ongkir_beban_entries:
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], edited_by,
-                                    category=e["category"], trip_id=trip_id)
+                                    category=e["category"])
 
         conn.commit()
         return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total}
@@ -1872,12 +2087,11 @@ def get_fin_invoice_detail(txn_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
-        _ensure_fin_trips_schema(cur)
         conn.commit()
 
         cur.execute("""
             SELECT t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
-                   t.total_amount, t.created_at, t.print_size, t.cancelled_at, t.trip_id,
+                   t.total_amount, t.created_at, t.print_size, t.cancelled_at,
                    u.name AS created_by_name
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
@@ -1926,7 +2140,6 @@ def get_fin_invoice_detail(txn_id):
             "print_size": row.get("print_size") or "80mm",
             "is_paid": not bool(row.get("is_debt")),
             "cancelled_at": row.get("cancelled_at"),
-            "trip_id": row.get("trip_id"),
             "paid_at_wib": None,
             "created_at": row.get("created_at"),
             "created_at_wib": _utc_naive_to_wib_string(row.get("created_at")),
