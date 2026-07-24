@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from core import init_oauth
@@ -93,6 +93,25 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB — cukup untuk foto
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 init_oauth(app)
+
+
+@app.errorhandler(500)
+def handle_internal_error(e):
+    """Tampilkan pesan error asli (bukan halaman generik) ke admin/owner yang
+    lagi login, supaya bug production bisa langsung ketahuan penyebabnya
+    tanpa perlu akses log server. User biasa tetap lihat halaman generik."""
+    import traceback
+    original = getattr(e, "original_exception", None) or e
+    if session.get("role") in ("admin", "owner"):
+        tb = "".join(traceback.format_exception(type(original), original, original.__traceback__))
+        return (
+            "<pre style='white-space:pre-wrap; font-family:monospace; padding:20px; "
+            "background:#1e1e1e; color:#f87171; font-size:13px;'>"
+            f"Internal Server Error\n\n{type(original).__name__}: {original}\n\n{tb}"
+            "</pre>",
+            500,
+        )
+    return "Internal Server Error", 500
 
 
 @app.after_request

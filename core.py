@@ -493,7 +493,9 @@ def delete_fin_expense_entry(expense_id):
         row = cur.fetchone()
         if not row:
             raise ValueError("Beban tidak ditemukan.")
+        cur.execute("DELETE FROM fin_stock_ledger WHERE transaction_id = %s;", (expense_id,))
         cur.execute("DELETE FROM fin_transaction_items WHERE transaction_id = %s;", (expense_id,))
+        cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (expense_id,))
         cur.execute("DELETE FROM fin_transactions WHERE id = %s;", (expense_id,))
         conn.commit()
         return row["party_name"]
