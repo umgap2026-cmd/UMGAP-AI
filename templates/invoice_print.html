@@ -150,7 +150,7 @@
   .pv-body { display: flex; justify-content: center; padding: 6px 0; overflow-x: auto; }
   .faktur {
     font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #fff;
-    width: 9.5in; min-height: 11in; padding: 0.5in 0.55in; box-shadow: var(--shadow-out);
+    width: 9.5in; padding: 0.5in 0.55in; box-shadow: var(--shadow-out);
     position: relative;
   }
   .fk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #111; margin-bottom: 16px; }
@@ -204,12 +204,6 @@
   @media (min-width: 960px) {
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
     .split .main-card { margin-top: 0; }
-  }
-  /* Di layar < 960px, faktur diskalakan via JS (lihat script di bawah) --
-     min-height 11in (ukuran kertas fisik) dibuang supaya tidak nyisain
-     ruang kosong panjang di bawah konten asli saat dipreview di HP. */
-  @media (max-width: 959px) {
-    .faktur { min-height: 0; }
   }
 </style>
 
@@ -588,6 +582,7 @@
     function fitFaktur() {
       if (window.innerWidth >= 960) {
         faktur.style.transform = "";
+        faktur.style.marginLeft = "";
         pvBody.style.height = "";
         pvBody.style.justifyContent = "";
         return;
@@ -596,15 +591,22 @@
       // (sebelum transform) -- kalau tetap justify-content:center, sisi
       // kiri dokumen yang sudah diskalakan bisa "terpotong" keluar layar
       // (posisinya digeser kekiri seolah masih selebar aslinya). Makanya
-      // pindah ke flex-start dulu sebelum ukur & skala.
+      // pindah ke flex-start, lalu tengahkan manual pakai margin-left --
+      // margin (beda dgn justify-content) dihitung SEBELUM transform,
+      // jadi titik asal transform-origin:top-left ikut kegeser bareng
+      // margin-nya & hasil skalanya benar-benar center.
       pvBody.style.justifyContent = "flex-start";
       faktur.style.transform = "";
+      faktur.style.marginLeft = "";
       var naturalWidth = faktur.offsetWidth;
       var naturalHeight = faktur.offsetHeight;
       var availableWidth = pvBody.clientWidth - 4;
       var scale = Math.min(1, availableWidth / naturalWidth);
+      var scaledWidth = naturalWidth * scale;
+      var centerOffset = Math.max(0, (availableWidth - scaledWidth) / 2);
       faktur.style.transformOrigin = "top left";
       faktur.style.transform = "scale(" + scale + ")";
+      faktur.style.marginLeft = Math.round(centerOffset) + "px";
       pvBody.style.height = Math.ceil(naturalHeight * scale) + "px";
     }
     window.addEventListener("resize", fitFaktur);
