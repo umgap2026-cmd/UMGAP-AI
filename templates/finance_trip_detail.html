@@ -289,10 +289,10 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title">📜 Riwayat</div>
-        <div class="sec-desc">{{ trip.items|length }} catatan jual/beli/beban di perjalanan ini</div>
+        <div class="sec-desc">{{ trip.entries|length }} catatan jual/beli/beban di perjalanan ini</div>
       </div>
       <div class="item-list mobile-only">
-        {% for i in trip.items %}
+        {% for i in trip.entries %}
         <div class="item-row {{ 'green' if i.type == 'JUAL' else ('red' if i.type in ('EXPENSE','RETURN') else '') }}">
           <div class="item-top">
             <div>
@@ -315,11 +315,11 @@
         {% endfor %}
       </div>
       <div class="table-wrap desktop-only">
-        {% if trip.items %}
+        {% if trip.entries %}
         <table>
           <thead><tr><th>Jenis</th><th>Barang/Nama</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Lapak</th><th>Tanggal</th></tr></thead>
           <tbody>
-            {% for i in trip.items %}
+            {% for i in trip.entries %}
             <tr>
               <td><span class="type-badge {{ i.type }}">{{ i.type }}</span></td>
               <td>{{ i.expense_name or i.material_name or '-' }}</td>

@@ -643,8 +643,11 @@ def get_fin_trip_web_detail(trip_id):
         total_beli = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "BELI")
         total_beban = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "EXPENSE")
 
+        # NOTE: key sengaja bukan "items" -- dict.items via akses titik di
+        # Jinja resolve ke method built-in dict.items(), bukan key ini,
+        # dan bikin |length gagal (TypeError: builtin_function_or_method).
         trip["parties"] = parties
-        trip["items"] = items
+        trip["entries"] = items
         trip["total_jual"] = total_jual
         trip["total_beli"] = total_beli
         trip["total_beban"] = total_beban
