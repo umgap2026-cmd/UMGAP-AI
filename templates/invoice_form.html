@@ -217,7 +217,30 @@
     grid-column: 1 / -1; background: #eef2ff; color: var(--blue); border-radius: 10px;
     padding: 8px 12px; font-size: 13px; font-weight: 900; text-align: center; margin-top: 8px;
   }
-  .item-warn { font-size: 11px; font-weight: 800; color: var(--bad); margin-top: 6px; display: none; }
+  .item-warn { font-size: 11px; font-weight: 800; color: var(--bad); margin-top: 6px; display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-addstock-btn {
+    border: none; border-radius: 999px; padding: 4px 10px; font-size: 10.5px; font-weight: 900;
+    cursor: pointer; font-family: inherit; background: rgba(37, 99, 235, 0.1); color: var(--blue);
+  }
+
+  /* modal terpusat -- pola sama dgn finance_dashboard.html, dipakai utk
+     tambah stok cepat saat qty jual melebihi stok tercatat. */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 200;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 20px; box-shadow: var(--shadow-out, 0 20px 42px rgba(18,32,62,0.18));
+    padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+  .modal-title { font-size: 15px; font-weight: 1000; color: #1e3252; }
+  .modal-close {
+    width: 32px; height: 32px; flex: 0 0 32px; border: none; border-radius: 10px;
+    background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .modal-box .field { margin-top: 10px; margin-bottom: 0; }
 
   /* list-of-value: searchable item picker */
   .lov { position: relative; }
@@ -578,7 +601,7 @@
                             <div class="lov-group-header">🏷️ {{ cat }}</div>
                             {% for m in group %}
                             <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}"
-                                 data-unit="{{ m.unit }}" data-search="{{ m.name|lower }}">
+                                 data-unit="{{ m.unit }}" data-avg-cost="{{ m.avg_cost_per_kg }}" data-search="{{ m.name|lower }}">
                               {{ m.name }}
                               <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }}</span>
                             </div>
@@ -623,7 +646,10 @@
                     </div>
                     <div class="item-sub line-sub">Rp 0</div>
                   </div>
-                  <div class="item-warn">⚠️ Qty melebihi stok tersedia</div>
+                  <div class="item-warn">
+                    ⚠️ Qty melebihi stok tersedia
+                    <button type="button" class="item-addstock-btn">+ Tambah Stok</button>
+                  </div>
                 </div>
               </div>
               <button type="button" class="add-item-btn" id="btnAdd">
@@ -711,6 +737,26 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- MODAL TAMBAH STOK CEPAT (dipakai saat qty jual melebihi stok tercatat) -->
+<div class="modal-overlay" id="quickStockModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">+ Tambah Stok <span id="quickStockModalName"></span></div>
+      <button type="button" class="modal-close" onclick="closeQuickStockModal()">✕</button>
+    </div>
+    <div class="sec-desc">Barang riil lebih banyak dari yang tercatat (mis. beda timbangan saat beli &amp; jual)? Isi harga sesuai HPP rata-rata saat ini (sudah terisi otomatis) supaya laba tetap akurat -- ubah kalau memang barang tambahan yang benar-benar baru dibeli.</div>
+    <div class="field">
+      <label style="margin-bottom: 5px">Jumlah Tambahan</label>
+      <input type="number" id="quickStockQty" step="0.01" min="0.01" placeholder="0" />
+    </div>
+    <div class="field">
+      <label style="margin-bottom: 5px">Harga / satuan (Rp)</label>
+      <input type="number" id="quickStockPrice" step="1" min="1" placeholder="0" />
+    </div>
+    <button type="button" class="btn-submit" id="quickStockSubmitBtn">Tambah Stok</button>
   </div>
 </div>
 
@@ -804,10 +850,13 @@
       var id = it.getAttribute("data-id"),
         stock = it.getAttribute("data-stock") || "0",
         unit = it.getAttribute("data-unit") || "",
+        avgCost = it.getAttribute("data-avg-cost") || "0",
         name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
       wrap.setAttribute("data-value", id);
       wrap.setAttribute("data-stock", stock);
       wrap.setAttribute("data-unit", unit);
+      wrap.setAttribute("data-avg-cost", avgCost);
+      wrap.setAttribute("data-name", name);
       btnText.textContent = name + " · stok " + parseFloat(stock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
       btn.classList.remove("placeholder");
       wrap.classList.remove("open");
@@ -998,7 +1047,7 @@
         o.textContent = rp(price * n);
         var hasVal = !!s.getAttribute("data-value");
         var stock = parseFloat(s.getAttribute("data-stock") || "0");
-        warn.style.display = hasVal && n > stock ? "block" : "none";
+        warn.style.display = hasVal && n > stock ? "flex" : "none";
         grand();
       }
       s.addEventListener("lovchange", c);
@@ -1032,9 +1081,12 @@
       var name = lovItem ? lovItem.childNodes[0].textContent.trim() : (it.material_name || it.product_name || "Barang");
       var stock = lovItem ? lovItem.getAttribute("data-stock") : "0";
       var unit = lovItem ? lovItem.getAttribute("data-unit") : (it.unit || "");
+      var avgCost = lovItem ? lovItem.getAttribute("data-avg-cost") : "0";
       matWrap.setAttribute("data-value", it.material_id);
       matWrap.setAttribute("data-stock", stock || "0");
       matWrap.setAttribute("data-unit", unit || "");
+      matWrap.setAttribute("data-avg-cost", avgCost || "0");
+      matWrap.setAttribute("data-name", name);
       var btn = matWrap.querySelector(".lov-btn"), btnText = matWrap.querySelector(".lov-btn-text");
       btnText.textContent = name + " · stok " + parseFloat(stock || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
       btn.classList.remove("placeholder");
@@ -1294,6 +1346,87 @@
           });
       });
     }
+
+    // ── Modal "+ Tambah Stok" cepat (qty jual melebihi stok tercatat) ──
+    var quickStockOverlay = document.getElementById("quickStockModalOverlay");
+    var quickStockName = document.getElementById("quickStockModalName");
+    var quickStockQty = document.getElementById("quickStockQty");
+    var quickStockPrice = document.getElementById("quickStockPrice");
+    var quickStockSubmitBtn = document.getElementById("quickStockSubmitBtn");
+    var quickStockRow = null;
+
+    window.closeQuickStockModal = function () {
+      quickStockOverlay.classList.remove("open");
+      quickStockRow = null;
+    };
+    quickStockOverlay.addEventListener("click", function (e) {
+      if (e.target === quickStockOverlay) closeQuickStockModal();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeQuickStockModal();
+    });
+
+    function syncMaterialStock(materialId, newStock, newAvgCost) {
+      document.querySelectorAll('.lov-item[data-id="' + materialId + '"]').forEach(function (it) {
+        it.setAttribute("data-stock", newStock);
+        it.setAttribute("data-avg-cost", newAvgCost);
+        var stk = it.querySelector(".stk");
+        if (stk) stk.textContent = "stok " + parseFloat(newStock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + (it.getAttribute("data-unit") || "");
+      });
+      document.querySelectorAll('.lov[data-value="' + materialId + '"]').forEach(function (wrap) {
+        wrap.setAttribute("data-stock", newStock);
+        wrap.setAttribute("data-avg-cost", newAvgCost);
+        var btnText = wrap.querySelector(".lov-btn-text");
+        var unit = wrap.getAttribute("data-unit") || "";
+        var name = wrap.getAttribute("data-name") || btnText.textContent.split(" · stok ")[0];
+        btnText.textContent = name + " · stok " + parseFloat(newStock).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+        wrap.dispatchEvent(new Event("lovchange"));
+      });
+    }
+
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest(".item-addstock-btn");
+      if (!btn) return;
+      var row = btn.closest(".item-row");
+      var matWrap = row.querySelector(".item-material");
+      var materialId = matWrap.getAttribute("data-value");
+      if (!materialId) return;
+      quickStockRow = row;
+      quickStockName.textContent = matWrap.getAttribute("data-name") || "";
+      quickStockQty.value = "";
+      var avgCost = parseFloat(matWrap.getAttribute("data-avg-cost") || "0");
+      quickStockPrice.value = avgCost > 0 ? Math.round(avgCost) : "";
+      quickStockOverlay.classList.add("open");
+      setTimeout(function () { quickStockQty.focus(); }, 0);
+    });
+
+    quickStockSubmitBtn.addEventListener("click", function () {
+      if (!quickStockRow) return;
+      var matWrap = quickStockRow.querySelector(".item-material");
+      var materialId = matWrap.getAttribute("data-value");
+      var qty = qtyNum(quickStockQty.value || "0");
+      var price = qtyNum(quickStockPrice.value || "0");
+      if (qty <= 0) { alert("Jumlah tambahan harus lebih dari 0."); return; }
+      if (price <= 0) { alert("Harga/satuan wajib diisi."); return; }
+
+      quickStockSubmitBtn.disabled = true;
+      fetch("/nota/materials/" + materialId + "/quick-add-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qty: qty, price: price }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          quickStockSubmitBtn.disabled = false;
+          if (!res.ok) { alert(res.message || "Gagal menambah stok."); return; }
+          syncMaterialStock(materialId, res.material.qty_kg, res.material.avg_cost_per_kg);
+          closeQuickStockModal();
+        })
+        .catch(function () {
+          quickStockSubmitBtn.disabled = false;
+          alert("Gagal menambah stok (koneksi bermasalah).");
+        });
+    });
   })();
 </script>
 {% endblock %} {% block bottom_nav %}

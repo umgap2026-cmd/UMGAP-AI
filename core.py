@@ -485,8 +485,11 @@ def delete_fin_expense_entry(expense_id):
 
 
 def list_fin_expenses(limit=200):
-    """Riwayat beban/pengeluaran (termasuk Ongkir yang tertaut nota &
-    penyesuaian stok), terbaru duluan."""
+    """Riwayat beban/pengeluaran gabungan -- baik yang dicatat langsung di
+    Finance (termasuk Ongkir yang tertaut nota & penyesuaian stok) MAUPUN
+    beban yang dicatat lewat Mode Perjalanan (fin_trip_items type=EXPENSE,
+    mis. BBM/makan/gaji sopir) -- supaya Total Beban di dashboard mencakup
+    semuanya. Tiap baris punya field 'source' ('BEBAN' atau 'TRIP')."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -495,7 +498,7 @@ def list_fin_expenses(limit=200):
             SELECT t.id, t.party_name,
                    COALESCE(NULLIF(TRIM(t.expense_category), ''), t.party_name) AS category,
                    t.note, t.total_amount, t.related_transaction_id,
-                   t.created_by, u.name AS created_by_name,
+                   t.created_by, u.name AS created_by_name, t.created_at,
                    TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
                            'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
             FROM fin_transactions t
@@ -504,7 +507,35 @@ def list_fin_expenses(limit=200):
             ORDER BY t.created_at DESC
             LIMIT %s;
         """, (limit,))
-        return [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["source"] = "BEBAN"
+            r["trip_id"] = None
+            r["trip_note"] = None
+
+        if _table_exists(cur, "fin_trip_items"):
+            cur.execute("""
+                SELECT i.id, i.expense_name AS category, i.note, i.subtotal AS total_amount,
+                       t.created_by, u.name AS created_by_name, i.created_at,
+                       TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                               'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                       t.id AS trip_id, t.note AS trip_note
+                FROM fin_trip_items i
+                JOIN fin_trips t ON t.id = i.trip_id
+                LEFT JOIN users u ON u.id = t.created_by
+                WHERE i.type = 'EXPENSE'
+                ORDER BY i.created_at DESC
+                LIMIT %s;
+            """, (limit,))
+            trip_rows = [dict(r) for r in cur.fetchall()]
+            for r in trip_rows:
+                r["source"] = "TRIP"
+                r["party_name"] = None
+                r["related_transaction_id"] = None
+            rows += trip_rows
+
+        rows.sort(key=lambda r: r["created_at"], reverse=True)
+        return rows[:limit]
     finally:
         cur.close()
         conn.close()

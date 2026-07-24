@@ -755,7 +755,7 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title" style="color: var(--bad)">💸 Beban</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(expense_total | round | int).replace(",", ".") }} &bull; {{ expenses|length }} catatan &bull; kategori bebas (mis. Uang Makan, Karyawan, BBM, Dana Darurat) &mdash; termasuk Ongkir dari nota yang kita tanggung</div>
+        <div class="sec-desc">Rp {{ "{:,}".format(expense_total | round | int).replace(",", ".") }} &bull; {{ expenses|length }} catatan &bull; kategori bebas (mis. Uang Makan, Karyawan, BBM, Dana Darurat) &mdash; termasuk Ongkir dari nota &amp; beban dari Mode Perjalanan</div>
         <div class="divider"></div>
 
         <details>
@@ -788,15 +788,20 @@
               <div class="item-meta">{{ e.created_at_wib }} &bull; oleh {{ e.created_by_name or "?" }}</div>
               {% if e.note %}<div class="item-note">{{ e.note }}</div>{% endif %}
               {% if e.related_transaction_id %}<div class="item-note">🔗 tertaut nota #{{ e.related_transaction_id }}</div>{% endif %}
+              {% if e.source == 'TRIP' %}<div class="item-note">🚚 {{ e.trip_note or ("Perjalanan #" ~ e.trip_id) }}</div>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</div>
           </div>
           <div class="item-actions">
+            {% if e.source == 'TRIP' %}
+            <a href="/finance/trips/{{ e.trip_id }}" class="pill-btn">🚚 Lihat Perjalanan</a>
+            {% else %}
             <button type="button" class="pill-btn btn-open-editexpense" data-id="{{ e.id }}" data-category="{{ e.category }}" data-amount="{{ e.total_amount|round|int }}" data-note="{{ e.note or '' }}">✏️ Edit</button>
             <form method="post" action="/finance/expenses/{{ e.id }}/delete"
                   onsubmit="return confirm('Hapus beban {{ e.category }}?');">
               <button type="submit" class="pill-btn danger">Hapus</button>
             </form>
+            {% endif %}
           </div>
         </div>
         {% else %}
@@ -814,18 +819,25 @@
           <tbody>
             {% for e in expenses %}
             <tr>
-              <td><span class="cat-badge">{{ e.category }}</span></td>
+              <td>
+                <span class="cat-badge">{{ e.category }}</span>
+                {% if e.source == 'TRIP' %}<span class="cat-badge" style="background:rgba(37,99,235,0.1)">🚚 {{ e.trip_note or ("Perjalanan #" ~ e.trip_id) }}</span>{% endif %}
+              </td>
               <td><strong>Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</strong></td>
               <td class="muted">{{ e.note or ("Tertaut nota #" ~ e.related_transaction_id if e.related_transaction_id else "-") }}</td>
               <td class="muted">{{ e.created_at_wib }}</td>
               <td class="muted">{{ e.created_by_name or "?" }}</td>
               <td>
                 <div class="row-actions">
+                  {% if e.source == 'TRIP' %}
+                  <a href="/finance/trips/{{ e.trip_id }}" class="pill-btn">🚚 Lihat Perjalanan</a>
+                  {% else %}
                   <button type="button" class="pill-btn primary btn-open-editexpense" data-id="{{ e.id }}" data-category="{{ e.category }}" data-amount="{{ e.total_amount|round|int }}" data-note="{{ e.note or '' }}">✏️ Edit</button>
                   <form method="post" action="/finance/expenses/{{ e.id }}/delete"
                         onsubmit="return confirm('Hapus beban {{ e.category }}?');">
                     <button type="submit" class="pill-btn danger">Hapus</button>
                   </form>
+                  {% endif %}
                 </div>
               </td>
             </tr>

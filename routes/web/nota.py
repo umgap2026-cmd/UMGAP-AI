@@ -11,6 +11,7 @@ from core import (
     owner_required,
     get_materials_with_stock,
     add_fin_material,
+    add_fin_material_stock,
     get_company_profile,
     set_company_profile,
     create_fin_invoice,
@@ -210,6 +211,32 @@ def nota_material_quick_add():
             init_qty=data.get("init_qty"),
             init_price=data.get("init_price"),
             note=data.get("note"),
+            created_by=session.get("user_id"),
+        )
+        return jsonify({"ok": True, "material": result})
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+
+
+# ---------- TAMBAH STOK CEPAT (dari dalam pembuatan nota) ----------
+# Dipakai saat qty jual melebihi stok tercatat -- mis. barang ditimbang
+# ulang sebelum dijual & ternyata lebih berat dari saat dibeli. Harga/kg
+# yang diisi di sini akan mempengaruhi HPP rata-rata (AVCO) seperti biasa;
+# isi sama dengan HPP saat ini kalau selisihnya cuma soal timbangan, bukan
+# barang tambahan yang benar-benar baru dibeli.
+@nota_bp.route("/nota/materials/<int:material_id>/quick-add-stock", methods=["POST"])
+def nota_material_quick_add_stock(material_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = add_fin_material_stock(
+            material_id,
+            qty=data.get("qty"),
+            price=data.get("price"),
+            note=data.get("note") or "Penyesuaian stok saat pembuatan nota",
             created_by=session.get("user_id"),
         )
         return jsonify({"ok": True, "material": result})
