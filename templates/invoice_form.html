@@ -969,12 +969,22 @@
       });
       var raw = sub - totalDp - ongkirPotongan;
       var g = Math.max(0, raw);
-      G.textContent = rp(g);
-      HT.textContent = rp(g);
+
+      // Kotak "Pakai Saldo" HARUS berperilaku seperti DP: ikut mengurangi
+      // angka Total Pembayaran yang tampil, & isiannya otomatis ngikutin
+      // kalau subtotal berubah (mis. baru isi barang SETELAH pilih nama/
+      // klik chip saldo) -- bukan cuma dihitung SEKALI lalu beku.
+      if (window.autoSyncCreditToTotal) window.autoSyncCreditToTotal(g);
+      var creditApplied = qtyNum(document.getElementById("creditAppliedInput").value || "0");
+      if (creditApplied > g) creditApplied = g;
+      var displayTotal = Math.max(0, g - creditApplied);
+      G.textContent = rp(displayTotal);
+      HT.textContent = rp(displayTotal);
       var parts = [];
       if (totalDp > 0) parts.push("DP " + rp(totalDp));
       if (ongkirPotongan > 0) parts.push("Ongkir " + rp(ongkirPotongan));
       if (ongkirBeban > 0) parts.push("Ongkir beban " + rp(ongkirBeban));
+      if (creditApplied > 0) parts.push("Saldo dipakai " + rp(creditApplied));
       DL.textContent = parts.length ? "Subtotal " + rp(sub) + " · " + parts.join(" · ") : "";
 
       // DP/potongan lebih besar dari nilai barang -> sisanya bukan hilang,
@@ -1522,6 +1532,7 @@
       var creditApplyInp = document.getElementById("creditApplyInp");
       var creditAppliedInput = document.getElementById("creditAppliedInput");
       var lastAvailable = 0;
+      var userEditedCredit = false;
 
       function syncCreditApplied() {
         var v = qtyNum(creditApplyInp.value || "0");
@@ -1529,6 +1540,17 @@
         if (v < 0) v = 0;
         creditAppliedInput.value = v;
       }
+      creditApplyInp.addEventListener("input", function () { userEditedCredit = true; });
+
+      // Dipanggil dari grand() setiap kali subtotal/DP/ongkir berubah --
+      // supaya angka saldo yang dipakai TETAP NGIKUTIN nilai nota terkini
+      // (mis. kalau nama/saldo dipilih SEBELUM barang diisi, jangan beku
+      // di 0). Berhenti auto-ngikutin begitu admin ubah manual angkanya.
+      window.autoSyncCreditToTotal = function (baseTotal) {
+        if (creditBox.style.display !== "block" || userEditedCredit) return;
+        creditApplyInp.value = Math.round(Math.min(lastAvailable, baseTotal));
+        syncCreditApplied();
+      };
       creditApplyInp.addEventListener("input", syncCreditApplied);
 
       window.checkPartyCredit = function () {
@@ -1542,6 +1564,7 @@
           creditBox.style.display = "none";
           creditAppliedInput.value = "0";
           lastAvailable = 0;
+          userEditedCredit = false;
           grand();
           return;
         }
@@ -1552,10 +1575,13 @@
               creditBox.style.display = "none";
               creditAppliedInput.value = "0";
               lastAvailable = 0;
+              userEditedCredit = false;
               grand();
               return;
             }
             lastAvailable = res.available;
+            userEditedCredit = false;
+            creditApplyInp.value = "";
             var pn = res.party_name || name;
             // Arah kalimat harus jelas: BELI = saldo KITA (nagih ke pemasok),
             // JUAL = saldo milik pelanggan (titipan dia di kita) -- jangan
@@ -1567,21 +1593,10 @@
                 " di kita (dari titipan dana/DP dia sebelumnya).") +
               "<br><span style='font-weight:700'>Ini PENGGANTI DP -- kalau DP-nya sama, jangan isi baris DP baru di bawah lagi.</span>";
             creditApplyInp.max = res.available;
-            // Default isi = SESUAI KEBUTUHAN nota ini saja (subtotal dikurangi
-            // potongan lain), bukan seluruh saldo yang tersedia -- sisanya
-            // tetap tersimpan sbg saldo utk nota berikutnya.
-            if (!creditApplyInp.value) {
-              var sub0 = subTot();
-              var totalDp0 = 0, ongkirPotongan0 = 0;
-              collectAdjustments().forEach(function (a) {
-                if (a.type === "DP") totalDp0 += a.amount;
-                else if (a.type === "ONGKIR" && a.mode === "POTONGAN") ongkirPotongan0 += a.amount;
-              });
-              var baseTotal0 = Math.max(0, sub0 - totalDp0 - ongkirPotongan0);
-              creditApplyInp.value = Math.round(Math.min(res.available, baseTotal0));
-            }
-            syncCreditApplied();
             creditBox.style.display = "block";
+            // Isi otomatis (& terus ngikutin subtotal) ditangani grand() lewat
+            // window.autoSyncCreditToTotal -- supaya benar walau saldo dipilih
+            // SEBELUM barang diisi (subtotal masih 0 saat itu).
             grand();
           })
           .catch(function () {});
