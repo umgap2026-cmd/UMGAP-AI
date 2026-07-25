@@ -1836,7 +1836,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
 def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
                                  discount, is_paid, items, created_by, print_size=None,
-                                 adjustments=None):
+                                 adjustments=None, credit_applied=0):
     """
     Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
     (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
@@ -1886,6 +1886,18 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         invoice_no = f"BELI-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
 
         is_debt = not is_paid
+        credit_amount = 0.0
+        if is_debt and supplier_name:
+            credit_amount = min(max(0.0, float(credit_applied or 0)), grand_total)
+        debt_amount = grand_total - credit_amount
+        if credit_amount > 0:
+            notes = (
+                f"Rp {credit_amount:,.0f} dipotong dari saldo {supplier_name}".replace(",", ".")
+                + (f" | {notes}" if notes else "")
+            )
+            if debt_amount <= 0.01:
+                is_debt = False
+
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
@@ -1916,12 +1928,15 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
                 note=f"Nota {invoice_no} — {supplier_name}"
             )
 
-        if is_debt and supplier_name:
+        if credit_amount > 0:
+            _consume_party_credit(cur, supplier_name, "PIUTANG", credit_amount)
+
+        if is_debt and supplier_name and debt_amount > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES ('HUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
-            """, (supplier_name, grand_total, grand_total, txn_id,
+            """, (supplier_name, debt_amount, debt_amount, txn_id,
                   f"Nota {invoice_no} — belum dibayar"))
 
         for e in ongkir_beban_entries:
@@ -3735,6 +3750,69 @@ def pay_fin_debt(debt_id, pay_amount):
         conn.close()
 
 
+def find_party_credit(party_name, credit_type="PIUTANG"):
+    """Cek saldo hutang/piutang terbuka atas nama pihak yang PERSIS sama
+    (case-insensitive) -- dipakai supaya DP yang sudah dibayar ke pemasok
+    (tercatat sbg PIUTANG kita ke pemasok itu) bisa ditawarkan dipotong
+    otomatis saat nota Beli baru dibuat ke pemasok yang sama. Return
+    {"available": float} atau None kalau tidak ada saldo terbuka."""
+    party_name = (party_name or "").strip()
+    if not party_name:
+        return None
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT COALESCE(SUM(remaining), 0) AS total
+            FROM fin_debts
+            WHERE type = %s AND is_settled = FALSE AND LOWER(TRIM(party_name)) = LOWER(%s);
+        """, (credit_type, party_name))
+        total = float(cur.fetchone()["total"] or 0)
+        if total <= 0:
+            return None
+        return {"party_name": party_name, "available": total}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _consume_party_credit(cur, party_name, credit_type, amount):
+    """Pakai/potong saldo hutang-piutang terbuka atas nama pihak tertentu
+    sebesar `amount` (FIFO -- entri terlama dipakai duluan), mirip
+    pay_fin_debt() tapi jalan DALAM transaksi nota yang sedang dibuat
+    (pakai cursor yang sama, TANPA commit sendiri). Raise ValueError kalau
+    saldo yang tersedia kurang dari amount yang diminta."""
+    amount = float(amount or 0)
+    if amount <= 0:
+        return
+    cur.execute("""
+        SELECT id, amount, paid_amount, remaining FROM fin_debts
+        WHERE type = %s AND is_settled = FALSE AND LOWER(TRIM(party_name)) = LOWER(%s)
+        ORDER BY created_at ASC
+        FOR UPDATE;
+    """, (credit_type, party_name))
+    rows = cur.fetchall()
+    total_available = sum(float(r["remaining"]) for r in rows)
+    if amount > total_available + 0.01:
+        raise ValueError(
+            f"Saldo {party_name} tidak cukup. Tersedia: Rp {total_available:,.0f}, diminta: Rp {amount:,.0f}"
+        )
+
+    sisa = amount
+    for r in rows:
+        if sisa <= 0:
+            break
+        remaining = float(r["remaining"])
+        potong = min(remaining, sisa)
+        new_paid = float(r["paid_amount"]) + potong
+        new_remaining = remaining - potong
+        cur.execute("""
+            UPDATE fin_debts SET paid_amount = %s, remaining = %s, is_settled = %s
+            WHERE id = %s;
+        """, (new_paid, new_remaining, new_remaining <= 0.01, r["id"]))
+        sisa -= potong
+
+
 def create_fin_debt_entry(debt_type, party_name, amount, note):
     """Catat hutang/piutang manual (bukan tertaut nota) -- mis. hutang ke
     pemasok/piutang ke pelanggan di luar transaksi Nota. Return dict {id}."""
@@ -3994,6 +4072,132 @@ def get_fin_daily_report(report_date):
                 "trip_expense": trip_expense,
             }
         })
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_owner_finance_report(date_from, date_to):
+    """Laporan keuangan ringkas khusus Owner (read-only) -- omzet, HPP, laba
+    kotor/bersih, beban (per kategori), gabungan gudang (fin_transactions)
+    + Mode Perjalanan (fin_trip_items), dalam rentang date_from..date_to.
+    Nilai stok & daftar hutang/piutang selalu snapshot SAAT INI (bukan
+    per-rentang tanggal, karena itu saldo berjalan bukan angka periode)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_expense_schema(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT COALESCE(SUM(total_amount), 0) AS total
+            FROM fin_transactions
+            WHERE type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND created_at::date BETWEEN %s AND %s AND cancelled_at IS NULL;
+        """, (date_from, date_to))
+        omzet_gudang = float(cur.fetchone()["total"] or 0)
+
+        cur.execute("""
+            SELECT COALESCE(SUM(total_amount), 0) AS total
+            FROM fin_transactions
+            WHERE type IN ('BELI_GUDANG', 'BELI')
+              AND created_at::date BETWEEN %s AND %s AND cancelled_at IS NULL;
+        """, (date_from, date_to))
+        belanja_gudang = float(cur.fetchone()["total"] or 0)
+
+        cur.execute("""
+            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS total
+            FROM fin_transactions t
+            JOIN fin_transaction_items i ON i.transaction_id = t.id
+            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
+              AND i.material_id IS NOT NULL;
+        """, (date_from, date_to))
+        hpp_gudang = float(cur.fetchone()["total"] or 0)
+
+        cur.execute("""
+            SELECT COALESCE(NULLIF(TRIM(expense_category), ''), party_name) AS category,
+                   COALESCE(SUM(total_amount), 0) AS total
+            FROM fin_transactions
+            WHERE type = 'PENGELUARAN' AND created_at::date BETWEEN %s AND %s
+            GROUP BY 1 ORDER BY 2 DESC;
+        """, (date_from, date_to))
+        beban_breakdown = [dict(r) for r in cur.fetchall()]
+        beban_gudang = sum(float(r["total"] or 0) for r in beban_breakdown)
+
+        trip_jual = trip_beli = trip_beban = hpp_trip = 0.0
+        if _table_exists(cur, "fin_trip_items"):
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN type='JUAL' THEN subtotal ELSE 0 END), 0) AS jual,
+                    COALESCE(SUM(CASE WHEN type='BELI' THEN subtotal ELSE 0 END), 0) AS beli,
+                    COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS beban
+                FROM fin_trip_items
+                WHERE created_at::date BETWEEN %s AND %s;
+            """, (date_from, date_to))
+            r = cur.fetchone()
+            trip_jual = float(r["jual"] or 0)
+            trip_beli = float(r["beli"] or 0)
+            trip_beban = float(r["beban"] or 0)
+
+            cur.execute("""
+                SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS total
+                FROM fin_trip_items i
+                JOIN fin_stock_summary s ON s.material_id = i.material_id
+                WHERE i.type = 'JUAL' AND i.created_at::date BETWEEN %s AND %s;
+            """, (date_from, date_to))
+            hpp_trip = float(cur.fetchone()["total"] or 0)
+
+        omzet_jual = omzet_gudang + trip_jual
+        belanja_beli = belanja_gudang + trip_beli
+        total_beban = beban_gudang + trip_beban
+        hpp_total = hpp_gudang + hpp_trip
+        laba_kotor = omzet_jual - hpp_total
+        laba_bersih = laba_kotor - total_beban
+
+        cur.execute("""
+            SELECT COUNT(*) AS n FROM fin_transactions
+            WHERE type IN ('JUAL_INVOICE', 'JUAL_GUDANG', 'BELI_GUDANG', 'BELI')
+              AND created_at::date BETWEEN %s AND %s AND cancelled_at IS NULL;
+        """, (date_from, date_to))
+        jumlah_nota = int(cur.fetchone()["n"] or 0)
+
+        cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
+        nilai_stok = float(cur.fetchone()["total"] or 0)
+
+        cur.execute("""
+            SELECT type, party_name, amount, paid_amount, remaining, note,
+                   TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS created_at_wib
+            FROM fin_debts WHERE is_settled = FALSE ORDER BY type, created_at DESC;
+        """)
+        debts = [dict(r) for r in cur.fetchall()]
+        hutang_list = [d for d in debts if d["type"] == "HUTANG"]
+        piutang_list = [d for d in debts if d["type"] == "PIUTANG"]
+        total_hutang = sum(float(d["remaining"] or 0) for d in hutang_list)
+        total_piutang = sum(float(d["remaining"] or 0) for d in piutang_list)
+
+        return {
+            "date_from": str(date_from),
+            "date_to": str(date_to),
+            "omzet_jual": omzet_jual,
+            "belanja_beli": belanja_beli,
+            "hpp": hpp_total,
+            "laba_kotor": laba_kotor,
+            "total_beban": total_beban,
+            "laba_bersih": laba_bersih,
+            "beban_breakdown": beban_breakdown,
+            "jumlah_nota": jumlah_nota,
+            "nilai_stok": nilai_stok,
+            "total_hutang": total_hutang,
+            "total_piutang": total_piutang,
+            "hutang_list": hutang_list,
+            "piutang_list": piutang_list,
+            "trip_jual": trip_jual,
+            "trip_beli": trip_beli,
+            "trip_beban": trip_beban,
+        }
     finally:
         cur.close()
         conn.close()

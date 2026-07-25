@@ -31,6 +31,7 @@ from core import (
     delete_nota_draft,
     get_notif_count,
     list_fin_expense_categories,
+    find_party_credit,
 )
 
 RETURN_REASONS = {
@@ -75,6 +76,7 @@ def nota_new():
                     items=items,
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
+                    credit_applied=request.form.get("credit_applied") or 0,
                 )
             else:
                 result = create_fin_invoice(
@@ -242,6 +244,27 @@ def nota_material_quick_add_stock(material_id):
         return jsonify({"ok": True, "material": result})
     except ValueError as e:
         return jsonify({"ok": False, "message": str(e)}), 400
+
+
+# ---------- CEK SALDO PIUTANG/HUTANG PIHAK (dari dalam pembuatan nota) ----------
+# Dipakai saat bikin nota Beli: kalau pemasok yang sama pernah dikasih DP
+# (tercatat sbg PIUTANG kita ke dia), tawarkan dipotong otomatis dari nota
+# baru ini alih-alih bikin hutang baru & harus disesuaikan manual belakangan.
+@nota_bp.route("/nota/check-credit")
+def nota_check_credit():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    party_name = request.args.get("party_name") or ""
+    credit_type = (request.args.get("type") or "PIUTANG").strip().upper()
+    if credit_type not in ("PIUTANG", "HUTANG"):
+        credit_type = "PIUTANG"
+
+    credit = find_party_credit(party_name, credit_type)
+    if not credit:
+        return jsonify({"ok": True, "available": 0})
+    return jsonify({"ok": True, "available": credit["available"], "party_name": credit["party_name"]})
 
 
 # ---------- RIWAYAT ----------

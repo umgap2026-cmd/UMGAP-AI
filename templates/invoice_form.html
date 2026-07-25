@@ -143,6 +143,13 @@
   .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
   .divider { height: 1px; background: rgba(125, 138, 166, 0.18); border-radius: 999px; margin: 14px 0; }
 
+  /* ── SALDO PIUTANG/HUTANG (DP pemasok yg bisa dipakai) ── */
+  .credit-hint-box {
+    margin-top: 10px; background: rgba(21, 128, 61, 0.08); border: 1.5px dashed rgba(21, 128, 61, 0.35);
+    border-radius: 14px; padding: 12px 14px;
+  }
+  .credit-hint-text { font-size: 12px; font-weight: 800; color: var(--good); line-height: 1.5; }
+
   /* ── FORM ── */
   label {
     display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900;
@@ -524,6 +531,14 @@
                   <input type="tel" name="customer_phone" placeholder="08xx… (opsional)" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
+
+              <div class="credit-hint-box" id="creditHintBox" style="display:none">
+                <div class="credit-hint-text" id="creditHintText"></div>
+                <label style="margin-top: 8px; margin-bottom: 5px">Pakai Saldo Sebesar (Rp)</label>
+                <input type="number" id="creditApplyInp" min="0" step="1" placeholder="0" />
+              </div>
+              <input type="hidden" name="credit_applied" id="creditAppliedInput" value="0" />
+
               <div class="divider"></div>
               <label>Info Perusahaan di Nota</label>
               <div class="co-row">
@@ -1223,8 +1238,58 @@
       document.getElementById("ptSub").textContent = isPaidNow ? t.ptSub : t.ptSubOff;
     }
     document.querySelectorAll('input[name="nota_type"]').forEach(function (r) {
-      r.addEventListener("change", function () { applyNotaType(r.value); });
+      r.addEventListener("change", function () { applyNotaType(r.value); checkPartyCredit(); });
     });
+
+    // ── Saldo Piutang/Hutang: DP yg sudah dibayar ke pemasok (dicatat sbg
+    // PIUTANG kita ke dia) ditawarkan dipotong otomatis saat bikin nota Beli
+    // baru ke pemasok yang sama, supaya tidak perlu manual sesuaikan hutang.
+    (function () {
+      var creditBox = document.getElementById("creditHintBox");
+      var creditText = document.getElementById("creditHintText");
+      var creditApplyInp = document.getElementById("creditApplyInp");
+      var creditAppliedInput = document.getElementById("creditAppliedInput");
+      var lastAvailable = 0;
+
+      function syncCreditApplied() {
+        var v = qtyNum(creditApplyInp.value || "0");
+        if (v > lastAvailable) v = lastAvailable;
+        if (v < 0) v = 0;
+        creditAppliedInput.value = v;
+      }
+      creditApplyInp.addEventListener("input", syncCreditApplied);
+
+      window.checkPartyCredit = function () {
+        var typeRadio = document.querySelector('input[name="nota_type"]:checked');
+        var notaType = typeRadio ? typeRadio.value : "JUAL";
+        var name = (document.getElementById("custNameInp").value || "").trim();
+        if (notaType !== "BELI" || !name) {
+          creditBox.style.display = "none";
+          creditAppliedInput.value = "0";
+          lastAvailable = 0;
+          return;
+        }
+        fetch("/nota/check-credit?type=PIUTANG&party_name=" + encodeURIComponent(name))
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (!res.ok || !res.available || res.available <= 0) {
+              creditBox.style.display = "none";
+              creditAppliedInput.value = "0";
+              lastAvailable = 0;
+              return;
+            }
+            lastAvailable = res.available;
+            creditText.textContent = "💰 " + (res.party_name || name) + " punya saldo Rp " +
+              Math.round(res.available).toLocaleString("id-ID") + " (dari DP/kelebihan pembayaran sebelumnya).";
+            creditApplyInp.max = res.available;
+            if (!creditApplyInp.value) creditApplyInp.value = Math.round(res.available);
+            syncCreditApplied();
+            creditBox.style.display = "block";
+          })
+          .catch(function () {});
+      };
+      document.getElementById("custNameInp").addEventListener("blur", checkPartyCredit);
+    })();
 
     document.getElementById("invForm").addEventListener("submit", function (e) {
       var items = [];

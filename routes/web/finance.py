@@ -1,7 +1,9 @@
+from datetime import date
+
 from flask import Blueprint, render_template, request, redirect, session, flash
 
 from core import (
-    owner_or_admin_required, get_notif_count,
+    owner_or_admin_required, owner_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
@@ -12,6 +14,7 @@ from core import (
     add_fin_trip_party, record_fin_trip_sell, record_fin_trip_buy,
     record_fin_trip_expense, close_fin_trip_web, cancel_fin_trip_web,
     delete_fin_trip_web, get_materials_with_stock,
+    get_owner_finance_report,
 )
 
 REDUCE_STOCK_REASONS = {
@@ -459,3 +462,25 @@ def finance_trip_delete(trip_id):
         flash(str(e), "danger")
         return redirect(f"/finance/trips/{trip_id}")
     return redirect("/finance/trips")
+
+
+# ---------- LAPORAN KEUANGAN OWNER (read-only, khusus role owner) ----------
+@finance_bp.route("/owner/finance")
+def owner_finance_report():
+    deny = owner_required()
+    if deny:
+        return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    report = get_owner_finance_report(date_from, date_to)
+    return render_template(
+        "owner_finance.html",
+        report=report,
+        notif_count=get_notif_count(),
+        today_iso=today.isoformat(),
+        month_start_iso=today.replace(day=1).isoformat(),
+        year_start_iso=today.replace(month=1, day=1).isoformat(),
+    )
