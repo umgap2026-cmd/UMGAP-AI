@@ -204,6 +204,11 @@
   }
   input:focus { box-shadow: var(--soft-in), 0 0 0 3px rgba(37, 99, 235, 0.15); }
   input::placeholder { color: var(--muted); font-size: 13px; }
+  .party-select-helper {
+    width: 100%; border: none; outline: none; border-radius: 13px; background: #eef2ff;
+    box-shadow: var(--soft-in); padding: 12px 14px; font-size: 13px; color: var(--blue); font-weight: 700;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
 
@@ -351,11 +356,6 @@
   .log-by { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
 </style>
 
-<datalist id="partyNamesList">
-  {% for pn in party_names %}
-  <option value="{{ pn }}"></option>
-  {% endfor %}
-</datalist>
 
 <div class="screen">
   <div class="wrap">
@@ -581,7 +581,16 @@
           <form method="post" action="/finance/debts/add" class="stack-form">
             <input type="hidden" name="type" value="HUTANG" />
             <div class="row2">
-              <div class="field"><label>Nama Pemasok *</label><input type="text" name="party_name" list="partyNamesList" placeholder="mis. Toko ABC" required /></div>
+              <div class="field">
+                <label>Nama Pemasok *</label>
+                {% if party_names %}
+                <select class="party-select-helper" data-fill="#addHutangNameInp">
+                  <option value="">— pilih dari yang sudah ada —</option>
+                  {% for pn in party_names %}<option value="{{ pn }}">{{ pn }}</option>{% endfor %}
+                </select>
+                {% endif %}
+                <input type="text" name="party_name" id="addHutangNameInp" placeholder="atau ketik nama baru" style="margin-top:6px" required />
+              </div>
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
@@ -676,7 +685,16 @@
           <form method="post" action="/finance/debts/add" class="stack-form">
             <input type="hidden" name="type" value="PIUTANG" />
             <div class="row2">
-              <div class="field"><label>Nama Pelanggan *</label><input type="text" name="party_name" list="partyNamesList" placeholder="mis. Budi" required /></div>
+              <div class="field">
+                <label>Nama Pelanggan *</label>
+                {% if party_names %}
+                <select class="party-select-helper" data-fill="#addPiutangNameInp">
+                  <option value="">— pilih dari yang sudah ada —</option>
+                  {% for pn in party_names %}<option value="{{ pn }}">{{ pn }}</option>{% endfor %}
+                </select>
+                {% endif %}
+                <input type="text" name="party_name" id="addPiutangNameInp" placeholder="atau ketik nama baru" style="margin-top:6px" required />
+              </div>
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
@@ -954,7 +972,13 @@
       <button type="button" class="modal-close" onclick="closeEditDebtModal()">✕</button>
     </div>
     <form method="post" id="editDebtForm">
-      <input type="text" name="party_name" id="editDebtNameInp" list="partyNamesList" placeholder="Nama" required />
+      {% if party_names %}
+      <select class="party-select-helper" data-fill="#editDebtNameInp" style="margin-bottom:6px">
+        <option value="">— pilih dari yang sudah ada (utk gabungkan saldo) —</option>
+        {% for pn in party_names %}<option value="{{ pn }}">{{ pn }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <input type="text" name="party_name" id="editDebtNameInp" placeholder="Nama" required />
       <input type="number" name="amount" id="editDebtAmountInp" min="1" placeholder="Jumlah (Rp)" required />
       <input type="text" name="note" id="editDebtNoteInp" placeholder="Catatan (opsional)" />
       <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Simpan</button>
@@ -963,6 +987,18 @@
 </div>
 
 <script>
+  (function () {
+    // Dropdown "pilih dari yang sudah ada" -- isi otomatis field nama teks
+    // di sebelahnya dgn nama PERSIS SAMA supaya saldo piutang/hutang
+    // kegabung, bukan kepisah krn beda ejaan.
+    document.querySelectorAll(".party-select-helper").forEach(function (sel) {
+      sel.addEventListener("change", function () {
+        if (!sel.value) return;
+        var target = document.querySelector(sel.getAttribute("data-fill"));
+        if (target) target.value = sel.value;
+      });
+    });
+  })();
   (function () {
     function formatRp(n) {
       n = Math.round(n);
