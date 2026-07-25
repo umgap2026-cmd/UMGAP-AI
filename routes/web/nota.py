@@ -92,6 +92,13 @@ def nota_new():
                     adjustments=adjustments,
                     credit_applied=request.form.get("credit_applied") or 0,
                 )
+            if result.get("dp_excess"):
+                flash(
+                    f"Nota {result['invoice_no']} tersimpan. Sisa DP Rp "
+                    f"{result['dp_excess']:,.0f}".replace(",", ".") +
+                    " otomatis jadi saldo — bisa dipotongkan otomatis di nota berikutnya.",
+                    "success",
+                )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
             flash(str(e), "danger")
@@ -143,6 +150,12 @@ def nota_edit(txn_id):
                 adjustments=adjustments,
             )
             flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
+            if result.get("dp_excess"):
+                flash(
+                    f"Sisa DP Rp {result['dp_excess']:,.0f}".replace(",", ".") +
+                    " otomatis jadi saldo — bisa dipotongkan otomatis di nota berikutnya.",
+                    "success",
+                )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
             flash(str(e), "danger")

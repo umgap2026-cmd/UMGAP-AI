@@ -385,6 +385,16 @@ def _ensure_fin_discount_breakdown_schema(cur):
         """)
 
 
+def _ensure_fin_transaction_item_note_schema(cur):
+    """Lazy-migration: catatan opsional per baris barang di nota (mis.
+    'barang kotor', 'sisa dari lot kemarin') -- dipakai form Nota web."""
+    if not _col_exists(cur, "fin_transaction_items", "note"):
+        cur.execute("""
+            ALTER TABLE fin_transaction_items
+                ADD COLUMN IF NOT EXISTS note TEXT NULL;
+        """)
+
+
 def create_fin_expense_entry(category, amount, note, created_by):
     """Catat 1 beban/pengeluaran operasional (bukan lewat nota) -- kategori
     bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat).
@@ -1724,6 +1734,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
+        _ensure_fin_transaction_item_note_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1753,7 +1764,13 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                 )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
+        raw_total = subtotal_bruto - discount - ongkir_potongan
+        grand_total = max(0.0, raw_total)
+        # Kalau DP/potongan yang diinput di nota ini LEBIH BESAR dari nilai
+        # barangnya (raw_total negatif), sisanya bukan hilang -- itu uang
+        # customer yang belum "terpakai" & harus jadi saldo (HUTANG kita ke
+        # dia) yang bisa dipotongkan otomatis di nota berikutnya.
+        dp_excess = max(0.0, -raw_total)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -1773,6 +1790,11 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         if credit_amount > 0:
             notes = (
                 f"Rp {credit_amount:,.0f} dipotong dari saldo {customer_name}".replace(",", ".")
+                + (f" | {notes}" if notes else "")
+            )
+        if dp_excess > 0 and customer_name:
+            notes = (
+                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo {customer_name}".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
 
@@ -1806,9 +1828,9 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
 
             _update_stock_avco(
                 cur, mat_id, qty, avg, 'OUT', txn_id,
@@ -1817,6 +1839,14 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
         if credit_amount > 0:
             _consume_party_credit(cur, customer_name, "HUTANG", credit_amount)
+
+        if dp_excess > 0 and customer_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+            """, (customer_name, dp_excess, dp_excess, txn_id,
+                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
 
         if is_debt and customer_name and debt_amount > 0.01:
             cur.execute("""
@@ -1841,6 +1871,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             "total": grand_total,
             "hpp": hpp_total,
             "laba": grand_total - hpp_total,
+            "dp_excess": dp_excess,
         }
     except ValueError:
         conn.rollback()
@@ -1883,6 +1914,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
+        _ensure_fin_transaction_item_note_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1895,7 +1927,13 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
+        raw_total = subtotal_bruto - discount - ongkir_potongan
+        grand_total = max(0.0, raw_total)
+        # Kalau DP yang diinput di nota ini LEBIH BESAR dari nilai barang yang
+        # didapat (raw_total negatif), sisanya bukan hilang -- itu uang kita
+        # yang belum "terpakai" & harus jadi saldo (PIUTANG kita ke pemasok)
+        # yang bisa dipotongkan otomatis di nota belanja berikutnya.
+        dp_excess = max(0.0, -raw_total)
 
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
@@ -1915,6 +1953,11 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         if credit_amount > 0:
             notes = (
                 f"Rp {credit_amount:,.0f} dipotong dari saldo {supplier_name}".replace(",", ".")
+                + (f" | {notes}" if notes else "")
+            )
+        if dp_excess > 0 and supplier_name:
+            notes = (
+                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo {supplier_name}".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
 
@@ -1939,9 +1982,9 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
 
             _update_stock_avco(
                 cur, mat_id, qty, price, 'IN', txn_id,
@@ -1950,6 +1993,14 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
         if credit_amount > 0:
             _consume_party_credit(cur, supplier_name, "PIUTANG", credit_amount)
+
+        if dp_excess > 0 and supplier_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+            """, (supplier_name, dp_excess, dp_excess, txn_id,
+                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
 
         if is_debt and supplier_name and debt_amount > 0.01:
             cur.execute("""
@@ -1972,6 +2023,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             "discount": discount,
             "ongkir": ongkir_beban + ongkir_potongan,
             "total": grand_total,
+            "dp_excess": dp_excess,
         }
     except ValueError:
         conn.rollback()
@@ -2016,6 +2068,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
+        _ensure_fin_transaction_item_note_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -2093,7 +2146,12 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                     )
 
         subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        grand_total = max(0.0, subtotal_bruto - discount - ongkir_potongan)
+        raw_total = subtotal_bruto - discount - ongkir_potongan
+        grand_total = max(0.0, raw_total)
+        # Sama seperti create_fin_invoice/create_fin_purchase_invoice: kalau
+        # DP hasil edit lebih besar dari nilai barang, sisanya jadi saldo
+        # baru (bukan hilang).
+        dp_excess = max(0.0, -raw_total)
 
         for item in items:
             mat_id = int(item["material_id"])
@@ -2103,9 +2161,9 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal))
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
 
             if is_beli:
                 _update_stock_avco(
@@ -2141,6 +2199,16 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             """, (debt_type, customer_name, party_type, grand_total, grand_total, txn_id,
                   f"Nota {invoice_no} — belum dibayar (hasil edit)"))
 
+        if dp_excess > 0 and customer_name:
+            excess_type = 'PIUTANG' if is_beli else 'HUTANG'
+            party_type = 'SUPPLIER' if is_beli else 'PELANGGAN'
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (excess_type, customer_name, party_type, dp_excess, dp_excess, txn_id,
+                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
+
         cur.execute("""
             DELETE FROM fin_transactions
             WHERE related_transaction_id = %s AND type = 'PENGELUARAN';
@@ -2150,7 +2218,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                                     category=e["category"])
 
         conn.commit()
-        return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total}
+        return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total, "dp_excess": dp_excess}
     except ValueError:
         conn.rollback()
         raise
@@ -2176,6 +2244,7 @@ def get_fin_invoice_detail(txn_id):
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_discount_breakdown_schema(cur)
+        _ensure_fin_transaction_item_note_schema(cur)
         conn.commit()
 
         cur.execute("""
@@ -2195,7 +2264,7 @@ def get_fin_invoice_detail(txn_id):
 
         cur.execute("""
             SELECT ti.material_id, m.name AS product_name, m.unit, ti.qty_kg AS qty,
-                   ti.price_per_kg AS price, ti.subtotal
+                   ti.price_per_kg AS price, ti.subtotal, ti.note
             FROM fin_transaction_items ti
             LEFT JOIN fin_materials m ON m.id = ti.material_id
             WHERE ti.transaction_id = %s
@@ -2208,6 +2277,7 @@ def get_fin_invoice_detail(txn_id):
             "qty": float(r["qty"] or 0),
             "price": int(r["price"] or 0),
             "subtotal": float(r["subtotal"] or 0),
+            "note": r.get("note") or "",
         } for r in cur.fetchall()]
 
         items_subtotal = sum(it["subtotal"] for it in items)

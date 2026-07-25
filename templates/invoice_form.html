@@ -149,6 +149,10 @@
     border-radius: 14px; padding: 12px 14px;
   }
   .credit-hint-text { font-size: 12px; font-weight: 800; color: var(--good); line-height: 1.5; }
+  .dp-excess-hint {
+    margin-top: 10px; background: rgba(217, 119, 6, 0.1); border: 1.5px dashed rgba(217, 119, 6, 0.4);
+    border-radius: 14px; padding: 12px 14px; font-size: 12px; font-weight: 800; color: #b45309; line-height: 1.5;
+  }
 
   /* ── FORM ── */
   label {
@@ -225,6 +229,11 @@
     padding: 8px 12px; font-size: 13px; font-weight: 900; text-align: center; margin-top: 8px;
   }
   .item-warn { font-size: 11px; font-weight: 800; color: var(--bad); margin-top: 6px; display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-note {
+    width: 100%; margin-top: 8px; border: none; border-radius: 10px; background: #eef1f7;
+    padding: 8px 10px; font-size: 12px; font-family: inherit; color: #33415c;
+  }
+  .item-note::placeholder { color: var(--muted); }
   .item-addstock-btn {
     border: none; border-radius: 999px; padding: 4px 10px; font-size: 10.5px; font-weight: 900;
     cursor: pointer; font-family: inherit; background: rgba(37, 99, 235, 0.1); color: var(--blue);
@@ -248,6 +257,18 @@
     background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit;
   }
   .modal-box .field { margin-top: 10px; margin-bottom: 0; }
+  .modal-box.wide { max-width: 640px; }
+  .pv-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .pv-table th, .pv-table td { padding: 7px 8px; border-bottom: 1px solid rgba(125,138,166,0.18); text-align: left; }
+  .pv-table th { color: var(--muted); font-weight: 800; font-size: 11px; text-transform: uppercase; }
+  .pv-summary { margin-top: 14px; background: #f2f5fb; border-radius: 14px; padding: 12px 14px; }
+  .pv-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #33415c; }
+  .pv-line.total { font-size: 16px; font-weight: 1000; color: #1e3252; border-top: 1px solid rgba(125,138,166,0.25); margin-top: 6px; padding-top: 8px; }
+  .pv-line.good { color: var(--good); font-weight: 800; }
+  .pv-hint { margin-top: 10px; font-size: 12px; font-weight: 700; padding: 8px 10px; border-radius: 10px; background: #fff; color: var(--muted); }
+  .pv-hint.warn { color: #b45309; background: rgba(217,119,6,0.08); }
+  .pv-hint.good { color: var(--good); background: rgba(21,128,61,0.08); }
+  .pv-meta { font-size: 13px; color: #33415c; }
 
   /* list-of-value: searchable item picker */
   .lov { position: relative; }
@@ -537,11 +558,6 @@
                 </div>
               </div>
 
-              <div class="credit-hint-box" id="creditHintBox" style="display:none">
-                <div class="credit-hint-text" id="creditHintText"></div>
-                <label style="margin-top: 8px; margin-bottom: 5px">Pakai Saldo Sebesar (Rp)</label>
-                <input type="number" id="creditApplyInp" min="0" step="1" placeholder="0" />
-              </div>
               <input type="hidden" name="credit_applied" id="creditAppliedInput" value="0" />
 
               <div class="divider"></div>
@@ -674,6 +690,7 @@
                     </div>
                     <div class="item-sub line-sub">Rp 0</div>
                   </div>
+                  <input type="text" class="item-note" placeholder="Catatan barang (opsional) — mis. kotor, lot kemarin…" autocomplete="off" />
                   <div class="item-warn">
                     ⚠️ Qty melebihi stok tersedia
                     <button type="button" class="item-addstock-btn">+ Tambah Stok</button>
@@ -733,6 +750,14 @@
                 {% for c in expense_categories %}<option value="{{ c }}"></option>{% endfor %}
               </datalist>
 
+              <div class="dp-excess-hint" id="dpExcessHint" style="display:none"></div>
+
+              <div class="credit-hint-box" id="creditHintBox" style="display:none">
+                <div class="credit-hint-text" id="creditHintText"></div>
+                <label style="margin-top: 8px; margin-bottom: 5px">Pakai Saldo Sebesar (Rp)</label>
+                <input type="number" id="creditApplyInp" min="0" step="1" placeholder="0" />
+              </div>
+
               <div class="divider"></div>
 
               <div class="field" style="margin-bottom: 0">
@@ -749,6 +774,10 @@
             </div>
             <div class="grand-val" id="grandTotal">Rp 0</div>
           </div>
+
+          <button type="button" class="btn-submit" id="btnPreviewNota" style="margin-top:10px; background:#eef2ff; color:var(--blue); box-shadow:none">
+            👁 Preview Nota
+          </button>
 
           {% if edit_mode %}
           <button type="submit" class="btn-submit">
@@ -792,6 +821,19 @@
   </div>
 </div>
 
+<!-- MODAL PREVIEW NOTA (cek data sebelum benar-benar disimpan) -->
+<div class="modal-overlay" id="previewModalOverlay">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <div class="modal-title">👁 Preview Nota</div>
+      <button type="button" class="modal-close" onclick="closePreviewModal()">✕</button>
+    </div>
+    <div class="sec-desc">Cek dulu sebelum disimpan — belum tersimpan ke database.</div>
+    <div id="previewModalBody"></div>
+    <button type="button" class="btn-submit" onclick="closePreviewModal()" style="margin-top:14px">Tutup, Lanjut Edit</button>
+  </div>
+</div>
+
 <script>
   (function () {
     var L = document.getElementById("itemList"),
@@ -807,6 +849,11 @@
     var blankRowTemplate = L.querySelector(".item-row").cloneNode(true);
 
     function rp(n) { return "Rp " + Math.round(n || 0).toLocaleString("id-ID"); }
+    function escapeHtml(s) {
+      return String(s || "").replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
     function qtyNum(v) {
       var raw = String(v || "").replace(/\s+/g, "").replace(/,/g, ".").replace(/[^0-9.]/g, "");
       var firstDot = raw.indexOf(".");
@@ -865,7 +912,8 @@
           else ongkirBeban += a.amount;
         }
       });
-      var g = Math.max(0, sub - totalDp - ongkirPotongan);
+      var raw = sub - totalDp - ongkirPotongan;
+      var g = Math.max(0, raw);
       G.textContent = rp(g);
       HT.textContent = rp(g);
       var parts = [];
@@ -873,7 +921,103 @@
       if (ongkirPotongan > 0) parts.push("Ongkir " + rp(ongkirPotongan));
       if (ongkirBeban > 0) parts.push("Ongkir beban " + rp(ongkirBeban));
       DL.textContent = parts.length ? "Subtotal " + rp(sub) + " · " + parts.join(" · ") : "";
+
+      // DP/potongan lebih besar dari nilai barang -> sisanya bukan hilang,
+      // otomatis jadi saldo pihak ini di server (lihat dp_excess di core.py).
+      var excess = Math.max(0, -raw);
+      var dpHint = document.getElementById("dpExcessHint");
+      if (excess > 0) {
+        var name = (document.getElementById("custNameInp").value || "").trim() || "pihak ini";
+        dpHint.textContent = "⚠️ DP/potongan (" + rp(totalDp + ongkirPotongan) +
+          ") lebih besar dari nilai barang (" + rp(sub) + "). Sisa " + rp(excess) +
+          " otomatis jadi saldo " + name + " — bisa dipotongkan otomatis di nota berikutnya.";
+        dpHint.style.display = "block";
+      } else {
+        dpHint.style.display = "none";
+      }
     }
+
+    // ── Preview Nota (cek dulu sebelum submit, tidak menyentuh server) ──
+    function collectItemsFull() {
+      var items = [];
+      L.querySelectorAll(".item-row").forEach(function (r) {
+        var s = r.querySelector(".item-material");
+        var val = s.getAttribute("data-value");
+        if (!val) return;
+        var qty = rowQty(r), price = rowPrice(r);
+        var noteInp = r.querySelector(".item-note");
+        items.push({
+          material_id: parseInt(val, 10),
+          name: (s.querySelector(".lov-btn-text").textContent || "").split(" · ")[0],
+          unit: s.getAttribute("data-unit") || "",
+          qty: qty,
+          price: price,
+          subtotal: qty * price,
+          note: noteInp ? noteInp.value.trim() : "",
+        });
+      });
+      return items;
+    }
+    function openPreviewModal() {
+      var items = collectItemsFull();
+      if (!items.length) { alert("Pilih minimal 1 barang dulu."); return; }
+      var typeRadio = document.querySelector('input[name="nota_type"]:checked');
+      var notaType = typeRadio ? typeRadio.value : "JUAL";
+      var name = (document.getElementById("custNameInp").value || "").trim() ||
+        (notaType === "BELI" ? "Pembelian Umum" : "-");
+      var sub = subTot();
+      var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
+      collectAdjustments().forEach(function (a) {
+        if (a.type === "DP") totalDp += a.amount;
+        else if (a.type === "ONGKIR") {
+          if (a.mode === "POTONGAN") ongkirPotongan += a.amount;
+          else ongkirBeban += a.amount;
+        }
+      });
+      var raw = sub - totalDp - ongkirPotongan;
+      var baseTotal = Math.max(0, raw);
+      var dpExcess = Math.max(0, -raw);
+      var creditApplied = Math.min(qtyNum(document.getElementById("creditAppliedInput").value || "0"), baseTotal);
+      var sisa = baseTotal - creditApplied;
+      var isPaidNow = document.getElementById("isPaidInp").value === "1";
+      var isDebt = !isPaidNow && sisa > 0.01;
+
+      var rowsHtml = items.map(function (it, idx) {
+        var nameCell = escapeHtml(it.name) +
+          (it.note ? "<div style='font-size:11px; color:var(--muted); font-weight:600'>" + escapeHtml(it.note) + "</div>" : "");
+        return "<tr><td>" + (idx + 1) + "</td><td>" + nameCell + "</td>" +
+          "<td style='text-align:right'>" + fmtQty(it.qty) + " " + escapeHtml(it.unit) + "</td>" +
+          "<td style='text-align:right'>" + rp(it.price) + "</td>" +
+          "<td style='text-align:right'>" + rp(it.subtotal) + "</td></tr>";
+      }).join("");
+
+      var html = "<div class='pv-meta'><strong>" + (notaType === "BELI" ? "Nota Beli" : "Nota Jual") +
+        "</strong> — " + escapeHtml(name) + "</div>" +
+        "<div class='table-wrap' style='margin-top:10px; overflow-x:auto'><table class='pv-table'><thead><tr>" +
+        "<th>#</th><th>Barang</th><th style='text-align:right'>Qty</th><th style='text-align:right'>Harga</th><th style='text-align:right'>Subtotal</th>" +
+        "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>" +
+        "<div class='pv-summary'>" +
+        "<div class='pv-line'><span>Subtotal</span><span>" + rp(sub) + "</span></div>" +
+        (totalDp > 0 ? "<div class='pv-line'><span>DP</span><span>-" + rp(totalDp) + "</span></div>" : "") +
+        (ongkirPotongan > 0 ? "<div class='pv-line'><span>Ongkir (potongan)</span><span>-" + rp(ongkirPotongan) + "</span></div>" : "") +
+        (ongkirBeban > 0 ? "<div class='pv-line'><span>Ongkir (beban terpisah, tidak kurangi total)</span><span>" + rp(ongkirBeban) + "</span></div>" : "") +
+        (creditApplied > 0 ? "<div class='pv-line good'><span>Pakai Saldo " + escapeHtml(name) + "</span><span>-" + rp(creditApplied) + "</span></div>" : "") +
+        "<div class='pv-line total'><span>Total Pembayaran</span><span>" + rp(sisa) + "</span></div>" +
+        "</div>" +
+        (dpExcess > 0 ? "<div class='pv-hint warn'>⚠️ Sisa DP " + rp(dpExcess) + " otomatis jadi saldo " + escapeHtml(name) + ", bisa dipakai di nota berikutnya.</div>" : "") +
+        (isDebt
+          ? "<div class='pv-hint'>Status: <strong>Belum Lunas</strong> — sisa " + rp(sisa) + " akan tercatat sbg " +
+            (notaType === "BELI" ? "hutang ke " : "piutang dari ") + escapeHtml(name) + ".</div>"
+          : "<div class='pv-hint good'>Status: <strong>Lunas</strong></div>");
+
+      document.getElementById("previewModalBody").innerHTML = html;
+      document.getElementById("previewModalOverlay").classList.add("open");
+    }
+    window.closePreviewModal = function () {
+      document.getElementById("previewModalOverlay").classList.remove("open");
+    };
+    var btnPreviewNota = document.getElementById("btnPreviewNota");
+    if (btnPreviewNota) btnPreviewNota.addEventListener("click", openPreviewModal);
 
     // ── List-of-value: searchable item picker ──
     function lovLabel(name, stock, unit, avgCost) {
@@ -1110,6 +1254,7 @@
       resetLov(c.querySelector(".item-material"));
       c.querySelector(".item-qty").value = "1";
       c.querySelector(".item-price").value = "";
+      c.querySelector(".item-note").value = "";
       c.querySelector(".line-sub").textContent = "Rp 0";
       c.querySelector(".item-warn").style.display = "none";
       L.appendChild(c);
@@ -1134,6 +1279,8 @@
       btn.classList.remove("placeholder");
       row.querySelector(".item-qty").value = fmtQty(it.qty);
       row.querySelector(".item-price").value = it.price;
+      var noteInp = row.querySelector(".item-note");
+      if (noteInp) noteInp.value = it.note || "";
     }
     function applyItemsSnapshot(items) {
       L.querySelectorAll(".item-row").forEach(function (r) { r.remove(); });
@@ -1326,7 +1473,11 @@
         var s = r.querySelector(".item-material");
         var val = s.getAttribute("data-value");
         if (!val) return;
-        items.push({ material_id: parseInt(val, 10), qty: rowQty(r), price: rowPrice(r) });
+        var noteInp = r.querySelector(".item-note");
+        items.push({
+          material_id: parseInt(val, 10), qty: rowQty(r), price: rowPrice(r),
+          note: noteInp ? noteInp.value.trim() : "",
+        });
       });
       if (!items.length) {
         e.preventDefault();
@@ -1421,12 +1572,14 @@
           var s = r.querySelector(".item-material");
           var val = s.getAttribute("data-value");
           if (!val) return;
+          var noteInp = r.querySelector(".item-note");
           items.push({
             material_id: parseInt(val, 10),
             qty: rowQty(r),
             price: rowPrice(r),
             material_name: (s.querySelector(".lov-btn-text").textContent || "").split(" · ")[0],
             unit: s.getAttribute("data-unit") || "",
+            note: noteInp ? noteInp.value.trim() : "",
           });
         });
         var checkedType = document.querySelector('input[name="nota_type"]:checked');

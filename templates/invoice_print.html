@@ -416,7 +416,10 @@
                   {% for item in items %}
                   <tr>
                     <td style="color: #888">{{ loop.index }}</td>
-                    <td style="font-weight: 600">{{ item.product_name }}</td>
+                    <td style="font-weight: 600">
+                      {{ item.product_name }}
+                      {% if item.note %}<div style="font-size: 11px; font-weight: 400; color: #888">{{ item.note }}</div>{% endif %}
+                    </td>
                     <td class="r">{{ item.qty_display or item.qty }}</td>
                     <td class="r">Rp {{ "{:,}".format(item.price).replace(",",".") }}</td>
                     <td class="r" style="font-weight: 700">Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}</td>
