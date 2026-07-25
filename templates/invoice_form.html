@@ -551,6 +551,28 @@
               <div class="sec-title" id="custCardTitle">{{ '🚚 Info Pemasok' if edit_mode and edit_invoice.nota_type == 'BELI' else '👤 Info Pelanggan' }}</div>
               <div class="sec-desc" id="custCardSub">{{ 'Opsional — kosongkan jika pembelian umum' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama & nomor WhatsApp customer' }}</div>
               <div class="divider"></div>
+
+              {% if open_piutang %}
+              <div class="party-picker" id="partyPickerBeli" style="display:none">
+                <div class="party-picker-lbl">📋 Ada Piutang Terbuka — Klik Nama untuk Pilih Otomatis (jangan ketik manual):</div>
+                <div class="party-picker-list">
+                  {% for p in open_piutang %}
+                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · saldo kita Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+              {% if open_hutang %}
+              <div class="party-picker" id="partyPickerJual" style="display:none">
+                <div class="party-picker-lbl">📋 Ada Titipan Dana (Hutang Kita) Terbuka — Klik Nama untuk Pilih Otomatis (jangan ketik manual):</div>
+                <div class="party-picker-list">
+                  {% for p in open_hutang %}
+                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · saldo dia Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
               <div class="row2">
                 <div class="field">
                   <label id="custNameLbl">{{ 'Nama Pemasok (opsional)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
@@ -570,27 +592,6 @@
                   <input type="tel" name="customer_phone" placeholder="08xx… (opsional)" autocomplete="off" value="{{ edit_invoice.customer_phone if edit_mode else '' }}" />
                 </div>
               </div>
-
-              {% if open_piutang %}
-              <div class="party-picker" id="partyPickerBeli" style="display:none">
-                <div class="party-picker-lbl">💰 Ada Saldo Kita (Piutang) — Klik untuk Pilih:</div>
-                <div class="party-picker-list">
-                  {% for p in open_piutang %}
-                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
-                  {% endfor %}
-                </div>
-              </div>
-              {% endif %}
-              {% if open_hutang %}
-              <div class="party-picker" id="partyPickerJual" style="display:none">
-                <div class="party-picker-lbl">💰 Ada Saldo Titipan Dia (Hutang Kita) — Klik untuk Pilih:</div>
-                <div class="party-picker-list">
-                  {% for p in open_hutang %}
-                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
-                  {% endfor %}
-                </div>
-              </div>
-              {% endif %}
 
               <input type="hidden" name="credit_applied" id="creditAppliedInput" value="0" />
 
@@ -786,6 +787,7 @@
               </datalist>
 
               <div class="dp-excess-hint" id="dpExcessHint" style="display:none"></div>
+              <div class="dp-excess-hint" id="dpRedundantHint" style="display:none"></div>
 
               <div class="credit-hint-box" id="creditHintBox" style="display:none">
                 <div class="credit-hint-text" id="creditHintText"></div>
@@ -992,6 +994,23 @@
         dpHint.style.display = "block";
       } else {
         dpHint.style.display = "none";
+      }
+
+      // Kalau ada saldo yang SUDAH tersedia (kotak hijau "Pakai Saldo"
+      // tampil) TAPI admin juga masih isi baris DP baru -- kemungkinan
+      // besar itu DP yang SAMA yang tidak sengaja diketik ulang, bukan DP
+      // baru. Ingatkan supaya tidak dobel/salah catat.
+      var redundantHint = document.getElementById("dpRedundantHint");
+      var creditBoxEl = document.getElementById("creditHintBox");
+      if (redundantHint && creditBoxEl) {
+        if (totalDp > 0 && creditBoxEl.style.display === "block") {
+          redundantHint.textContent = "💡 Pihak ini SUDAH punya saldo tersedia (lihat kotak hijau di bawah). " +
+            "Kalau DP yang Anda isi di atas adalah DP YANG SAMA dengan saldo itu, hapus baris DP ini dan " +
+            "cukup pakai saldo saja lewat kotak hijau — supaya tidak tercatat dua kali.";
+          redundantHint.style.display = "block";
+        } else {
+          redundantHint.style.display = "none";
+        }
       }
     }
 
@@ -1490,6 +1509,7 @@
           c.classList.toggle("active", c === chip);
         });
         if (window.checkPartyCredit) window.checkPartyCredit();
+        grand();
       });
     });
 
@@ -1522,6 +1542,7 @@
           creditBox.style.display = "none";
           creditAppliedInput.value = "0";
           lastAvailable = 0;
+          grand();
           return;
         }
         fetch("/nota/check-credit?type=" + creditType + "&party_name=" + encodeURIComponent(name))
@@ -1531,6 +1552,7 @@
               creditBox.style.display = "none";
               creditAppliedInput.value = "0";
               lastAvailable = 0;
+              grand();
               return;
             }
             lastAvailable = res.available;
@@ -1547,10 +1569,12 @@
             if (!creditApplyInp.value) creditApplyInp.value = Math.round(res.available);
             syncCreditApplied();
             creditBox.style.display = "block";
+            grand();
           })
           .catch(function () {});
       };
       document.getElementById("custNameInp").addEventListener("blur", checkPartyCredit);
+      document.getElementById("custNameInp").addEventListener("input", grand);
     })();
 
     document.getElementById("invForm").addEventListener("submit", function (e) {
