@@ -520,11 +520,16 @@
               <div class="row2">
                 <div class="field">
                   <label id="custNameLbl">{{ 'Nama Pemasok (opsional)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
-                  <input type="text" name="customer_name" id="custNameInp"
+                  <input type="text" name="customer_name" id="custNameInp" list="partyNamesList"
                          placeholder="{{ 'Opsional, kosongkan jika umum…' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Wajib diisi…' }}"
                          autocomplete="off"
                          {{ '' if edit_mode and edit_invoice.nota_type == 'BELI' else 'required' }}
                          value="{{ edit_invoice.customer_name if edit_mode else '' }}" />
+                  <datalist id="partyNamesList">
+                    {% for pn in party_names %}
+                    <option value="{{ pn }}"></option>
+                    {% endfor %}
+                  </datalist>
                 </div>
                 <div class="field">
                   <label>No. WhatsApp</label>
@@ -1263,13 +1268,16 @@
         var typeRadio = document.querySelector('input[name="nota_type"]:checked');
         var notaType = typeRadio ? typeRadio.value : "JUAL";
         var name = (document.getElementById("custNameInp").value || "").trim();
-        if (notaType !== "BELI" || !name) {
+        // BELI: saldo PIUTANG kita ke pemasok (dulu kita DP ke dia).
+        // JUAL: saldo HUTANG kita ke customer (dulu dia titip dana/DP ke kita).
+        var creditType = notaType === "BELI" ? "PIUTANG" : "HUTANG";
+        if (!name) {
           creditBox.style.display = "none";
           creditAppliedInput.value = "0";
           lastAvailable = 0;
           return;
         }
-        fetch("/nota/check-credit?type=PIUTANG&party_name=" + encodeURIComponent(name))
+        fetch("/nota/check-credit?type=" + creditType + "&party_name=" + encodeURIComponent(name))
           .then(function (r) { return r.json(); })
           .then(function (res) {
             if (!res.ok || !res.available || res.available <= 0) {
@@ -1279,8 +1287,11 @@
               return;
             }
             lastAvailable = res.available;
+            var hint = notaType === "BELI"
+              ? " (dari DP/kelebihan pembayaran sebelumnya)."
+              : " (dari titipan dana/DP dia sebelumnya).";
             creditText.textContent = "💰 " + (res.party_name || name) + " punya saldo Rp " +
-              Math.round(res.available).toLocaleString("id-ID") + " (dari DP/kelebihan pembayaran sebelumnya).";
+              Math.round(res.available).toLocaleString("id-ID") + hint;
             creditApplyInp.max = res.available;
             if (!creditApplyInp.value) creditApplyInp.value = Math.round(res.available);
             syncCreditApplied();

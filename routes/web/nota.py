@@ -32,6 +32,7 @@ from core import (
     get_notif_count,
     list_fin_expense_categories,
     find_party_credit,
+    list_fin_party_names,
 )
 
 RETURN_REASONS = {
@@ -89,6 +90,7 @@ def nota_new():
                     items=items,
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
+                    credit_applied=request.form.get("credit_applied") or 0,
                 )
             return redirect(f"/nota/{result['invoice_id']}")
         except ValueError as e:
@@ -103,6 +105,7 @@ def nota_new():
         drafts=list_nota_drafts(),
         edit_mode=False,
         expense_categories=list_fin_expense_categories(),
+        party_names=list_fin_party_names(),
     )
 
 
@@ -160,6 +163,7 @@ def nota_edit(txn_id):
         edit_invoice=invoice,
         edit_items=items,
         expense_categories=list_fin_expense_categories(),
+        party_names=list_fin_party_names(),
     )
 
 

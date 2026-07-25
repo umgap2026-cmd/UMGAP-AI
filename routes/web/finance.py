@@ -7,6 +7,7 @@ from core import (
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
+    list_fin_party_names,
     list_fin_categories, list_fin_activity_log,
     create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
     edit_fin_expense_entry, delete_fin_expense_entry,
@@ -52,6 +53,7 @@ def finance_dashboard():
         expense_categories=expense_categories,
         expense_total=expense_total,
         notif_count=get_notif_count(),
+        party_names=list_fin_party_names(),
     )
 
 

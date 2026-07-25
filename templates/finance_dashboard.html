@@ -351,6 +351,12 @@
   .log-by { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
 </style>
 
+<datalist id="partyNamesList">
+  {% for pn in party_names %}
+  <option value="{{ pn }}"></option>
+  {% endfor %}
+</datalist>
+
 <div class="screen">
   <div class="wrap">
     <!-- HEADER -->
@@ -575,7 +581,7 @@
           <form method="post" action="/finance/debts/add" class="stack-form">
             <input type="hidden" name="type" value="HUTANG" />
             <div class="row2">
-              <div class="field"><label>Nama Pemasok *</label><input type="text" name="party_name" placeholder="mis. Toko ABC" required /></div>
+              <div class="field"><label>Nama Pemasok *</label><input type="text" name="party_name" list="partyNamesList" placeholder="mis. Toko ABC" required /></div>
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
@@ -670,7 +676,7 @@
           <form method="post" action="/finance/debts/add" class="stack-form">
             <input type="hidden" name="type" value="PIUTANG" />
             <div class="row2">
-              <div class="field"><label>Nama Pelanggan *</label><input type="text" name="party_name" placeholder="mis. Budi" required /></div>
+              <div class="field"><label>Nama Pelanggan *</label><input type="text" name="party_name" list="partyNamesList" placeholder="mis. Budi" required /></div>
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
@@ -948,7 +954,7 @@
       <button type="button" class="modal-close" onclick="closeEditDebtModal()">✕</button>
     </div>
     <form method="post" id="editDebtForm">
-      <input type="text" name="party_name" id="editDebtNameInp" placeholder="Nama" required />
+      <input type="text" name="party_name" id="editDebtNameInp" list="partyNamesList" placeholder="Nama" required />
       <input type="number" name="amount" id="editDebtAmountInp" min="1" placeholder="Jumlah (Rp)" required />
       <input type="text" name="note" id="editDebtNoteInp" placeholder="Catatan (opsional)" />
       <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Simpan</button>

@@ -1683,7 +1683,7 @@ def _sum_adjustments(adjustments):
 
 def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                         discount, is_paid, items, created_by, print_size=None,
-                        adjustments=None):
+                        adjustments=None, credit_applied=0):
     """
     Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
     catat piutang jika belum lunas. Logic diextract dari
@@ -1697,7 +1697,10 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
     lihat _sum_adjustments() utk aturan lengkapnya. Jumlah DP di
     adjustments ditambahkan ke discount; Ongkir mode BEBAN jadi
     pengeluaran terpisah tertaut ke nota (tidak mengubah total), mode
-    POTONGAN mengurangi total nota.
+    POTONGAN mengurangi total nota. 'credit_applied' (opsional) adalah
+    saldo HUTANG milik customer ini (titipan dana sebelumnya) yang mau
+    dipakai membayar nota ini -- lihat create_fin_purchase_invoice() utk
+    aturan lengkapnya (perlakuan simetris, cuma arah HUTANG/PIUTANG dibalik).
 
     Return dict: {invoice_id, invoice_no, subtotal, discount, ongkir,
     total, hpp, laba}.
@@ -1759,7 +1762,20 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         seq = (cur.fetchone()["cnt"] or 0) + 1
         invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
 
-        is_debt = not is_paid
+        # "Pakai Saldo" adalah CARA BAYAR (spt Cash/Transfer/QRIS), berlaku
+        # LEPAS dari toggle Lunas/Belum Lunas -- lihat penjelasan lengkap di
+        # create_fin_purchase_invoice(). Di sini saldonya adalah HUTANG kita
+        # ke customer (titipan dana sebelumnya), sisa yang belum tertutup
+        # jadi PIUTANG baru (customer masih berutang ke kita).
+        credit_amount = min(max(0.0, float(credit_applied or 0)), grand_total) if customer_name else 0.0
+        debt_amount = grand_total - credit_amount
+        is_debt = (not is_paid) and debt_amount > 0.01
+        if credit_amount > 0:
+            notes = (
+                f"Rp {credit_amount:,.0f} dipotong dari saldo {customer_name}".replace(",", ".")
+                + (f" | {notes}" if notes else "")
+            )
+
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
@@ -1799,12 +1815,15 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                 note=f"Invoice {invoice_no} — {customer_name}"
             )
 
-        if is_debt and customer_name:
+        if credit_amount > 0:
+            _consume_party_credit(cur, customer_name, "HUTANG", credit_amount)
+
+        if is_debt and customer_name and debt_amount > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
-            """, (customer_name, grand_total, grand_total, txn_id,
+            """, (customer_name, debt_amount, debt_amount, txn_id,
                   f"Invoice {invoice_no} — belum dibayar"))
 
         for e in ongkir_beban_entries:
@@ -1885,18 +1904,19 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         seq = (cur.fetchone()["cnt"] or 0) + 1
         invoice_no = f"BELI-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
 
-        is_debt = not is_paid
-        credit_amount = 0.0
-        if is_debt and supplier_name:
-            credit_amount = min(max(0.0, float(credit_applied or 0)), grand_total)
+        # "Pakai Saldo" adalah CARA BAYAR (spt Cash/Transfer/QRIS), berlaku
+        # LEPAS dari toggle Lunas/Belum Lunas -- jadi kalau admin pilih pakai
+        # saldo, saldo itu SELALU dipotong berapa pun status togglenya;
+        # toggle Lunas cuma menentukan apakah SISA setelah saldo (kalau ada)
+        # jadi hutang baru atau tidak.
+        credit_amount = min(max(0.0, float(credit_applied or 0)), grand_total) if supplier_name else 0.0
         debt_amount = grand_total - credit_amount
+        is_debt = (not is_paid) and debt_amount > 0.01
         if credit_amount > 0:
             notes = (
                 f"Rp {credit_amount:,.0f} dipotong dari saldo {supplier_name}".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
-            if debt_amount <= 0.01:
-                is_debt = False
 
         cur.execute("""
             INSERT INTO fin_transactions
@@ -3706,6 +3726,35 @@ def list_fin_debts():
             "total_hutang": sum(float(r["remaining"]) for r in hutang),
             "total_piutang": sum(float(r["remaining"]) for r in piutang),
         }
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_fin_party_names():
+    """
+    Daftar nama pihak (pemasok/pelanggan) yang sudah pernah dipakai --
+    gabungan dari nota (fin_transactions) & hutang/piutang (fin_debts),
+    dipakai sbg datalist di form nota & Tambah Hutang/Piutang supaya admin
+    pilih nama yang KONSISTEN (bukan ketik bebas) -- krn pencocokan saldo
+    titipan dana (find_party_credit/_consume_party_credit) mengandalkan
+    kecocokan nama persis (case/whitespace-insensitive).
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT DISTINCT party_name FROM (
+                SELECT party_name FROM fin_transactions
+                WHERE party_name IS NOT NULL AND party_name <> ''
+                  AND type IN ('JUAL_INVOICE', 'BELI_GUDANG')
+                UNION
+                SELECT party_name FROM fin_debts
+                WHERE party_name IS NOT NULL AND party_name <> ''
+            ) t
+            ORDER BY party_name ASC;
+        """)
+        return [r[0] for r in cur.fetchall()]
     finally:
         cur.close()
         conn.close()
