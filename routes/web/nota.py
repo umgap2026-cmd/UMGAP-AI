@@ -93,10 +93,12 @@ def nota_new():
                     credit_applied=request.form.get("credit_applied") or 0,
                 )
             if result.get("dp_excess"):
+                party = (request.form.get("customer_name") or "").strip() or "pihak ini"
+                arah = f"jadi saldo KITA di {party}" if nota_type == "BELI" else f"jadi saldo {party} di kita"
                 flash(
                     f"Nota {result['invoice_no']} tersimpan. Sisa DP Rp "
                     f"{result['dp_excess']:,.0f}".replace(",", ".") +
-                    " otomatis jadi saldo — bisa dipotongkan otomatis di nota berikutnya.",
+                    f" otomatis {arah} — bisa dipotongkan otomatis di nota berikutnya.",
                     "success",
                 )
             return redirect(f"/nota/{result['invoice_id']}")
@@ -151,9 +153,11 @@ def nota_edit(txn_id):
             )
             flash(f"Nota {result['invoice_no']} berhasil diperbarui.", "success")
             if result.get("dp_excess"):
+                party = result.get("party_name") or "pihak ini"
+                arah = f"jadi saldo KITA di {party}" if result.get("nota_type") == "BELI" else f"jadi saldo {party} di kita"
                 flash(
                     f"Sisa DP Rp {result['dp_excess']:,.0f}".replace(",", ".") +
-                    " otomatis jadi saldo — bisa dipotongkan otomatis di nota berikutnya.",
+                    f" otomatis {arah} — bisa dipotongkan otomatis di nota berikutnya.",
                     "success",
                 )
             return redirect(f"/nota/{result['invoice_id']}")

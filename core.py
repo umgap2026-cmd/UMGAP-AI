@@ -1789,12 +1789,12 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         is_debt = (not is_paid) and debt_amount > 0.01
         if credit_amount > 0:
             notes = (
-                f"Rp {credit_amount:,.0f} dipotong dari saldo {customer_name}".replace(",", ".")
+                f"Rp {credit_amount:,.0f} dipotong dari saldo {customer_name} di kita".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
         if dp_excess > 0 and customer_name:
             notes = (
-                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo {customer_name}".replace(",", ".")
+                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo {customer_name} di kita".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
 
@@ -1846,7 +1846,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
             """, (customer_name, dp_excess, dp_excess, txn_id,
-                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
+                  f"Sisa DP nota {invoice_no} — jadi saldo {customer_name} di kita, "
+                  f"bisa dipotongkan otomatis saat dia beli lagi"))
 
         if is_debt and customer_name and debt_amount > 0.01:
             cur.execute("""
@@ -1952,12 +1953,12 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         is_debt = (not is_paid) and debt_amount > 0.01
         if credit_amount > 0:
             notes = (
-                f"Rp {credit_amount:,.0f} dipotong dari saldo {supplier_name}".replace(",", ".")
+                f"Rp {credit_amount:,.0f} dipotong dari saldo kita di {supplier_name}".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
         if dp_excess > 0 and supplier_name:
             notes = (
-                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo {supplier_name}".replace(",", ".")
+                f"Sisa DP Rp {dp_excess:,.0f} jadi saldo kita di {supplier_name}".replace(",", ".")
                 + (f" | {notes}" if notes else "")
             )
 
@@ -2000,7 +2001,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
             """, (supplier_name, dp_excess, dp_excess, txn_id,
-                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
+                  f"Sisa DP nota {invoice_no} — jadi saldo kita di {supplier_name}, "
+                  f"bisa dipotongkan otomatis saat belanja berikutnya ke sana"))
 
         if is_debt and supplier_name and debt_amount > 0.01:
             cur.execute("""
@@ -2202,12 +2204,18 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         if dp_excess > 0 and customer_name:
             excess_type = 'PIUTANG' if is_beli else 'HUTANG'
             party_type = 'SUPPLIER' if is_beli else 'PELANGGAN'
+            excess_note = (
+                f"Sisa DP nota {invoice_no} — jadi saldo kita di {customer_name}, "
+                f"bisa dipotongkan otomatis saat belanja berikutnya ke sana"
+                if is_beli else
+                f"Sisa DP nota {invoice_no} — jadi saldo {customer_name} di kita, "
+                f"bisa dipotongkan otomatis saat dia beli lagi"
+            )
             cur.execute("""
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """, (excess_type, customer_name, party_type, dp_excess, dp_excess, txn_id,
-                  f"Sisa DP nota {invoice_no} — jadi saldo, bisa dipakai belanja berikutnya"))
+            """, (excess_type, customer_name, party_type, dp_excess, dp_excess, txn_id, excess_note))
 
         cur.execute("""
             DELETE FROM fin_transactions
@@ -2218,7 +2226,11 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                                     category=e["category"])
 
         conn.commit()
-        return {"invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total, "dp_excess": dp_excess}
+        return {
+            "invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total,
+            "dp_excess": dp_excess, "nota_type": "BELI" if is_beli else "JUAL",
+            "party_name": customer_name,
+        }
     except ValueError:
         conn.rollback()
         raise

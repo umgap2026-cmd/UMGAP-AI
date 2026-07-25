@@ -924,13 +924,18 @@
 
       // DP/potongan lebih besar dari nilai barang -> sisanya bukan hilang,
       // otomatis jadi saldo pihak ini di server (lihat dp_excess di core.py).
+      // Arah kalimatnya HARUS jelas siapa yang punya saldo ke siapa --
+      // "saldo Pak Bagas" gampang disalahartikan seolah itu uang Pak Bagas.
       var excess = Math.max(0, -raw);
       var dpHint = document.getElementById("dpExcessHint");
       if (excess > 0) {
         var name = (document.getElementById("custNameInp").value || "").trim() || "pihak ini";
+        var typeRadioNow = document.querySelector('input[name="nota_type"]:checked');
+        var notaTypeNow = typeRadioNow ? typeRadioNow.value : "JUAL";
+        var arah = notaTypeNow === "BELI" ? ("saldo KITA di " + name) : ("saldo " + name + " di kita");
         dpHint.textContent = "⚠️ DP/potongan (" + rp(totalDp + ongkirPotongan) +
           ") lebih besar dari nilai barang (" + rp(sub) + "). Sisa " + rp(excess) +
-          " otomatis jadi saldo " + name + " — bisa dipotongkan otomatis di nota berikutnya.";
+          " otomatis jadi " + arah + " — bisa dipotongkan otomatis di nota berikutnya.";
         dpHint.style.display = "block";
       } else {
         dpHint.style.display = "none";
@@ -1001,10 +1006,12 @@
         (totalDp > 0 ? "<div class='pv-line'><span>DP</span><span>-" + rp(totalDp) + "</span></div>" : "") +
         (ongkirPotongan > 0 ? "<div class='pv-line'><span>Ongkir (potongan)</span><span>-" + rp(ongkirPotongan) + "</span></div>" : "") +
         (ongkirBeban > 0 ? "<div class='pv-line'><span>Ongkir (beban terpisah, tidak kurangi total)</span><span>" + rp(ongkirBeban) + "</span></div>" : "") +
-        (creditApplied > 0 ? "<div class='pv-line good'><span>Pakai Saldo " + escapeHtml(name) + "</span><span>-" + rp(creditApplied) + "</span></div>" : "") +
+        (creditApplied > 0 ? "<div class='pv-line good'><span>Pakai " + (notaType === "BELI" ? "Saldo Kita di " : "Saldo ") + escapeHtml(name) + (notaType === "BELI" ? "" : " di Kita") + "</span><span>-" + rp(creditApplied) + "</span></div>" : "") +
         "<div class='pv-line total'><span>Total Pembayaran</span><span>" + rp(sisa) + "</span></div>" +
         "</div>" +
-        (dpExcess > 0 ? "<div class='pv-hint warn'>⚠️ Sisa DP " + rp(dpExcess) + " otomatis jadi saldo " + escapeHtml(name) + ", bisa dipakai di nota berikutnya.</div>" : "") +
+        (dpExcess > 0 ? "<div class='pv-hint warn'>⚠️ Sisa DP " + rp(dpExcess) + " otomatis jadi " +
+          (notaType === "BELI" ? "saldo KITA di " + escapeHtml(name) : "saldo " + escapeHtml(name) + " di kita") +
+          ", bisa dipakai di nota berikutnya.</div>" : "") +
         (isDebt
           ? "<div class='pv-hint'>Status: <strong>Belum Lunas</strong> — sisa " + rp(sisa) + " akan tercatat sbg " +
             (notaType === "BELI" ? "hutang ke " : "piutang dari ") + escapeHtml(name) + ".</div>"
@@ -1452,11 +1459,15 @@
               return;
             }
             lastAvailable = res.available;
-            var hint = notaType === "BELI"
-              ? " (dari DP/kelebihan pembayaran sebelumnya)."
-              : " (dari titipan dana/DP dia sebelumnya).";
-            creditText.textContent = "💰 " + (res.party_name || name) + " punya saldo Rp " +
-              Math.round(res.available).toLocaleString("id-ID") + hint;
+            var pn = res.party_name || name;
+            // Arah kalimat harus jelas: BELI = saldo KITA (nagih ke pemasok),
+            // JUAL = saldo milik pelanggan (titipan dia di kita) -- jangan
+            // sampai "saldo Pak X" dikira uang milik Pak X sendiri.
+            creditText.textContent = notaType === "BELI"
+              ? "💰 Kita punya saldo Rp " + Math.round(res.available).toLocaleString("id-ID") +
+                " di " + pn + " (dari DP/kelebihan pembayaran sebelumnya)."
+              : "💰 " + pn + " punya saldo Rp " + Math.round(res.available).toLocaleString("id-ID") +
+                " di kita (dari titipan dana/DP dia sebelumnya).";
             creditApplyInp.max = res.available;
             if (!creditApplyInp.value) creditApplyInp.value = Math.round(res.available);
             syncCreditApplied();
