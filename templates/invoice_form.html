@@ -520,7 +520,7 @@
               <div class="row2">
                 <div class="field">
                   <label id="custNameLbl">{{ 'Nama Pemasok (opsional)' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Nama Customer *' }}</label>
-                  <input type="text" name="customer_name" id="custNameInp" list="partyNamesList"
+                  <input type="text" name="customer_name" id="custNameInp"
                          placeholder="{{ 'Opsional, kosongkan jika umum…' if edit_mode and edit_invoice.nota_type == 'BELI' else 'Wajib diisi…' }}"
                          autocomplete="off"
                          {{ '' if edit_mode and edit_invoice.nota_type == 'BELI' else 'required' }}
@@ -708,6 +708,10 @@
                       <label style="margin-bottom: 5px">Jumlah (Rp)</label>
                       <input type="number" class="adj-amount" min="0" placeholder="0" />
                     </div>
+                  </div>
+                  <div class="field adj-dp-party-wrap" style="margin-bottom: 0; margin-top: 8px">
+                    <label style="margin-bottom: 5px">Titip Dana ke/dari Siapa? (opsional)</label>
+                    <input type="text" class="adj-dp-party" list="partyNamesList" placeholder="Kosongkan = pakai nama di atas" autocomplete="off" />
                   </div>
                   <div class="adj-ongkir-toggle lov-new-toggle" style="display:none; margin-top: 8px">
                     <button type="button" class="lov-new-toggle-btn active" data-mode="BEBAN">Kita yang bayar<br />(jadi beban)</button>
@@ -1164,6 +1168,8 @@
       var amountInp = row.querySelector(".adj-amount");
       var toggleWrap = row.querySelector(".adj-ongkir-toggle");
       var categoryWrap = row.querySelector(".adj-category-wrap");
+      var dpPartyWrap = row.querySelector(".adj-dp-party-wrap");
+      var dpPartyInp = row.querySelector(".adj-dp-party");
       var hint = row.querySelector(".adj-hint");
       var removeBtn = row.querySelector(".adj-remove");
       function syncType() {
@@ -1171,11 +1177,23 @@
         toggleWrap.style.display = isOngkir ? "flex" : "none";
         hint.style.display = isOngkir ? "block" : "none";
         categoryWrap.style.display = isOngkir && getAdjMode(row) === "BEBAN" ? "block" : "none";
+        dpPartyWrap.style.display = isOngkir ? "none" : "block";
         if (isOngkir) hint.textContent = ADJ_ONGKIR_HINTS[getAdjMode(row)];
         grand();
       }
       typeSel.addEventListener("change", syncType);
       amountInp.addEventListener("input", grand);
+      if (dpPartyInp) {
+        dpPartyInp.addEventListener("change", function () {
+          var name = dpPartyInp.value.trim();
+          if (!name) return;
+          var custNameInp = document.getElementById("custNameInp");
+          if (custNameInp && !custNameInp.value.trim()) {
+            custNameInp.value = name;
+            if (window.checkPartyCredit) window.checkPartyCredit();
+          }
+        });
+      }
       toggleWrap.querySelectorAll(".lov-new-toggle-btn").forEach(function (b) {
         b.addEventListener("click", function () {
           toggleWrap.querySelectorAll(".lov-new-toggle-btn").forEach(function (x) {
