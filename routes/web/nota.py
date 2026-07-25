@@ -33,6 +33,7 @@ from core import (
     list_fin_expense_categories,
     find_party_credit,
     list_fin_party_names,
+    list_fin_party_balances,
 )
 
 RETURN_REASONS = {
@@ -115,6 +116,8 @@ def nota_new():
         edit_mode=False,
         expense_categories=list_fin_expense_categories(),
         party_names=list_fin_party_names(),
+        open_piutang=list_fin_party_balances("PIUTANG"),
+        open_hutang=list_fin_party_balances("HUTANG"),
     )
 
 
@@ -181,6 +184,8 @@ def nota_edit(txn_id):
         edit_items=items,
         expense_categories=list_fin_expense_categories(),
         party_names=list_fin_party_names(),
+        open_piutang=list_fin_party_balances("PIUTANG"),
+        open_hutang=list_fin_party_balances("HUTANG"),
     )
 
 

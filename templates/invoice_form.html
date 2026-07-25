@@ -153,6 +153,19 @@
     margin-top: 10px; background: rgba(217, 119, 6, 0.1); border: 1.5px dashed rgba(217, 119, 6, 0.4);
     border-radius: 14px; padding: 12px 14px; font-size: 12px; font-weight: 800; color: #b45309; line-height: 1.5;
   }
+  .party-picker { margin-top: 10px; }
+  .party-picker-lbl { font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
+  .party-picker-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .party-chip {
+    border: 1.5px solid rgba(37, 99, 235, 0.3); background: rgba(37, 99, 235, 0.07); color: var(--blue);
+    border-radius: 999px; padding: 6px 12px; font-size: 11.5px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+  .party-chip:hover { background: rgba(37, 99, 235, 0.15); }
+  .party-chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .total-qty-line {
+    margin-top: 10px; text-align: center; background: #eef2ff; color: var(--blue);
+    border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 900;
+  }
 
   /* ── FORM ── */
   label {
@@ -558,6 +571,27 @@
                 </div>
               </div>
 
+              {% if open_piutang %}
+              <div class="party-picker" id="partyPickerBeli" style="display:none">
+                <div class="party-picker-lbl">💰 Ada Saldo Kita (Piutang) — Klik untuk Pilih:</div>
+                <div class="party-picker-list">
+                  {% for p in open_piutang %}
+                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+              {% if open_hutang %}
+              <div class="party-picker" id="partyPickerJual" style="display:none">
+                <div class="party-picker-lbl">💰 Ada Saldo Titipan Dia (Hutang Kita) — Klik untuk Pilih:</div>
+                <div class="party-picker-list">
+                  {% for p in open_hutang %}
+                  <button type="button" class="party-chip" data-name="{{ p.party_name }}">{{ p.party_name }} · Rp {{ "{:,}".format(p.remaining|round|int).replace(",", ".") }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
               <input type="hidden" name="credit_applied" id="creditAppliedInput" value="0" />
 
               <div class="divider"></div>
@@ -703,6 +737,7 @@
                 </svg>
                 Tambah Item
               </button>
+              <div class="total-qty-line" id="totalQtyLine" style="display:none"></div>
 
               <div class="divider"></div>
 
@@ -880,6 +915,23 @@
       L.querySelectorAll(".item-row").forEach(function (r) { t += rowPrice(r) * rowQty(r); });
       return t;
     }
+    function updateTotalQty() {
+      var byUnit = {};
+      L.querySelectorAll(".item-row").forEach(function (r) {
+        var s = r.querySelector(".item-material");
+        if (!s.getAttribute("data-value")) return;
+        var unit = s.getAttribute("data-unit") || "";
+        var qty = rowQty(r);
+        if (qty <= 0) return;
+        byUnit[unit] = (byUnit[unit] || 0) + qty;
+      });
+      var units = Object.keys(byUnit);
+      var el = document.getElementById("totalQtyLine");
+      if (!units.length) { el.style.display = "none"; return; }
+      var parts = units.map(function (u) { return fmtQty(byUnit[u]) + " " + u; });
+      el.textContent = "⚖️ Total Berat Barang: " + parts.join(" + ");
+      el.style.display = "block";
+    }
     function getAdjMode(row) {
       var activeBtn = row.querySelector(".adj-ongkir-toggle .lov-new-toggle-btn.active");
       return activeBtn ? activeBtn.getAttribute("data-mode") : "BEBAN";
@@ -904,6 +956,7 @@
     }
     function grand() {
       var sub = subTot();
+      updateTotalQty();
       var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
       collectAdjustments().forEach(function (a) {
         if (a.type === "DP") totalDp += a.amount;
@@ -987,6 +1040,10 @@
       var isPaidNow = document.getElementById("isPaidInp").value === "1";
       var isDebt = !isPaidNow && sisa > 0.01;
 
+      var byUnit = {};
+      items.forEach(function (it) { byUnit[it.unit] = (byUnit[it.unit] || 0) + it.qty; });
+      var totalQtyText = Object.keys(byUnit).map(function (u) { return fmtQty(byUnit[u]) + " " + u; }).join(" + ");
+
       var rowsHtml = items.map(function (it, idx) {
         var nameCell = escapeHtml(it.name) +
           (it.note ? "<div style='font-size:11px; color:var(--muted); font-weight:600'>" + escapeHtml(it.note) + "</div>" : "");
@@ -1001,6 +1058,7 @@
         "<div class='table-wrap' style='margin-top:10px; overflow-x:auto'><table class='pv-table'><thead><tr>" +
         "<th>#</th><th>Barang</th><th style='text-align:right'>Qty</th><th style='text-align:right'>Harga</th><th style='text-align:right'>Subtotal</th>" +
         "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>" +
+        (totalQtyText ? "<div class='pv-hint'>⚖️ Total Berat Barang: <strong>" + totalQtyText + "</strong></div>" : "") +
         "<div class='pv-summary'>" +
         "<div class='pv-line'><span>Subtotal</span><span>" + rp(sub) + "</span></div>" +
         (totalDp > 0 ? "<div class='pv-line'><span>DP</span><span>-" + rp(totalDp) + "</span></div>" : "") +
@@ -1413,9 +1471,26 @@
       var isPaidNow = document.getElementById("isPaidInp").value === "1";
       document.getElementById("ptTtl").textContent = t.ptTtl;
       document.getElementById("ptSub").textContent = isPaidNow ? t.ptSub : t.ptSubOff;
+      var pBeli = document.getElementById("partyPickerBeli"), pJual = document.getElementById("partyPickerJual");
+      if (pBeli) pBeli.style.display = type === "BELI" ? "block" : "none";
+      if (pJual) pJual.style.display = type === "BELI" ? "none" : "block";
     }
     document.querySelectorAll('input[name="nota_type"]').forEach(function (r) {
       r.addEventListener("change", function () { applyNotaType(r.value); checkPartyCredit(); });
+    });
+
+    // ── Pilih nama dari daftar Piutang/Hutang terbuka (klik chip) --
+    // menghindari salah ketik nama yang bikin saldo tidak ketemu/kepotong
+    // (mis. "Pak Bagas" vs "Pak Bagas Sulawesi" dianggap 2 pihak berbeda).
+    document.querySelectorAll(".party-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var name = chip.getAttribute("data-name");
+        document.getElementById("custNameInp").value = name;
+        chip.parentElement.querySelectorAll(".party-chip").forEach(function (c) {
+          c.classList.toggle("active", c === chip);
+        });
+        if (window.checkPartyCredit) window.checkPartyCredit();
+      });
     });
 
     // ── Saldo Piutang/Hutang: DP yg sudah dibayar ke pemasok (dicatat sbg

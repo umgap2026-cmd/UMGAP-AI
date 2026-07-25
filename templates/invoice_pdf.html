@@ -375,6 +375,11 @@
         <div class="m-val">{{ invoice.payment_method }}</div>
       </div>
 
+      {% set qty_by_unit = {} %}
+      {% for item in items %}
+        {% set _ = qty_by_unit.update({item.unit: qty_by_unit.get(item.unit, 0) + item.qty}) %}
+      {% endfor %}
+
       <!-- ITEMS TABLE -->
       <table class="tbl">
         <thead>
@@ -429,6 +434,15 @@
           </tr>
         </tfoot>
       </table>
+
+      {% if qty_by_unit %}
+      <div class="notes-box" style="background:#eef2ff; border-left-color:#2563eb; text-align:center">
+        ⚖️ Total Berat Barang:
+        <strong>
+          {% for u, q in qty_by_unit.items() %}{{ "%g"|format(q) }} {{ u }}{% if not loop.last %} + {% endif %}{% endfor %}
+        </strong>
+      </div>
+      {% endif %}
 
       {% if invoice.notes %}
       <div class="notes-box">

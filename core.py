@@ -3813,6 +3813,33 @@ def list_fin_debts():
         conn.close()
 
 
+def list_fin_party_balances(debt_type):
+    """
+    Saldo piutang/hutang terbuka, DIGABUNG per nama pihak (SUM remaining,
+    exact match case/whitespace-insensitive) -- dipakai dropdown "pilih dari
+    piutang/hutang" saat bikin nota, supaya admin tinggal klik nama yang
+    SUDAH ADA alih-alih ngetik ulang (rawan beda ejaan spt "Pak Bagas" vs
+    "Pak Bagas Sulawesi" yang jadinya dianggap 2 pihak berbeda & saldo tidak
+    ketemu/kepotong). debt_type: 'PIUTANG' atau 'HUTANG'.
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT MAX(TRIM(party_name)) AS party_name, SUM(remaining) AS remaining
+            FROM fin_debts
+            WHERE type = %s AND is_settled = FALSE
+                  AND party_name IS NOT NULL AND TRIM(party_name) <> ''
+            GROUP BY LOWER(TRIM(party_name))
+            HAVING SUM(remaining) > 0.01
+            ORDER BY MAX(TRIM(party_name)) ASC;
+        """, (debt_type,))
+        return [{"party_name": r["party_name"], "remaining": float(r["remaining"])} for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
 def list_fin_party_names():
     """
     Daftar nama pihak (pemasok/pelanggan) yang sudah pernah dipakai --
