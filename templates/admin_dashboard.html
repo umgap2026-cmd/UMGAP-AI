@@ -958,7 +958,7 @@
               <div>
                 <div class="sec-title">Export Data</div>
                 <div class="sec-desc">
-                  Rekap absensi & gaji — maks 31 hari dalam 1 bulan.
+                  Rekap absensi & gaji — pilih tanggal berapa pun (maks 366 hari).
                 </div>
               </div>
               <div class="sec-chip">
@@ -1305,9 +1305,6 @@
           d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
         );
       }
-      function monthKey(s) {
-        return (s || "").slice(0, 7);
-      }
       function daysDiff(a, b) {
         return (
           Math.floor(
@@ -1322,7 +1319,6 @@
       var hintEl = document.getElementById("rangeHint");
       var btnAll = document.getElementById("btnAll");
       var btnOne = document.getElementById("btnOne");
-      var lastMonth = "";
 
       function setHint(msg, cls) {
         hintEl.className = "range-hint " + (cls || "");
@@ -1335,7 +1331,7 @@
         hintEl.innerHTML = icon + " " + msg;
       }
 
-      function validate(resetIfMonthChange) {
+      function validate() {
         var s = startEl.value,
           e = endEl.value;
         if (!s || !e) {
@@ -1343,70 +1339,54 @@
           btnAll.disabled = btnOne.disabled = true;
           return { ok: false };
         }
-        var mk = monthKey(s);
-        if (resetIfMonthChange && lastMonth && mk !== lastMonth)
-          endEl.value = s;
-        lastMonth = monthKey(startEl.value);
-        var s2 = startEl.value,
-          e2 = endEl.value;
-        if (monthKey(s2) !== monthKey(e2)) {
-          setHint("Range harus dalam bulan yang sama", "err");
-          btnAll.disabled = btnOne.disabled = true;
-          return { ok: false };
-        }
-        var d = daysDiff(s2, e2);
+        // Bebas pilih rentang tanggal berapa pun (tidak dibatasi 1 bulan
+        // kalender) -- periode gajian sering beda dgn tanggal 1-akhir bulan.
+        var d = daysDiff(s, e);
         if (d < 1) {
           setHint("Tanggal akhir harus ≥ tanggal awal", "err");
           btnAll.disabled = btnOne.disabled = true;
           return { ok: false };
         }
-        if (d > 31) {
-          setHint("Maksimal 31 hari", "warn");
+        if (d > 366) {
+          setHint("Maksimal 366 hari", "warn");
           btnAll.disabled = btnOne.disabled = true;
           return { ok: false };
         }
-        setHint("Periode: " + s2 + " s/d " + e2 + " (" + d + " hari)", "ok");
+        setHint("Periode: " + s + " s/d " + e + " (" + d + " hari)", "ok");
         btnAll.disabled = false;
         btnOne.disabled = !pickEl.value;
-        return { ok: true, start: s2, end: e2, uid: pickEl.value };
+        return { ok: true, start: s, end: e, uid: pickEl.value };
       }
 
       // default: hari ini
       (function () {
         var t = new Date();
         startEl.value = endEl.value = ymd(t);
-        lastMonth = monthKey(startEl.value);
-        validate(false);
+        validate();
       })();
 
-      startEl.addEventListener("change", function () {
-        validate(true);
-      });
-      endEl.addEventListener("change", function () {
-        validate(false);
-      });
-      pickEl.addEventListener("change", function () {
-        validate(false);
-      });
+      startEl.addEventListener("change", validate);
+      endEl.addEventListener("change", validate);
+      pickEl.addEventListener("change", validate);
 
       btnAll.addEventListener("click", function () {
-        var v = validate(false);
+        var v = validate();
         if (!v.ok) return;
         window.location.href =
-          "/admin/data/range.xlsx?start=" +
+          "/admin/data/range.xlsx?start_date=" +
           encodeURIComponent(v.start) +
-          "&end=" +
+          "&end_date=" +
           encodeURIComponent(v.end);
       });
       btnOne.addEventListener("click", function () {
-        var v = validate(false);
+        var v = validate();
         if (!v.ok || !v.uid) return;
         window.location.href =
           "/admin/data/range_user.xlsx?user_id=" +
           encodeURIComponent(v.uid) +
-          "&start=" +
+          "&start_date=" +
           encodeURIComponent(v.start) +
-          "&end=" +
+          "&end_date=" +
           encodeURIComponent(v.end);
       });
     </script>

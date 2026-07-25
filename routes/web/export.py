@@ -79,6 +79,7 @@ def style_table_range(ws, row_start, row_end, col_start, col_end):
 # EXPORT EXCEL
 # =========================
 @export_bp.route("/admin/data/range.xlsx")
+@export_bp.route("/admin/data/range_user.xlsx")
 def export_range():
     deny = admin_required()
     if deny:
@@ -86,8 +87,12 @@ def export_range():
 
     ensure_hr_v2_schema()
 
-    start_str = (request.args.get("start_date") or "").strip()
-    end_str = (request.args.get("end_date") or "").strip()
+    # Terima start_date/end_date (nama resmi) ATAU start/end (dipakai UI
+    # admin_dashboard.html) -- sebelumnya mismatch nama ini bikin filter
+    # tanggal dari UI tidak pernah benar-benar kepakai.
+    start_str = (request.args.get("start_date") or request.args.get("start") or "").strip()
+    end_str = (request.args.get("end_date") or request.args.get("end") or "").strip()
+    user_id_str = (request.args.get("user_id") or "").strip()
 
     start_date = _parse_date(start_str)
     end_date = _parse_date(end_str)
@@ -100,11 +105,13 @@ def export_range():
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 
+    user_id = int(user_id_str) if user_id_str.isdigit() else None
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Ambil user employee
+        # Ambil user employee (atau 1 orang saja kalau user_id diisi)
         cur.execute("""
             SELECT
                 u.id,
@@ -114,11 +121,12 @@ def export_range():
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
             WHERE u.role = 'employee'
+              AND (%s::int IS NULL OR u.id = %s::int)
             ORDER BY u.name ASC;
-        """)
+        """, (user_id, user_id))
         employees = cur.fetchall()
 
-        # Ambil absensi rentang tanggal
+        # Ambil absensi rentang tanggal (termasuk jam pulang/checkout_at)
         cur.execute("""
             SELECT
                 a.user_id,
@@ -126,7 +134,8 @@ def export_range():
                 a.status,
                 a.arrival_type,
                 a.note,
-                a.checkin_at
+                a.checkin_at,
+                a.checkout_at
             FROM attendance a
             WHERE a.work_date >= %s
               AND a.work_date <= %s
@@ -155,7 +164,7 @@ def export_range():
     current_row = 1
 
     title = f"LAPORAN ABSENSI KARYAWAN ({start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')})"
-    ws1.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=7)
+    ws1.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
     c = ws1.cell(current_row, 1, title)
     c.fill = FILL_TITLE
     c.font = FONT_TITLE
@@ -172,7 +181,7 @@ def export_range():
         emp_name = emp["name"]
 
         # Header user
-        ws1.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=7)
+        ws1.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
         c = ws1.cell(current_row, 1, f"{idx}. {emp_name}")
         c.fill = FILL_SUBHEADER
         c.font = Font(bold=True, size=12)
@@ -180,7 +189,7 @@ def export_range():
         c.border = BORDER
         current_row += 1
 
-        headers = ["No", "Tanggal", "Hari", "Status", "Tipe Datang", "Jam Masuk", "Catatan"]
+        headers = ["No", "Tanggal", "Hari", "Status", "Tipe Datang", "Jam Masuk", "Jam Pulang", "Catatan"]
         for col, h in enumerate(headers, start=1):
             cell = ws1.cell(current_row, col, h)
             cell.fill = FILL_HEADER
@@ -202,13 +211,20 @@ def export_range():
             status = row["status"] if row else "-"
             arrival_type = row["arrival_type"] if row and row.get("arrival_type") else "-"
             note = row["note"] if row and row.get("note") else ""
+            # checkin_at/checkout_at disimpan sbg WIB naive (_now_wib_naive di
+            # core.py) -- TANPA offset tambahan, beda dgn kolom UTC lainnya.
             checkin = ""
-
             if row and row.get("checkin_at"):
                 try:
-                    checkin = (row["checkin_at"] + timedelta(hours=7)).strftime("%H:%M")
+                    checkin = row["checkin_at"].strftime("%H:%M")
                 except Exception:
                     checkin = str(row["checkin_at"])
+            checkout = ""
+            if row and row.get("checkout_at"):
+                try:
+                    checkout = row["checkout_at"].strftime("%H:%M")
+                except Exception:
+                    checkout = str(row["checkout_at"])
 
             if status == "PRESENT":
                 present_count += 1
@@ -229,13 +245,14 @@ def export_range():
                 status,
                 arrival_type,
                 checkin,
+                checkout,
                 note,
             ]
 
             for col, val in enumerate(values, start=1):
                 cell = ws1.cell(current_row, col, val)
                 cell.border = BORDER
-                cell.alignment = ALIGN_CENTER if col != 7 else ALIGN_LEFT
+                cell.alignment = ALIGN_CENTER if col != 8 else ALIGN_LEFT
 
             current_row += 1
 
@@ -259,14 +276,15 @@ def export_range():
             cell.border = BORDER
             cell.alignment = ALIGN_CENTER
 
-        ws1.cell(current_row, 7, "").fill = FILL_TOTAL
-        ws1.cell(current_row, 7).border = BORDER
+        for i in (7, 8):
+            ws1.cell(current_row, i, "").fill = FILL_TOTAL
+            ws1.cell(current_row, i).border = BORDER
 
         current_row += 2
 
     ws1.freeze_panes = "A3"
     auto_fit(ws1, min_width=10, max_width=24)
-    ws1.column_dimensions["G"].width = 28
+    ws1.column_dimensions["H"].width = 28
 
     # =========================
     # SHEET 2 - REKAP GAJI
