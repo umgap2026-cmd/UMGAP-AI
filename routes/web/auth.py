@@ -299,6 +299,11 @@ def forgot_send_otp():
             send_wa(phone, msg)
 
             return jsonify(ok=True, message="OTP dikirim ke WhatsApp.", masked=_mask_wa(phone))
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        print(f"[FORGOT SEND OTP] {traceback.format_exc()}")
+        return jsonify(ok=False, message=f"Server error: {str(e)}"), 500
     finally:
         cur.close()
         conn.close()
@@ -383,6 +388,11 @@ def forgot_verify_otp():
             """, (reset_token, row["id"]))
             conn.commit()
             return jsonify(ok=True, message="OTP valid.", reset_token=reset_token)
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        print(f"[FORGOT VERIFY OTP] {traceback.format_exc()}")
+        return jsonify(ok=False, message=f"Server error: {str(e)}"), 500
     finally:
         cur.close()
         conn.close()
@@ -427,6 +437,11 @@ def forgot_set_password():
         cur.execute("DELETE FROM password_reset_otps WHERE reset_token=%s;", (reset_token,))
         conn.commit()
         return jsonify(ok=True, message="Password berhasil diubah.")
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        print(f"[FORGOT SET PASSWORD] {traceback.format_exc()}")
+        return jsonify(ok=False, message=f"Server error: {str(e)}"), 500
     finally:
         cur.close()
         conn.close()
