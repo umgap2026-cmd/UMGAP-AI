@@ -354,6 +354,13 @@
   .log-name { font-size: 13px; font-weight: 900; margin-top: 6px; }
   .log-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .log-by { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
+  .pgn-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+  .pgn-btn {
+    border: none; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+    background: #eef2ff; color: var(--blue); text-decoration: none; cursor: pointer; font-family: inherit;
+  }
+  .pgn-btn.off { opacity: 0.4; pointer-events: none; }
+  .pgn-cur { font-size: 12px; font-weight: 800; color: var(--muted); }
 </style>
 
 
@@ -881,7 +888,7 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title">📜 Log Aktivitas</div>
-        <div class="sec-desc">Riwayat tambah/ubah/hapus barang &amp; perubahan stok, {{ activity_log|length }} catatan terakhir</div>
+        <div class="sec-desc">Riwayat tambah/ubah/hapus barang &amp; perubahan stok — halaman {{ log_page }}</div>
       </div>
       <div class="log-list">
         {% for l in activity_log %}
@@ -898,6 +905,21 @@
         <p class="empty-hint">Belum ada aktivitas tercatat.</p>
         {% endfor %}
       </div>
+      {% if log_has_prev or log_has_next %}
+      <div class="pgn-row">
+        {% if log_has_prev %}
+        <a class="pgn-btn" href="/finance?log_page={{ log_page - 1 }}#log">← Sebelumnya</a>
+        {% else %}
+        <span class="pgn-btn off">← Sebelumnya</span>
+        {% endif %}
+        <span class="pgn-cur">Halaman {{ log_page }}</span>
+        {% if log_has_next %}
+        <a class="pgn-btn" href="/finance?log_page={{ log_page + 1 }}#log">Selanjutnya →</a>
+        {% else %}
+        <span class="pgn-btn off">Selanjutnya →</span>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
     </div>
     <!-- /tab-panel log -->
@@ -1169,6 +1191,9 @@
     document.querySelectorAll(".tab-btn").forEach(function (b) {
       b.addEventListener("click", function () { activateTab(b.getAttribute("data-tab")); });
     });
+    // Kalau baru pindah halaman log (?log_page=...), langsung buka tab Log
+    // supaya tidak balik ke tab default & kehilangan posisi.
+    if (window.location.search.indexOf("log_page=") !== -1) activateTab("log");
     document.querySelectorAll(".stat-pill[data-jump]").forEach(function (p) {
       p.addEventListener("click", function () {
         activateTab(p.getAttribute("data-jump"));

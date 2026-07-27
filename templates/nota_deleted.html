@@ -184,6 +184,13 @@
   tbody tr:hover { background: #f7f9ff; }
   td .muted { color: var(--muted); }
   td strong { font-weight: 900; }
+  .pgn-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+  .pgn-btn {
+    border: none; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+    background: #eef2ff; color: var(--blue); text-decoration: none; cursor: pointer; font-family: inherit;
+  }
+  .pgn-btn.off { opacity: 0.4; pointer-events: none; }
+  .pgn-cur { font-size: 12px; font-weight: 800; color: var(--muted); }
 </style>
 
 <div class="screen">
@@ -218,7 +225,7 @@
       </div>
       <div class="hero-right">
         <div class="total-badge">
-          <div class="total-val" id="heroTotal" data-count="{{ deleted|length }}">0</div>
+          <div class="total-val" id="heroTotal" data-count="{{ total_deleted }}">0</div>
           <div class="total-lbl">Nota di Arsip</div>
         </div>
       </div>
@@ -240,7 +247,7 @@
     <div class="main-card fade-up d2">
       <div class="inner">
         <div class="sec-title">🗑️ Daftar Nota Terhapus</div>
-        <div class="sec-desc">{{ deleted|length }} nota &bull; hapus permanen tidak bisa dibatalkan</div>
+        <div class="sec-desc">{{ total_deleted }} nota &bull; hapus permanen tidak bisa dibatalkan</div>
       </div>
 
       <!-- MOBILE cards -->
@@ -311,6 +318,22 @@
         </table>
         {% else %}
         <p class="empty-hint">Belum ada nota yang dihapus.</p>
+        {% endif %}
+
+        {% if has_prev or has_next %}
+        <div class="pgn-row">
+          {% if has_prev %}
+          <a class="pgn-btn" href="/nota/deleted?page={{ page - 1 }}">← Sebelumnya</a>
+          {% else %}
+          <span class="pgn-btn off">← Sebelumnya</span>
+          {% endif %}
+          <span class="pgn-cur">Halaman {{ page }}</span>
+          {% if has_next %}
+          <a class="pgn-btn" href="/nota/deleted?page={{ page + 1 }}">Selanjutnya →</a>
+          {% else %}
+          <span class="pgn-btn off">Selanjutnya →</span>
+          {% endif %}
+        </div>
         {% endif %}
       </div>
     </div>

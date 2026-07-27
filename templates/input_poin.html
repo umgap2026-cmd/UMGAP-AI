@@ -383,6 +383,13 @@
           font-size: 12px;
         }
       }
+      .pgn-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+      .pgn-btn {
+        border: none; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+        background: #eef2ff; color: var(--blue); text-decoration: none; cursor: pointer; font-family: inherit;
+      }
+      .pgn-btn.off { opacity: 0.4; pointer-events: none; }
+      .pgn-cur { font-size: 12px; font-weight: 800; color: var(--muted); }
     </style>
   </head>
 
@@ -501,7 +508,7 @@
             <h3 class="title" style="font-size: 16px">
               Riwayat Perubahan Poin
             </h3>
-            <p class="desc">Log 50 terakhir.</p>
+            <p class="desc">Halaman {{ log_page }}.</p>
 
             <div class="table-wrap" style="margin-top: 10px">
               <table>
@@ -531,6 +538,22 @@
                 </tbody>
               </table>
             </div>
+
+            {% if log_has_prev or log_has_next %}
+            <div class="pgn-row">
+              {% if log_has_prev %}
+              <a class="pgn-btn" href="/admin/points?log_page={{ log_page - 1 }}">← Sebelumnya</a>
+              {% else %}
+              <span class="pgn-btn off">← Sebelumnya</span>
+              {% endif %}
+              <span class="pgn-cur">Halaman {{ log_page }}</span>
+              {% if log_has_next %}
+              <a class="pgn-btn" href="/admin/points?log_page={{ log_page + 1 }}">Selanjutnya →</a>
+              {% else %}
+              <span class="pgn-btn off">Selanjutnya →</span>
+              {% endif %}
+            </div>
+            {% endif %}
           </div>
         </div>
 

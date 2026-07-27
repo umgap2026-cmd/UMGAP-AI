@@ -357,8 +357,10 @@ def _log_fin_activity(cur, action, material_id, material_name, detail, created_b
     """, (action, material_id, material_name, detail, created_by))
 
 
-def list_fin_activity_log(limit=200):
-    """Riwayat aktivitas barang gudang terbaru duluan, dengan nama pelaku."""
+def list_fin_activity_log(limit=50, offset=0):
+    """Riwayat aktivitas barang gudang terbaru duluan, dengan nama pelaku.
+    Return (rows, has_next) -- ambil limit+1 baris utk tahu ada halaman
+    berikutnya tanpa query COUNT(*) terpisah."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -372,9 +374,11 @@ def list_fin_activity_log(limit=200):
             FROM fin_activity_log l
             LEFT JOIN users u ON u.id = l.created_by
             ORDER BY l.created_at DESC
-            LIMIT %s;
-        """, (limit,))
-        return [dict(r) for r in cur.fetchall()]
+            LIMIT %s OFFSET %s;
+        """, (limit + 1, offset))
+        rows = [dict(r) for r in cur.fetchall()]
+        has_next = len(rows) > limit
+        return rows[:limit], has_next
     finally:
         cur.close()
         conn.close()
@@ -2922,13 +2926,21 @@ def delete_nota_transaction(txn_id, mode, reason, deleted_by):
         conn.close()
 
 
-def list_deleted_nota():
-    """Daftar nota yang sudah dihapus/dibatalkan — arsip khusus owner."""
+def list_deleted_nota(limit=50, offset=0):
+    """Daftar nota yang sudah dihapus/dibatalkan — arsip khusus owner.
+    Return (rows, has_next, total) -- ambil limit+1 baris utk tahu ada
+    halaman berikutnya tanpa query COUNT(*) terpisah utk itu; total tetap
+    dihitung terpisah krn dipakai angka ringkasan di hero card."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
         conn.commit()
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM fin_transactions
+            WHERE type IN ('JUAL_INVOICE', 'BELI_GUDANG') AND cancelled_at IS NOT NULL;
+        """)
+        total = (cur.fetchone() or {}).get("cnt", 0)
         cur.execute("""
             SELECT
                 t.id, t.type, t.note, t.party_name, t.total_amount,
@@ -2942,15 +2954,18 @@ def list_deleted_nota():
             LEFT JOIN users u ON u.id = t.cancelled_by
             WHERE t.type IN ('JUAL_INVOICE', 'BELI_GUDANG')
               AND t.cancelled_at IS NOT NULL
-            ORDER BY t.cancelled_at DESC;
-        """)
+            ORDER BY t.cancelled_at DESC
+            LIMIT %s OFFSET %s;
+        """, (limit + 1, offset))
         rows = [dict(r) for r in cur.fetchall()]
+        has_next = len(rows) > limit
+        rows = rows[:limit]
         for r in rows:
             invoice_no, payment_method, _extra = _parse_nota_note(r.get("note"))
             r["invoice_no"] = invoice_no
             r["payment_method"] = payment_method
             r["grand_total"] = float(r.get("total_amount") or 0)
-        return rows
+        return rows, has_next, total
     finally:
         cur.close()
         conn.close()

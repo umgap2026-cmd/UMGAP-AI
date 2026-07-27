@@ -419,6 +419,45 @@
     margin-top: 5px;
   }
 
+  /* list-of-value: pemilihan karyawan yang bisa dicari (bukan <select> polos) */
+  .lov { position: relative; }
+  .lov-btn {
+    width: 100%; border: none; outline: none; border-radius: 13px;
+    background: #f2f5fb; box-shadow: var(--soft-in); padding: 13px 14px;
+    font-size: 14px; color: var(--text); font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+  }
+  .lov-btn.placeholder { color: var(--muted); }
+  .lov-btn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .lov-btn .care { font-size: 10px; color: var(--muted); flex: 0 0 auto; transition: transform 0.15s; }
+  .lov.open .lov-btn .care { transform: rotate(180deg); }
+  .lov-panel {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+    background: #fff; border-radius: 14px; box-shadow: var(--shadow-out);
+    border: 1px solid rgba(37, 99, 235, 0.08); overflow: hidden;
+  }
+  .lov.open .lov-panel { display: block; }
+  .lov-search-wrap { padding: 8px; border-bottom: 1px solid rgba(125, 138, 166, 0.14); }
+  .lov-search {
+    width: 100%; border: none; outline: none; border-radius: 10px; background: #f2f5fb;
+    padding: 9px 12px; font-size: 13px; color: var(--text); font-family: inherit;
+  }
+  .lov-list { max-height: 240px; overflow-y: auto; }
+  .lov-item { padding: 11px 14px; font-size: 13px; color: var(--text); cursor: pointer; transition: background 0.12s; border-bottom: 1px solid rgba(125, 138, 166, 0.1); }
+  .lov-item:last-child { border-bottom: none; }
+  .lov-item:hover { background: #eef2ff; }
+  .lov-item .stk { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
+  .lov-empty { padding: 16px 14px; text-align: center; font-size: 12px; color: var(--muted); }
+
+  /* pagination (dipakai di halaman riwayat/log supaya tidak sepanjang itu) */
+  .pgn-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+  .pgn-btn {
+    border: none; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+    background: #eef2ff; color: var(--blue); text-decoration: none; cursor: pointer; font-family: inherit;
+  }
+  .pgn-btn.off { opacity: 0.4; pointer-events: none; }
+  .pgn-cur { font-size: 12px; font-weight: 800; color: var(--muted); }
+
   /* arrival type toggle */
   .atype-grid {
     display: grid;
@@ -999,11 +1038,27 @@
             <input type="hidden" name="client_ts" class="clientTs" value="" />
             <div class="field">
               <label>Pilih Karyawan</label>
-              <select name="user_id" required>
-                {% for e in employees %}
-                <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
-                {% endfor %}
-              </select>
+              <div class="lov emp-lov" data-value="">
+                <button type="button" class="lov-btn placeholder">
+                  <span class="lov-btn-text">— Pilih Karyawan —</span>
+                  <span class="care">▾</span>
+                </button>
+                <div class="lov-panel">
+                  <div class="lov-search-wrap">
+                    <input type="text" class="lov-search" placeholder="Cari nama karyawan…" autocomplete="off" />
+                  </div>
+                  <div class="lov-list">
+                    {% for e in employees %}
+                    <div class="lov-item" data-id="{{ e.id }}" data-search="{{ (e.name ~ ' ' ~ e.email)|lower }}">
+                      {{ e.name }}
+                      <span class="stk">{{ e.email }}</span>
+                    </div>
+                    {% endfor %}
+                    <div class="lov-empty" style="display: none">Karyawan tidak ditemukan</div>
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" name="user_id" class="emp-lov-input" required />
             </div>
             <div class="field">
               <label>Jam Kehadiran (Opsional)</label>
@@ -1099,11 +1154,27 @@
         <form method="POST" action="/admin/attendance/checkout-employee" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap">
           <div class="field" style="flex: 1; min-width: 220px; margin-bottom: 0">
             <label>Pilih Karyawan</label>
-            <select name="user_id" required>
-              {% for e in employees %}
-              <option value="{{ e.id }}">{{ e.name }} ({{ e.email }})</option>
-              {% endfor %}
-            </select>
+            <div class="lov emp-lov" data-value="">
+              <button type="button" class="lov-btn placeholder">
+                <span class="lov-btn-text">— Pilih Karyawan —</span>
+                <span class="care">▾</span>
+              </button>
+              <div class="lov-panel">
+                <div class="lov-search-wrap">
+                  <input type="text" class="lov-search" placeholder="Cari nama karyawan…" autocomplete="off" />
+                </div>
+                <div class="lov-list">
+                  {% for e in employees %}
+                  <div class="lov-item" data-id="{{ e.id }}" data-search="{{ (e.name ~ ' ' ~ e.email)|lower }}">
+                    {{ e.name }}
+                    <span class="stk">{{ e.email }}</span>
+                  </div>
+                  {% endfor %}
+                  <div class="lov-empty" style="display: none">Karyawan tidak ditemukan</div>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" name="user_id" class="emp-lov-input" required />
           </div>
           <button class="btn-submit" type="submit" style="width: auto; height: 50px; padding: 0 22px; margin: 0; background: linear-gradient(180deg, #059669 0%, #047857 100%); box-shadow: 0 10px 20px rgba(5,150,105,0.22)">
             <svg viewBox="0 0 24 24">
@@ -1308,6 +1379,22 @@
             </tbody>
           </table>
         </div>
+
+        {% if has_prev or has_next %}
+        <div class="pgn-row">
+          {% if has_prev %}
+          <a class="pgn-btn" href="/admin/attendance?page={{ page - 1 }}">← Sebelumnya</a>
+          {% else %}
+          <span class="pgn-btn off">← Sebelumnya</span>
+          {% endif %}
+          <span class="pgn-cur">Halaman {{ page }}</span>
+          {% if has_next %}
+          <a class="pgn-btn" href="/admin/attendance?page={{ page + 1 }}">Selanjutnya →</a>
+          {% else %}
+          <span class="pgn-btn off">Selanjutnya →</span>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -1339,6 +1426,74 @@
     }
     syncTs();
     setInterval(syncTs, 1000);
+
+    /* LOV: pilih karyawan yang bisa dicari (ganti <select> polos) */
+    document.querySelectorAll(".emp-lov").forEach(function (wrap) {
+      var btn = wrap.querySelector(".lov-btn");
+      var btnText = wrap.querySelector(".lov-btn-text");
+      var search = wrap.querySelector(".lov-search");
+      var empty = wrap.querySelector(".lov-empty");
+      var hidden = wrap.parentElement.querySelector(".emp-lov-input");
+
+      function closeOthers() {
+        document.querySelectorAll(".lov.open").forEach(function (o) {
+          if (o !== wrap) o.classList.remove("open");
+        });
+      }
+      function openPanel() {
+        closeOthers();
+        wrap.classList.add("open");
+        search.value = "";
+        filter("");
+        setTimeout(function () { search.focus(); }, 0);
+      }
+      function closePanel() { wrap.classList.remove("open"); }
+      function filter(q) {
+        q = q.trim().toLowerCase();
+        var any = false;
+        wrap.querySelectorAll(".lov-item").forEach(function (el) {
+          var match = !q || (el.getAttribute("data-search") || "").indexOf(q) !== -1;
+          el.style.display = match ? "" : "none";
+          if (match) any = true;
+        });
+        if (empty) empty.style.display = any ? "none" : "block";
+      }
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (wrap.classList.contains("open")) closePanel(); else openPanel();
+      });
+      search.addEventListener("input", function () { filter(search.value); });
+      search.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") e.preventDefault();
+        if (e.key === "Escape") closePanel();
+      });
+      wrap.querySelectorAll(".lov-item").forEach(function (it) {
+        it.addEventListener("click", function () {
+          var id = it.getAttribute("data-id");
+          var name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
+          wrap.setAttribute("data-value", id);
+          if (hidden) hidden.value = id;
+          btnText.textContent = name;
+          btn.classList.remove("placeholder");
+          closePanel();
+        });
+      });
+    });
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll(".lov.open").forEach(function (w) {
+        if (!w.contains(e.target)) w.classList.remove("open");
+      });
+    });
+    document.querySelectorAll("form").forEach(function (f) {
+      var need = f.querySelector(".emp-lov-input");
+      if (!need) return;
+      f.addEventListener("submit", function (e) {
+        if (!need.value) {
+          e.preventDefault();
+          alert("Pilih karyawan dulu.");
+        }
+      });
+    });
 
     /* search + filter */
     var searchEl = document.getElementById("historySearch");

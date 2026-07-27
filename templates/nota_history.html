@@ -237,6 +237,13 @@
   .del-radio input { accent-color: var(--blue); }
   .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
   .pill-btn.danger:hover { background: rgba(185, 28, 28, 0.18); }
+  .pgn-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+  .pgn-btn {
+    border: none; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+    background: #eef2ff; color: var(--blue); text-decoration: none; cursor: pointer; font-family: inherit;
+  }
+  .pgn-btn.off { opacity: 0.4; pointer-events: none; }
+  .pgn-cur { font-size: 12px; font-weight: 800; color: var(--muted); }
 </style>
 
 <div class="screen">
@@ -413,6 +420,23 @@
         </table>
         {% else %}
         <p class="empty-hint">Belum ada nota yang cocok dengan filter ini.</p>
+        {% endif %}
+
+        {% if has_prev or has_next %}
+        {% set qs = "q=" ~ q|urlencode ~ "&type=" ~ type_f|urlencode ~ "&status=" ~ status_f|urlencode ~ "&date_from=" ~ date_from|urlencode ~ "&date_to=" ~ date_to|urlencode %}
+        <div class="pgn-row">
+          {% if has_prev %}
+          <a class="pgn-btn" href="/nota?{{ qs }}&page={{ page - 1 }}">← Sebelumnya</a>
+          {% else %}
+          <span class="pgn-btn off">← Sebelumnya</span>
+          {% endif %}
+          <span class="pgn-cur">Halaman {{ page }}</span>
+          {% if has_next %}
+          <a class="pgn-btn" href="/nota?{{ qs }}&page={{ page + 1 }}">Selanjutnya →</a>
+          {% else %}
+          <span class="pgn-btn off">Selanjutnya →</span>
+          {% endif %}
+        </div>
         {% endif %}
       </div>
     </div>

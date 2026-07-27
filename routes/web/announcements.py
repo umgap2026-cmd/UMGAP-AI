@@ -40,24 +40,39 @@ def mark_notification_read(ann_id):
     return redirect("/notifications")
 
 
+ANNOUNCEMENTS_PAGE_SIZE = 50
+
+
 @announcements_bp.route("/admin/announcements")
 def admin_announcements():
     if session.get("role") != "admin":
         return abort(403)
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+
     conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
             SELECT id, title, message, body,
                 created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta' AS created_at,
                 created_by, is_active
-            FROM announcements 
-            WHERE is_active = TRUE 
-            ORDER BY created_at DESC;
-        """)
+            FROM announcements
+            WHERE is_active = TRUE
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s;
+        """, (ANNOUNCEMENTS_PAGE_SIZE + 1, (page - 1) * ANNOUNCEMENTS_PAGE_SIZE))
         data = cur.fetchall()
+        has_next = len(data) > ANNOUNCEMENTS_PAGE_SIZE
+        data = data[:ANNOUNCEMENTS_PAGE_SIZE]
     finally:
         cur.close(); conn.close()
-    return render_template("admin_announcements.html", data=data)
+    return render_template(
+        "admin_announcements.html", data=data,
+        page=page, has_next=has_next, has_prev=page > 1,
+    )
 
 
 @announcements_bp.route("/admin/announcements/add", methods=["POST"])

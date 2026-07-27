@@ -15,6 +15,9 @@ from core import (
 attendance_bp = Blueprint("attendance", __name__)
 
 
+ATTENDANCE_PAGE_SIZE = 30
+
+
 @attendance_bp.route("/attendance")
 def attendance_page():
     if not is_logged_in():
@@ -22,6 +25,12 @@ def attendance_page():
 
     if is_admin():
         return redirect("/admin")
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    offset = (page - 1) * ATTENDANCE_PAGE_SIZE
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -31,20 +40,37 @@ def attendance_page():
         _ensure_attendance_checkout_column(cur)
         conn.commit()
 
+        # Ambil 1 baris lebih dari page size utk tahu ada halaman
+        # berikutnya atau tidak, tanpa query COUNT(*) terpisah.
         cur.execute("""
             SELECT work_date, arrival_type, status, note, checkin_at, checkout_at, checkout_auto
             FROM attendance
             WHERE user_id=%s
-            ORDER BY work_date DESC, checkin_at DESC NULLS LAST;
-        """, (session["user_id"],))
+            ORDER BY work_date DESC, checkin_at DESC NULLS LAST
+            LIMIT %s OFFSET %s;
+        """, (session["user_id"], ATTENDANCE_PAGE_SIZE + 1, offset))
         rows = cur.fetchall()
+        has_next = len(rows) > ATTENDANCE_PAGE_SIZE
+        rows = rows[:ATTENDANCE_PAGE_SIZE]
+
+        # today_row dipakai widget status hari ini di luar tabel riwayat --
+        # HARUS selalu benar terlepas dari halaman mana yang sedang dibuka,
+        # jadi dicari terpisah dari rows kalau tidak ketemu di halaman ini.
+        today_row = next((r for r in rows if r["work_date"] == date.today()), None)
+        if today_row is None:
+            cur.execute("""
+                SELECT work_date, arrival_type, status, note, checkin_at, checkout_at, checkout_auto
+                FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;
+            """, (session["user_id"], date.today()))
+            today_row = cur.fetchone()
     finally:
         cur.close()
         conn.close()
 
-    today_row = next((r for r in rows if r["work_date"] == date.today()), None)
-
-    return render_template("attendance.html", rows=rows, today_row=today_row)
+    return render_template(
+        "attendance.html", rows=rows, today_row=today_row,
+        page=page, has_next=has_next, has_prev=page > 1,
+    )
 
 
 @attendance_bp.route("/attendance/checkout", methods=["POST"])

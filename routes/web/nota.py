@@ -311,11 +311,16 @@ def nota_history():
     status_f = (request.args.get("status") or "").strip().upper()
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    page_size = 50
 
     invoices, total = get_invoice_history(
         q=q, type_f=type_f, status_f=status_f,
         date_from=date_from, date_to=date_to,
-        limit=200, offset=0,
+        limit=page_size, offset=(page - 1) * page_size,
     )
 
     return render_template(
@@ -325,6 +330,9 @@ def nota_history():
         q=q, type_f=type_f, status_f=status_f,
         date_from=date_from, date_to=date_to,
         notif_count=get_notif_count(),
+        page=page,
+        has_prev=page > 1,
+        has_next=(page * page_size) < total,
     )
 
 
@@ -505,10 +513,21 @@ def nota_deleted():
     if deny:
         return deny
 
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    page_size = 50
+    deleted, has_next, total_deleted = list_deleted_nota(limit=page_size, offset=(page - 1) * page_size)
+
     return render_template(
         "nota_deleted.html",
-        deleted=list_deleted_nota(),
+        deleted=deleted,
+        total_deleted=total_deleted,
         notif_count=get_notif_count(),
+        page=page,
+        has_next=has_next,
+        has_prev=page > 1,
     )
 
 

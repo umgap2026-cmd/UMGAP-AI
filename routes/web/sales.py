@@ -94,11 +94,19 @@ def sales_user():
 
 
 # ---------- ADMIN SALES ----------
+ADMIN_SALES_PAGE_SIZE = 50
+
+
 @sales_bp.route("/admin/sales")
 def admin_sales():
     deny = admin_guard()
     if deny:
         return deny
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -121,14 +129,19 @@ def admin_sales():
             ORDER BY
                 (CASE WHEN s.status='PENDING' THEN 0 ELSE 1 END),
                 s.created_at DESC
-            LIMIT 300;
-        """)
+            LIMIT %s OFFSET %s;
+        """, (ADMIN_SALES_PAGE_SIZE + 1, (page - 1) * ADMIN_SALES_PAGE_SIZE))
         rows = cur.fetchall()
+        has_next = len(rows) > ADMIN_SALES_PAGE_SIZE
+        rows = rows[:ADMIN_SALES_PAGE_SIZE]
     finally:
         cur.close()
         conn.close()
 
-    return render_template("admin_sales.html", rows=rows)
+    return render_template(
+        "admin_sales.html", rows=rows, page=page,
+        has_next=has_next, has_prev=page > 1,
+    )
 
 
 @sales_bp.route("/admin/sales/approve/<int:sid>", methods=["POST"])
@@ -189,11 +202,19 @@ def admin_sales_reject(sid):
     return redirect("/admin/sales")
 
 
+SALES_MONITOR_PAGE_SIZE = 50
+
+
 @sales_bp.route("/admin/sales/monitor")
 def admin_sales_monitor():
     deny = admin_guard()
     if deny:
         return deny
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -227,11 +248,16 @@ def admin_sales_monitor():
             JOIN users u ON u.id = s.user_id
             LEFT JOIN products p ON p.id = s.product_id
             ORDER BY s.created_at DESC
-            LIMIT 200;
-        """)
+            LIMIT %s OFFSET %s;
+        """, (SALES_MONITOR_PAGE_SIZE + 1, (page - 1) * SALES_MONITOR_PAGE_SIZE))
         rows = cur.fetchall()
+        has_next = len(rows) > SALES_MONITOR_PAGE_SIZE
+        rows = rows[:SALES_MONITOR_PAGE_SIZE]
     finally:
         cur.close()
         conn.close()
 
-    return render_template("admin_sales_monitor.html", summary=summary, rows=rows)
+    return render_template(
+        "admin_sales_monitor.html", summary=summary, rows=rows,
+        page=page, has_next=has_next, has_prev=page > 1,
+    )

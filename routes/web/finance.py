@@ -34,10 +34,18 @@ def finance_dashboard():
     if deny:
         return deny
 
+    try:
+        log_page = max(1, int(request.args.get("log_page", 1)))
+    except (TypeError, ValueError):
+        log_page = 1
+    log_page_size = 50
+
     materials, total_value = list_fin_materials()
     debts = list_fin_debts()
     categories = list_fin_categories()
-    activity_log = list_fin_activity_log()
+    activity_log, log_has_next = list_fin_activity_log(
+        limit=log_page_size, offset=(log_page - 1) * log_page_size,
+    )
     expenses = list_fin_expenses()
     expense_categories = list_fin_expense_categories()
     expense_total = sum(float(e["total_amount"] or 0) for e in expenses)
@@ -49,6 +57,9 @@ def finance_dashboard():
         debts=debts,
         categories=categories,
         activity_log=activity_log,
+        log_page=log_page,
+        log_has_next=log_has_next,
+        log_has_prev=log_page > 1,
         expenses=expenses,
         expense_categories=expense_categories,
         expense_total=expense_total,

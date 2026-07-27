@@ -537,11 +537,20 @@ def admin_attendance_reject():
 
     return redirect("/admin/attendance-approval")
 
+ATTENDANCE_PAGE_SIZE = 50
+
+
 @admin_bp.route("/admin/attendance")
 def admin_attendance():
     r = admin_guard()
     if r:
         return r
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    offset = (page - 1) * ATTENDANCE_PAGE_SIZE
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -550,18 +559,25 @@ def admin_attendance():
     conn.commit()
     cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
     employees = cur.fetchall()
+    # Ambil 1 baris lebih dari page size utk tahu apakah masih ada halaman
+    # berikutnya, tanpa perlu query COUNT(*) terpisah.
     cur.execute("""
         SELECT a.work_date, a.arrival_type, a.status, a.note, a.checkin_at,
                a.checkout_at, a.checkout_auto, u.name AS employee_name
         FROM attendance a
         JOIN users u ON u.id=a.user_id
         ORDER BY a.work_date DESC, a.checkin_at DESC NULLS LAST
-        LIMIT 80;
-    """)
+        LIMIT %s OFFSET %s;
+    """, (ATTENDANCE_PAGE_SIZE + 1, offset))
     rows = cur.fetchall()
+    has_next = len(rows) > ATTENDANCE_PAGE_SIZE
+    rows = rows[:ATTENDANCE_PAGE_SIZE]
     cur.close()
     conn.close()
-    return render_template("admin_attendance.html", employees=employees, rows=rows)
+    return render_template(
+        "admin_attendance.html", employees=employees, rows=rows,
+        page=page, has_next=has_next, has_prev=page > 1,
+    )
 
 @admin_bp.route("/admin/attendance/add", methods=["POST"])
 def admin_attendance_add():

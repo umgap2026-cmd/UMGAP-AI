@@ -7,12 +7,19 @@ from core import admin_required
 
 points_bp = Blueprint("points", __name__)
 
+POINTS_LOG_PAGE_SIZE = 50
+
 
 @points_bp.route("/admin/points")
 def admin_points():
     deny = admin_required()
     if deny:
         return deny
+
+    try:
+        log_page = max(1, int(request.args.get("log_page", 1)))
+    except (TypeError, ValueError):
+        log_page = 1
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -32,16 +39,22 @@ def admin_points():
         FROM points_logs l
         JOIN users u ON u.id=l.user_id
         JOIN users a ON a.id=l.admin_id
-        ORDER BY l.created_at DESC LIMIT 50;
-    """)
+        ORDER BY l.created_at DESC
+        LIMIT %s OFFSET %s;
+    """, (POINTS_LOG_PAGE_SIZE + 1, (log_page - 1) * POINTS_LOG_PAGE_SIZE))
     logs = cur.fetchall()
+    log_has_next = len(logs) > POINTS_LOG_PAGE_SIZE
+    logs = logs[:POINTS_LOG_PAGE_SIZE]
 
     cur.close()
     conn.close()
 
     return render_template("input_poin.html",
         employees=employees,
-        logs=logs
+        logs=logs,
+        log_page=log_page,
+        log_has_next=log_has_next,
+        log_has_prev=log_page > 1,
     )
 
 

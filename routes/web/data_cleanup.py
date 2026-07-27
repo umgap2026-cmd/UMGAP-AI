@@ -151,6 +151,12 @@ def data_cleanup_page():
 
     _ensure_audit_schema()
 
+    try:
+        log_page = max(1, int(request.args.get("log_page", 1)))
+    except (TypeError, ValueError):
+        log_page = 1
+    log_page_size = 25
+
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -159,9 +165,11 @@ def data_cleanup_page():
             FROM admin_delete_logs dl
             LEFT JOIN users u ON u.id = dl.admin_id
             ORDER BY dl.deleted_at DESC
-            LIMIT 50;
-        """)
+            LIMIT %s OFFSET %s;
+        """, (log_page_size + 1, (log_page - 1) * log_page_size))
         logs = [dict(r) for r in cur.fetchall()]
+        log_has_next = len(logs) > log_page_size
+        logs = logs[:log_page_size]
         for log in logs:
             if log.get("deleted_at"):
                 log["deleted_at"] = log["deleted_at"].strftime("%d/%m/%Y %H:%M")
@@ -201,6 +209,9 @@ def data_cleanup_page():
         "admin_data_cleanup.html",
         targets     = CLEANUP_TARGETS,
         logs        = logs,
+        log_page    = log_page,
+        log_has_next = log_has_next,
+        log_has_prev = log_page > 1,
         kpi         = kpi,
         user_name   = session.get("user_name", "Owner"),
         notif_count = get_notif_count(),
