@@ -66,6 +66,10 @@ def nota_new():
         except Exception:
             adjustments = []
 
+        # Tanggal nota (opsional) -- kosong/tidak dikirim = otomatis hari
+        # ini. Kalau diisi, mempengaruhi nomor nota & tanggal di riwayat.
+        nota_date = (request.form.get("nota_date") or "").strip() or None
+
         try:
             if nota_type == "BELI":
                 result = create_fin_purchase_invoice(
@@ -79,6 +83,7 @@ def nota_new():
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
                     credit_applied=request.form.get("credit_applied") or 0,
+                    nota_date=nota_date,
                 )
             else:
                 result = create_fin_invoice(
@@ -92,6 +97,7 @@ def nota_new():
                     created_by=session.get("user_id"),
                     adjustments=adjustments,
                     credit_applied=request.form.get("credit_applied") or 0,
+                    nota_date=nota_date,
                 )
             if result.get("dp_excess"):
                 party = (request.form.get("customer_name") or "").strip() or "pihak ini"

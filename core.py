@@ -138,12 +138,38 @@ def _utc_naive_to_wib_naive(dt):
         return None
     return dt + timedelta(hours=7)
 
+def _wib_naive_to_utc_naive(dt):
+    if not dt:
+        return None
+    return dt - timedelta(hours=7)
+
 def _now_wib_naive():
     return datetime.now(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
 
 def _utc_naive_to_wib_string(dt, fmt="%Y-%m-%d %H:%M:%S"):
     dt_wib = _utc_naive_to_wib_naive(dt)
     return dt_wib.strftime(fmt) if dt_wib else ""
+
+def _resolve_nota_datetime(nota_date_str):
+    """
+    Tentukan created_at (UTC naive, sesuai konvensi kolom fin_transactions
+    -- lihat _utc_naive_to_wib_naive) & tanggal WIB utk nota BARU.
+    nota_date_str: "YYYY-MM-DD" dari form (opsional -- kosong/None/format
+    salah = otomatis pakai HARI INI, WIB). Jam/menit/detik selalu ikut
+    waktu SEKARANG (WIB) supaya urutan antar-nota di tanggal yang sama
+    tetap masuk akal -- cuma bagian TANGGALNYA yang diganti kalau admin
+    isi manual. wib_date yang dikembalikan dipakai utk nomor urut &
+    format invoice_no (INV-YYYYMMDD-xxxx / BELI-YYYYMMDD-xxxx).
+    """
+    now_wib = _now_wib_naive()
+    chosen_date = now_wib.date()
+    if nota_date_str:
+        try:
+            chosen_date = datetime.strptime(nota_date_str, "%Y-%m-%d").date()
+        except Exception:
+            chosen_date = now_wib.date()
+    wib_dt = now_wib.replace(year=chosen_date.year, month=chosen_date.month, day=chosen_date.day)
+    return _wib_naive_to_utc_naive(wib_dt), chosen_date
 
 def _parse_date(s):
     if not s:
@@ -1794,7 +1820,7 @@ def _sum_adjustments(adjustments):
 
 def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                         discount, is_paid, items, created_by, print_size=None,
-                        adjustments=None, credit_applied=0):
+                        adjustments=None, credit_applied=0, nota_date=None):
     """
     Buat nota JUAL_INVOICE dari stok gudang (fin_materials), potong stok AVCO,
     catat piutang jika belum lunas. Logic diextract dari
@@ -1873,12 +1899,17 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         # dia) yang bisa dipotongkan otomatis di nota berikutnya.
         dp_excess = max(0.0, -raw_total)
 
+        # nota_date (opsional, "YYYY-MM-DD") -- kalau diisi, nomor nota &
+        # tanggal nota mengikuti tanggal itu (bukan hari ini). Jam tetap
+        # ikut waktu sekarang WIB, cuma tanggalnya yang diganti.
+        created_at_utc, wib_date = _resolve_nota_datetime(nota_date)
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
-            WHERE created_at::date = CURRENT_DATE AND type = 'JUAL_INVOICE';
-        """)
+            WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = %s
+              AND type = 'JUAL_INVOICE';
+        """, (wib_date,))
         seq = (cur.fetchone()["cnt"] or 0) + 1
-        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
+        invoice_no = f"INV-{wib_date.strftime('%Y%m%d')}-{seq:04d}"
 
         # "Pakai Saldo" adalah CARA BAYAR (spt Cash/Transfer/QRIS), berlaku
         # LEPAS dari toggle Lunas/Belum Lunas -- lihat penjelasan lengkap di
@@ -1902,13 +1933,13 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             customer_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -1988,7 +2019,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
 def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, notes,
                                  discount, is_paid, items, created_by, print_size=None,
-                                 adjustments=None, credit_applied=0):
+                                 adjustments=None, credit_applied=0, nota_date=None):
     """
     Buat nota BELI_GUDANG (pembelian barang ke gudang) dengan nomor nota resmi
     (prefix BELI-), sama persis alurnya dengan create_fin_invoice tapi stok
@@ -2037,12 +2068,17 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         # yang bisa dipotongkan otomatis di nota belanja berikutnya.
         dp_excess = max(0.0, -raw_total)
 
+        # nota_date (opsional, "YYYY-MM-DD") -- kalau diisi, nomor nota &
+        # tanggal nota mengikuti tanggal itu (bukan hari ini). Jam tetap
+        # ikut waktu sekarang WIB, cuma tanggalnya yang diganti.
+        created_at_utc, wib_date = _resolve_nota_datetime(nota_date)
         cur.execute("""
             SELECT COUNT(*) AS cnt FROM fin_transactions
-            WHERE created_at::date = CURRENT_DATE AND type = 'BELI_GUDANG';
-        """)
+            WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = %s
+              AND type = 'BELI_GUDANG';
+        """, (wib_date,))
         seq = (cur.fetchone()["cnt"] or 0) + 1
-        invoice_no = f"BELI-{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
+        invoice_no = f"BELI-{wib_date.strftime('%Y%m%d')}-{seq:04d}"
 
         # "Pakai Saldo" adalah CARA BAYAR (spt Cash/Transfer/QRIS), berlaku
         # LEPAS dari toggle Lunas/Belum Lunas -- jadi kalau admin pilih pakai
@@ -2066,13 +2102,13 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount)
-            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             supplier_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc
         ))
         txn_id = cur.fetchone()["id"]
 

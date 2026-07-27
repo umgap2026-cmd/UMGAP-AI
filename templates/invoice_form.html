@@ -649,6 +649,18 @@
                   <div class="sw-tog"><div class="sw-k"></div></div>
                 </div>
               </div>
+
+              {% if not edit_mode %}
+              <div class="field" style="margin-bottom: 0; margin-top: 14px">
+                <label>Tanggal Nota</label>
+                <div class="lov-new-toggle">
+                  <button type="button" class="lov-new-toggle-btn active" data-mode="auto" onclick="setNotaDateMode('auto')">Otomatis<br />(Hari Ini)</button>
+                  <button type="button" class="lov-new-toggle-btn" data-mode="manual" onclick="setNotaDateMode('manual')">Atur Manual</button>
+                </div>
+                <input type="date" id="notaDateInp" name="nota_date" style="display:none; margin-top: 8px" onchange="grand()" />
+                <div class="field-hint" style="margin-top: 6px">Tanggal ini menentukan nomor nota &amp; tanggal di riwayat/cetak nota.</div>
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -1052,6 +1064,12 @@
       var notaType = typeRadio ? typeRadio.value : "JUAL";
       var name = (document.getElementById("custNameInp").value || "").trim() ||
         (notaType === "BELI" ? "Pembelian Umum" : "-");
+      var notaDateInp = document.getElementById("notaDateInp");
+      var notaDateTxt = "Hari ini (otomatis)";
+      if (notaDateInp && notaDateInp.style.display !== "none" && notaDateInp.value) {
+        var dParts = notaDateInp.value.split("-");
+        notaDateTxt = dParts[2] + "/" + dParts[1] + "/" + dParts[0];
+      }
       var sub = subTot();
       var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
       collectAdjustments().forEach(function (a) {
@@ -1083,7 +1101,7 @@
       }).join("");
 
       var html = "<div class='pv-meta'><strong>" + (notaType === "BELI" ? "Nota Beli" : "Nota Jual") +
-        "</strong> — " + escapeHtml(name) + "</div>" +
+        "</strong> — " + escapeHtml(name) + "<br><span style='font-weight:600; color:var(--muted)'>📅 Tanggal Nota: " + notaDateTxt + "</span></div>" +
         "<div class='table-wrap' style='margin-top:10px; overflow-x:auto'><table class='pv-table'><thead><tr>" +
         "<th>#</th><th>Barang</th><th style='text-align:right'>Qty</th><th style='text-align:right'>Harga</th><th style='text-align:right'>Subtotal</th>" +
         "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>" +
@@ -1622,9 +1640,38 @@
         alert("Pilih minimal 1 barang.");
         return;
       }
+      var notaDateInp = document.getElementById("notaDateInp");
+      if (notaDateInp && notaDateInp.style.display !== "none" && !notaDateInp.value) {
+        e.preventDefault();
+        alert("Pilih tanggal nota dulu, atau pakai mode Otomatis.");
+        return;
+      }
       document.getElementById("itemsJsonInput").value = JSON.stringify(items);
       document.getElementById("adjustmentsJsonInput").value = JSON.stringify(collectAdjustments());
     });
+
+    // ── Tanggal Nota: Otomatis (hari ini) / Atur Manual ──
+    (function () {
+      var notaDateInp = document.getElementById("notaDateInp");
+      if (!notaDateInp) return;
+      var today = new Date(),
+        p = function (n) { return String(n).padStart(2, "0"); },
+        todayStr = today.getFullYear() + "-" + p(today.getMonth() + 1) + "-" + p(today.getDate());
+      notaDateInp.max = todayStr;
+      window.setNotaDateMode = function (mode) {
+        document.querySelectorAll('.lov-new-toggle-btn[data-mode="auto"], .lov-new-toggle-btn[data-mode="manual"]').forEach(function (b) {
+          b.classList.toggle("active", b.dataset.mode === mode);
+        });
+        if (mode === "manual") {
+          notaDateInp.style.display = "block";
+          if (!notaDateInp.value) notaDateInp.value = todayStr;
+        } else {
+          notaDateInp.style.display = "none";
+          notaDateInp.value = "";
+        }
+        grand();
+      };
+    })();
 
     var isPaid = document.getElementById("isPaidInp").value === "1";
     window.togglePaid = function () {
