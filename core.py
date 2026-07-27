@@ -71,6 +71,17 @@ def admin_guard():
         abort(403)
     return None
 
+def home_url_for_role(role):
+    """Halaman "beranda" yang benar utk tiap role -- sumber kebenaran
+    tunggal dipakai app.py (context processor home_url() utk template)
+    & route mana pun yang perlu redirect ke dashboard sesuai role."""
+    if role == "admin":
+        return "/admin/dashboard"
+    if role == "owner":
+        return "/owner/dashboard"
+    return "/dashboard"
+
+
 def admin_required():
     if not session.get("user_id"):
         return redirect(url_for("auth.login"))

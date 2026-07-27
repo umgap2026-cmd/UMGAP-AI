@@ -1,14 +1,16 @@
-from flask import Blueprint, render_template, redirect, session
+from flask import Blueprint, redirect, session
 from db import get_conn
-from core import is_logged_in, ensure_hr_v2_schema, admin_required
+from core import is_logged_in, ensure_hr_v2_schema, admin_required, home_url_for_role
 
 system_bp = Blueprint("system", __name__)
 
 @system_bp.route("/")
 def landing():
+    # Landing page dinonaktifkan -- langsung ke login (atau dashboard
+    # sesuai role kalau sudah login), tidak lagi menampilkan landing.html.
     if is_logged_in():
-        return redirect("/admin/dashboard" if session.get("role") == "admin" else "/dashboard")
-    return render_template("landing.html")
+        return redirect(home_url_for_role(session.get("role")))
+    return redirect("/login")
 
 @system_bp.route("/db-check")
 def db_check():

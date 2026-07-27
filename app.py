@@ -101,16 +101,10 @@ def inject_home_url():
     """home_url() dipakai di banyak template utk link "Dashboard"/"Kembali"
     -- sebelumnya banyak tempat cuma cek admin vs "selain admin" (2 cabang),
     jadi role owner (yg jadi role ke-3) selalu salah kelempar ke /dashboard
-    (dashboard employee). Sentralisasi di sini supaya halaman baru ke depan
-    tidak mengulang bug yang sama."""
-    def home_url():
-        role = session.get("role")
-        if role == "admin":
-            return "/admin/dashboard"
-        if role == "owner":
-            return "/owner/dashboard"
-        return "/dashboard"
-    return dict(home_url=home_url)
+    (dashboard employee). Sentralisasi di core.py (home_url_for_role) supaya
+    halaman baru ke depan tidak mengulang bug yang sama."""
+    from core import home_url_for_role
+    return dict(home_url=lambda: home_url_for_role(session.get("role")))
 
 
 @app.errorhandler(500)
