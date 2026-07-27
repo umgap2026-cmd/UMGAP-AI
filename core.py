@@ -1164,10 +1164,11 @@ def ensure_password_reset_schema():
             "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS user_id INTEGER",
             "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS otp CHAR(6)",
             "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS reset_token TEXT",
-            # Tabel ini dulunya khusus web (email+otp_hash NOT NULL) sebelum
-            # digabung dengan alur mobile (user_id+otp). Kalau tabel sudah ada
-            # dari sebelum penggabungan, kolom email/otp_hash masih NOT NULL
-            # dan bikin insert baris khusus WA (tanpa email) gagal.
+            # Tabel ini dulunya khusus web (email+otp_hash NOT NULL, tanpa
+            # created_at) sebelum digabung dengan alur mobile (user_id+otp).
+            # Kalau tabel sudah ada dari sebelum penggabungan, kolom-kolom
+            # ini belum tentu ada / masih NOT NULL, bikin query/insert gagal.
+            "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
             "ALTER TABLE password_reset_otps ALTER COLUMN email DROP NOT NULL",
             "ALTER TABLE password_reset_otps ALTER COLUMN otp_hash DROP NOT NULL",
         ]:
