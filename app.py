@@ -57,6 +57,7 @@ from routes.mobile.buy_prices import mobile_buy_prices_bp
 from routes.mobile.profile import mobile_profile_bp
 from routes.mobile.finance import mobile_finance_bp  # ← FINANCE
 from routes.mobile.owner_insight import mobile_owner_bp
+from routes.web.owner import owner_bp
 from routes.mobile.owner_stats import mobile_owner_stats_bp
 
 app = Flask(__name__)
@@ -148,6 +149,7 @@ app.register_blueprint(ai_bp)
 app.register_blueprint(export_bp)
 app.register_blueprint(buy_prices_bp)
 app.register_blueprint(finance_bp)
+app.register_blueprint(owner_bp)
 
 # ------ REGISTER MOBILE -----
 app.register_blueprint(mobile_auth_bp,          url_prefix="/api/mobile")

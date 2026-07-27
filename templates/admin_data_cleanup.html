@@ -404,6 +404,99 @@
   .t-p {
     --tc: #d97706;
   }
+  .t-n {
+    --tc: #7c3aed;
+  }
+  .t-f {
+    --tc: #db2777;
+  }
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .mtab {
+    background: #fff;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 12px 10px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--muted);
+    box-shadow: 0 4px 14px rgba(20, 40, 80, 0.08);
+    transition: 0.15s;
+  }
+  .mtab.active {
+    border-color: var(--blue);
+    color: var(--blue);
+    background: rgba(37, 99, 235, 0.06);
+  }
+  .browse-search input {
+    width: 100%;
+    background: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 11px 14px;
+    font-size: 13px;
+    box-shadow:
+      0 4px 14px rgba(20, 40, 80, 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    outline: none;
+    margin-bottom: 12px;
+  }
+  .browse-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .browse-row {
+    background: #fff;
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    box-shadow: 0 3px 10px rgba(20, 40, 80, 0.07);
+  }
+  .browse-row-txt {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+    min-width: 0;
+  }
+  .browse-row-txt b {
+    font-weight: 800;
+  }
+  .browse-row-txt span {
+    color: var(--muted);
+  }
+  .browse-del-btn {
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 10px;
+    background: #fde8e7;
+    color: var(--red);
+    font-weight: 800;
+    font-size: 11px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .browse-del-btn:hover {
+    background: var(--red);
+    color: #fff;
+  }
+  .browse-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 12px;
+  }
   .t-ico {
     width: 36px;
     height: 36px;
@@ -834,7 +927,7 @@
             <span class="dot"></span>
             <span class="uname">{{ user_name }}</span>
           </div>
-          <a href="/admin/dashboard" class="action-btn" title="Dashboard">
+          <a href="/owner/dashboard" class="action-btn" title="Dashboard">
             <svg viewBox="0 0 24 24">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
@@ -880,6 +973,18 @@
         <div class="kpi-lbl">Log Poin</div>
       </div>
     </div>
+    <div class="kpi-row">
+      <div class="kpi-pill" style="--kc:#7c3aed">
+        <div class="kpi-ico">📢</div>
+        <div class="kpi-num">{{ kpi.ann }}</div>
+        <div class="kpi-lbl">Pengumuman</div>
+      </div>
+      <div class="kpi-pill" style="--kc:#db2777">
+        <div class="kpi-ico">🖐️</div>
+        <div class="kpi-num">{{ kpi.finger }}</div>
+        <div class="kpi-lbl">Log Fingerprint</div>
+      </div>
+    </div>
 
     <!-- HAPUS DATA -->
     <div class="main-card">
@@ -919,115 +1024,162 @@
             <div class="t-lbl">Log Poin</div>
             <div class="t-sub">Riwayat poin karyawan</div>
           </button>
-        </div>
-
-        <div class="step-lbl">Langkah 2 — Tentukan Periode</div>
-        <div class="date-row">
-          <div class="field">
-            <label>Dari Tanggal</label>
-            <input type="date" id="dfrom" onchange="onDate()" />
-          </div>
-          <div class="field">
-            <label>Sampai Tanggal</label>
-            <input type="date" id="dto" onchange="onDate()" />
-          </div>
-        </div>
-
-        <div class="info-box neutral show" id="infoBox">
-          <span class="ib-ico">ℹ️</span>
-          <span id="infoTxt"
-            >Pilih jenis data dan rentang tanggal, lalu klik
-            <strong>Cek Data</strong>.</span
-          >
-        </div>
-
-        <div class="btn-row">
           <button
-            class="btn btn-primary"
-            id="btnPrev"
-            onclick="doPreview()"
-            disabled
+            class="ttab t-n"
+            data-key="announcements"
+            onclick="selTarget(this)"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            Cek Data
+            <div class="t-ico">📢</div>
+            <div class="t-lbl">Pengumuman</div>
+            <div class="t-sub">Riwayat pengumuman</div>
+          </button>
+          <button
+            class="ttab t-f"
+            data-key="biofinger_logs"
+            onclick="selTarget(this)"
+          >
+            <div class="t-ico">🖐️</div>
+            <div class="t-lbl">Log Fingerprint</div>
+            <div class="t-sub">Riwayat scan fingerprint</div>
           </button>
         </div>
 
-        <!-- Preview -->
-        <div class="preview-box" id="prevBox">
-          <div class="preview-top">
-            <div>
-              <div class="preview-num" id="prevNum">0</div>
-              <div class="preview-lbl" id="prevLbl">baris data ditemukan</div>
-              <div class="preview-zero" id="prevZero">
-                ✓ Tidak ada data dalam periode ini.
+        <div class="step-lbl">Langkah 2 — Pilih Cara Hapus</div>
+        <div class="mode-tabs">
+          <button class="mtab active" id="modeRangeBtn" onclick="setMode('range')">
+            📅 Rentang Tanggal
+          </button>
+          <button class="mtab" id="modeSingleBtn" onclick="setMode('single')">
+            🎯 Hapus 1 Data
+          </button>
+        </div>
+
+        <!-- MODE: RENTANG TANGGAL -->
+        <div id="rangeMode">
+          <div class="date-row">
+            <div class="field">
+              <label>Dari Tanggal</label>
+              <input type="date" id="dfrom" onchange="onDate()" />
+            </div>
+            <div class="field">
+              <label>Sampai Tanggal</label>
+              <input type="date" id="dto" onchange="onDate()" />
+            </div>
+          </div>
+
+          <div class="info-box neutral show" id="infoBox">
+            <span class="ib-ico">ℹ️</span>
+            <span id="infoTxt"
+              >Pilih jenis data dan rentang tanggal, lalu klik
+              <strong>Cek Data</strong>.</span
+            >
+          </div>
+
+          <div class="btn-row">
+            <button
+              class="btn btn-primary"
+              id="btnPrev"
+              onclick="doPreview()"
+              disabled
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              Cek Data
+            </button>
+          </div>
+
+          <!-- Preview -->
+          <div class="preview-box" id="prevBox">
+            <div class="preview-top">
+              <div>
+                <div class="preview-num" id="prevNum">0</div>
+                <div class="preview-lbl" id="prevLbl">baris data ditemukan</div>
+                <div class="preview-zero" id="prevZero">
+                  ✓ Tidak ada data dalam periode ini.
+                </div>
+              </div>
+              <div id="prevAction" style="display: none">
+                <div
+                  style="
+                    font-size: 11px;
+                    font-weight: 800;
+                    color: var(--red);
+                    margin-bottom: 10px;
+                  "
+                >
+                  ⚠️ Data akan PERMANEN terhapus!
+                </div>
+                <button class="btn btn-danger" onclick="showConfirm()">
+                  🗑️ Lanjut Hapus
+                </button>
               </div>
             </div>
-            <div id="prevAction" style="display: none">
-              <div
-                style="
-                  font-size: 11px;
-                  font-weight: 800;
-                  color: var(--red);
-                  margin-bottom: 10px;
-                "
+          </div>
+
+          <!-- Confirm -->
+          <div class="confirm-box" id="confirmBox">
+            <div class="divider"></div>
+            <div class="step-lbl">Langkah 3 — Konfirmasi</div>
+            <div class="field">
+              <label>Catatan / Alasan (opsional)</label>
+              <textarea
+                id="delNote"
+                placeholder="Contoh: Data bulan lalu sudah diarsipkan ke Excel"
+              ></textarea>
+            </div>
+            <div class="field">
+              <div class="confirm-lbl">Ketik HAPUS untuk konfirmasi:</div>
+              <input
+                class="confirm-input"
+                type="text"
+                id="confirmInput"
+                placeholder="Ketik HAPUS"
+                autocomplete="off"
+                oninput="onType()"
+              />
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-ghost" onclick="cancelConfirm()">
+                ✕ Batal
+              </button>
+              <button
+                class="btn btn-danger"
+                id="btnExec"
+                disabled
+                onclick="doDelete()"
               >
-                ⚠️ Data akan PERMANEN terhapus!
-              </div>
-              <button class="btn btn-danger" onclick="showConfirm()">
-                🗑️ Lanjut Hapus
+                <span id="btnExecTxt">🗑️ Hapus Sekarang</span>
+                <span id="btnExecSpin" class="spin" style="display: none"></span>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Confirm -->
-        <div class="confirm-box" id="confirmBox">
-          <div class="divider"></div>
-          <div class="step-lbl">Langkah 3 — Konfirmasi</div>
-          <div class="field">
-            <label>Catatan / Alasan (opsional)</label>
-            <textarea
-              id="delNote"
-              placeholder="Contoh: Data bulan lalu sudah diarsipkan ke Excel"
-            ></textarea>
-          </div>
-          <div class="field">
-            <div class="confirm-lbl">Ketik HAPUS untuk konfirmasi:</div>
+        <!-- MODE: HAPUS 1 DATA -->
+        <div id="singleMode" style="display: none">
+          <div class="browse-search">
             <input
-              class="confirm-input"
               type="text"
-              id="confirmInput"
-              placeholder="Ketik HAPUS"
-              autocomplete="off"
-              oninput="onType()"
+              id="browseSearch"
+              placeholder="Cari nama / kata kunci…"
+              oninput="doBrowse()"
             />
           </div>
-          <div class="btn-row">
-            <button class="btn btn-ghost" onclick="cancelConfirm()">
-              ✕ Batal
-            </button>
-            <button
-              class="btn btn-danger"
-              id="btnExec"
-              disabled
-              onclick="doDelete()"
-            >
-              <span id="btnExecTxt">🗑️ Hapus Sekarang</span>
-              <span id="btnExecSpin" class="spin" style="display: none"></span>
-            </button>
+          <div class="info-box neutral show" id="singleInfoBox">
+            <span class="ib-ico">ℹ️</span>
+            <span>Pilih jenis data di atas untuk melihat 200 data terbaru.</span>
           </div>
+          <div class="browse-list" id="browseList"></div>
         </div>
       </div>
     </div>
@@ -1092,6 +1244,14 @@
                   {% elif log.target_key == 'sales' %}<span
                     class="badge b-green"
                     >🛍️ {{ log.target_label }}</span
+                  >
+                  {% elif log.target_key == 'announcements' %}<span
+                    class="badge b-blue"
+                    >📢 {{ log.target_label }}</span
+                  >
+                  {% elif log.target_key == 'biofinger_logs' %}<span
+                    class="badge b-green"
+                    >🖐️ {{ log.target_label }}</span
                   >
                   {% else %}<span class="badge b-orange"
                     >⭐ {{ log.target_label }}</span
@@ -1186,6 +1346,8 @@
     document.getElementById("btnPrev").disabled = !(selKey && df && dt);
   }
 
+  var curMode = "range";
+
   function selTarget(el) {
     document.querySelectorAll(".ttab").forEach(function (b) {
       b.classList.remove("active");
@@ -1199,6 +1361,96 @@
       "ℹ️",
       "Pilih rentang tanggal, lalu klik <strong>Cek Data</strong>.",
     );
+    if (curMode === "single") doBrowse();
+  }
+
+  function setMode(m) {
+    curMode = m;
+    document.getElementById("modeRangeBtn").classList.toggle("active", m === "range");
+    document.getElementById("modeSingleBtn").classList.toggle("active", m === "single");
+    document.getElementById("rangeMode").style.display = m === "range" ? "block" : "none";
+    document.getElementById("singleMode").style.display = m === "single" ? "block" : "none";
+    if (m === "single" && selKey) doBrowse();
+  }
+
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function doBrowse() {
+    var listEl = document.getElementById("browseList"),
+      infoEl = document.getElementById("singleInfoBox");
+    if (!selKey) {
+      infoEl.classList.add("show");
+      infoEl.innerHTML =
+        '<span class="ib-ico">ℹ️</span><span>Pilih jenis data di atas untuk melihat 200 data terbaru.</span>';
+      listEl.innerHTML = "";
+      return;
+    }
+    var search = document.getElementById("browseSearch").value.trim();
+    infoEl.classList.remove("show");
+    listEl.innerHTML = '<div class="browse-empty">Memuat…</div>';
+    fetch("/admin/data-cleanup/" + selKey + "/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search: search }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          listEl.innerHTML = "";
+          infoEl.classList.add("show");
+          infoEl.className = "info-box show err";
+          infoEl.innerHTML = "<span class='ib-ico'>⚠️</span><span>" + escapeHtml(d.message || "Gagal memuat") + "</span>";
+          return;
+        }
+        if (!d.rows.length) {
+          listEl.innerHTML = '<div class="browse-empty">Tidak ada data ditemukan.</div>';
+          return;
+        }
+        var headers = d.headers || ["", "", "", ""];
+        listEl.innerHTML = d.rows
+          .map(function (r) {
+            var parts = [];
+            if (r.c1) parts.push("<b>" + escapeHtml(r.c1) + "</b>");
+            if (r.c2) parts.push("<span>" + escapeHtml(r.c2) + "</span>");
+            if (r.c3) parts.push("<span>" + escapeHtml(r.c3) + "</span>");
+            if (r.c4) parts.push("<span>" + escapeHtml(r.c4) + "</span>");
+            return (
+              '<div class="browse-row">' +
+              '<div class="browse-row-txt">' + parts.join(" · ") + "</div>" +
+              '<button class="browse-del-btn" onclick="deleteOneRow(' + r.id + ')">🗑️ Hapus</button>' +
+              "</div>"
+            );
+          })
+          .join("");
+      })
+      .catch(function () {
+        listEl.innerHTML = '<div class="browse-empty">Gagal terhubung.</div>';
+      });
+  }
+
+  function deleteOneRow(id) {
+    if (!confirm("Hapus data ini secara PERMANEN? Aksi ini tidak bisa dibatalkan.")) return;
+    fetch("/admin/data-cleanup/" + selKey + "/delete-one", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: id }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          toast("✓ 1 data " + d.label + " dihapus");
+          doBrowse();
+        } else {
+          toast("⚠ " + (d.message || "Gagal menghapus"));
+        }
+      })
+      .catch(function () {
+        toast("Gagal terhubung");
+      });
   }
 
   function onDate() {

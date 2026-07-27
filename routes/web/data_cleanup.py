@@ -1,17 +1,24 @@
 """
 routes/web/data_cleanup.py
 
-Fitur: Admin bisa hapus riwayat data dalam rentang tanggal tertentu.
-Setiap penghapusan dicatat di tabel admin_delete_logs (audit log).
+Fitur: Owner bisa hapus riwayat data dalam rentang tanggal tertentu, ATAU
+hapus 1 baris data spesifik saja. Khusus owner (bukan admin) -- aksi ini
+permanen & berdampak luas, jadi dipusatkan ke pemilik bisnis.
+Setiap penghapusan dicatat di tabel admin_delete_logs (audit log) --
+nama kolom tetap admin_id/admin_name apa adanya (dibuat sebelum fitur ini
+jadi owner-only) supaya tidak perlu migrasi kolom, cukup diisi data owner.
 
 Daftar data yang bisa dihapus:
   - attendance       : Riwayat absensi
   - sales_submissions: Riwayat penjualan
-  - biofinger_logs   : Log fingerprint
-  - announcements    : Pengumuman
-  - invoice          : Nota/invoice
-  - payroll          : Payroll
   - points_logs      : Log poin karyawan
+  - announcements    : Pengumuman
+  - biofinger_logs   : Log scan fingerprint
+
+Nota/invoice SENGAJA TIDAK ada di sini -- sudah ada alur khusus yang aman
+(soft-delete lalu purge permanen satu-per-satu di /nota/deleted) yang ikut
+membalik stok & hutang-piutang; hapus massal lewat tabel mentah di sini
+akan merusak data itu.
 """
 
 from datetime import date, datetime
@@ -19,11 +26,13 @@ from flask import Blueprint, render_template, request, redirect, session, jsonif
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_required, get_notif_count
+from core import owner_required, get_notif_count
 
 data_cleanup_bp = Blueprint("data_cleanup", __name__)
 
 # ── Konfigurasi tabel yang boleh dihapus ─────────────────────────
+# browse_sql: dipakai fitur "Hapus 1 Data" -- SELECT id + kolom ringkas
+# utk ditampilkan & dipilih satu per satu. Selalu ORDER BY terbaru dulu.
 CLEANUP_TARGETS = {
     "attendance": {
         "label":     "Absensi",
@@ -31,6 +40,15 @@ CLEANUP_TARGETS = {
         "date_col":  "work_date",
         "join":      "",
         "count_col": "id",
+        "browse_sql": """
+            SELECT a.id, u.name AS c1, a.work_date::text AS c2,
+                   a.status AS c3, COALESCE(a.arrival_type, '-') AS c4
+            FROM attendance a
+            JOIN users u ON u.id = a.user_id
+            ORDER BY a.work_date DESC, a.id DESC
+            LIMIT 200;
+        """,
+        "browse_headers": ["Karyawan", "Tanggal", "Status", "Tipe Datang"],
     },
     "sales": {
         "label":     "Penjualan",
@@ -38,6 +56,16 @@ CLEANUP_TARGETS = {
         "date_col":  "created_at",
         "join":      "",
         "count_col": "id",
+        "browse_sql": """
+            SELECT s.id, u.name AS c1, s.created_at::text AS c2,
+                   COALESCE(p.name, '-') AS c3, s.qty::text AS c4
+            FROM sales_submissions s
+            JOIN users u ON u.id = s.user_id
+            LEFT JOIN products p ON p.id = s.product_id
+            ORDER BY s.created_at DESC, s.id DESC
+            LIMIT 200;
+        """,
+        "browse_headers": ["Karyawan", "Waktu", "Produk", "Qty"],
     },
     "points_logs": {
         "label":     "Log Poin",
@@ -45,6 +73,46 @@ CLEANUP_TARGETS = {
         "date_col":  "created_at",
         "join":      "",
         "count_col": "id",
+        "browse_sql": """
+            SELECT pl.id, u.name AS c1, pl.created_at::text AS c2,
+                   pl.delta::text AS c3, COALESCE(pl.note, '-') AS c4
+            FROM points_logs pl
+            JOIN users u ON u.id = pl.user_id
+            ORDER BY pl.created_at DESC, pl.id DESC
+            LIMIT 200;
+        """,
+        "browse_headers": ["Karyawan", "Waktu", "Perubahan", "Catatan"],
+    },
+    "announcements": {
+        "label":     "Pengumuman",
+        "table":     "announcements",
+        "date_col":  "created_at",
+        "join":      "",
+        "count_col": "id",
+        "browse_sql": """
+            SELECT id, title AS c1, created_at::text AS c2,
+                   COALESCE(message, '-') AS c3, '' AS c4
+            FROM announcements
+            ORDER BY created_at DESC, id DESC
+            LIMIT 200;
+        """,
+        "browse_headers": ["Judul", "Waktu", "Isi", ""],
+    },
+    "biofinger_logs": {
+        "label":     "Log Fingerprint",
+        "table":     "biofinger_logs",
+        "date_col":  "tran_dt",
+        "join":      "",
+        "count_col": "id",
+        "browse_sql": """
+            SELECT bl.id, COALESCE(u.name, '(belum dipetakan)') AS c1,
+                   bl.tran_dt::text AS c2, '' AS c3, '' AS c4
+            FROM biofinger_logs bl
+            LEFT JOIN users u ON u.id = bl.mapped_user_id
+            ORDER BY bl.tran_dt DESC, bl.id DESC
+            LIMIT 200;
+        """,
+        "browse_headers": ["Karyawan", "Waktu Scan", "", ""],
     },
 }
 
@@ -78,7 +146,7 @@ def _ensure_audit_schema():
 
 @data_cleanup_bp.route("/admin/data-cleanup")
 def data_cleanup_page():
-    deny = admin_required()
+    deny = owner_required()
     if deny: return deny
 
     _ensure_audit_schema()
@@ -104,7 +172,7 @@ def data_cleanup_page():
     # KPI counts
     conn2 = get_conn()
     cur2  = conn2.cursor(cursor_factory=RealDictCursor)
-    kpi   = {"absen": 0, "sales": 0, "poin": 0}
+    kpi   = {"absen": 0, "sales": 0, "poin": 0, "ann": 0, "finger": 0}
     try:
         cur2.execute("SELECT COUNT(*) AS n FROM attendance;")
         kpi["absen"] = (cur2.fetchone() or {}).get("n", 0)
@@ -113,6 +181,16 @@ def data_cleanup_page():
         try:
             cur2.execute("SELECT COUNT(*) AS n FROM points_logs;")
             kpi["poin"] = (cur2.fetchone() or {}).get("n", 0)
+        except Exception:
+            pass
+        try:
+            cur2.execute("SELECT COUNT(*) AS n FROM announcements;")
+            kpi["ann"] = (cur2.fetchone() or {}).get("n", 0)
+        except Exception:
+            pass
+        try:
+            cur2.execute("SELECT COUNT(*) AS n FROM biofinger_logs;")
+            kpi["finger"] = (cur2.fetchone() or {}).get("n", 0)
         except Exception:
             pass
     finally:
@@ -124,16 +202,16 @@ def data_cleanup_page():
         targets     = CLEANUP_TARGETS,
         logs        = logs,
         kpi         = kpi,
-        user_name   = session.get("user_name", "Admin"),
+        user_name   = session.get("user_name", "Owner"),
         notif_count = get_notif_count(),
     )
 
 
-# ── Preview: hitung berapa baris yang akan terhapus ──────────────
+# ── Preview: hitung berapa baris yang akan terhapus (mode rentang) ──
 
 @data_cleanup_bp.route("/admin/data-cleanup/preview", methods=["POST"])
 def data_cleanup_preview():
-    deny = admin_required()
+    deny = owner_required()
     if deny: return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
     key       = (request.json or {}).get("key", "")
@@ -173,11 +251,11 @@ def data_cleanup_preview():
         conn.close()
 
 
-# ── Eksekusi penghapusan ──────────────────────────────────────────
+# ── Eksekusi penghapusan rentang tanggal ──────────────────────────
 
 @data_cleanup_bp.route("/admin/data-cleanup/execute", methods=["POST"])
 def data_cleanup_execute():
-    deny = admin_required()
+    deny = owner_required()
     if deny: return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
     data      = request.json or {}
@@ -205,8 +283,8 @@ def data_cleanup_execute():
     cfg        = CLEANUP_TARGETS[key]
     table      = cfg["table"]
     col        = cfg["date_col"]
-    admin_id   = session.get("user_id")
-    admin_name = session.get("user_name", "Admin")
+    owner_id   = session.get("user_id")
+    owner_name = session.get("user_name", "Owner")
 
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -224,7 +302,7 @@ def data_cleanup_execute():
                 (admin_id, admin_name, target_key, target_label,
                  date_from, date_to, rows_deleted, note)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """, (admin_id, admin_name, key, cfg["label"],
+        """, (owner_id, owner_name, key, cfg["label"],
               df, dt, rows_deleted, note))
 
         conn.commit()
@@ -243,11 +321,105 @@ def data_cleanup_execute():
         conn.close()
 
 
+# ── Mode "Hapus 1 Data": browse baris terbaru per kategori ────────
+
+@data_cleanup_bp.route("/admin/data-cleanup/<key>/browse", methods=["POST"])
+def data_cleanup_browse(key):
+    deny = owner_required()
+    if deny: return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    if key not in CLEANUP_TARGETS:
+        return jsonify({"ok": False, "message": "Target tidak valid"})
+
+    cfg = CLEANUP_TARGETS[key]
+    search = ((request.json or {}).get("search") or "").strip().lower()
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(cfg["browse_sql"])
+        rows = [dict(r) for r in cur.fetchall()]
+        if search:
+            rows = [
+                r for r in rows
+                if search in " ".join(str(v or "") for v in r.values()).lower()
+            ]
+        return jsonify({
+            "ok": True,
+            "rows": rows[:200],
+            "headers": cfg["browse_headers"],
+            "label": cfg["label"],
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ── Mode "Hapus 1 Data": eksekusi hapus 1 baris ───────────────────
+
+@data_cleanup_bp.route("/admin/data-cleanup/<key>/delete-one", methods=["POST"])
+def data_cleanup_delete_one(key):
+    deny = owner_required()
+    if deny: return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    if key not in CLEANUP_TARGETS:
+        return jsonify({"ok": False, "message": "Target tidak valid"})
+
+    data    = request.json or {}
+    row_id  = data.get("id")
+    note    = (data.get("note") or "").strip()[:500]
+    if not row_id:
+        return jsonify({"ok": False, "message": "ID data wajib diisi."})
+
+    cfg        = CLEANUP_TARGETS[key]
+    table      = cfg["table"]
+    col        = cfg["date_col"]
+    owner_id   = session.get("user_id")
+    owner_name = session.get("user_name", "Owner")
+
+    conn = get_conn()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(f"SELECT id, {col} AS d FROM {table} WHERE id = %s LIMIT 1;", (int(row_id),))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "Data tidak ditemukan (mungkin sudah dihapus)."})
+
+        row_date = row["d"]
+        try:
+            row_date = row_date.date() if hasattr(row_date, "date") else row_date
+        except Exception:
+            row_date = date.today()
+
+        cur.execute(f"DELETE FROM {table} WHERE id = %s;", (int(row_id),))
+        rows_deleted = cur.rowcount
+
+        cur.execute("""
+            INSERT INTO admin_delete_logs
+                (admin_id, admin_name, target_key, target_label,
+                 date_from, date_to, rows_deleted, note)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+        """, (owner_id, owner_name, key, cfg["label"],
+              row_date, row_date, rows_deleted,
+              (f"Hapus 1 data (ID {row_id})" + (f" — {note}" if note else ""))))
+
+        conn.commit()
+        return jsonify({"ok": True, "rows_deleted": rows_deleted, "label": cfg["label"]})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"ok": False, "message": f"Error: {str(e)}"})
+    finally:
+        cur.close()
+        conn.close()
+
+
 # ── Hapus satu baris audit log ─────────────────────────────────────
 
 @data_cleanup_bp.route("/admin/data-cleanup/log/<int:log_id>/delete", methods=["POST"])
 def data_cleanup_delete_log(log_id):
-    deny = admin_required()
+    deny = owner_required()
     if deny: return jsonify({"ok": False}), 403
 
     conn = get_conn()

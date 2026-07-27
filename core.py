@@ -10,7 +10,7 @@ import uuid
 import threading
 import requests
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from email.message import EmailMessage
 from functools import wraps
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -4329,6 +4329,222 @@ def get_fin_daily_report(report_date):
     finally:
         cur.close()
         conn.close()
+
+
+def _clean_num_owner(v):
+    try:
+        return float(v or 0)
+    except Exception:
+        return 0.0
+
+
+def get_owner_health_insight():
+    """
+    Ringkasan "kesehatan perusahaan" bulan berjalan utk role Owner --
+    gabungan omzet/pembelian/pengeluaran/gaji/stok/hutang-piutang/skor
+    kualitas absensi menjadi 1 health_score (0-100). Logic diextract dari
+    routes/mobile/owner_insight.py:owner_insight() (endpoint mobile yang
+    sudah ada & dipakai) supaya web & mobile berbagi 1 sumber kebenaran --
+    lihat routes/mobile/owner_insight.py utk pemanggil mobile-nya.
+    Return dict siap-pakai (semua angka sudah float/rounded).
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        revenue = 0.0
+        buying = 0.0
+        expense = 0.0
+        stock_value = 0.0
+        debt_total = 0.0
+        receivable_total = 0.0
+        salary_total = 0.0
+        quality_score = 0.0
+
+        if _table_exists(cur, "fin_transactions"):
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(CASE
+                        WHEN type IN ('JUAL_GUDANG', 'JUAL_INVOICE', 'TERIMA_HUTANG')
+                        THEN total_amount ELSE 0 END), 0) AS revenue,
+                    COALESCE(SUM(CASE
+                        WHEN type IN ('BELI_GUDANG')
+                        THEN total_amount ELSE 0 END), 0) AS buying,
+                    COALESCE(SUM(CASE
+                        WHEN type IN ('PENGELUARAN', 'PEMBAYARAN_DP', 'BAYAR_HUTANG')
+                        THEN total_amount ELSE 0 END), 0) AS expense
+                FROM fin_transactions
+                WHERE created_at >= date_trunc('month', CURRENT_DATE);
+            """)
+            r = cur.fetchone() or {}
+            revenue = _clean_num_owner(r.get("revenue"))
+            buying = _clean_num_owner(r.get("buying"))
+            expense = _clean_num_owner(r.get("expense"))
+
+        if _table_exists(cur, "fin_trip_items"):
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN type='JUAL' THEN subtotal ELSE 0 END), 0) AS trip_revenue,
+                    COALESCE(SUM(CASE WHEN type='BELI' THEN subtotal ELSE 0 END), 0) AS trip_buying,
+                    COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS trip_expense
+                FROM fin_trip_items
+                WHERE created_at >= date_trunc('month', CURRENT_DATE);
+            """)
+            r = cur.fetchone() or {}
+            revenue += _clean_num_owner(r.get("trip_revenue"))
+            buying += _clean_num_owner(r.get("trip_buying"))
+            expense += _clean_num_owner(r.get("trip_expense"))
+
+        if _table_exists(cur, "fin_stock_summary"):
+            cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
+            stock_value = _clean_num_owner((cur.fetchone() or {}).get("total"))
+
+        if _table_exists(cur, "fin_debts"):
+            cur.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN type='HUTANG' AND is_settled=FALSE THEN remaining ELSE 0 END), 0) AS hutang,
+                    COALESCE(SUM(CASE WHEN type='PIUTANG' AND is_settled=FALSE THEN remaining ELSE 0 END), 0) AS piutang
+                FROM fin_debts;
+            """)
+            r = cur.fetchone() or {}
+            debt_total = _clean_num_owner(r.get("hutang"))
+            receivable_total = _clean_num_owner(r.get("piutang"))
+
+        if _table_exists(cur, "payroll_settings"):
+            has_monthly = _col_exists(cur, "payroll_settings", "monthly_salary")
+            has_daily = _col_exists(cur, "payroll_settings", "daily_salary")
+            if has_monthly and has_daily:
+                cur.execute("""
+                    SELECT COALESCE(SUM(
+                        CASE WHEN COALESCE(monthly_salary, 0) > 0
+                             THEN monthly_salary ELSE COALESCE(daily_salary, 0) * 26 END
+                    ), 0) AS total_salary FROM payroll_settings;
+                """)
+            elif has_monthly:
+                cur.execute("SELECT COALESCE(SUM(monthly_salary), 0) AS total_salary FROM payroll_settings;")
+            elif has_daily:
+                cur.execute("SELECT COALESCE(SUM(daily_salary * 26), 0) AS total_salary FROM payroll_settings;")
+            else:
+                cur.execute("SELECT 0 AS total_salary;")
+            salary_total = _clean_num_owner((cur.fetchone() or {}).get("total_salary"))
+
+        attendance_today = {"hadir": 0, "total_karyawan": 0}
+        if _table_exists(cur, "attendance"):
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END), 0) AS hadir,
+                    COALESCE(SUM(CASE WHEN arrival_type='LATE' THEN 1 ELSE 0 END), 0) AS telat,
+                    COALESCE(SUM(CASE WHEN status='ABSENT' THEN 1 ELSE 0 END), 0) AS absen
+                FROM attendance
+                WHERE work_date >= date_trunc('month', CURRENT_DATE)::date;
+            """)
+            r = cur.fetchone() or {}
+            total = _clean_num_owner(r.get("total"))
+            hadir = _clean_num_owner(r.get("hadir"))
+            telat = _clean_num_owner(r.get("telat"))
+            absen = _clean_num_owner(r.get("absen"))
+            if total > 0:
+                quality_score = max(0.0, min(100.0, ((hadir / total) * 100) - (telat * 1.5) - (absen * 3)))
+
+            cur.execute("""
+                SELECT COUNT(*) AS n FROM attendance
+                WHERE work_date = CURRENT_DATE AND status = 'PRESENT';
+            """)
+            attendance_today["hadir"] = int((cur.fetchone() or {}).get("n") or 0)
+
+        cur.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'employee';")
+        attendance_today["total_karyawan"] = int((cur.fetchone() or {}).get("n") or 0)
+
+        profit = revenue - buying - expense - salary_total
+        gross_profit = revenue - buying
+        net_profit = profit
+
+        health_score = 50.0
+        if revenue > 0:
+            margin = profit / revenue
+            health_score += margin * 40
+        if stock_value > 0:
+            health_score += 10
+        if debt_total > receivable_total and debt_total > 0:
+            health_score -= 10
+        if quality_score > 0:
+            health_score = (health_score * 0.7) + (quality_score * 0.3)
+        health_score = max(0.0, min(100.0, health_score))
+
+        return {
+            "date": date.today().isoformat(),
+            "revenue": revenue,
+            "buying": buying,
+            "expense": expense,
+            "salary_total": salary_total,
+            "stock_value": stock_value,
+            "debt_total": debt_total,
+            "receivable_total": receivable_total,
+            "profit": profit,
+            "gross_profit": gross_profit,
+            "net_profit": net_profit,
+            "margin_pct": round((gross_profit / revenue * 100) if revenue > 0 else 0, 1),
+            "quality_score": round(quality_score, 1),
+            "health_score": round(health_score, 1),
+            "attendance_today_hadir": attendance_today["hadir"],
+            "total_karyawan": attendance_today["total_karyawan"],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_owner_ai_review(insight):
+    """
+    Minta review/saran bisnis dari OpenAI berdasarkan data get_owner_health_insight().
+    Logic diextract dari routes/mobile/owner_insight.py:owner_ai_review() --
+    dipakai bersama web & mobile. Raise ValueError(pesan) kalau gagal
+    (API key belum diset, request ke OpenAI gagal, dst).
+    Return string hasil analisa (Bahasa Indonesia).
+    """
+    from openai import OpenAI
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY belum diset di server.")
+
+    prompt = f"""
+Anda adalah konsultan bisnis untuk perusahaan scrap/logam.
+
+Data bulan ini:
+- Omzet: Rp {insight.get('revenue', 0):,.0f}
+- Pembelian/modal barang: Rp {insight.get('buying', 0):,.0f}
+- Pengeluaran: Rp {insight.get('expense', 0):,.0f}
+- Gaji karyawan: Rp {insight.get('salary_total', 0):,.0f}
+- Nilai stok: Rp {insight.get('stock_value', 0):,.0f}
+- Hutang: Rp {insight.get('debt_total', 0):,.0f}
+- Piutang: Rp {insight.get('receivable_total', 0):,.0f}
+- Estimasi profit: Rp {insight.get('profit', 0):,.0f}
+- Kehadiran hari ini: {insight.get('attendance_today_hadir', 0)} dari {insight.get('total_karyawan', 0)} karyawan
+- Skor kualitas absensi: {insight.get('quality_score', 0)}
+- Skor kesehatan perusahaan: {insight.get('health_score', 0)}
+
+Buat review singkat dalam bahasa Indonesia:
+1. Kondisi perusahaan saat ini
+2. Risiko utama
+3. Saran cepat yang harus dilakukan owner
+4. Kesimpulan singkat
+Gunakan bahasa sederhana dan praktis.
+""".replace(",", ".")
+
+    try:
+        client = OpenAI(api_key=api_key)
+        res = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "Anda adalah konsultan bisnis yang praktis, jelas, dan langsung ke inti."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        raise ValueError(f"Gagal meminta analisa AI: {e}")
 
 
 def get_owner_finance_report(date_from, date_to):

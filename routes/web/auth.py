@@ -97,7 +97,11 @@ def login():
     session["user_name"] = user["name"]
     session["role"] = user.get("role", "employee")
 
-    return redirect("/admin/dashboard" if session["role"] == "admin" else "/dashboard")
+    if session["role"] == "admin":
+        return redirect("/admin/dashboard")
+    if session["role"] == "owner":
+        return redirect("/owner/dashboard")
+    return redirect("/dashboard")
 
 @auth_bp.route("/logout")
 def logout():
@@ -171,7 +175,11 @@ def google_callback():
     session["user_name"] = u["name"]
     session["role"] = u["role"]
 
-    return redirect("/admin/dashboard" if u["role"] == "admin" else "/dashboard")
+    if u["role"] == "admin":
+        return redirect("/admin/dashboard")
+    if u["role"] == "owner":
+        return redirect("/owner/dashboard")
+    return redirect("/dashboard")
 
 @auth_bp.route("/forgot", methods=["GET", "POST"])
 def forgot_password():
