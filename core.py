@@ -263,6 +263,29 @@ def _otp_hash(email, otp):
     msg = (email.lower().strip() + ":" + otp.strip()).encode("utf-8")
     return hashlib.sha256(salt + msg).hexdigest()
 
+def find_user_by_identifier(cur, identifier: str):
+    """Cari user berdasarkan email atau nomor HP/WA. Dipakai oleh flow lupa
+    password web (routes/web/auth.py) untuk opsi reset via WhatsApp."""
+    is_email = "@" in identifier
+    if is_email:
+        cur.execute(
+            "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
+            (identifier,))
+    else:
+        norm = identifier.replace(" ", "").replace("-", "").replace("+", "")
+        norm62 = "62" + norm[1:] if norm.startswith("0") else norm
+        cur.execute("""
+            SELECT id, name, phone FROM users
+            WHERE phone IS NOT NULL
+              AND (
+                REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
+                    IN (%s, %s)
+                OR phone IN (%s, %s)
+              )
+            LIMIT 1;
+        """, (norm, norm62, norm, norm62))
+    return cur.fetchone()
+
 def send_email(to_email, subject, body):
     smtp_host = (os.getenv("SMTP_HOST") or "").strip()
     smtp_port = int((os.getenv("SMTP_PORT") or "465").strip())

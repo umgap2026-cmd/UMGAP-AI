@@ -1,17 +1,20 @@
 import hashlib
 import hmac
 import random
+import secrets
+import string
 import time
 from datetime import datetime, timedelta
 
-from flask import Blueprint, render_template, request, redirect, session, url_for
+from flask import Blueprint, render_template, request, redirect, session, url_for, jsonify
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from db import get_conn
 from core import (
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, oauth, ensure_password_reset_schema,
-    send_email, _otp_hash, _public_ip, _otp_verify_rate_limited,
+    send_email, send_wa, _otp_hash, _public_ip, _otp_verify_rate_limited,
+    find_user_by_identifier,
 )
 
 
@@ -181,87 +184,137 @@ def google_callback():
         return redirect("/owner/dashboard")
     return redirect("/dashboard")
 
-@auth_bp.route("/forgot", methods=["GET", "POST"])
+def _mask_email(email: str) -> str:
+    local, _, domain = email.partition("@")
+    if not domain:
+        return email
+    keep = local[:2] if len(local) > 2 else local[:1]
+    return f"{keep}{'*' * max(3, len(local) - len(keep))}@{domain}"
+
+def _mask_wa(phone: str) -> str:
+    p = phone.strip().replace("+", "").replace(" ", "")
+    if len(p) <= 6:
+        return p
+    return p[:4] + "****" + p[-4:]
+
+OTP_RESEND_COOLDOWN_SECONDS = 45
+
+@auth_bp.route("/forgot", methods=["GET"])
 def forgot_password():
-    if request.method == "GET":
-        return render_template("forgot_password.html")
+    return render_template("forgot_password.html")
 
+@auth_bp.route("/forgot/send-otp", methods=["POST"])
+def forgot_send_otp():
     ensure_password_reset_schema()
-    email = (request.form.get("email") or "").strip().lower()
+    data = request.get_json(silent=True) or {}
+    method = (data.get("method") or "").strip().lower()
+    identifier = (data.get("identifier") or "").strip()
 
-    if not email:
-        return render_template("forgot_password.html", error="Email wajib diisi.")
+    if method not in ("email", "wa"):
+        return jsonify(ok=False, message="Metode tidak valid."), 400
+    if not identifier:
+        return jsonify(ok=False, message="Email atau nomor WhatsApp wajib diisi."), 400
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("SELECT id FROM users WHERE lower(email)=%s LIMIT 1;", (email,))
-        u = cur.fetchone()
+        if method == "email":
+            email = identifier.lower()
+            cur.execute("SELECT id FROM users WHERE lower(email)=%s LIMIT 1;", (email,))
+            user = cur.fetchone()
+            if not user:
+                conn.commit()
+                return jsonify(ok=True, message="Jika akun ditemukan, OTP akan dikirim.", masked=_mask_email(email))
+
+            cur.execute("""
+                SELECT created_at FROM password_reset_otps
+                WHERE email=%s AND used=FALSE
+                ORDER BY created_at DESC LIMIT 1;
+            """, (email,))
+            last = cur.fetchone()
+            if last and (datetime.utcnow() - last["created_at"]).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+                return jsonify(ok=False, message="Tunggu sebentar sebelum mengirim ulang OTP."), 429
+
+            otp = f"{random.randint(0, 999999):06d}"
+            otp_h = _otp_hash(email, otp)
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+            cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE email=%s AND used=FALSE;", (email,))
+            cur.execute("""
+                INSERT INTO password_reset_otps (email, otp_hash, expires_at, used)
+                VALUES (%s, %s, %s, FALSE);
+            """, (email, otp_h, expires_at))
+            conn.commit()
+
+            try:
+                send_email(
+                    to_email=email,
+                    subject="UMGAP • Kode OTP Reset Password",
+                    body=(
+                        f"Halo,\n\n"
+                        f"Kode OTP reset password kamu: {otp}\n"
+                        f"Berlaku 10 menit.\n\n"
+                        f"Jika kamu tidak meminta reset, abaikan email ini."
+                    ),
+                )
+            except Exception as e:
+                return jsonify(ok=False, message=f"Gagal kirim email OTP: {str(e)}"), 500
+
+            return jsonify(ok=True, message="OTP dikirim ke email.", masked=_mask_email(email))
+
+        else:  # method == "wa"
+            user = find_user_by_identifier(cur, identifier)
+            if not user or not (user.get("phone") or "").strip():
+                conn.commit()
+                return jsonify(ok=True, message="Jika akun ditemukan, OTP akan dikirim.", masked=_mask_wa(identifier))
+
+            phone = user["phone"].strip()
+
+            cur.execute("""
+                SELECT created_at FROM password_reset_otps
+                WHERE user_id=%s AND used=FALSE
+                ORDER BY created_at DESC LIMIT 1;
+            """, (user["id"],))
+            last = cur.fetchone()
+            if last and (datetime.utcnow() - last["created_at"]).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+                return jsonify(ok=False, message="Tunggu sebentar sebelum mengirim ulang OTP."), 429
+
+            cur.execute("DELETE FROM password_reset_otps WHERE user_id=%s;", (user["id"],))
+            otp = "".join(random.choices(string.digits, k=6))
+            cur.execute("""
+                INSERT INTO password_reset_otps (user_id, otp, expires_at)
+                VALUES (%s, %s, NOW() + INTERVAL '10 minutes');
+            """, (user["id"], otp))
+            conn.commit()
+
+            msg = (
+                f"🔐 *Reset Password UMGAP*\n\n"
+                f"Halo {user['name']},\n\n"
+                f"Kode OTP reset password kamu:\n\n"
+                f"*{otp}*\n\n"
+                f"Berlaku *10 menit*.\n"
+                f"Jangan bagikan ke siapapun.\n\n"
+                f"Jika tidak merasa meminta reset password, abaikan pesan ini."
+            )
+            send_wa(phone, msg)
+
+            return jsonify(ok=True, message="OTP dikirim ke WhatsApp.", masked=_mask_wa(phone))
     finally:
         cur.close()
         conn.close()
 
-    if not u:
-        return render_template("forgot_password.html", sent=True)
-
-    otp = f"{__import__('random').randint(0, 999999):06d}"
-    otp_h = _otp_hash(email, otp)
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            UPDATE password_reset_otps
-            SET used=TRUE
-            WHERE email=%s AND used=FALSE;
-        """, (email,))
-        cur.execute("""
-            INSERT INTO password_reset_otps (email, otp_hash, expires_at, used)
-            VALUES (%s, %s, %s, FALSE);
-        """, (email, otp_h, expires_at))
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
-
-    try:
-        send_email(
-            to_email=email,
-            subject="UMGAP • Kode OTP Reset Password",
-            body=(
-                f"Halo,\n\n"
-                f"Kode OTP reset password kamu: {otp}\n"
-                f"Berlaku 10 menit.\n\n"
-                f"Jika kamu tidak meminta reset, abaikan email ini."
-            ),
-        )
-    except Exception as e:
-        return render_template("forgot_password.html", error=f"Gagal kirim email OTP: {str(e)}")
-
-    return render_template("forgot_password.html", sent=True, email=email)
-
-@auth_bp.route("/reset", methods=["GET", "POST"])
-def reset_password():
-    if request.method == "GET":
-        email = (request.args.get("email") or "").strip().lower()
-        return render_template("reset_password.html", email=email)
-
+@auth_bp.route("/forgot/verify-otp", methods=["POST"])
+def forgot_verify_otp():
     ensure_password_reset_schema()
+    data = request.get_json(silent=True) or {}
+    method = (data.get("method") or "").strip().lower()
+    identifier = (data.get("identifier") or "").strip()
+    otp = (data.get("otp") or "").strip()
 
-    email = (request.form.get("email") or "").strip().lower()
-    otp = (request.form.get("otp") or "").strip()
-    new_password = (request.form.get("new_password") or "").strip()
-    confirm = (request.form.get("confirm_password") or "").strip()
-
-    if not email or not otp or not new_password:
-        return render_template("reset_password.html", email=email, error="Email, OTP, dan password baru wajib diisi.")
-    if new_password != confirm:
-        return render_template("reset_password.html", email=email, error="Konfirmasi password tidak sama.")
-    if len(new_password) < 6:
-        return render_template("reset_password.html", email=email, error="Password minimal 6 karakter.")
-
-    otp_h = _otp_hash(email, otp)
+    if method not in ("email", "wa"):
+        return jsonify(ok=False, message="Metode tidak valid."), 400
+    if len(otp) != 6 or not otp.isdigit():
+        return jsonify(ok=False, message="OTP tidak valid."), 400
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -269,47 +322,111 @@ def reset_password():
         ip_address = (_public_ip() or "")[:64]
         if _otp_verify_rate_limited(cur, ip_address):
             conn.commit()
-            return render_template("reset_password.html", email=email,
-                error="Terlalu banyak percobaan. Coba lagi beberapa menit lagi.")
+            return jsonify(ok=False, message="Terlalu banyak percobaan. Coba lagi beberapa menit lagi."), 429
         conn.commit()
 
-        cur.execute("""
-            SELECT id, otp_hash, expires_at, used
-            FROM password_reset_otps
-            WHERE email=%s AND used=FALSE
-            ORDER BY created_at DESC
-            LIMIT 1;
-        """, (email,))
-        row = cur.fetchone()
+        if method == "email":
+            email = identifier.lower()
+            otp_h = _otp_hash(email, otp)
+            cur.execute("""
+                SELECT id, otp_hash, expires_at
+                FROM password_reset_otps
+                WHERE email=%s AND used=FALSE
+                ORDER BY created_at DESC LIMIT 1
+                FOR UPDATE;
+            """, (email,))
+            row = cur.fetchone()
 
-        if not row:
-            return render_template("reset_password.html", email=email, error="OTP tidak ditemukan atau sudah dipakai.")
+            if not row:
+                return jsonify(ok=False, message="OTP tidak ditemukan atau sudah dipakai."), 400
+            if datetime.utcnow() > row["expires_at"]:
+                cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
+                conn.commit()
+                return jsonify(ok=False, message="OTP sudah kedaluwarsa."), 400
+            if not hmac.compare_digest(row["otp_hash"], otp_h):
+                return jsonify(ok=False, message="OTP salah."), 400
 
-        if datetime.utcnow() > row["expires_at"]:
-            cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
+            reset_token = secrets.token_urlsafe(32)
+            cur.execute("""
+                UPDATE password_reset_otps
+                SET used=TRUE, reset_token=%s, expires_at=NOW() + INTERVAL '15 minutes'
+                WHERE id=%s;
+            """, (reset_token, row["id"]))
             conn.commit()
-            return render_template("reset_password.html", email=email, error="OTP sudah kedaluwarsa.")
+            return jsonify(ok=True, message="OTP valid.", reset_token=reset_token)
 
-        if not hmac.compare_digest(row["otp_hash"], otp_h):
-            return render_template("reset_password.html", email=email, error="OTP salah.")
+        else:  # method == "wa"
+            user = find_user_by_identifier(cur, identifier)
+            if not user:
+                return jsonify(ok=False, message="OTP tidak valid."), 400
 
-        pw_hash = generate_password_hash(new_password)
+            cur.execute("""
+                SELECT id, used, expires_at
+                FROM password_reset_otps
+                WHERE otp=%s AND user_id=%s
+                FOR UPDATE;
+            """, (otp, user["id"]))
+            row = cur.fetchone()
 
-        cur.execute("""
-            UPDATE users
-            SET password_hash=%s
-            WHERE lower(email)=%s;
-        """, (pw_hash, email))
+            if not row:
+                return jsonify(ok=False, message="OTP tidak valid."), 400
+            if row["used"]:
+                return jsonify(ok=False, message="OTP sudah digunakan."), 400
+            if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+                return jsonify(ok=False, message="OTP sudah kedaluwarsa."), 400
 
-        cur.execute("""
-            UPDATE password_reset_otps
-            SET used=TRUE
-            WHERE id=%s;
-        """, (row["id"],))
-
-        conn.commit()
+            reset_token = secrets.token_urlsafe(32)
+            cur.execute("""
+                UPDATE password_reset_otps
+                SET used=TRUE, reset_token=%s, expires_at=NOW() + INTERVAL '15 minutes'
+                WHERE id=%s;
+            """, (reset_token, row["id"]))
+            conn.commit()
+            return jsonify(ok=True, message="OTP valid.", reset_token=reset_token)
     finally:
         cur.close()
         conn.close()
 
-    return redirect("/login")
+@auth_bp.route("/forgot/set-password", methods=["POST"])
+def forgot_set_password():
+    ensure_password_reset_schema()
+    data = request.get_json(silent=True) or {}
+    reset_token = (data.get("reset_token") or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+    confirm = (data.get("confirm_password") or "").strip()
+
+    if not reset_token or not new_password:
+        return jsonify(ok=False, message="Data tidak lengkap."), 400
+    if new_password != confirm:
+        return jsonify(ok=False, message="Konfirmasi password tidak sama."), 400
+    if len(new_password) < 6:
+        return jsonify(ok=False, message="Password minimal 6 karakter."), 400
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, email, user_id, expires_at
+            FROM password_reset_otps
+            WHERE reset_token=%s
+            FOR UPDATE;
+        """, (reset_token,))
+        row = cur.fetchone()
+
+        if not row:
+            return jsonify(ok=False, message="Sesi reset tidak valid. Mulai ulang."), 400
+        if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+            return jsonify(ok=False, message="Sesi reset sudah kedaluwarsa. Mulai ulang."), 400
+
+        pw_hash = generate_password_hash(new_password)
+        if row["email"]:
+            cur.execute("UPDATE users SET password_hash=%s WHERE lower(email)=%s;", (pw_hash, row["email"]))
+        else:
+            cur.execute("UPDATE users SET password_hash=%s WHERE id=%s;", (pw_hash, row["user_id"]))
+
+        cur.execute("DELETE FROM password_reset_otps WHERE reset_token=%s;", (reset_token,))
+        conn.commit()
+        return jsonify(ok=True, message="Password berhasil diubah.")
+    finally:
+        cur.close()
+        conn.close()
