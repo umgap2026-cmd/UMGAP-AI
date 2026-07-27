@@ -18,6 +18,7 @@ from core import (
     send_wa as _send_wa,
     record_checkout,
     _ensure_attendance_checkout_column,
+    _ensure_attendance_schema,
 )
 
 mobile_attendance_bp = Blueprint("mobile_attendance", __name__)
@@ -87,6 +88,7 @@ def mobile_attendance_list():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         _ensure_attendance_checkout_column(cur)
         conn.commit()
 
@@ -161,6 +163,7 @@ def mobile_attendance_me():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         _ensure_attendance_checkout_column(cur)
         conn.commit()
 
@@ -253,16 +256,22 @@ def mobile_attendance_submit():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Hindari duplicate per device per hari:
-        # kalau sudah ada pending dari device yang sama hari ini, update saja.
+        _ensure_attendance_schema(cur)
+        # Hindari duplicate submit per USER per hari kerja: kalau user ini
+        # sudah pernah kirim absensi (pending/approved/rejected apa pun)
+        # utk work_date ini, update saja barisnya. HARUS berdasarkan
+        # user_id, BUKAN device_id -- app Flutter mengirim device_id yang
+        # SAMA ("android") utk semua user, jadi kalau dedup berdasarkan
+        # device_id, absensi karyawan lain yang submit di hari yang sama
+        # akan menimpa punya karyawan sebelumnya (tertukar orang).
         cur.execute("""
             SELECT id
             FROM attendance_pending
-            WHERE device_id = %s
-              AND created_at::date = %s
+            WHERE user_id = %s
+              AND work_date = %s
             ORDER BY id DESC
             LIMIT 1;
-        """, (device_id or "android", work_date))
+        """, (user["user_id"], work_date))
         existing = cur.fetchone()
 
         if existing:
@@ -388,6 +397,7 @@ def mobile_attendance_pending():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             SELECT
                 id,
@@ -450,6 +460,7 @@ def mobile_attendance_approve(pending_id):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             SELECT *
             FROM attendance_pending
@@ -602,6 +613,7 @@ def mobile_attendance_reject(pending_id):
     conn = get_conn()
     cur = conn.cursor()
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             UPDATE attendance_pending
             SET status='REJECTED',
@@ -681,6 +693,13 @@ def mobile_attendance_admin_add():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
+
+        cur.execute("SELECT id FROM users WHERE id = %s LIMIT 1;", (target_user_id,))
+        if not cur.fetchone():
+            conn.rollback()
+            return mobile_api_response(ok=False, message="Karyawan tidak ditemukan.", status_code=404)
+
         # ON CONFLICT DO UPDATE — atomic, mengikuti pola endpoint approve
         cur.execute("""
             INSERT INTO attendance

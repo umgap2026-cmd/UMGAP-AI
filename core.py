@@ -1238,8 +1238,102 @@ def is_token_valid(token: str) -> bool:
 
 
 # =========================
-# ATTENDANCE — CHECK-OUT (dipakai bersama web & mobile)
+# ATTENDANCE — SKEMA TABEL (dipakai bersama web & mobile)
 # =========================
+def _ensure_attendance_schema(cur):
+    """Lazy-migration: pastikan tabel attendance & attendance_pending ada
+    dgn semua kolom yang dipakai kode (device_id, latitude/longitude,
+    accuracy, photo_path, map_url, approve/reject, dst) beserta constraint
+    UNIQUE(user_id, work_date) yang dipakai ON CONFLICT di alur approve.
+    Sebelumnya tabel ini TIDAK PERNAH dibuat lewat kode (diasumsikan sudah
+    ada di DB produksi lama) -- kalau migrasi/DB baru tidak menyalin
+    skema ini persis sama, semua endpoint absensi akan error. Dipanggil
+    di awal SETIAP fungsi yang menyentuh attendance/attendance_pending,
+    sama seperti pola _ensure_xxx_schema lain di file ini.
+
+    Selain CREATE TABLE IF NOT EXISTS (utk kasus tabel belum ada sama
+    sekali), juga jalankan ADD COLUMN IF NOT EXISTS per kolom (utk kasus
+    tabel SUDAH ada dari migrasi lama tapi ada kolom yang ketinggalan) &
+    pastikan constraint UNIQUE(user_id, work_date) ada (dicek dulu lewat
+    pg_constraint, bukan asumsi CREATE TABLE di atas jalan).
+
+    Endpoint absensi dipanggil SANGAT sering (tiap kali ada yg checkin) --
+    gated di belakang 1 pengecekan murah (_col_exists utk kolom yang
+    ditambahkan PALING TERAKHIR) supaya jalur normal (skema sudah
+    lengkap) tidak berulang kali coba ALTER TABLE & kena lock contention
+    di tabel yang sering ditulis ini."""
+    if _table_exists(cur, "attendance") and _col_exists(cur, "attendance", "map_url"):
+        return
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            work_date DATE NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'PRESENT',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS attendance_pending (
+            id SERIAL PRIMARY KEY,
+            status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    for col_def in (
+        "arrival_type VARCHAR(20)",
+        "note TEXT",
+        "checkin_at TIMESTAMP",
+        "checkout_at TIMESTAMP NULL",
+        "checkout_auto BOOLEAN NOT NULL DEFAULT FALSE",
+        "device_id VARCHAR(100)",
+        "latitude DOUBLE PRECISION",
+        "longitude DOUBLE PRECISION",
+        "accuracy DOUBLE PRECISION",
+        "photo_path TEXT",
+        "map_url TEXT",
+    ):
+        cur.execute(f"ALTER TABLE attendance ADD COLUMN IF NOT EXISTS {col_def};")
+
+    for col_def in (
+        "user_id INTEGER REFERENCES users(id)",
+        "work_date DATE",
+        "arrival_type VARCHAR(20)",
+        "note TEXT",
+        "name_input VARCHAR(150)",
+        "device_id VARCHAR(100)",
+        "latitude DOUBLE PRECISION",
+        "longitude DOUBLE PRECISION",
+        "accuracy DOUBLE PRECISION",
+        "photo_path TEXT",
+        "ip_address VARCHAR(64)",
+        "approved_user_id INTEGER REFERENCES users(id)",
+        "approved_by INTEGER REFERENCES users(id)",
+        "approved_at TIMESTAMP",
+        "rejected_by INTEGER REFERENCES users(id)",
+        "rejected_at TIMESTAMP",
+        "reject_reason TEXT",
+    ):
+        cur.execute(f"ALTER TABLE attendance_pending ADD COLUMN IF NOT EXISTS {col_def};")
+
+    # WHEN OTHERS (bukan cuma duplicate_object) sengaja ditangkap semua --
+    # kalau ternyata sudah ada data duplikat (user_id, work_date) di
+    # produksi (mis. peninggalan bug sebelum fix ini), ADD CONSTRAINT bisa
+    # gagal dgn unique_violation, BUKAN duplicate_object. Constraint ini
+    # cuma "nice to have" biar ON CONFLICT makin aman; jangan sampai
+    # gagal bikin constraint ini merusak seluruh alur absensi.
+    cur.execute("""
+        DO $$
+        BEGIN
+            ALTER TABLE attendance ADD CONSTRAINT attendance_user_id_work_date_key UNIQUE (user_id, work_date);
+        EXCEPTION
+            WHEN OTHERS THEN NULL;
+        END $$;
+    """)
+
+
 def _ensure_attendance_checkout_column(cur):
     """Lazy-migration: kolom checkout_at/checkout_auto belum ada di skema
     attendance lama. Dipakai bersama routes/web/attendance.py,
@@ -1263,6 +1357,7 @@ def record_checkout(user_id, work_date, checkout_time=None):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         _ensure_attendance_checkout_column(cur)
         cur.execute("""
             UPDATE attendance
@@ -1299,6 +1394,7 @@ def auto_checkout_forgotten():
     conn = get_conn()
     cur = conn.cursor()
     try:
+        _ensure_attendance_schema(cur)
         _ensure_attendance_checkout_column(cur)
         cur.execute("""
             UPDATE attendance

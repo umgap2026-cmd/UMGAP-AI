@@ -15,7 +15,7 @@ from core import _parse_manual_wib_naive
 from core import _public_ip
 from core import _now_wib_naive
 from core import is_token_valid
-from core import record_checkout, _ensure_attendance_checkout_column
+from core import record_checkout, _ensure_attendance_checkout_column, _ensure_attendance_schema
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -38,6 +38,7 @@ def admin_dashboard():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("SELECT COUNT(*) AS total FROM users WHERE role='employee';")
         total_employees = cur.fetchone()["total"]
 
@@ -316,72 +317,37 @@ def quick_attendance_submit(token):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        # Cek apakah device_id ini sudah submit pending hari ini
-        # (sama seperti logika di routes/web/attendance.py dan mobile/attendance.py)
-        if device_id:
-            cur.execute("""
-                SELECT id
-                FROM attendance_pending
-                WHERE device_id = %s
-                  AND created_at::date = %s
-                ORDER BY id DESC
-                LIMIT 1;
-            """, (device_id, work_date))
-            existing = cur.fetchone()
-        else:
-            existing = None
-
-        if existing:
-            # Sudah ada → UPDATE supaya tidak kena unique constraint
-            cur.execute("""
-                UPDATE attendance_pending
-                SET
-                    work_date   = %s,
-                    arrival_type = 'ONTIME',
-                    note        = %s,
-                    name_input  = %s,
-                    latitude    = %s,
-                    longitude   = %s,
-                    accuracy    = %s,
-                    photo_path  = %s,
-                    ip_address  = %s,
-                    status      = 'PENDING',
-                    created_at  = %s
-                WHERE id = %s;
-            """, (
-                work_date,
-                f"Quick attendance from token {token}",
-                name_input,
-                lat,
-                lng,
-                acc,
-                photo_path,
-                _public_ip(),
-                now,
-                existing[0],
-            ))
-        else:
-            # Belum ada → INSERT baru
-            cur.execute("""
-                INSERT INTO attendance_pending
-                (user_id, work_date, arrival_type, note, name_input,
-                 device_id, latitude, longitude, accuracy, photo_path,
-                 ip_address, status, created_at)
-                VALUES (NULL, %s, 'ONTIME', %s, %s,
-                        %s, %s, %s, %s, %s,
-                        %s, 'PENDING', %s);
-            """, (
-                work_date,
-                f"Quick attendance from token {token}",
-                name_input,
-                device_id or None,
-                lat,
-                lng,
-                acc,
-                photo_path,
-                _public_ip(),
-                now,
-            ))
+        _ensure_attendance_schema(cur)
+        # Quick attendance = link/kiosk BERSAMA yang dipakai bergantian oleh
+        # BANYAK karyawan berbeda (belum ada user_id, cuma name_input bebas
+        # ketik). SELALU insert baris baru -- JANGAN update baris pending
+        # berdasarkan device_id spt di routes/web/attendance.py &
+        # mobile/attendance.py, krn di sini device_id yang sama justru
+        # WAJAR dipakai banyak orang berbeda di hari yang sama (device/
+        # tablet kiosk bersama); dedup by device_id akan bikin submit
+        # karyawan berikutnya menimpa nama & foto karyawan sebelumnya di
+        # baris pending yang sama (tertukar orang). user_id di sini NULL,
+        # jadi tidak bentrok dgn constraint UNIQUE(user_id, work_date).
+        cur.execute("""
+            INSERT INTO attendance_pending
+            (user_id, work_date, arrival_type, note, name_input,
+             device_id, latitude, longitude, accuracy, photo_path,
+             ip_address, status, created_at)
+            VALUES (NULL, %s, 'ONTIME', %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, 'PENDING', %s);
+        """, (
+            work_date,
+            f"Quick attendance from token {token}",
+            name_input,
+            device_id or None,
+            lat,
+            lng,
+            acc,
+            photo_path,
+            _public_ip(),
+            now,
+        ))
 
         conn.commit()
     except Exception:
@@ -408,6 +374,7 @@ def admin_attendance_approval():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             SELECT
                 id,
@@ -463,6 +430,7 @@ def admin_attendance_approve():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             SELECT *
             FROM attendance_pending
@@ -553,6 +521,7 @@ def admin_attendance_reject():
     conn = get_conn()
     cur = conn.cursor()
     try:
+        _ensure_attendance_schema(cur)
         cur.execute("""
             UPDATE attendance_pending
             SET status='REJECTED',
@@ -576,6 +545,7 @@ def admin_attendance():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    _ensure_attendance_schema(cur)
     _ensure_attendance_checkout_column(cur)
     conn.commit()
     cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
@@ -618,6 +588,7 @@ def admin_attendance_add():
     work_date = now.date()
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    _ensure_attendance_schema(cur)
     cur.execute("SELECT id FROM attendance WHERE user_id=%s AND work_date=%s LIMIT 1;", (user_id, work_date))
     existing = cur.fetchone()
 

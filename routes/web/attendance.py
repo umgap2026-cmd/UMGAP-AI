@@ -8,7 +8,7 @@ from psycopg2.extras import RealDictCursor
 from db import get_conn
 from core import (
     is_logged_in, is_admin, _now_wib_naive_from_form, _public_ip,
-    record_checkout, _ensure_attendance_checkout_column,
+    record_checkout, _ensure_attendance_checkout_column, _ensure_attendance_schema,
 )
 
 
@@ -27,6 +27,7 @@ def attendance_page():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
+        _ensure_attendance_schema(cur)
         _ensure_attendance_checkout_column(cur)
         conn.commit()
 
@@ -101,15 +102,21 @@ def attendance_add():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Cek apakah device ini sudah pernah submit pending hari ini
+        _ensure_attendance_schema(cur)
+        # Cek apakah USER INI sudah pernah submit pending utk work_date ini.
+        # HARUS berdasarkan user_id, bukan device_id -- device_id (browser
+        # localStorage) bisa dipakai bergantian oleh beberapa karyawan di
+        # 1 komputer/tablet kantor; kalau dedup berdasarkan device_id,
+        # absensi karyawan lain yang submit di hari yang sama lewat device
+        # yang sama akan menimpa punya karyawan sebelumnya (tertukar orang).
         cur.execute("""
             SELECT id
             FROM attendance_pending
-            WHERE device_id = %s
-              AND created_at::date = %s
+            WHERE user_id = %s
+              AND work_date = %s
             ORDER BY id DESC
             LIMIT 1;
-        """, (device_id, work_date))
+        """, (session["user_id"], work_date))
         existing_pending = cur.fetchone()
 
         if existing_pending:
