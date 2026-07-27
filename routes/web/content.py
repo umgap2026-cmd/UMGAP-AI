@@ -11,7 +11,7 @@ def _admin_guard():
     if not is_logged_in():
         return redirect("/login")
     if not is_admin():
-        return redirect("/dashboard")
+        return redirect("/owner/dashboard" if session.get("role") == "owner" else "/dashboard")
     return None
 
 

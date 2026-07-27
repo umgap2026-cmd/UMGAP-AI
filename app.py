@@ -96,6 +96,23 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 init_oauth(app)
 
 
+@app.context_processor
+def inject_home_url():
+    """home_url() dipakai di banyak template utk link "Dashboard"/"Kembali"
+    -- sebelumnya banyak tempat cuma cek admin vs "selain admin" (2 cabang),
+    jadi role owner (yg jadi role ke-3) selalu salah kelempar ke /dashboard
+    (dashboard employee). Sentralisasi di sini supaya halaman baru ke depan
+    tidak mengulang bug yang sama."""
+    def home_url():
+        role = session.get("role")
+        if role == "admin":
+            return "/admin/dashboard"
+        if role == "owner":
+            return "/owner/dashboard"
+        return "/dashboard"
+    return dict(home_url=home_url)
+
+
 @app.errorhandler(500)
 def handle_internal_error(e):
     """Tampilkan pesan error asli (bukan halaman generik) ke admin/owner yang

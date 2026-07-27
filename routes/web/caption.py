@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect
+from flask import Blueprint, render_template, request, redirect, session
 from core import is_logged_in, is_admin, rupiah, pick
 
 caption_bp = Blueprint("caption", __name__)
@@ -9,7 +9,7 @@ def caption():
     if not is_logged_in():
         return redirect("/login")
     if not is_admin():
-        return redirect("/dashboard")
+        return redirect("/owner/dashboard" if session.get("role") == "owner" else "/dashboard")
 
     form = {
         "template": "promo",

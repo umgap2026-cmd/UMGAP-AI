@@ -76,6 +76,11 @@ def admin_required():
         return redirect(url_for("auth.login"))
     if session.get("role") != "admin":
         flash("Akses ditolak. Hanya admin.", "danger")
+        # Owner yang ditolak diarahkan ke dashboard-nya sendiri, bukan
+        # dashboard employee -- owner bukan employee, halaman itu tidak
+        # relevan utk dia.
+        if session.get("role") == "owner":
+            return redirect("/owner/dashboard")
         return redirect(url_for("dashboard.dashboard"))
     return None
 
