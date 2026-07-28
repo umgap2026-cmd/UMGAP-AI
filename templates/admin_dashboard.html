@@ -826,6 +826,12 @@
                 </svg>
                 {% if notif_count and notif_count > 0 %}<span class="notif-badge">{{ notif_count }}</span>{% endif %}
               </button>
+              <a href="{{ url_for('profile.profile_page') }}" class="action-btn" aria-label="Profil">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="8" r="4"></circle>
+                  <path d="M4 21a8 8 0 0 1 16 0"></path>
+                </svg>
+              </a>
               <a href="/logout" class="action-btn" aria-label="Logout">
                 <svg viewBox="0 0 24 24">
                   <path d="M10 17l5-5-5-5"></path>
@@ -1147,6 +1153,16 @@
           </span>
           <span>More</span>
         </button>
+
+        <button class="nav-item" type="button" data-nav="profile">
+          <span class="nav-ico">
+            <svg viewBox="0 0 24 24">
+              <circle class="s" cx="12" cy="8" r="4" stroke-width="2.2"></circle>
+              <path class="s" d="M4 21a8 8 0 0 1 16 0" stroke-width="2.2"></path>
+            </svg>
+          </span>
+          <span>Profil</span>
+        </button>
       </div>
     </div>
 
@@ -1267,6 +1283,8 @@
           } else if (key === "more") {
             document.getElementById("moreBtn")?.click();
             setActive("more");
+          } else if (key === "profile") {
+            window.location.href = "{{ url_for('profile.profile_page') }}";
           }
         }
         items.forEach(function (btn) {
