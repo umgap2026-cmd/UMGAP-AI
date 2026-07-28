@@ -264,7 +264,12 @@ def forgot_send_otp():
 
         else:  # method == "wa"
             user = find_user_by_identifier(cur, identifier)
-            if not user or not (user.get("phone") or "").strip():
+            if not user:
+                print(f"[FORGOT WA] user tidak ditemukan untuk identifier={identifier!r}")
+                conn.commit()
+                return jsonify(ok=True, message="Jika akun ditemukan, OTP akan dikirim.", masked=_mask_wa(identifier))
+            if not (user.get("phone") or "").strip():
+                print(f"[FORGOT WA] user id={user['id']} ditemukan tapi kolom phone kosong")
                 conn.commit()
                 return jsonify(ok=True, message="Jika akun ditemukan, OTP akan dikirim.", masked=_mask_wa(identifier))
 
@@ -296,6 +301,7 @@ def forgot_send_otp():
                 f"Jangan bagikan ke siapapun.\n\n"
                 f"Jika tidak merasa meminta reset password, abaikan pesan ini."
             )
+            print(f"[FORGOT WA] send_wa dipanggil untuk user id={user['id']} phone={_mask_wa(phone)}")
             send_wa(phone, msg)
 
             return jsonify(ok=True, message="OTP dikirim ke WhatsApp.", masked=_mask_wa(phone))

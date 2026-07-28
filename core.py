@@ -265,25 +265,33 @@ def _otp_hash(email, otp):
 
 def find_user_by_identifier(cur, identifier: str):
     """Cari user berdasarkan email atau nomor HP/WA. Dipakai oleh flow lupa
-    password web (routes/web/auth.py) untuk opsi reset via WhatsApp."""
+    password web (routes/web/auth.py) untuk opsi reset via WhatsApp.
+
+    Nomor HP dibandingkan tahan-format: "08xx", "8xx", "62xx", dan "+62 xx"
+    semuanya dinormalisasi ke angka murni lalu dicocokkan dalam dua varian
+    (awalan "0" dan awalan "62"), supaya tidak masalah user input format apa
+    dan kolom users.phone tersimpan format apa."""
     is_email = "@" in identifier
     if is_email:
         cur.execute(
             "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
             (identifier,))
     else:
-        norm = identifier.replace(" ", "").replace("-", "").replace("+", "")
-        norm62 = "62" + norm[1:] if norm.startswith("0") else norm
+        digits = re.sub(r"\D", "", identifier)
+        if digits.startswith("62"):
+            core_num = digits[2:]
+        elif digits.startswith("0"):
+            core_num = digits[1:]
+        else:
+            core_num = digits
+        variant_0 = "0" + core_num
+        variant_62 = "62" + core_num
         cur.execute("""
             SELECT id, name, phone FROM users
             WHERE phone IS NOT NULL
-              AND (
-                REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
-                    IN (%s, %s)
-                OR phone IN (%s, %s)
-              )
+              AND regexp_replace(phone, '\\D', '', 'g') IN (%s, %s)
             LIMIT 1;
-        """, (norm, norm62, norm, norm62))
+        """, (variant_0, variant_62))
     return cur.fetchone()
 
 def send_email(to_email, subject, body):
