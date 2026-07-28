@@ -37,7 +37,30 @@ def mark_notification_read(ann_id):
         conn.commit()
     finally:
         cur.close(); conn.close()
-    return redirect("/notifications")
+    return redirect(request.referrer or "/notifications")
+
+
+@announcements_bp.route("/notifications/read-all")
+def mark_all_notifications_read():
+    if "user_id" not in session:
+        return redirect("/login")
+    conn = get_conn(); cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO announcement_reads (announcement_id, user_id)
+            SELECT a.id, %s
+            FROM announcements a
+            LEFT JOIN announcement_reads ar
+              ON ar.announcement_id = a.id
+             AND ar.user_id = %s
+            WHERE a.is_active = TRUE
+              AND ar.id IS NULL
+            ON CONFLICT (announcement_id, user_id) DO NOTHING;
+        """, (session["user_id"], session["user_id"]))
+        conn.commit()
+    finally:
+        cur.close(); conn.close()
+    return redirect(request.referrer or "/notifications")
 
 
 ANNOUNCEMENTS_PAGE_SIZE = 50

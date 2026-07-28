@@ -789,6 +789,157 @@
           display: none;
         }
       }
+
+      /* ══════════ MODAL PENGUMUMAN ══════════ */
+      .ann-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(2px);
+        z-index: 200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        opacity: 0;
+        transition: opacity 0.22s ease;
+      }
+      .ann-overlay.open {
+        display: flex;
+        opacity: 1;
+      }
+      .ann-modal {
+        width: 100%;
+        max-width: 420px;
+        max-height: 82vh;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-out);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform: scale(0.92) translateY(10px);
+        opacity: 0;
+        transition:
+          transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+          opacity 0.22s ease;
+      }
+      .ann-overlay.open .ann-modal {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+      .ann-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 18px 14px;
+        border-bottom: 1px solid rgba(125, 138, 166, 0.16);
+        flex: 0 0 auto;
+      }
+      .ann-head-ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        background: #eef2ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        flex: 0 0 40px;
+      }
+      .ann-head-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .ann-head-title {
+        font-size: 16px;
+        font-weight: 900;
+        color: var(--text);
+      }
+      .ann-head-sub {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .ann-close {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: none;
+        background: #f2f5fb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex: 0 0 34px;
+      }
+      .ann-close svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--muted);
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+      }
+      .ann-list {
+        overflow-y: auto;
+        padding: 14px 18px;
+        display: grid;
+        gap: 10px;
+      }
+      .ann-card {
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 12px 14px;
+        border: 1px solid rgba(125, 138, 166, 0.14);
+      }
+      .ann-card-title {
+        font-size: 13.5px;
+        font-weight: 900;
+        color: var(--text);
+      }
+      .ann-card-time {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .ann-card-msg {
+        font-size: 12.5px;
+        color: #475569;
+        margin-top: 8px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+      .ann-foot {
+        padding: 14px 18px;
+        border-top: 1px solid rgba(125, 138, 166, 0.16);
+        display: flex;
+        gap: 10px;
+        flex: 0 0 auto;
+      }
+      .ann-btn {
+        flex: 1;
+        height: 44px;
+        border-radius: 999px;
+        border: none;
+        font-weight: 800;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .ann-btn-primary {
+        background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
+        color: #fff;
+      }
+      .ann-btn-ghost {
+        background: #f2f5fb;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -1166,6 +1317,35 @@
       </div>
     </div>
 
+    <!-- MODAL PENGUMUMAN -->
+    <div class="ann-overlay" id="annOverlay">
+      <div class="ann-modal" id="annModal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="ann-head">
+          <div class="ann-head-ico">📢</div>
+          <div class="ann-head-text">
+            <div class="ann-head-title">Pengumuman Baru</div>
+            <div class="ann-head-sub">{{ announcements|length if announcements else 0 }} belum dibaca</div>
+          </div>
+          <button type="button" class="ann-close" id="annClose" aria-label="Tutup">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="ann-list">
+          {% for a in announcements %}
+          <div class="ann-card">
+            <div class="ann-card-title">{{ a.title }}</div>
+            <div class="ann-card-time">{{ a.created_at }}</div>
+            <div class="ann-card-msg">{{ a.message }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="ann-foot">
+          <a class="ann-btn ann-btn-ghost" href="/admin/announcements">Lihat Semua</a>
+          <a class="ann-btn ann-btn-primary" href="/notifications/read-all">Tandai Dibaca</a>
+        </div>
+      </div>
+    </div>
+
     <script>
       // ── live clock ──
       (function () {
@@ -1231,13 +1411,43 @@
         setInterval(tick, 1000);
       })();
 
-      // ── notif ──
+      // ── notif / modal pengumuman ──
       (function () {
         var btn = document.getElementById("notifBtn");
-        if (btn)
-          btn.addEventListener("click", function () {
-            window.location.href = "/admin/announcements";
-          });
+        var overlay = document.getElementById("annOverlay");
+        var modal = document.getElementById("annModal");
+        var closeBtn = document.getElementById("annClose");
+        if (!overlay || !modal) return;
+
+        function openAnn() {
+          overlay.classList.add("open");
+          modal.setAttribute("aria-hidden", "false");
+          document.body.style.overflow = "hidden";
+        }
+        function closeAnn() {
+          overlay.classList.remove("open");
+          modal.setAttribute("aria-hidden", "true");
+          document.body.style.overflow = "";
+        }
+
+        if (btn) btn.addEventListener("click", openAnn);
+        if (closeBtn) closeBtn.addEventListener("click", closeAnn);
+        overlay.addEventListener("click", function (e) {
+          if (e.target === overlay) closeAnn();
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") closeAnn();
+        });
+
+        /* auto-popup kalau ada pengumuman baru yg belum dibaca, sekali per
+           batch pengumuman (kunci ke id terbaru) supaya tidak muncul ulang
+           tiap balik ke dashboard tapi tetap muncul lagi kalau ada yg baru */
+        var notifCount = parseInt("{{ notif_count or 0 }}") || 0;
+        var notifKey = "{{ announcements[0].id if announcements else 0 }}";
+        if (notifCount > 0 && sessionStorage.getItem("annAutoShown") !== notifKey) {
+          sessionStorage.setItem("annAutoShown", notifKey);
+          setTimeout(openAnn, 500);
+        }
       })();
 
       // ── MORE toggle ──

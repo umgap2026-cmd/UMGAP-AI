@@ -1473,6 +1473,17 @@
             ndot.style.animation =
               "bellPop .5s cubic-bezier(.36,.07,.19,.97) both";
           }
+
+          /* ── auto-popup pengumuman baru saat dashboard dibuka ──
+             kunci ke id pengumuman terbaru yg belum dibaca, supaya tidak
+             muncul ulang terus tiap balik ke dashboard, tapi tetap muncul
+             lagi kalau ADA pengumuman baru lain yg masuk. */
+          var notifCount = parseInt("{{ notif_count or 0 }}") || 0;
+          var notifKey = "{{ announcements[0].id if announcements else 0 }}";
+          if (notifCount > 0 && sessionStorage.getItem("notifAutoShown") !== notifKey) {
+            sessionStorage.setItem("notifAutoShown", notifKey);
+            setTimeout(openNotif, 500);
+          }
         })();
 
         /* ── Feature card entrance (stagger) ── */

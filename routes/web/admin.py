@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash
 
 from db import get_conn
 from core import admin_guard, admin_required
-from core import get_notif_count, ensure_points_schema
+from core import ensure_points_schema
 from datetime import date
 from core import _now_wib_naive_from_form
 from core import _parse_manual_wib_naive
@@ -51,16 +51,30 @@ def admin_dashboard():
 
         cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
         employees = cur.fetchall()
+
+        cur.execute("""
+            SELECT a.id, a.title, a.message, a.created_at
+            FROM announcements a
+            LEFT JOIN announcement_reads ar
+              ON ar.announcement_id = a.id
+             AND ar.user_id = %s
+            WHERE a.is_active = TRUE
+              AND ar.id IS NULL
+            ORDER BY a.created_at DESC
+            LIMIT 20;
+        """, (session.get("user_id"),))
+        announcements = cur.fetchall()
     finally:
         cur.close()
         conn.close()
 
-    notif_count = get_notif_count()
+    notif_count = len(announcements)
 
     return render_template(
         "admin_dashboard.html",
         user_name=session.get("user_name", "Admin"),
-        notif_count=int(notif_count or 0),
+        notif_count=notif_count,
+        announcements=announcements,
         total_employees=total_employees,
         total_attendance_today=total_attendance_today,
         total_products=total_products,
