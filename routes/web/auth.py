@@ -4,7 +4,6 @@ import random
 import secrets
 import string
 import time
-from datetime import datetime, timedelta
 
 from flask import Blueprint, render_template, request, redirect, session, url_for, jsonify
 from psycopg2.extras import RealDictCursor
@@ -197,13 +196,6 @@ def _mask_wa(phone: str) -> str:
         return p
     return p[:4] + "****" + p[-4:]
 
-def _naive_utc(dt):
-    """Lepas tzinfo kalau ada, supaya aman dibandingkan dengan datetime.utcnow()
-    (naive) apa pun tipe kolom timestamp-nya di DB (TIMESTAMP vs TIMESTAMPTZ)."""
-    if dt is not None and dt.tzinfo is not None:
-        return dt.replace(tzinfo=None)
-    return dt
-
 OTP_RESEND_COOLDOWN_SECONDS = 45
 
 @auth_bp.route("/forgot", methods=["GET"])
@@ -234,23 +226,22 @@ def forgot_send_otp():
                 return jsonify(ok=True, message="Jika akun ditemukan, OTP akan dikirim.", masked=_mask_email(email))
 
             cur.execute("""
-                SELECT created_at FROM password_reset_otps
+                SELECT 1 FROM password_reset_otps
                 WHERE email=%s AND used=FALSE
-                ORDER BY created_at DESC LIMIT 1;
-            """, (email,))
-            last = cur.fetchone()
-            if last and (datetime.utcnow() - _naive_utc(last["created_at"])).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+                  AND created_at > NOW() - make_interval(secs => %s)
+                LIMIT 1;
+            """, (email, OTP_RESEND_COOLDOWN_SECONDS))
+            if cur.fetchone():
                 return jsonify(ok=False, message="Tunggu sebentar sebelum mengirim ulang OTP."), 429
 
             otp = f"{random.randint(0, 999999):06d}"
             otp_h = _otp_hash(email, otp)
-            expires_at = datetime.utcnow() + timedelta(minutes=10)
 
             cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE email=%s AND used=FALSE;", (email,))
             cur.execute("""
                 INSERT INTO password_reset_otps (email, otp_hash, expires_at, used)
-                VALUES (%s, %s, %s, FALSE);
-            """, (email, otp_h, expires_at))
+                VALUES (%s, %s, NOW() + INTERVAL '10 minutes', FALSE);
+            """, (email, otp_h))
             conn.commit()
 
             try:
@@ -283,12 +274,12 @@ def forgot_send_otp():
             phone = user["phone"].strip()
 
             cur.execute("""
-                SELECT created_at FROM password_reset_otps
+                SELECT 1 FROM password_reset_otps
                 WHERE user_id=%s AND used=FALSE
-                ORDER BY created_at DESC LIMIT 1;
-            """, (user["id"],))
-            last = cur.fetchone()
-            if last and (datetime.utcnow() - _naive_utc(last["created_at"])).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+                  AND created_at > NOW() - make_interval(secs => %s)
+                LIMIT 1;
+            """, (user["id"], OTP_RESEND_COOLDOWN_SECONDS))
+            if cur.fetchone():
                 return jsonify(ok=False, message="Tunggu sebentar sebelum mengirim ulang OTP."), 429
 
             cur.execute("DELETE FROM password_reset_otps WHERE user_id=%s;", (user["id"],))
@@ -347,7 +338,7 @@ def forgot_verify_otp():
             email = identifier.lower()
             otp_h = _otp_hash(email, otp)
             cur.execute("""
-                SELECT id, otp_hash, expires_at
+                SELECT id, otp_hash, (expires_at < NOW()) AS is_expired
                 FROM password_reset_otps
                 WHERE email=%s AND used=FALSE
                 ORDER BY created_at DESC LIMIT 1
@@ -357,7 +348,7 @@ def forgot_verify_otp():
 
             if not row:
                 return jsonify(ok=False, message="OTP tidak ditemukan atau sudah dipakai."), 400
-            if datetime.utcnow() > _naive_utc(row["expires_at"]):
+            if row["is_expired"]:
                 cur.execute("UPDATE password_reset_otps SET used=TRUE WHERE id=%s;", (row["id"],))
                 conn.commit()
                 return jsonify(ok=False, message="OTP sudah kedaluwarsa."), 400
@@ -379,7 +370,7 @@ def forgot_verify_otp():
                 return jsonify(ok=False, message="OTP tidak valid."), 400
 
             cur.execute("""
-                SELECT id, used, expires_at
+                SELECT id, used, (expires_at < NOW()) AS is_expired
                 FROM password_reset_otps
                 WHERE otp=%s AND user_id=%s
                 FOR UPDATE;
@@ -390,7 +381,7 @@ def forgot_verify_otp():
                 return jsonify(ok=False, message="OTP tidak valid."), 400
             if row["used"]:
                 return jsonify(ok=False, message="OTP sudah digunakan."), 400
-            if _naive_utc(row["expires_at"]) < datetime.utcnow():
+            if row["is_expired"]:
                 return jsonify(ok=False, message="OTP sudah kedaluwarsa."), 400
 
             reset_token = secrets.token_urlsafe(32)
@@ -429,7 +420,7 @@ def forgot_set_password():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT id, email, user_id, expires_at
+            SELECT id, email, user_id, (expires_at < NOW()) AS is_expired
             FROM password_reset_otps
             WHERE reset_token=%s
             FOR UPDATE;
@@ -438,7 +429,7 @@ def forgot_set_password():
 
         if not row:
             return jsonify(ok=False, message="Sesi reset tidak valid. Mulai ulang."), 400
-        if _naive_utc(row["expires_at"]) < datetime.utcnow():
+        if row["is_expired"]:
             return jsonify(ok=False, message="Sesi reset sudah kedaluwarsa. Mulai ulang."), 400
 
         pw_hash = generate_password_hash(new_password)
