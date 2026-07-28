@@ -1269,6 +1269,25 @@ def ensure_hr_v2_schema():
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        # Tabel ini sudah ada di production dari sebelum kolom-kolom di bawah
+        # ditambahkan ke definisi CREATE TABLE IF NOT EXISTS di atas, jadi
+        # kolomnya tidak pernah benar-benar ter-migrasi tanpa ALTER eksplisit.
+        for col_sql in [
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS salary_type VARCHAR(20) NOT NULL DEFAULT 'monthly'",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS monthly_salary NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS daily_salary NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS hourly_salary NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS overtime_hourly NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS bonus_default NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS transport_default NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS meal_default NUMERIC(14,2) NOT NULL DEFAULT 0",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "ALTER TABLE payroll_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        ]:
+            try:
+                cur.execute(col_sql)
+            except Exception:
+                conn.rollback()
         conn.commit()
     finally:
         cur.close()
