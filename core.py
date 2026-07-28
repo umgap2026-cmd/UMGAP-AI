@@ -1171,6 +1171,8 @@ def ensure_password_reset_schema():
             "ALTER TABLE password_reset_otps ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
             "ALTER TABLE password_reset_otps ALTER COLUMN email DROP NOT NULL",
             "ALTER TABLE password_reset_otps ALTER COLUMN otp_hash DROP NOT NULL",
+            "ALTER TABLE password_reset_otps ALTER COLUMN user_id DROP NOT NULL",
+            "ALTER TABLE password_reset_otps ALTER COLUMN otp DROP NOT NULL",
         ]:
             try:
                 cur.execute(col_sql)
