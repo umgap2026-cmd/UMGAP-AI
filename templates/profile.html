@@ -64,6 +64,21 @@
       max-width: 560px;
     }
   }
+  @media (min-width: 960px) {
+    .wrap {
+      max-width: 980px;
+    }
+    .profile-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      align-items: start;
+    }
+    .profile-grid form .p-card,
+    .profile-grid > div > .p-card:first-child {
+      margin-top: 0;
+    }
+  }
 
   /* ══════════ HEADER ══════════ */
   .hdr {
@@ -493,105 +508,108 @@
     <div class="alert alert-err">{{ error }}</div>
     {% endif %}
 
-    <!-- FORM DATA PRIBADI -->
-    <form method="POST" action="{{ url_for('profile.profile_page') }}">
-      <input type="hidden" name="avatar" id="avatarField" value="" />
+    <div class="profile-grid">
+      <!-- FORM DATA PRIBADI (kolom utama) -->
+      <form method="POST" action="{{ url_for('profile.profile_page') }}">
+        <input type="hidden" name="avatar" id="avatarField" value="" />
 
-      <div class="p-card">
-        <div class="pc-header">
-          <div class="pc-h-row">
-            <div class="pc-ico">📇</div>
-            <div>
-              <div class="pc-title">Data Pribadi</div>
-              <div class="pc-sub">Dipakai juga untuk reset password via WhatsApp</div>
+        <div class="p-card">
+          <div class="pc-header">
+            <div class="pc-h-row">
+              <div class="pc-ico">📇</div>
+              <div>
+                <div class="pc-title">Data Pribadi</div>
+                <div class="pc-sub">Dipakai juga untuk reset password via WhatsApp</div>
+              </div>
+            </div>
+          </div>
+          <div class="pc-body">
+            <div class="field">
+              <label>No. WhatsApp / HP</label>
+              <input type="tel" name="phone" placeholder="08xxxxxxxxxx" value="{{ profile.phone or '' }}" />
+            </div>
+            <div class="field">
+              <label>Alamat</label>
+              <textarea name="address" placeholder="Alamat lengkap (opsional)">{{ profile.address or '' }}</textarea>
+            </div>
+            <div class="field">
+              <label>Tanggal Lahir</label>
+              <input type="date" name="birth_date" value="{{ profile.birth_date or '' }}" />
+            </div>
+            <div class="field">
+              <label>Tanggal Masuk</label>
+              <input type="date" name="join_date" value="{{ profile.join_date or '' }}" />
+            </div>
+
+            <button class="btn-save" type="submit">Simpan Perubahan</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- SIDEBAR: INFO AKUN + INFO GAJI (read-only) -->
+      <div>
+        <div class="p-card">
+          <div class="pc-header">
+            <div class="pc-h-row">
+              <div class="pc-ico">🔐</div>
+              <div>
+                <div class="pc-title">Informasi Akun</div>
+                <div class="pc-sub">Hubungi admin kalau perlu diubah</div>
+              </div>
+            </div>
+          </div>
+          <div class="pc-body">
+            <div class="kv-row">
+              <span class="kv-k">Nama</span>
+              <span class="kv-v">{{ profile.name }}</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-k">Email</span>
+              <span class="kv-v">{{ profile.email }}</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-k">Role</span>
+              <span class="kv-v">
+                {% if profile.role == "admin" %}Administrator
+                {% elif profile.role == "owner" %}Pemilik
+                {% else %}Karyawan{% endif %}
+              </span>
             </div>
           </div>
         </div>
-        <div class="pc-body">
-          <div class="field">
-            <label>No. WhatsApp / HP</label>
-            <input type="tel" name="phone" placeholder="08xxxxxxxxxx" value="{{ profile.phone or '' }}" />
-          </div>
-          <div class="field">
-            <label>Alamat</label>
-            <textarea name="address" placeholder="Alamat lengkap (opsional)">{{ profile.address or '' }}</textarea>
-          </div>
-          <div class="field">
-            <label>Tanggal Lahir</label>
-            <input type="date" name="birth_date" value="{{ profile.birth_date or '' }}" />
-          </div>
-          <div class="field">
-            <label>Tanggal Masuk</label>
-            <input type="date" name="join_date" value="{{ profile.join_date or '' }}" />
-          </div>
 
-          <button class="btn-save" type="submit">Simpan Perubahan</button>
-        </div>
-      </div>
-    </form>
-
-    <!-- INFO AKUN (read-only) -->
-    <div class="p-card">
-      <div class="pc-header">
-        <div class="pc-h-row">
-          <div class="pc-ico">🔐</div>
-          <div>
-            <div class="pc-title">Informasi Akun</div>
-            <div class="pc-sub">Hubungi admin kalau perlu diubah</div>
+        {% if profile.salary_type %}
+        <div class="p-card">
+          <div class="pc-header">
+            <div class="pc-h-row">
+              <div class="pc-ico">💰</div>
+              <div>
+                <div class="pc-title">Informasi Gaji</div>
+                <div class="pc-sub">Diatur oleh admin</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="pc-body">
-        <div class="kv-row">
-          <span class="kv-k">Nama</span>
-          <span class="kv-v">{{ profile.name }}</span>
-        </div>
-        <div class="kv-row">
-          <span class="kv-k">Email</span>
-          <span class="kv-v">{{ profile.email }}</span>
-        </div>
-        <div class="kv-row">
-          <span class="kv-k">Role</span>
-          <span class="kv-v">
-            {% if profile.role == "admin" %}Administrator
-            {% elif profile.role == "owner" %}Pemilik
-            {% else %}Karyawan{% endif %}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    {% if profile.salary_type %}
-    <!-- INFO GAJI (read-only) -->
-    <div class="p-card">
-      <div class="pc-header">
-        <div class="pc-h-row">
-          <div class="pc-ico">💰</div>
-          <div>
-            <div class="pc-title">Informasi Gaji</div>
-            <div class="pc-sub">Diatur oleh admin</div>
+          <div class="pc-body">
+            <div class="kv-row">
+              <span class="kv-k">Tipe Gaji</span>
+              <span class="kv-v">{{ "Bulanan" if profile.salary_type == "monthly" else "Harian" }}</span>
+            </div>
+            {% if profile.salary_type == "monthly" %}
+            <div class="kv-row">
+              <span class="kv-k">Gaji Bulanan</span>
+              <span class="kv-v">Rp {{ "{:,.0f}".format(profile.monthly_salary or 0).replace(",", ".") }}</span>
+            </div>
+            {% else %}
+            <div class="kv-row">
+              <span class="kv-k">Gaji Harian</span>
+              <span class="kv-v">Rp {{ "{:,.0f}".format(profile.daily_salary or 0).replace(",", ".") }}</span>
+            </div>
+            {% endif %}
           </div>
-        </div>
-      </div>
-      <div class="pc-body">
-        <div class="kv-row">
-          <span class="kv-k">Tipe Gaji</span>
-          <span class="kv-v">{{ "Bulanan" if profile.salary_type == "monthly" else "Harian" }}</span>
-        </div>
-        {% if profile.salary_type == "monthly" %}
-        <div class="kv-row">
-          <span class="kv-k">Gaji Bulanan</span>
-          <span class="kv-v">Rp {{ "{:,.0f}".format(profile.monthly_salary or 0).replace(",", ".") }}</span>
-        </div>
-        {% else %}
-        <div class="kv-row">
-          <span class="kv-k">Gaji Harian</span>
-          <span class="kv-v">Rp {{ "{:,.0f}".format(profile.daily_salary or 0).replace(",", ".") }}</span>
         </div>
         {% endif %}
       </div>
     </div>
-    {% endif %}
   </div>
 </div>
 
