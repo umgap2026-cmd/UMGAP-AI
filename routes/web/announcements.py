@@ -1,8 +1,30 @@
-from flask import Blueprint, render_template, redirect, session, request, abort
+import threading
+
+from flask import Blueprint, render_template, redirect, session, request, abort, jsonify
 from psycopg2.extras import RealDictCursor
 from db import get_conn
 
 announcements_bp = Blueprint("announcements", __name__)
+
+
+def _push_announcement_fcm(title, message):
+    """Kirim notifikasi FCM ke semua device mobile aktif, fire-and-forget."""
+    def _push():
+        try:
+            from core import send_fcm_to_tokens
+            c2 = get_conn(); cu = c2.cursor(cursor_factory=RealDictCursor)
+            cu.execute("SELECT DISTINCT fcm_token FROM mobile_device_tokens WHERE is_active=TRUE AND COALESCE(fcm_token,'') <> '';")
+            tokens = [r["fcm_token"] for r in cu.fetchall()]
+            cu.close(); c2.close()
+            if tokens:
+                send_fcm_to_tokens(tokens,
+                    title=f"📢 {title}",
+                    body=message[:120] + ("..." if len(message) > 120 else ""),
+                    data={"type": "announcement", "screen": "notifications"})
+                print(f"[FCM] Web announcement dikirim ke {len(tokens)} device")
+        except Exception as ex:
+            print(f"[FCM web] {ex}")
+    threading.Thread(target=_push, daemon=True).start()
 
 
 @announcements_bp.route("/notifications")
@@ -115,31 +137,46 @@ def add_announcement():
         """, (title, message, message, session["user_id"]))
         row = cur.fetchone()
         conn.commit()
-
-        # Kirim FCM ke semua device aktif
-        import threading
-        ann_id = row["id"]
-        def _push():
-            try:
-                from core import send_fcm_to_tokens
-                c2 = get_conn(); cu = c2.cursor(cursor_factory=RealDictCursor)
-                cu.execute("SELECT DISTINCT fcm_token FROM mobile_device_tokens WHERE is_active=TRUE AND COALESCE(fcm_token,'') <> '';")
-                tokens = [r["fcm_token"] for r in cu.fetchall()]
-                cu.close(); c2.close()
-                if tokens:
-                    send_fcm_to_tokens(tokens,
-                        title=f"📢 {title}",
-                        body=message[:120] + ("..." if len(message) > 120 else ""),
-                        data={"type": "announcement", "screen": "notifications"})
-                    print(f"[FCM] Web announcement dikirim ke {len(tokens)} device")
-            except Exception as ex:
-                print(f"[FCM web] {ex}")
-        threading.Thread(target=_push, daemon=True).start()
-
+        _push_announcement_fcm(title, message)
     finally:
         cur.close(); conn.close()
 
     return redirect("/admin/announcements")
+
+
+@announcements_bp.route("/admin/announcements/quick-add", methods=["POST"])
+def admin_announcements_quick_add():
+    """Versi JSON dari add_announcement(), dipakai form buat-pengumuman
+    di dalam popup Dashboard admin supaya tidak perlu pindah halaman."""
+    if session.get("role") != "admin":
+        return jsonify(ok=False, message="Khusus admin."), 403
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    message = (data.get("message") or "").strip()
+
+    if not title or not message:
+        return jsonify(ok=False, message="Judul dan isi pengumuman wajib diisi."), 400
+
+    conn = get_conn(); cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO announcements (title, message, body, created_by)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at;
+        """, (title, message, message, session["user_id"]))
+        row = cur.fetchone()
+        conn.commit()
+        _push_announcement_fcm(title, message)
+        return jsonify(ok=True, message="Pengumuman berhasil dikirim.", announcement={
+            "id": row["id"], "title": title, "message": message,
+            "created_at": str(row["created_at"]),
+        })
+    except Exception as e:
+        conn.rollback()
+        return jsonify(ok=False, message=f"Gagal membuat pengumuman: {e}"), 500
+    finally:
+        cur.close(); conn.close()
 
 
 @announcements_bp.route("/admin/announcements/delete/<int:id>")

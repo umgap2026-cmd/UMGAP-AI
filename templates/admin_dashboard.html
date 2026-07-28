@@ -882,6 +882,63 @@
         stroke-width: 2.4;
         stroke-linecap: round;
       }
+      .ann-add-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: none;
+        background: #eef2ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex: 0 0 34px;
+      }
+      .ann-add-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--blue);
+        fill: none;
+        stroke-width: 2.6;
+        stroke-linecap: round;
+      }
+      .ann-compose {
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(125, 138, 166, 0.16);
+        display: grid;
+        gap: 10px;
+        flex: 0 0 auto;
+      }
+      .ann-input,
+      .ann-textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--shadow-in);
+        padding: 11px 13px;
+        font-size: 13.5px;
+        color: var(--text);
+        font-family: inherit;
+      }
+      .ann-textarea {
+        min-height: 76px;
+        resize: vertical;
+      }
+      .ann-compose-actions {
+        display: flex;
+        gap: 10px;
+      }
+      .ann-compose-actions .ann-btn {
+        height: 40px;
+        font-size: 12.5px;
+      }
+      .ann-compose-err {
+        font-size: 12px;
+        color: #b91c1c;
+        font-weight: 700;
+      }
       .ann-list {
         overflow-y: auto;
         padding: 14px 18px;
@@ -1333,11 +1390,23 @@
             <div class="ann-head-title">Pengumuman Baru</div>
             <div class="ann-head-sub">{{ announcements|length if announcements else 0 }} belum dibaca</div>
           </div>
+          <button type="button" class="ann-add-btn" id="annAddBtn" aria-label="Buat pengumuman">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
           <button type="button" class="ann-close" id="annClose" aria-label="Tutup">
             <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
           </button>
         </div>
-        <div class="ann-list">
+        <div class="ann-compose" id="annCompose" style="display: none">
+          <input type="text" id="annTitleInput" class="ann-input" placeholder="Judul pengumuman" autocomplete="off" />
+          <textarea id="annMsgInput" class="ann-textarea" placeholder="Tulis pengumuman di sini..."></textarea>
+          <div class="ann-compose-err" id="annComposeErr" style="display: none"></div>
+          <div class="ann-compose-actions">
+            <button type="button" class="ann-btn ann-btn-ghost" id="annComposeCancel">Batal</button>
+            <button type="button" class="ann-btn ann-btn-primary" id="annComposeSend">Kirim</button>
+          </div>
+        </div>
+        <div class="ann-list" id="annList">
           {% for a in announcements %}
           <div class="ann-card">
             <div class="ann-card-title">{{ a.title }}</div>
@@ -1346,7 +1415,7 @@
           </div>
           {% endfor %}
           {% if not announcements %}
-          <div class="ann-empty">✅ Tidak ada pengumuman baru.</div>
+          <div class="ann-empty" id="annEmpty">✅ Tidak ada pengumuman baru.</div>
           {% endif %}
         </div>
         <div class="ann-foot">
@@ -1466,6 +1535,97 @@
           sessionStorage.setItem("annAutoShown", notifKey);
           setTimeout(openAnn, 500);
         }
+      })();
+
+      // ── buat pengumuman langsung dari dalam popup ──
+      (function () {
+        var addBtn = document.getElementById("annAddBtn");
+        var compose = document.getElementById("annCompose");
+        var titleInput = document.getElementById("annTitleInput");
+        var msgInput = document.getElementById("annMsgInput");
+        var composeErr = document.getElementById("annComposeErr");
+        var cancelBtn = document.getElementById("annComposeCancel");
+        var sendBtn = document.getElementById("annComposeSend");
+        var list = document.getElementById("annList");
+        if (!addBtn || !compose || !sendBtn) return;
+
+        function hideErr() {
+          composeErr.style.display = "none";
+        }
+        function showErr(msg) {
+          composeErr.textContent = msg;
+          composeErr.style.display = "block";
+        }
+        function closeCompose() {
+          compose.style.display = "none";
+          titleInput.value = "";
+          msgInput.value = "";
+          hideErr();
+        }
+
+        addBtn.addEventListener("click", function () {
+          var willOpen = compose.style.display === "none";
+          compose.style.display = willOpen ? "grid" : "none";
+          if (willOpen) titleInput.focus();
+          else hideErr();
+        });
+        if (cancelBtn) cancelBtn.addEventListener("click", closeCompose);
+
+        sendBtn.addEventListener("click", function () {
+          var title = titleInput.value.trim();
+          var message = msgInput.value.trim();
+          hideErr();
+          if (!title || !message) {
+            showErr("Judul dan isi wajib diisi.");
+            return;
+          }
+
+          sendBtn.disabled = true;
+          sendBtn.textContent = "Mengirim...";
+
+          fetch("/admin/announcements/quick-add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ title: title, message: message }),
+          })
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (data) {
+              sendBtn.disabled = false;
+              sendBtn.textContent = "Kirim";
+              if (!data.ok) {
+                showErr(data.message || "Gagal membuat pengumuman.");
+                return;
+              }
+              var empty = document.getElementById("annEmpty");
+              if (empty) empty.remove();
+
+              var card = document.createElement("div");
+              card.className = "ann-card";
+              var t = document.createElement("div");
+              t.className = "ann-card-title";
+              t.textContent = data.announcement.title;
+              var tm = document.createElement("div");
+              tm.className = "ann-card-time";
+              tm.textContent = data.announcement.created_at;
+              var m = document.createElement("div");
+              m.className = "ann-card-msg";
+              m.textContent = data.announcement.message;
+              card.appendChild(t);
+              card.appendChild(tm);
+              card.appendChild(m);
+              list.insertBefore(card, list.firstChild);
+
+              closeCompose();
+            })
+            .catch(function () {
+              sendBtn.disabled = false;
+              sendBtn.textContent = "Kirim";
+              showErr("Koneksi bermasalah. Coba lagi.");
+            });
+        });
       })();
 
       // ── MORE toggle ──
