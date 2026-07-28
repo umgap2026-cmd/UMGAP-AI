@@ -303,9 +303,19 @@ def send_email(to_email, subject, body):
     msg.set_content(body)
 
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context) as server:
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
+    if smtp_port == 465:
+        # Implicit TLS — server langsung ngomong SSL begitu koneksi terbuka.
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context) as server:
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+    else:
+        # Port lain (mis. 587) pakai STARTTLS — koneksi awalnya plain,
+        # baru upgrade ke TLS setelah handshake. Connect implicit-SSL ke
+        # port ini gagal dengan error "wrong version number".
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls(context=context)
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
 
 
 # =========================
