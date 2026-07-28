@@ -1,6 +1,6 @@
 import traceback
 
-from flask import Blueprint, render_template, request, redirect, session, flash
+from flask import Blueprint, render_template, request, redirect, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
@@ -84,8 +84,14 @@ def profile_page():
         except Exception as e:
             conn.rollback()
             print(f"[PROFILE] {traceback.format_exc()}")
-            flash(f"Gagal memuat halaman profil: {e}", "danger")
-            return redirect(home_url_for_role(session.get("role")))
+            home = home_url_for_role(session.get("role"))
+            return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
+                <title>Error Profil</title></head>
+                <body style="font-family:ui-sans-serif,system-ui,sans-serif;padding:28px;max-width:640px;margin:0 auto;color:#0f172a;">
+                <h2 style="color:#b91c1c;margin:0 0 10px">Gagal memuat halaman profil</h2>
+                <pre style="white-space:pre-wrap;background:#fee2e2;color:#991b1b;padding:14px;border-radius:12px;font-size:13px;">{e}</pre>
+                <p style="margin-top:16px"><a href="{home}" style="color:#2563eb;font-weight:700">← Kembali ke Dashboard</a></p>
+                </body></html>""", 500
     finally:
         cur.close()
         conn.close()
