@@ -888,6 +888,13 @@
         display: grid;
         gap: 10px;
       }
+      .ann-empty {
+        text-align: center;
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 13px;
+        padding: 24px 10px;
+      }
       .ann-card {
         background: #f8fafc;
         border-radius: 16px;
@@ -1338,10 +1345,12 @@
             <div class="ann-card-msg">{{ a.message }}</div>
           </div>
           {% endfor %}
+          {% if not announcements %}
+          <div class="ann-empty">✅ Tidak ada pengumuman baru.</div>
+          {% endif %}
         </div>
         <div class="ann-foot">
-          <a class="ann-btn ann-btn-ghost" href="/admin/announcements">Lihat Semua</a>
-          <a class="ann-btn ann-btn-primary" href="/notifications/read-all">Tandai Dibaca</a>
+          <button type="button" class="ann-btn ann-btn-primary" id="annCloseBtn">Tutup</button>
         </div>
       </div>
     </div>
@@ -1417,7 +1426,10 @@
         var overlay = document.getElementById("annOverlay");
         var modal = document.getElementById("annModal");
         var closeBtn = document.getElementById("annClose");
+        var closeFootBtn = document.getElementById("annCloseBtn");
         if (!overlay || !modal) return;
+
+        var hasUnread = parseInt("{{ notif_count or 0 }}") > 0;
 
         function openAnn() {
           overlay.classList.add("open");
@@ -1428,10 +1440,17 @@
           overlay.classList.remove("open");
           modal.setAttribute("aria-hidden", "true");
           document.body.style.overflow = "";
+          // Admin tidak perlu klik "tandai dibaca" terpisah -- cukup nutup
+          // popup, langsung ditandai terbaca diam-diam di background.
+          if (hasUnread) {
+            hasUnread = false;
+            fetch("/notifications/read-all", { credentials: "same-origin" }).catch(function () {});
+          }
         }
 
         if (btn) btn.addEventListener("click", openAnn);
         if (closeBtn) closeBtn.addEventListener("click", closeAnn);
+        if (closeFootBtn) closeFootBtn.addEventListener("click", closeAnn);
         overlay.addEventListener("click", function (e) {
           if (e.target === overlay) closeAnn();
         });
@@ -1442,9 +1461,8 @@
         /* auto-popup kalau ada pengumuman baru yg belum dibaca, sekali per
            batch pengumuman (kunci ke id terbaru) supaya tidak muncul ulang
            tiap balik ke dashboard tapi tetap muncul lagi kalau ada yg baru */
-        var notifCount = parseInt("{{ notif_count or 0 }}") || 0;
         var notifKey = "{{ announcements[0].id if announcements else 0 }}";
-        if (notifCount > 0 && sessionStorage.getItem("annAutoShown") !== notifKey) {
+        if (hasUnread && sessionStorage.getItem("annAutoShown") !== notifKey) {
           sessionStorage.setItem("annAutoShown", notifKey);
           setTimeout(openAnn, 500);
         }
