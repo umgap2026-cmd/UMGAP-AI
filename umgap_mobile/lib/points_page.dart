@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../api_service.dart';
+import 'api_service.dart';
 import 'u_kit.dart';
 import 'cache_service.dart';
 

@@ -19,7 +19,6 @@ import 'stats_page.dart';
 import 'points_page.dart';
 import 'invoice_page.dart';
 import 'login_page.dart';
-import 'biofinger_mapping_page.dart';
 import 'admin_buy_prices_page.dart';
 import 'admin_hpp_ai_page.dart';
 import 'u_kit.dart';
@@ -187,11 +186,6 @@ class _HomePageState extends State<HomePage>
       'title': 'Input Poin',
       'icon': Icons.star_rounded,
       'color': _cAmber
-    },
-    {
-      'title': 'Fingerprint',
-      'icon': Icons.fingerprint_rounded,
-      'color': _cGreen
     },
     {
       'title': 'Nota',
@@ -457,7 +451,6 @@ class _HomePageState extends State<HomePage>
       'Statistik': const StatsPage(),
       'Input Poin': const PointsPage(),
       'Nota': const InvoicePage(),
-      'Fingerprint': const BiofingerMappingPage(),
       'Harga Beli': const AdminBuyPricesPage(),
       'HPP AI': const AdminHppAiPage(),
       'Profil': const ProfilePage(),

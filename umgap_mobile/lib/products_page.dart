@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../api_service.dart';
+import 'api_service.dart';
 import 'u_kit.dart';
 
 import 'package:flutter/material.dart';
-import '../api_service.dart';
+import 'api_service.dart';
 import 'u_kit.dart';
 
 class ProductsPage extends StatefulWidget {

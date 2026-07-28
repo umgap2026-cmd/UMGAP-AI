@@ -9,7 +9,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter/foundation.dart';
 
-import '../api_service.dart';
+import 'api_service.dart';
 
 // ════════════════════════════════════════════
 //  BACKGROUND HANDLER — harus top-level function

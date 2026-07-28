@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../api_service.dart';
+import 'api_service.dart';
 import 'u_kit.dart';
 
 // ── Color tokens ─────────────────────────────

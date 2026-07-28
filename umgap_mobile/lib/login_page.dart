@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
-import '../api_service.dart';
+import 'api_service.dart';
+import 'forgot_password_page.dart';
 import 'home_page.dart';
 import 'notification_service.dart';
 import 'u_kit.dart';
@@ -21,6 +23,7 @@ class _LoginPageState extends State<LoginPage>
   bool _loading       = false;
   bool _googleLoading = false;
   bool _obscure       = true;
+  String _appVersion  = '';
 
   late AnimationController _ac;
   late Animation<double>   _fadeAnim;
@@ -43,6 +46,14 @@ class _LoginPageState extends State<LoginPage>
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.14), end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeOutCubic));
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {}
   }
 
   @override
@@ -95,11 +106,15 @@ class _LoginPageState extends State<LoginPage>
     try {
       await _googleSignIn.signOut();
       final account = await _googleSignIn.signIn();
-      if (account == null) { setState(() => _googleLoading = false); return; }
+      if (account == null) {
+        if (mounted) setState(() => _googleLoading = false);
+        return;
+      }
       final auth    = await account.authentication;
       final idToken = auth.idToken;
       if (idToken == null || idToken.isEmpty) {
-        if (mounted) uSnack(context, 'Gagal mendapat token Google.', isError: true);
+        if (!mounted) return;
+        uSnack(context, 'Gagal mendapat token Google.', isError: true);
         setState(() => _googleLoading = false);
         return;
       }
@@ -258,7 +273,8 @@ class _LoginPageState extends State<LoginPage>
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: () => Navigator.pushNamed(context, '/forgot'),
+            onPressed: () =>
+                Navigator.push(context, uRoute(const ForgotPasswordPage())),
             style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 0, vertical: USpace.sm)),
@@ -300,7 +316,10 @@ class _LoginPageState extends State<LoginPage>
         const SizedBox(height: USpace.lg),
 
         Center(
-          child: Text('UMGAP v1.1.0 • Hak Cipta Dilindungi',
+          child: Text(
+              _appVersion.isEmpty
+                  ? 'UMGAP • Hak Cipta Dilindungi'
+                  : 'UMGAP v$_appVersion • Hak Cipta Dilindungi',
               style: UText.caption.copyWith(color: UColors.textLight)),
         ),
       ]),

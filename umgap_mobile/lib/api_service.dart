@@ -97,6 +97,39 @@ class ApiService {
     return data;
   }
 
+  // ── Forgot Password (WA / Email) ──────────
+  static Future<Map<String, dynamic>> forgotPasswordRequest(String identifier) async {
+    final res = await dio.post(
+      "/api/mobile/forgot-password/request",
+      data: {"identifier": identifier},
+    );
+    _ensureOk(res, "Gagal mengirim OTP");
+    return _asMap(_asMap(res.data)["data"]);
+  }
+
+  static Future<Map<String, dynamic>> forgotPasswordVerify({
+    required String identifier,
+    required String otp,
+  }) async {
+    final res = await dio.post(
+      "/api/mobile/forgot-password/verify",
+      data: {"identifier": identifier, "otp": otp},
+    );
+    _ensureOk(res, "OTP tidak valid");
+    return _asMap(_asMap(res.data)["data"]);
+  }
+
+  static Future<void> forgotPasswordReset({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    final res = await dio.post(
+      "/api/mobile/forgot-password/reset",
+      data: {"reset_token": resetToken, "new_password": newPassword},
+    );
+    _ensureOk(res, "Gagal mengganti password");
+  }
+
   static Future<void> logout() async {
     try {
       final headers = await _headers();
@@ -752,57 +785,6 @@ class ApiService {
     await for (final chunk in resp) { bytes.addAll(chunk); }
     httpClient.close();
     return bytes;
-  }
-
-  // ── BioFinger Fingerprint Mapping ─────────
-  static Future<Map<String, dynamic>> getBiofingerMappings() async {
-    final headers = await _headers();
-    final res = await dio.get(
-      "/api/mobile/biofinger/mapping",
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal memuat mapping fingerprint");
-    return _asMap(_asMap(res.data)["data"]);
-  }
-
-  static Future<Map<String, dynamic>> getBiofingerUnmapped() async {
-    final headers = await _headers();
-    final res = await dio.get(
-      "/api/mobile/biofinger/unmapped",
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal memuat PIN unmapped");
-    return _asMap(_asMap(res.data)["data"]);
-  }
-
-  static Future<void> addBiofingerMapping({
-    required String pinMesin,
-    required int    userId,
-    String namaMesin = '',
-    String snMesin   = '',
-  }) async {
-    final headers = await _headers();
-    final res = await dio.post(
-      "/api/mobile/biofinger/mapping",
-      data: {
-        "pin_mesin":  pinMesin,
-        "user_id":    userId,
-        "nama_mesin": namaMesin,
-        "snmesin":    snMesin,
-      },
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal menyimpan mapping");
-  }
-
-  static Future<void> deleteBiofingerMapping(int id) async {
-    final headers = await _headers();
-    final res = await dio.delete(
-      "/api/mobile/biofinger/mapping",
-      data: {"id": id},
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal menghapus mapping");
   }
 
   static Future<Map<String, dynamic>> calculateHppAi({

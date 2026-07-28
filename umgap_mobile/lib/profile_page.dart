@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../api_service.dart';
+import 'api_service.dart';
 import 'u_kit.dart';
 import 'cache_service.dart';
 

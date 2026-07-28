@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'home_page.dart';
@@ -184,9 +185,6 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // ── Versi aplikasi saat ini — update setiap rilis ──
-  static const _currentVersion = '1.2.0';
-
   Future<void> _checkLogin() async {
     // Minimum splash duration
     await Future.delayed(const Duration(milliseconds: 2200));
@@ -215,13 +213,16 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   // ── Cek versi ke server ────────────────────────────
   Future<bool> _checkVersion() async {
     try {
+      final packageInfo   = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+
       final data = await ApiService.checkVersion();
       final forceUpdate    = data['force_update'] == true;
-      final latestVersion  = data['latest_version'] ?? _currentVersion;
+      final latestVersion  = data['latest_version'] ?? currentVersion;
       final updateUrl      = data['update_url'] ?? '';
       final message        = data['message'] ?? 'Silakan update aplikasi.';
 
-      if (forceUpdate && _currentVersion != latestVersion && mounted) {
+      if (forceUpdate && currentVersion != latestVersion && mounted) {
         await _showForceUpdateDialog(message, updateUrl);
         return true; // block navigasi
       }

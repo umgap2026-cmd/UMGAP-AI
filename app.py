@@ -322,13 +322,21 @@ def auto_checkout_midnight():
 
 @app.route("/api/mobile/version")
 def app_version():
+    # PENTING: force_update sengaja FALSE dulu -- APK v1.2.0 belum di-build/
+    # di-upload. Nyalakan True + betulkan update_url/sha256 di bawah HANYA
+    # setelah APK rilis benar-benar sudah tersedia untuk diunduh di update_url,
+    # supaya user yang masih pakai versi lama tidak terjebak di dialog force-
+    # update yang linknya belum ada filenya (app jadi tidak bisa dipakai sama
+    # sekali). Sebelumnya flag ini True tapi tidak pernah kepakai gara-gara
+    # versi hardcode di app juga ikut di-set sama biar cocok -- sekarang app
+    # baca versi asli dari PackageInfo, jadi perbandingan ini sudah nyata.
     return jsonify({
         "latest_version": "1.2.0",      # ← update tiap rilis baru
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
-        "force_update":   True,         # True = wajib update, False = opsional
+        "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://github.com/umgap2026-cmd/UMGAP-AI/releases/download/mobile-v1.2.0/umgap-v1.2.0.apk",
-        "sha256":         "07fb8b95c31be2f85bd38f10c0793e17b5c586473585e2a00c49053f85dca624",
-        "message":        "Versi baru v1.2.0 tersedia!\n• Hapus fitur fingerprint (biofinger)\n• Keamanan reset password diperkuat\n• Bug fix overflow"
+        "sha256":         "",           # isi ulang sha256 APK yang sebenarnya diupload
+        "message":        "Versi baru v1.2.0 tersedia!\n• Hapus fitur fingerprint (biofinger)\n• Reset password via WhatsApp/Email\n• Bug fix overflow & lainnya"
     })
 
 @app.route("/ping")

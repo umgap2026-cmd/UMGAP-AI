@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 
 from flask import Blueprint, request
@@ -311,7 +312,6 @@ def mobile_logout():
 
 import random as _rand
 import string as _string
-from datetime  import datetime, timedelta
 
 def _mask_wa(phone: str) -> str:
     """Samarkan nomor: 0812****5678"""
@@ -320,38 +320,51 @@ def _mask_wa(phone: str) -> str:
     return p[:4] + "****" + p[-4:]
 
 
+def _mask_email(email: str) -> str:
+    local, _, domain = email.partition("@")
+    if not domain:
+        return email
+    keep = local[:2] if len(local) > 2 else local[:1]
+    return f"{keep}{'*' * max(3, len(local) - len(keep))}@{domain}"
+
+
 def _find_user_by_identifier(cur, identifier: str):
-    """Cari user berdasarkan email atau nomor HP (dipakai request & verify OTP)."""
+    """Cari user berdasarkan email atau nomor HP (dipakai request & verify OTP).
+    Nomor HP dibandingkan tahan-format: '08xx', '8xx', '62xx', '+62 xx' semua
+    dinormalisasi ke angka murni lalu dicocokkan dua varian (awalan 0 & 62)."""
     is_email = "@" in identifier
     if is_email:
         cur.execute(
             "SELECT id, name, phone FROM users WHERE lower(email) = lower(%s) LIMIT 1;",
             (identifier,))
     else:
-        # Normalisasi: 08xx → 628xx
-        norm = identifier.replace(" ","").replace("-","").replace("+","")
-        if norm.startswith("0"):
-            norm62 = "62" + norm[1:]
+        digits = re.sub(r"\D", "", identifier)
+        if digits.startswith("62"):
+            core_num = digits[2:]
+        elif digits.startswith("0"):
+            core_num = digits[1:]
         else:
-            norm62 = norm
+            core_num = digits
+        variant_0  = "0" + core_num
+        variant_62 = "62" + core_num
         cur.execute("""
             SELECT id, name, phone FROM users
             WHERE phone IS NOT NULL
-              AND (
-                REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '')
-                    IN (%s, %s)
-                OR phone IN (%s, %s)
-              )
+              AND regexp_replace(phone, '\\D', '', 'g') IN (%s, %s)
             LIMIT 1;
-        """, (norm, norm62, norm, norm62))
+        """, (variant_0, variant_62))
     return cur.fetchone()
+
+
+FORGOT_PW_RESEND_COOLDOWN_SECONDS = 45
 
 
 @mobile_auth_bp.route("/forgot-password/request", methods=["POST", "OPTIONS"])
 def forgot_password_request():
     """
-    Terima email atau nomor WA → cari user → kirim OTP ke WA.
-    Body: { "identifier": "email@x.com" | "081234567890" }
+    Terima email atau nomor WA → cari user → kirim OTP.
+    Kalau identifier berupa email, OTP dikirim ke email. Kalau nomor HP,
+    OTP dikirim ke WhatsApp. Body: { "identifier": "email@x.com" | "081234567890" }
     """
     if request.method == "OPTIONS":
         return mobile_api_response(ok=True, message="OK", data={})
@@ -364,6 +377,8 @@ def forgot_password_request():
             ok=False, message="Email atau nomor WhatsApp wajib diisi.",
             status_code=400)
 
+    is_email = "@" in identifier
+
     ensure_password_reset_schema()
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
@@ -371,15 +386,25 @@ def forgot_password_request():
         user = _find_user_by_identifier(cur, identifier)
 
         # Selalu return sukses untuk keamanan (tidak bocorkan apakah akun ada)
-        if not user or not (user.get("phone") or "").strip():
+        if not user or (not is_email and not (user.get("phone") or "").strip()):
             conn.commit()
+            key = "masked_email" if is_email else "masked_wa"
             return mobile_api_response(
                 ok=True,
-                message="Jika akun ditemukan, OTP akan dikirim ke WhatsApp.",
-                data={"masked_wa": ""}
+                message=f"Jika akun ditemukan, OTP akan dikirim ke {'email' if is_email else 'WhatsApp'}.",
+                data={key: ""}
             )
 
-        phone = user["phone"].strip()
+        cur.execute("""
+            SELECT 1 FROM password_reset_otps
+            WHERE user_id=%s AND used=FALSE
+              AND created_at > NOW() - make_interval(secs => %s)
+            LIMIT 1;
+        """, (user["id"], FORGOT_PW_RESEND_COOLDOWN_SECONDS))
+        if cur.fetchone():
+            return mobile_api_response(
+                ok=False, message="Tunggu sebentar sebelum mengirim ulang OTP.",
+                status_code=429)
 
         # Hapus OTP lama user ini
         cur.execute("DELETE FROM password_reset_otps WHERE user_id = %s;", (user["id"],))
@@ -392,6 +417,27 @@ def forgot_password_request():
         """, (user["id"], otp))
         conn.commit()
 
+        if is_email:
+            from core import send_email
+            try:
+                send_email(
+                    to_email=identifier.lower(),
+                    subject="UMGAP • Kode OTP Reset Password",
+                    body=(
+                        f"Halo {user['name']},\n\n"
+                        f"Kode OTP reset password kamu: {otp}\n"
+                        f"Berlaku 10 menit.\n\n"
+                        f"Jika kamu tidak meminta reset, abaikan email ini."
+                    ),
+                )
+            except Exception as e:
+                return mobile_api_response(
+                    ok=False, message=f"Gagal kirim email OTP: {str(e)}", status_code=500)
+            return mobile_api_response(
+                ok=True, message="OTP dikirim ke email.",
+                data={"masked_email": _mask_email(identifier)})
+
+        phone = user["phone"].strip()
         msg = (
             f"🔐 *Reset Password UMGAP*\n\n"
             f"Halo {user['name']},\n\n"
@@ -457,7 +503,7 @@ def forgot_password_verify():
                 ok=False, message="OTP tidak valid.", status_code=400)
 
         cur.execute("""
-            SELECT id, user_id, used, expires_at
+            SELECT id, user_id, used, (expires_at < NOW()) AS is_expired
             FROM password_reset_otps
             WHERE otp = %s AND user_id = %s
             FOR UPDATE;
@@ -470,7 +516,7 @@ def forgot_password_verify():
         if row["used"]:
             return mobile_api_response(
                 ok=False, message="OTP sudah digunakan.", status_code=400)
-        if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+        if row["is_expired"]:
             return mobile_api_response(
                 ok=False, message="OTP sudah kedaluwarsa.", status_code=400)
 
@@ -522,7 +568,7 @@ def forgot_password_reset():
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
-            SELECT user_id, expires_at
+            SELECT user_id, (expires_at < NOW()) AS is_expired
             FROM password_reset_otps
             WHERE reset_token = %s
             FOR UPDATE;
@@ -532,7 +578,7 @@ def forgot_password_reset():
         if not row:
             return mobile_api_response(
                 ok=False, message="Token tidak valid.", status_code=400)
-        if row["expires_at"].replace(tzinfo=None) < datetime.utcnow():
+        if row["is_expired"]:
             return mobile_api_response(
                 ok=False, message="Token sudah kedaluwarsa. Mulai ulang.", status_code=400)
 

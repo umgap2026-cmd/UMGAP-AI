@@ -1,0 +1,17 @@
+# Salin file ini jadi "key.properties" (tanpa .example) di folder yang sama,
+# lalu isi dengan nilai keystore rilis kamu yang sebenarnya.
+# JANGAN commit file "key.properties" ke git -- sudah otomatis di-ignore
+# lewat android/.gitignore, tapi tetap hati-hati.
+#
+# Cara bikin keystore rilis (jalankan sekali saja, simpan baik-baik hasilnya --
+# kalau hilang, kamu tidak akan bisa update aplikasi yang sudah live lagi):
+#
+#   keytool -genkey -v -keystore umgap-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias umgap
+#
+# Taruh file umgap-release.jks yang dihasilkan di folder android/app/,
+# lalu isi storeFile di bawah dengan "umgap-release.jks" (relatif ke folder android/app/).
+
+storePassword=ISI_PASSWORD_KEYSTORE
+keyPassword=ISI_PASSWORD_KEY
+keyAlias=umgap
+storeFile=umgap-release.jks
