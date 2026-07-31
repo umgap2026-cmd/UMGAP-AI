@@ -4424,8 +4424,12 @@ def get_fin_daily_report(report_date):
             SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp_total
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            LEFT JOIN fin_stock_ledger l
-              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN (
+                SELECT DISTINCT ON (transaction_id, material_id) transaction_id, material_id, avg_cost_after
+                FROM fin_stock_ledger
+                WHERE movement_type = 'OUT'
+                ORDER BY transaction_id, material_id, created_at DESC
+            ) l ON l.transaction_id = t.id AND l.material_id = i.material_id
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date = %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
@@ -4752,8 +4756,12 @@ def get_owner_finance_report(date_from, date_to):
             SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS total
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            LEFT JOIN fin_stock_ledger l
-              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN (
+                SELECT DISTINCT ON (transaction_id, material_id) transaction_id, material_id, avg_cost_after
+                FROM fin_stock_ledger
+                WHERE movement_type = 'OUT'
+                ORDER BY transaction_id, material_id, created_at DESC
+            ) l ON l.transaction_id = t.id AND l.material_id = i.material_id
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
@@ -4873,8 +4881,12 @@ def get_fin_weekly_report(week_start, week_end):
             SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            LEFT JOIN fin_stock_ledger l
-              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN (
+                SELECT DISTINCT ON (transaction_id, material_id) transaction_id, material_id, avg_cost_after
+                FROM fin_stock_ledger
+                WHERE movement_type = 'OUT'
+                ORDER BY transaction_id, material_id, created_at DESC
+            ) l ON l.transaction_id = t.id AND l.material_id = i.material_id
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date >= %s AND t.created_at::date <= %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
