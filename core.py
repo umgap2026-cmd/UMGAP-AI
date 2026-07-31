@@ -832,6 +832,17 @@ def add_fin_trip_party(trip_id, name, note):
         conn.close()
 
 
+def _ensure_fin_trip_items_cost_column(conn, cur):
+    """Kolom cost_per_kg = HPP (avg_cost_per_kg) SAAT transaksi jual trip itu
+    terjadi -- supaya laporan HPP Mode Perjalanan tidak salah pakai harga
+    rata-rata SAAT INI (live) utk transaksi lama, sama seperti masalah yang
+    diperbaiki utk nota gudang biasa (lihat get_owner_finance_report)."""
+    try:
+        cur.execute("ALTER TABLE fin_trip_items ADD COLUMN IF NOT EXISTS cost_per_kg NUMERIC(14,2);")
+    except Exception:
+        conn.rollback()
+
+
 def _fin_trip_require_open(cur, trip_id):
     cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
     t = cur.fetchone()
@@ -865,6 +876,7 @@ def record_fin_trip_sell(trip_id, material_id, qty_kg, price_per_kg, party_id, p
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_trip_items_cost_column(conn, cur)
         _fin_trip_require_open(cur, trip_id)
 
         if party_id:
@@ -899,10 +911,10 @@ def record_fin_trip_sell(trip_id, material_id, qty_kg, price_per_kg, party_id, p
         cur.execute("""
             INSERT INTO fin_trip_items
                 (trip_id, party_id, type, material_id, qty_kg, price_per_kg, subtotal,
-                 payment_type, is_debt, note)
-            VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s);
+                 payment_type, is_debt, note, cost_per_kg)
+            VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s, %s);
         """, (trip_id, party_id, material_id, qty_kg, price_per_kg, subtotal,
-              payment_type, is_debt, note or None))
+              payment_type, is_debt, note or None, avg))
 
         _update_stock_avco(cur, material_id, qty_kg, avg, 'OUT', None,
                             note=f"Jual perjalanan trip#{trip_id}")
@@ -4353,6 +4365,8 @@ def get_fin_daily_report(report_date):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_trip_items_cost_column(conn, cur)
+        conn.commit()
         cur.execute("""
             SELECT
                 t.id, t.type, t.party_name, t.total_amount,
@@ -4438,9 +4452,9 @@ def get_fin_daily_report(report_date):
         hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
 
         cur.execute("""
-            SELECT COALESCE(SUM(ti.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
+            SELECT COALESCE(SUM(ti.qty_kg * COALESCE(ti.cost_per_kg, s.avg_cost_per_kg)), 0) AS hpp_total
             FROM fin_trip_items ti
-            JOIN fin_stock_summary s ON s.material_id = ti.material_id
+            LEFT JOIN fin_stock_summary s ON s.material_id = ti.material_id
             WHERE ti.created_at::date = %s AND ti.type = 'JUAL';
         """, (report_date,))
         hpp_trip = float((cur.fetchone() or {}).get("hpp_total", 0))
@@ -4558,16 +4572,37 @@ def get_owner_health_insight():
             """)
             stock_value_start = _clean_num_owner((cur.fetchone() or {}).get("total"))
 
+        # Piutang & Hutang masing2 ada 2 jenis (dibedakan via party_type,
+        # sudah tercatat begitu sejak nota dibuat -- lihat create_fin_invoice
+        # & create_fin_purchase_invoice):
+        #  - PIUTANG + party_type=PELANGGAN  -> customer belum bayar nota (AR biasa)
+        #  - PIUTANG + party_type=SUPPLIER   -> sisa DP kita ke supplier, jadi
+        #                                       saldo yg auto-kepotong pas beli lagi
+        #  - HUTANG  + party_type=SUPPLIER   -> kita belum bayar nota ke supplier (AP biasa)
+        #  - HUTANG  + party_type=PELANGGAN  -> sisa DP customer ke kita (kita
+        #                                       "utang barang"), auto-kepotong pas dia beli lagi
+        piutang_customer = 0.0
+        piutang_saldo_supplier = 0.0
+        hutang_supplier = 0.0
+        hutang_saldo_customer = 0.0
         if _table_exists(cur, "fin_debts"):
             cur.execute("""
                 SELECT
                     COALESCE(SUM(CASE WHEN type='HUTANG' AND is_settled=FALSE THEN remaining ELSE 0 END), 0) AS hutang,
-                    COALESCE(SUM(CASE WHEN type='PIUTANG' AND is_settled=FALSE THEN remaining ELSE 0 END), 0) AS piutang
+                    COALESCE(SUM(CASE WHEN type='PIUTANG' AND is_settled=FALSE THEN remaining ELSE 0 END), 0) AS piutang,
+                    COALESCE(SUM(CASE WHEN type='PIUTANG' AND is_settled=FALSE AND party_type='PELANGGAN' THEN remaining ELSE 0 END), 0) AS piutang_customer,
+                    COALESCE(SUM(CASE WHEN type='PIUTANG' AND is_settled=FALSE AND party_type='SUPPLIER' THEN remaining ELSE 0 END), 0) AS piutang_saldo_supplier,
+                    COALESCE(SUM(CASE WHEN type='HUTANG' AND is_settled=FALSE AND party_type='SUPPLIER' THEN remaining ELSE 0 END), 0) AS hutang_supplier,
+                    COALESCE(SUM(CASE WHEN type='HUTANG' AND is_settled=FALSE AND party_type='PELANGGAN' THEN remaining ELSE 0 END), 0) AS hutang_saldo_customer
                 FROM fin_debts;
             """)
             r = cur.fetchone() or {}
             debt_total = _clean_num_owner(r.get("hutang"))
             receivable_total = _clean_num_owner(r.get("piutang"))
+            piutang_customer = _clean_num_owner(r.get("piutang_customer"))
+            piutang_saldo_supplier = _clean_num_owner(r.get("piutang_saldo_supplier"))
+            hutang_supplier = _clean_num_owner(r.get("hutang_supplier"))
+            hutang_saldo_customer = _clean_num_owner(r.get("hutang_saldo_customer"))
 
         if _table_exists(cur, "payroll_settings"):
             has_monthly = _col_exists(cur, "payroll_settings", "monthly_salary")
@@ -4649,6 +4684,10 @@ def get_owner_health_insight():
             "stock_value": stock_value,
             "debt_total": debt_total,
             "receivable_total": receivable_total,
+            "piutang_customer": piutang_customer,
+            "piutang_saldo_supplier": piutang_saldo_supplier,
+            "hutang_supplier": hutang_supplier,
+            "hutang_saldo_customer": hutang_saldo_customer,
             "profit": profit,
             "gross_profit": gross_profit,
             "net_profit": net_profit,
@@ -4691,8 +4730,10 @@ Data bulan ini:
 - Pengeluaran: Rp {insight.get('expense', 0):,.0f}
 - Gaji karyawan: Rp {insight.get('salary_total', 0):,.0f}
 - Nilai stok gudang saat ini: Rp {insight.get('stock_value', 0):,.0f} (awal bulan: Rp {insight.get('stock_value_start', 0):,.0f})
-- Hutang: Rp {insight.get('debt_total', 0):,.0f}
-- Piutang: Rp {insight.get('receivable_total', 0):,.0f}
+- Hutang ke pemasok (belum kita bayar): Rp {insight.get('hutang_supplier', 0):,.0f}
+- Saldo titipan pelanggan (mereka sudah bayar/DP, kita "utang barang" belum kirim): Rp {insight.get('hutang_saldo_customer', 0):,.0f}
+- Piutang dari pelanggan (belum mereka bayar): Rp {insight.get('piutang_customer', 0):,.0f}
+- Saldo titipan ke pemasok (kita sudah DP, menunggu barang datang): Rp {insight.get('piutang_saldo_supplier', 0):,.0f}
 - Estimasi laba bersih (sudah memperhitungkan stok yg belum terjual): Rp {insight.get('profit', 0):,.0f}
 - Arus kas bersih bulan ini (uang masuk dikurangi semua uang keluar termasuk belanja stok): Rp {insight.get('cash_flow_net', 0):,.0f}
 - Kehadiran hari ini: {insight.get('attendance_today_hadir', 0)} dari {insight.get('total_karyawan', 0)} karyawan
@@ -4734,6 +4775,7 @@ def get_owner_finance_report(date_from, date_to):
     try:
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
+        _ensure_fin_trip_items_cost_column(conn, cur)
         conn.commit()
 
         cur.execute("""
@@ -4795,9 +4837,9 @@ def get_owner_finance_report(date_from, date_to):
             trip_beban = float(r["beban"] or 0)
 
             cur.execute("""
-                SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS total
+                SELECT COALESCE(SUM(i.qty_kg * COALESCE(i.cost_per_kg, s.avg_cost_per_kg)), 0) AS total
                 FROM fin_trip_items i
-                JOIN fin_stock_summary s ON s.material_id = i.material_id
+                LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
                 WHERE i.type = 'JUAL' AND i.created_at::date BETWEEN %s AND %s;
             """, (date_from, date_to))
             hpp_trip = float(cur.fetchone()["total"] or 0)
@@ -4820,7 +4862,7 @@ def get_owner_finance_report(date_from, date_to):
         nilai_stok = float(cur.fetchone()["total"] or 0)
 
         cur.execute("""
-            SELECT type, party_name, amount, paid_amount, remaining, note,
+            SELECT type, party_name, party_type, amount, paid_amount, remaining, note,
                    TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS created_at_wib
             FROM fin_debts WHERE is_settled = FALSE ORDER BY type, created_at DESC;
         """)
@@ -4829,6 +4871,20 @@ def get_owner_finance_report(date_from, date_to):
         piutang_list = [d for d in debts if d["type"] == "PIUTANG"]
         total_hutang = sum(float(d["remaining"] or 0) for d in hutang_list)
         total_piutang = sum(float(d["remaining"] or 0) for d in piutang_list)
+
+        # Pecah tiap jenis jadi 2 sub-kategori (lihat penjelasan lengkap di
+        # get_owner_health_insight()): PIUTANG->PELANGGAN = AR biasa (customer
+        # belum bayar), PIUTANG->SUPPLIER = sisa DP kita ke supplier (saldo).
+        # HUTANG->SUPPLIER = AP biasa (kita belum bayar), HUTANG->PELANGGAN =
+        # sisa DP customer ke kita (kita "utang barang").
+        piutang_customer_list = [d for d in piutang_list if d.get("party_type") == "PELANGGAN"]
+        piutang_saldo_supplier_list = [d for d in piutang_list if d.get("party_type") == "SUPPLIER"]
+        hutang_supplier_list = [d for d in hutang_list if d.get("party_type") == "SUPPLIER"]
+        hutang_saldo_customer_list = [d for d in hutang_list if d.get("party_type") == "PELANGGAN"]
+        total_piutang_customer = sum(float(d["remaining"] or 0) for d in piutang_customer_list)
+        total_piutang_saldo_supplier = sum(float(d["remaining"] or 0) for d in piutang_saldo_supplier_list)
+        total_hutang_supplier = sum(float(d["remaining"] or 0) for d in hutang_supplier_list)
+        total_hutang_saldo_customer = sum(float(d["remaining"] or 0) for d in hutang_saldo_customer_list)
 
         return {
             "date_from": str(date_from),
@@ -4844,6 +4900,14 @@ def get_owner_finance_report(date_from, date_to):
             "nilai_stok": nilai_stok,
             "total_hutang": total_hutang,
             "total_piutang": total_piutang,
+            "total_piutang_customer": total_piutang_customer,
+            "total_piutang_saldo_supplier": total_piutang_saldo_supplier,
+            "total_hutang_supplier": total_hutang_supplier,
+            "total_hutang_saldo_customer": total_hutang_saldo_customer,
+            "piutang_customer_list": piutang_customer_list,
+            "piutang_saldo_supplier_list": piutang_saldo_supplier_list,
+            "hutang_supplier_list": hutang_supplier_list,
+            "hutang_saldo_customer_list": hutang_saldo_customer_list,
             "hutang_list": hutang_list,
             "piutang_list": piutang_list,
             "trip_jual": trip_jual,

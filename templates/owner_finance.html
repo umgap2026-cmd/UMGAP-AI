@@ -96,12 +96,16 @@
   .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--blue); }
   .item-row.red::before { background: var(--bad); }
   .item-row.green::before { background: var(--good); }
+  .item-row.amber::before { background: #b45309; }
+  .item-row.blue::before { background: var(--blue); }
   .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .item-name { font-size: 13.5px; font-weight: 900; color: var(--text); }
   .item-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
   .item-val { font-size: 13.5px; font-weight: 1000; color: var(--blue); text-align: right; white-space: nowrap; }
   .item-row.red .item-val { color: var(--bad); }
   .item-row.green .item-val { color: var(--good); }
+  .item-row.amber .item-val { color: #b45309; }
+  .item-row.blue .item-val { color: var(--blue); }
   .empty-hint { text-align: center; padding: 20px 0; color: var(--muted); font-size: 12.5px; }
 
   .mobile-only { display: block; } .desktop-only { display: none; }
@@ -191,11 +195,11 @@
       </div>
       <div class="stat-pill red">
         <div class="s-num">Rp {{ "{:,}".format(report.total_hutang | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Total Hutang</div>
+        <div class="s-lbl">Total Hutang (ke pemasok + saldo titipan pelanggan)</div>
       </div>
       <div class="stat-pill green">
         <div class="s-num">Rp {{ "{:,}".format(report.total_piutang | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Total Piutang</div>
+        <div class="s-lbl">Total Piutang (dari pelanggan + saldo titipan ke pemasok)</div>
       </div>
       {% if report.trip_jual > 0 or report.trip_beli > 0 or report.trip_beban > 0 %}
       <div class="stat-pill">
@@ -225,15 +229,15 @@
       </div>
     </div>
 
-    <!-- HUTANG -->
+    {% macro debt_card(title, color_cls, color_var, items, empty_msg) %}
     <div class="main-card fade-up">
       <div class="inner">
-        <div class="sec-title" style="color: var(--bad)">🔴 Hutang ke Pemasok (Saat Ini)</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(report.total_hutang | round | int).replace(",", ".") }} &bull; {{ report.hutang_list|length }} belum lunas</div>
+        <div class="sec-title" style="color: var({{ color_var }})">{{ title }}</div>
+        <div class="sec-desc">Rp {{ "{:,}".format((items | sum(attribute='remaining')) | round | int).replace(",", ".") }} &bull; {{ items|length }} belum lunas</div>
       </div>
       <div class="item-list mobile-only">
-        {% for d in report.hutang_list %}
-        <div class="item-row red">
+        {% for d in items %}
+        <div class="item-row {{ color_cls }}">
           <div class="item-top">
             <div>
               <div class="item-name">{{ d.party_name or "-" }}</div>
@@ -243,58 +247,15 @@
           </div>
         </div>
         {% else %}
-        <p class="empty-hint">Tidak ada hutang ke pemasok.</p>
+        <p class="empty-hint">{{ empty_msg }}</p>
         {% endfor %}
       </div>
       <div class="table-wrap desktop-only">
-        {% if report.hutang_list %}
-        <table>
-          <thead><tr><th>Pemasok</th><th>Total</th><th>Sisa</th><th>Catatan</th><th>Tanggal</th></tr></thead>
-          <tbody>
-            {% for d in report.hutang_list %}
-            <tr>
-              <td>{{ d.party_name or "-" }}</td>
-              <td class="muted">Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
-              <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
-              <td class="muted">{{ d.note or "-" }}</td>
-              <td class="muted">{{ d.created_at_wib }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <p class="empty-hint">Tidak ada hutang ke pemasok.</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- PIUTANG -->
-    <div class="main-card fade-up">
-      <div class="inner">
-        <div class="sec-title" style="color: var(--good)">🟢 Piutang (Saat Ini)</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(report.total_piutang | round | int).replace(",", ".") }} &bull; {{ report.piutang_list|length }} belum dibayar</div>
-      </div>
-      <div class="item-list mobile-only">
-        {% for d in report.piutang_list %}
-        <div class="item-row green">
-          <div class="item-top">
-            <div>
-              <div class="item-name">{{ d.party_name or "-" }}</div>
-              <div class="item-meta">Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; {{ d.created_at_wib }}</div>
-            </div>
-            <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
-          </div>
-        </div>
-        {% else %}
-        <p class="empty-hint">Tidak ada piutang.</p>
-        {% endfor %}
-      </div>
-      <div class="table-wrap desktop-only">
-        {% if report.piutang_list %}
+        {% if items %}
         <table>
           <thead><tr><th>Pihak</th><th>Total</th><th>Sisa</th><th>Catatan</th><th>Tanggal</th></tr></thead>
           <tbody>
-            {% for d in report.piutang_list %}
+            {% for d in items %}
             <tr>
               <td>{{ d.party_name or "-" }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
@@ -306,10 +267,17 @@
           </tbody>
         </table>
         {% else %}
-        <p class="empty-hint">Tidak ada piutang.</p>
+        <p class="empty-hint">{{ empty_msg }}</p>
         {% endif %}
       </div>
     </div>
+    {% endmacro %}
+
+    {{ debt_card("🔴 Hutang ke Pemasok — belum kita bayar", "red", "--bad", report.hutang_supplier_list, "Tidak ada hutang ke pemasok.") }}
+    {{ debt_card("🟡 Saldo Titipan Pelanggan — kita \"utang barang\" (mereka sudah DP/bayar, barang belum kita kirim)", "amber", "--bad", report.hutang_saldo_customer_list, "Tidak ada saldo titipan pelanggan.") }}
+    {{ debt_card("🟢 Piutang dari Pelanggan — belum mereka bayar", "green", "--good", report.piutang_customer_list, "Tidak ada piutang dari pelanggan.") }}
+    {{ debt_card("🔵 Saldo Titipan ke Pemasok — kita sudah DP/bayar, menunggu barang datang", "blue", "--good", report.piutang_saldo_supplier_list, "Tidak ada saldo titipan ke pemasok.") }}
+
   </div>
 </div>
 {% endblock %}

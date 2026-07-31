@@ -193,12 +193,20 @@
         <div class="s-lbl">Nilai Stok Gudang</div>
       </div>
       <div class="stat-pill red">
-        <div class="s-num">Rp {{ "{:,}".format(insight.debt_total | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Total Hutang</div>
+        <div class="s-num">Rp {{ "{:,}".format(insight.hutang_supplier | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Hutang ke Pemasok</div>
+      </div>
+      <div class="stat-pill orange">
+        <div class="s-num">Rp {{ "{:,}".format(insight.hutang_saldo_customer | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Saldo Titipan Pelanggan (utang barang)</div>
       </div>
       <div class="stat-pill green">
-        <div class="s-num">Rp {{ "{:,}".format(insight.receivable_total | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Total Piutang</div>
+        <div class="s-num">Rp {{ "{:,}".format(insight.piutang_customer | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Piutang dari Pelanggan</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">Rp {{ "{:,}".format(insight.piutang_saldo_supplier | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Saldo Titipan ke Pemasok (tunggu barang)</div>
       </div>
       <div class="stat-pill orange">
         <div class="s-num">{{ insight.attendance_today_hadir }}/{{ insight.total_karyawan }}</div>
