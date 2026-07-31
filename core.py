@@ -4534,6 +4534,24 @@ def get_owner_health_insight():
             cur.execute("SELECT COALESCE(SUM(total_value), 0) AS total FROM fin_stock_summary;")
             stock_value = _clean_num_owner((cur.fetchone() or {}).get("total"))
 
+        # Nilai stok di AWAL bulan (dari fin_stock_ledger: snapshot value_after
+        # terakhir tiap barang sebelum bulan berjalan dimulai) -- dipakai utk
+        # menghitung HPP (harga pokok barang yg BENAR-BENAR terjual bulan ini),
+        # bukan sekadar total belanja stok bulan ini (yg termasuk barang yg
+        # masih nganggur di gudang, belum terjual).
+        stock_value_start = stock_value
+        if _table_exists(cur, "fin_stock_ledger"):
+            cur.execute("""
+                SELECT COALESCE(SUM(value_after), 0) AS total
+                FROM (
+                    SELECT DISTINCT ON (material_id) material_id, value_after
+                    FROM fin_stock_ledger
+                    WHERE created_at < date_trunc('month', CURRENT_DATE)
+                    ORDER BY material_id, created_at DESC
+                ) t;
+            """)
+            stock_value_start = _clean_num_owner((cur.fetchone() or {}).get("total"))
+
         if _table_exists(cur, "fin_debts"):
             cur.execute("""
                 SELECT
@@ -4591,9 +4609,18 @@ def get_owner_health_insight():
         cur.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'employee';")
         attendance_today["total_karyawan"] = int((cur.fetchone() or {}).get("n") or 0)
 
-        profit = revenue - buying - expense - salary_total
-        gross_profit = revenue - buying
-        net_profit = profit
+        # HPP (Cost of Goods Sold) = Stok Awal Bulan + Belanja Bulan Ini - Stok
+        # Sekarang -- rumus akuntansi standar (periodic inventory), supaya
+        # barang yg dibeli tapi belum terjual (masih di gudang) TIDAK ikut
+        # mengurangi laba. Cash flow murni (uang masuk-keluar, termasuk
+        # belanja stok yg belum terjual) tetap dihitung terpisah sbg
+        # cash_flow_net, supaya owner bisa lihat keduanya dan tidak salah
+        # paham kalau kas menipis krn stok menumpuk (bukan rugi).
+        cogs = stock_value_start + buying - stock_value
+        gross_profit = revenue - cogs
+        net_profit = gross_profit - expense - salary_total
+        profit = net_profit
+        cash_flow_net = revenue - buying - expense - salary_total
 
         health_score = 50.0
         if revenue > 0:
@@ -4619,6 +4646,9 @@ def get_owner_health_insight():
             "profit": profit,
             "gross_profit": gross_profit,
             "net_profit": net_profit,
+            "cogs": cogs,
+            "cash_flow_net": cash_flow_net,
+            "stock_value_start": stock_value_start,
             "margin_pct": round((gross_profit / revenue * 100) if revenue > 0 else 0, 1),
             "quality_score": round(quality_score, 1),
             "health_score": round(health_score, 1),
@@ -4650,16 +4680,20 @@ Anda adalah konsultan bisnis untuk perusahaan scrap/logam.
 
 Data bulan ini:
 - Omzet: Rp {insight.get('revenue', 0):,.0f}
-- Pembelian/modal barang: Rp {insight.get('buying', 0):,.0f}
+- Pembelian stok bulan ini: Rp {insight.get('buying', 0):,.0f}
+- HPP (harga pokok barang yg benar-benar terjual bulan ini): Rp {insight.get('cogs', 0):,.0f}
 - Pengeluaran: Rp {insight.get('expense', 0):,.0f}
 - Gaji karyawan: Rp {insight.get('salary_total', 0):,.0f}
-- Nilai stok: Rp {insight.get('stock_value', 0):,.0f}
+- Nilai stok gudang saat ini: Rp {insight.get('stock_value', 0):,.0f} (awal bulan: Rp {insight.get('stock_value_start', 0):,.0f})
 - Hutang: Rp {insight.get('debt_total', 0):,.0f}
 - Piutang: Rp {insight.get('receivable_total', 0):,.0f}
-- Estimasi profit: Rp {insight.get('profit', 0):,.0f}
+- Estimasi laba bersih (sudah memperhitungkan stok yg belum terjual): Rp {insight.get('profit', 0):,.0f}
+- Arus kas bersih bulan ini (uang masuk dikurangi semua uang keluar termasuk belanja stok): Rp {insight.get('cash_flow_net', 0):,.0f}
 - Kehadiran hari ini: {insight.get('attendance_today_hadir', 0)} dari {insight.get('total_karyawan', 0)} karyawan
 - Skor kualitas absensi: {insight.get('quality_score', 0)}
 - Skor kesehatan perusahaan: {insight.get('health_score', 0)}
+
+Catatan penting: "Estimasi laba bersih" beda dari "Arus kas bersih" -- laba bersih sudah benar secara akuntansi (barang yg dibeli tapi belum terjual TIDAK mengurangi laba, cuma jadi aset stok), sedangkan arus kas bersih murni uang masuk-keluar (bisa minus meski laba positif kalau bulan ini banyak belanja stok utk dijual bulan depan). Jelaskan perbedaan ini ke owner kalau relevan, jangan disamakan.
 
 Buat review singkat dalam bahasa Indonesia:
 1. Kondisi perusahaan saat ini

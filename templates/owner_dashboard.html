@@ -154,6 +154,10 @@
       </div>
     </div>
 
+    <div class="fade-up" style="margin-top: 10px; padding: 10px 14px; background: #eef2ff; border-radius: 14px; font-size: 12px; color: #3730a3; line-height: 1.5;">
+      💡 <b>Estimasi Laba</b> = Omzet dikurangi HPP (harga pokok barang yang <i>benar-benar terjual</i>) — barang yang dibeli tapi masih di gudang <b>tidak</b> mengurangi laba. Beda dengan <b>Arus Kas Bersih</b> di bawah, yang murni uang masuk dikurangi semua uang keluar (termasuk belanja stok baru) — wajar kalau ini minus saat lagi banyak belanja stok, itu bukan kerugian.
+    </div>
+
     <!-- STAT GRID -->
     <div class="stat-row fade-up">
       <div class="stat-pill green">
@@ -162,7 +166,11 @@
       </div>
       <div class="stat-pill">
         <div class="s-num">Rp {{ "{:,}".format(insight.buying | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Modal Beli</div>
+        <div class="s-lbl">Modal Beli (semua belanja stok bulan ini)</div>
+      </div>
+      <div class="stat-pill">
+        <div class="s-num">Rp {{ "{:,}".format(insight.cogs | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">HPP Barang Terjual</div>
       </div>
       <div class="stat-pill">
         <div class="s-num">Rp {{ "{:,}".format(insight.expense | round | int).replace(",", ".") }}</div>
@@ -174,7 +182,11 @@
       </div>
       <div class="stat-pill {{ 'green' if insight.profit >= 0 else 'red' }}">
         <div class="s-num">Rp {{ "{:,}".format(insight.profit | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Estimasi Profit</div>
+        <div class="s-lbl">Estimasi Laba Bersih</div>
+      </div>
+      <div class="stat-pill {{ 'green' if insight.cash_flow_net >= 0 else 'red' }}">
+        <div class="s-num">Rp {{ "{:,}".format(insight.cash_flow_net | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Arus Kas Bersih (blm kurangi stok)</div>
       </div>
       <div class="stat-pill">
         <div class="s-num">Rp {{ "{:,}".format(insight.stock_value | round | int).replace(",", ".") }}</div>
