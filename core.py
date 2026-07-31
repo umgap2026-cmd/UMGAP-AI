@@ -4421,10 +4421,12 @@ def get_fin_daily_report(report_date):
         trip_expense = sum(float(t["total_amount"] or 0) for t in transactions if t["type"] == "PENGELUARAN_TRIP")
 
         cur.execute("""
-            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp_total
+            SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp_total
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            LEFT JOIN fin_stock_ledger l
+              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date = %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
               AND i.material_id IS NOT NULL;
@@ -4747,10 +4749,12 @@ def get_owner_finance_report(date_from, date_to):
         belanja_gudang = float(cur.fetchone()["total"] or 0)
 
         cur.execute("""
-            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS total
+            SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS total
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            LEFT JOIN fin_stock_ledger l
+              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
               AND i.material_id IS NOT NULL;
@@ -4866,10 +4870,12 @@ def get_fin_weekly_report(week_start, week_end):
         masuk = _sum(["TERIMA_HUTANG"])
 
         cur.execute("""
-            SELECT COALESCE(SUM(i.qty_kg * s.avg_cost_per_kg), 0) AS hpp
+            SELECT COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp
             FROM fin_transactions t
             JOIN fin_transaction_items i ON i.transaction_id = t.id
-            JOIN fin_stock_summary s ON s.material_id = i.material_id
+            LEFT JOIN fin_stock_ledger l
+              ON l.transaction_id = t.id AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date >= %s AND t.created_at::date <= %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
               AND i.material_id IS NOT NULL;
