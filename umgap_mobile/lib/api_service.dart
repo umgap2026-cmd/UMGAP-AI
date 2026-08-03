@@ -6,7 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:typed_data';
 
 class ApiService {
-  static const String baseUrl = "https://umgap-ai.onrender.com";
+  static const String baseUrl = "https://umgap-ai.my.id";
   static const FlutterSecureStorage storage = FlutterSecureStorage();
 
   static final Dio dio = Dio(
