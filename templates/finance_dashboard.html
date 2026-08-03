@@ -238,6 +238,12 @@
   .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
   .pill-btn.danger { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
   .pill-btn.danger:hover { background: rgba(185, 28, 28, 0.18); }
+  .pill-btn.wa {
+    background: linear-gradient(135deg, #128c7e, #25d366); color: #fff;
+    box-shadow: 0 8px 16px rgba(37, 211, 102, 0.24); display: inline-flex; align-items: center; gap: 6px;
+  }
+  .sec-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .sec-header-row .pill-btn.wa { flex: 0 0 auto; margin-top: 2px; }
 
   /* ── ITEM LIST (mobile) ── */
   .item-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -463,8 +469,19 @@
     <div class="tab-panel active" data-tab-panel="barang">
     <div class="main-card fade-up d3">
       <div class="inner">
-        <div class="sec-title">📦 Barang Gudang</div>
-        <div class="sec-desc">{{ materials|length }} jenis barang aktif</div>
+        <div class="sec-header-row">
+          <div>
+            <div class="sec-title">📦 Barang Gudang</div>
+            <div class="sec-desc">{{ materials|length }} jenis barang aktif</div>
+          </div>
+          <button type="button" class="pill-btn wa" id="btnShareStok">💬 Share ke WA</button>
+        </div>
+        <textarea id="shareStokText" style="display: none">📦 *Ringkasan Stok Gudang*
+
+{% for m in materials -%}
+{{ loop.index }}. {{ m.name }}: {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }} — Rp {{ "{:,}".format(m.total_value | round | int).replace(",", ".") }}
+{% endfor %}
+*Total Nilai Stok: Rp {{ "{:,}".format(total_value | round | int).replace(",", ".") }}* ({{ materials|length }} jenis barang)</textarea>
 
         <div class="filter-row">
           <input type="text" id="barangSearch" placeholder="🔍 Cari nama barang…" autocomplete="off" />
@@ -577,8 +594,19 @@
     <div class="tab-panel" data-tab-panel="hutang">
     <div class="main-card fade-up d4">
       <div class="inner">
-        <div class="sec-title" style="color: var(--bad)">🔴 Hutang ke Pemasok</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }} &bull; {{ debts.hutang|length }} transaksi belum lunas</div>
+        <div class="sec-header-row">
+          <div>
+            <div class="sec-title" style="color: var(--bad)">🔴 Hutang ke Pemasok</div>
+            <div class="sec-desc">Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }} &bull; {{ debts.hutang|length }} transaksi belum lunas</div>
+          </div>
+          <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
+        </div>
+        <textarea id="shareHutangText" style="display: none">🔴 *Ringkasan Hutang ke Pemasok*
+
+{% for d in debts.hutang -%}
+{{ loop.index }}. {{ d.party_name or "-" }}: Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}
+{% endfor %}
+*Total: Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }}* ({{ debts.hutang|length }} transaksi belum lunas)</textarea>
         <div class="divider"></div>
         <details>
           <summary class="add-toggle">
@@ -681,8 +709,19 @@
     <div class="tab-panel" data-tab-panel="piutang">
     <div class="main-card fade-up d5">
       <div class="inner">
-        <div class="sec-title" style="color: var(--good)">🟢 Piutang Pelanggan</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }} &bull; {{ debts.piutang|length }} transaksi belum dibayar</div>
+        <div class="sec-header-row">
+          <div>
+            <div class="sec-title" style="color: var(--good)">🟢 Piutang Pelanggan</div>
+            <div class="sec-desc">Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }} &bull; {{ debts.piutang|length }} transaksi belum dibayar</div>
+          </div>
+          <button type="button" class="pill-btn wa" id="btnSharePiutang">💬 Share ke WA</button>
+        </div>
+        <textarea id="sharePiutangText" style="display: none">🟢 *Ringkasan Piutang Pelanggan*
+
+{% for d in debts.piutang -%}
+{{ loop.index }}. {{ d.party_name or "-" }}: Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}
+{% endfor %}
+*Total: Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }}* ({{ debts.piutang|length }} transaksi belum dibayar)</textarea>
         <div class="divider"></div>
         <details>
           <summary class="add-toggle">
@@ -1020,6 +1059,27 @@
         if (target) target.value = sel.value;
       });
     });
+  })();
+  (function () {
+    // Share ringkasan (Stok/Hutang/Piutang) ke WhatsApp -- teks sudah
+    // disusun server-side (Jinja) di textarea tersembunyi, JS tinggal
+    // buka wa.me dengan teks itu. Nomor tujuan: WA owner kalau sudah
+    // diisi di /profile, kalau belum admin pilih kontak manual di WA.
+    var OWNER_PHONE = {{ owner_phone | tojson }};
+    function shareToWa(textareaId) {
+      var el = document.getElementById(textareaId);
+      if (!el) return;
+      var text = el.value.trim();
+      var phone = OWNER_PHONE ? OWNER_PHONE.replace(/\D/g, "").replace(/^0/, "62") : "";
+      var url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+      window.open(url, "_blank");
+    }
+    var stokBtn = document.getElementById("btnShareStok");
+    if (stokBtn) stokBtn.addEventListener("click", function () { shareToWa("shareStokText"); });
+    var hutangBtn = document.getElementById("btnShareHutang");
+    if (hutangBtn) hutangBtn.addEventListener("click", function () { shareToWa("shareHutangText"); });
+    var piutangBtn = document.getElementById("btnSharePiutang");
+    if (piutangBtn) piutangBtn.addEventListener("click", function () { shareToWa("sharePiutangText"); });
   })();
   (function () {
     function formatRp(n) {

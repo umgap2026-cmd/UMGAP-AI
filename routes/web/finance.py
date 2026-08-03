@@ -15,7 +15,7 @@ from core import (
     add_fin_trip_party, record_fin_trip_sell, record_fin_trip_buy,
     record_fin_trip_expense, close_fin_trip_web, cancel_fin_trip_web,
     delete_fin_trip_web, get_materials_with_stock,
-    get_owner_finance_report,
+    get_owner_finance_report, get_owner_phone,
 )
 
 REDUCE_STOCK_REASONS = {
@@ -65,6 +65,7 @@ def finance_dashboard():
         expense_total=expense_total,
         notif_count=get_notif_count(),
         party_names=list_fin_party_names(),
+        owner_phone=get_owner_phone(),
     )
 
 

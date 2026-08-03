@@ -30,6 +30,7 @@ from core import (
     save_nota_draft,
     delete_nota_draft,
     get_notif_count,
+    get_owner_phone,
     list_fin_expense_categories,
     find_party_credit,
     list_fin_party_names,
@@ -333,6 +334,7 @@ def nota_history():
         page=page,
         has_prev=page > 1,
         has_next=(page * page_size) < total,
+        owner_phone=get_owner_phone(),
     )
 
 

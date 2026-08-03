@@ -1780,6 +1780,29 @@ def owner_required():
     return None
 
 
+def get_owner_phone():
+    """Nomor WA owner (kolom users.phone, diisi lewat halaman /profile) --
+    dipakai buat prefill nomor tujuan tombol "Bagikan ke WhatsApp" di
+    halaman Finance/Nota admin. Return None kalau belum ada owner yang
+    isi nomor HP-nya (tombol share tetap jalan, cuma admin pilih kontak
+    manual di WhatsApp)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT phone FROM users
+            WHERE role='owner' AND phone IS NOT NULL AND TRIM(phone) <> ''
+            ORDER BY id LIMIT 1;
+        """)
+        row = cur.fetchone()
+        return (row["phone"].strip() if row and row.get("phone") else None)
+    except Exception:
+        return None
+    finally:
+        cur.close()
+        conn.close()
+
+
 def ensure_company_profile_schema():
     conn = get_conn()
     cur = conn.cursor()

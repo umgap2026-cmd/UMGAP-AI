@@ -169,6 +169,9 @@
   }
   .pill-btn:hover { transform: translateY(-1px); }
   .pill-btn.primary { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.24); }
+  .pill-btn.wa { background: linear-gradient(135deg, #128c7e, #25d366); color: #fff; box-shadow: 0 8px 16px rgba(37, 211, 102, 0.24); }
+  .sec-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .sec-header-row .pill-btn.wa { flex: 0 0 auto; margin-top: 2px; }
 
   .badge {
     display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px;
@@ -347,8 +350,19 @@
     <!-- LIST -->
     <div class="main-card fade-up d3">
       <div class="inner">
-        <div class="sec-title">🧾 Daftar Nota</div>
-        <div class="sec-desc">{{ total }} nota ditemukan</div>
+        <div class="sec-header-row">
+          <div>
+            <div class="sec-title">🧾 Daftar Nota</div>
+            <div class="sec-desc">{{ total }} nota ditemukan</div>
+          </div>
+          <button type="button" class="pill-btn wa" id="btnShareNota">💬 Share ke WA</button>
+        </div>
+        <textarea id="shareNotaText" style="display: none">🧾 *Ringkasan Riwayat Nota* (halaman {{ page }})
+
+{% for inv in invoices -%}
+{{ loop.index }}. {{ inv.invoice_no }} — {{ inv.customer_name or "-" }} — Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }} {{ "✅" if inv.is_paid else "⏳" }}
+{% endfor %}
+Total {{ total }} nota ditemukan (semua halaman).</textarea>
       </div>
 
       <!-- MOBILE cards -->
@@ -488,6 +502,18 @@
 </div>
 
 <script>
+  (function () {
+    var btn = document.getElementById("btnShareNota");
+    var ta = document.getElementById("shareNotaText");
+    if (btn && ta) {
+      btn.addEventListener("click", function () {
+        var OWNER_PHONE = {{ owner_phone | tojson }};
+        var phone = OWNER_PHONE ? OWNER_PHONE.replace(/\D/g, "").replace(/^0/, "62") : "";
+        var url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(ta.value.trim());
+        window.open(url, "_blank");
+      });
+    }
+  })();
   (function () {
     function countUp(el, duration) {
       var target = parseInt(el.getAttribute("data-count") || "0", 10);
