@@ -359,6 +359,45 @@
     color: var(--muted);
     margin-top: 3px;
   }
+  .sec-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-wa {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 999px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: #fff;
+    background: linear-gradient(135deg, #128c7e, #25d366);
+    box-shadow: 0 8px 16px rgba(37, 211, 102, 0.24);
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+  .recap-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .recap-pill {
+    background: var(--surface, #f3f5f9);
+    box-shadow: var(--shadow-in);
+    border-radius: 14px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .recap-pill .r-num { font-size: 19px; font-weight: 1000; color: var(--text, #1e3252); }
+  .recap-pill .r-lbl { font-size: 10.5px; color: var(--muted); font-weight: 800; margin-top: 2px; }
   .divider {
     height: 1px;
     background: rgba(125, 138, 166, 0.18);
@@ -1028,6 +1067,41 @@
         </div>
       </div>
 
+      <!-- REKAP HARI INI + SHARE WA -->
+      <div class="main-card">
+        <div class="inner">
+          <div class="sec-header-row">
+            <div>
+              <div class="sec-title">📋 Rekap Absensi Hari Ini</div>
+              <div class="sec-desc">{{ today_recap|length }} karyawan &bull; update otomatis</div>
+            </div>
+            <button type="button" class="btn-wa" id="btnShareAbsensi">💬 Share ke WA</button>
+          </div>
+          <div class="recap-grid">
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.ontime }}</div><div class="r-lbl">✅ Tepat Waktu</div></div>
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.late }}</div><div class="r-lbl">🌙 Telat</div></div>
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.sick }}</div><div class="r-lbl">🤒 Sakit</div></div>
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.leave }}</div><div class="r-lbl">📄 Izin</div></div>
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.absent }}</div><div class="r-lbl">❌ Tidak Hadir</div></div>
+            <div class="recap-pill"><div class="r-num">{{ recap_counts.not_yet }}</div><div class="r-lbl">⚪ Belum Absen</div></div>
+          </div>
+          <textarea id="shareAbsensiText" style="display: none">📋 *Rekap Absensi Hari Ini*
+{{ today_display }}
+
+✅ Tepat Waktu: {{ recap_counts.ontime }}
+🌙 Telat: {{ recap_counts.late }}
+🤒 Sakit: {{ recap_counts.sick }}
+📄 Izin: {{ recap_counts.leave }}
+❌ Tidak Hadir: {{ recap_counts.absent }}
+⚪ Belum Absen: {{ recap_counts.not_yet }}
+
+Detail:
+{% for r in today_recap -%}
+{{ loop.index }}. {% if r.status is none %}⚪ {{ r.employee_name }} — Belum Absen{% elif r.status == "PRESENT" and r.arrival_type == "LATE" %}🌙 {{ r.employee_name }} — Telat, Masuk {{ r.checkin_hm or "-" }}{% elif r.status == "PRESENT" %}✅ {{ r.employee_name }} — Masuk {{ r.checkin_hm or "-" }}{% elif r.status == "SICK" %}🤒 {{ r.employee_name }} — Sakit{% elif r.status == "LEAVE" %}📄 {{ r.employee_name }} — Izin{% elif r.status == "ABSENT" %}❌ {{ r.employee_name }} — Tidak Hadir{% else %}{{ r.employee_name }} — {{ r.status }}{% endif %}{% if r.checkout_hm %} (Pulang {{ r.checkout_hm }}){% endif %}
+{% endfor %}</textarea>
+        </div>
+      </div>
+
       <!-- ABSEN KARYAWAN -->
       <div class="main-card">
         <div class="inner">
@@ -1401,6 +1475,18 @@
 </div>
 
 <script>
+  (function () {
+    var btn = document.getElementById("btnShareAbsensi");
+    var ta = document.getElementById("shareAbsensiText");
+    if (btn && ta) {
+      btn.addEventListener("click", function () {
+        var OWNER_PHONE = {{ owner_phone | tojson }};
+        var phone = OWNER_PHONE ? OWNER_PHONE.replace(/\D/g, "").replace(/^0/, "62") : "";
+        var url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(ta.value.trim());
+        window.open(url, "_blank");
+      });
+    }
+  })();
   (function () {
     /* live clock */
     var fmtClock = new Intl.DateTimeFormat("id-ID", {

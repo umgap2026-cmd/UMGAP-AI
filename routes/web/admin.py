@@ -16,6 +16,7 @@ from core import _public_ip
 from core import _now_wib_naive
 from core import is_token_valid
 from core import record_checkout, _ensure_attendance_checkout_column, _ensure_attendance_schema
+from core import get_owner_phone
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -586,11 +587,45 @@ def admin_attendance():
     rows = cur.fetchall()
     has_next = len(rows) > ATTENDANCE_PAGE_SIZE
     rows = rows[:ATTENDANCE_PAGE_SIZE]
+
+    # Rekap HARI INI per karyawan (termasuk yg belum absen sama sekali) --
+    # dipakai utk teks share WhatsApp yg ringkas & mudah dibaca, checkin_at
+    # sudah tersimpan sbg jam WIB apa adanya (bukan UTC), jadi format
+    # langsung tanpa konversi timezone lagi.
+    cur.execute("""
+        SELECT u.name AS employee_name, a.status, a.arrival_type,
+               TO_CHAR(a.checkin_at, 'HH24:MI') AS checkin_hm,
+               TO_CHAR(a.checkout_at, 'HH24:MI') AS checkout_hm
+        FROM users u
+        LEFT JOIN attendance a ON a.user_id = u.id AND a.work_date = CURRENT_DATE
+        WHERE u.role = 'employee'
+        ORDER BY u.name ASC;
+    """)
+    today_recap = cur.fetchall()
     cur.close()
     conn.close()
+
+    recap_counts = {"ontime": 0, "late": 0, "sick": 0, "leave": 0, "absent": 0, "not_yet": 0}
+    for r in today_recap:
+        if r["status"] is None:
+            recap_counts["not_yet"] += 1
+        elif r["status"] == "PRESENT" and r["arrival_type"] == "LATE":
+            recap_counts["late"] += 1
+        elif r["status"] == "PRESENT":
+            recap_counts["ontime"] += 1
+        elif r["status"] == "SICK":
+            recap_counts["sick"] += 1
+        elif r["status"] == "LEAVE":
+            recap_counts["leave"] += 1
+        elif r["status"] == "ABSENT":
+            recap_counts["absent"] += 1
+
     return render_template(
         "admin_attendance.html", employees=employees, rows=rows,
         page=page, has_next=has_next, has_prev=page > 1,
+        today_recap=today_recap, recap_counts=recap_counts,
+        today_display=date.today().strftime("%d/%m/%Y"),
+        owner_phone=get_owner_phone(),
     )
 
 @admin_bp.route("/admin/attendance/add", methods=["POST"])
