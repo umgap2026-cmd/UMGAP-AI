@@ -213,6 +213,15 @@
       .tbl tbody tr:nth-child(even) {
         background: #fafafa;
       }
+      .tbl tbody tr.section-row td {
+        background: #f2f5fb !important;
+        font-size: 10.5px !important;
+        font-weight: 800 !important;
+        color: #445 !important;
+        padding: 6px 10px !important;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
       .tbl tfoot td {
         padding: 7px 10px;
         font-size: 12px;
@@ -393,6 +402,47 @@
           </tr>
         </thead>
         <tbody>
+          {% if invoice.has_mixed_items %}
+          {% set ns = namespace(idx=0) %}
+          {% set forward_items = items | rejectattr('is_return') | list %}
+          {% set reverse_items = items | selectattr('is_return') | list %}
+          <tr class="section-row"><td colspan="5">📤 {{ 'Barang Dibeli' if invoice.nota_type == 'BELI' else 'Barang Terjual' }}</td></tr>
+          {% for item in forward_items %}
+          {% set ns.idx = ns.idx + 1 %}
+          <tr>
+            <td style="color: #888">{{ ns.idx }}</td>
+            <td style="font-weight: 600">
+              {{ item.product_name }}
+              {% if item.note %}<div style="font-size: 11px; font-weight: 400; color: #888">{{ item.note }}</div>{% endif %}
+            </td>
+            <td class="r">{{ item.qty_display or item.qty }}</td>
+            <td class="r">
+              Rp {{ "{:,}".format(item.price).replace(",",".") }}
+            </td>
+            <td class="r" style="font-weight: 700">
+              Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}
+            </td>
+          </tr>
+          {% endfor %}
+          <tr class="section-row"><td colspan="5">📥 {{ 'Barang Dijual Balik' if invoice.nota_type == 'BELI' else 'Barang Dibeli Balik' }}</td></tr>
+          {% for item in reverse_items %}
+          {% set ns.idx = ns.idx + 1 %}
+          <tr>
+            <td style="color: #888">{{ ns.idx }}</td>
+            <td style="font-weight: 600">
+              {{ item.product_name }}
+              {% if item.note %}<div style="font-size: 11px; font-weight: 400; color: #888">{{ item.note }}</div>{% endif %}
+            </td>
+            <td class="r">{{ item.qty_display or item.qty }}</td>
+            <td class="r">
+              Rp {{ "{:,}".format(item.price).replace(",",".") }}
+            </td>
+            <td class="r" style="font-weight: 700">
+              - Rp {{ "{:,}".format(item.subtotal).replace(",",".") }}
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
           {% for item in items %}
           <tr>
             <td style="color: #888">{{ loop.index }}</td>
@@ -409,16 +459,25 @@
             </td>
           </tr>
           {% endfor %}
+          {% endif %}
         </tbody>
         <tfoot>
-          {% if invoice.discount and invoice.discount > 0 %}
+          {% if (invoice.discount and invoice.discount > 0) or (invoice.reverse_subtotal and invoice.reverse_subtotal > 0) %}
           <tr>
             <td colspan="3" class="lbl">Subtotal</td>
             <td colspan="2">
-              Rp {{ "{:,}".format(invoice.subtotal).replace(",",".") }}
+              Rp {{ "{:,}".format(invoice.subtotal|round|int).replace(",",".") }}
             </td>
           </tr>
-          {% for d in (invoice.discount_breakdown or [{"label": "Diskon", "amount": invoice.discount}]) %}
+          {% if invoice.reverse_subtotal and invoice.reverse_subtotal > 0 %}
+          <tr>
+            <td colspan="3" class="lbl disc">{{ 'Barang Dijual Balik' if invoice.nota_type == 'BELI' else 'Barang Dibeli Balik' }}</td>
+            <td colspan="2" class="disc">
+              - Rp {{ "{:,}".format(invoice.reverse_subtotal|round|int).replace(",",".") }}
+            </td>
+          </tr>
+          {% endif %}
+          {% for d in (invoice.discount_breakdown if invoice.discount_breakdown else ([{"label": "Diskon", "amount": invoice.discount}] if invoice.discount and invoice.discount > 0 else [])) %}
           <tr>
             <td colspan="3" class="lbl disc">{{ d.label }}</td>
             <td colspan="2" class="disc">

@@ -44,6 +44,7 @@ const _pdfTextLt  = PdfColor(0.565, 0.643, 0.682);
 const _pdfSuccess = PdfColor(0.180, 0.490, 0.196);
 const _pdfDanger  = PdfColor(0.776, 0.157, 0.157);
 const _pdfOrange  = PdfColor(0.900, 0.400, 0.000);
+const _pdfOrangeBg = PdfColor(1.000, 0.969, 0.929);
 
 // ── Flutter Colors ────────────────────────────
 const _kPrimary     = Color(0xFF1565C0);
@@ -64,12 +65,13 @@ class InvoicePrintPage extends StatefulWidget {
   final String        notes;
   final double        discount;
   final double        subtotal;
+  final double        reverseSubtotal;
   final double        grandTotal;
   final List<CartItem> items;
   final bool          isPaid;
   // ── Nota Beli ──
   final bool                         isBeli;
-  final List<Map<String, dynamic>>?  beliRawItems; // material_id, qty_kg, price_per_kg
+  final List<Map<String, dynamic>>?  beliRawItems; // material_id, qty_kg, price_per_kg, is_return
 
   const InvoicePrintPage({
     super.key,
@@ -83,6 +85,7 @@ class InvoicePrintPage extends StatefulWidget {
     required this.subtotal,
     required this.grandTotal,
     required this.items,
+    this.reverseSubtotal = 0,
     this.isPaid      = true,
     this.isBeli      = false,
     this.beliRawItems,
@@ -471,15 +474,17 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                     final isEven = i % 2 == 0;
                     return pw.TableRow(
                       decoration: pw.BoxDecoration(
-                          color: isEven ? _pdfWhite : _pdfGrey),
+                          color: item.isReturn ? _pdfOrangeBg
+                              : (isEven ? _pdfWhite : _pdfGrey)),
                       children: [
                         _td('${i + 1}', color: _pdfTextLt),
-                        _td(item.productName, bold: true),
+                        _td(item.productName +
+                            (item.isReturn ? ' (balik)' : ''), bold: true),
                         _td('${_fmtQ(item.qty)} kg',
                             align: pw.TextAlign.center),
                         _td(_rp(item.price),
                             align: pw.TextAlign.right),
-                        _td(_rp(item.subtotal),
+                        _td((item.isReturn ? '- ' : '') + _rp(item.subtotal),
                             align: pw.TextAlign.right, bold: true),
                       ],
                     );
@@ -525,6 +530,11 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                     width: 210,
                     child: pw.Column(children: [
                       _totalRow('Subtotal', _rp(widget.subtotal)),
+                      if (widget.reverseSubtotal > 0) ...[
+                        pw.Divider(color: _pdfBorder, height: 8),
+                        _totalRowColor('Barang Balik',
+                            '− ${_rp(widget.reverseSubtotal)}', _pdfOrange),
+                      ],
                       if (widget.discount > 0) ...[
                         pw.Divider(color: _pdfBorder, height: 8),
                         _totalRowColor('Diskon',
@@ -729,7 +739,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
             child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(item.productName,
+                  pw.Text(item.productName +
+                      (item.isReturn ? ' (balik)' : ''),
                       style: pw.TextStyle(fontSize: 9,
                           fontWeight: pw.FontWeight.bold)),
                   pw.Row(
@@ -739,7 +750,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                         pw.Text(
                             '${_fmtQ(item.qty)} kg x ${_rp(item.price)}',
                             style: pw.TextStyle(fontSize: 8)),
-                        pw.Text(_rp(item.subtotal),
+                        pw.Text((item.isReturn ? '- ' : '') + _rp(item.subtotal),
                             style: pw.TextStyle(fontSize: 8,
                                 fontWeight: pw.FontWeight.bold)),
                       ]),
@@ -754,6 +765,15 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 pw.Text(_rp(widget.subtotal),
                     style: pw.TextStyle(fontSize: 8)),
               ]),
+          if (widget.reverseSubtotal > 0)
+            pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Barang Balik',
+                      style: pw.TextStyle(fontSize: 8)),
+                  pw.Text('- ${_rp(widget.reverseSubtotal)}',
+                      style: pw.TextStyle(fontSize: 8)),
+                ]),
           if (widget.discount > 0)
             pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -913,19 +933,23 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
 
     // ── ITEMS ────────────────────────────────
     for (final item in widget.items) {
-      final nameStr = item.productName.length > W
-          ? '${item.productName.substring(0, W - 2)}..'
-          : item.productName;
+      final rawName = item.productName + (item.isReturn ? ' (balik)' : '');
+      final nameStr = rawName.length > W
+          ? '${rawName.substring(0, W - 2)}..'
+          : rawName;
       bytes += generator.text(nameStr,
           styles: const PosStyles(bold: true));
       final left  = '  ${_fmtQ(item.qty)}kg x ${_rpNoPrefix(item.price)}';
-      final right = _rpNoPrefix(item.subtotal);
+      final right = (item.isReturn ? '-' : '') + _rpNoPrefix(item.subtotal);
       bytes += generator.text(lr(left, right));
     }
     bytes += generator.text(dash('-'));
 
     // ── SUBTOTAL ─────────────────────────────
     bytes += generator.text(lr('Subtotal', _rp(widget.subtotal)));
+    if (widget.reverseSubtotal > 0) {
+      bytes += generator.text(lr('Barang Balik', '- ${_rp(widget.reverseSubtotal)}'));
+    }
     if (widget.discount > 0) {
       bytes += generator.text(lr('Diskon', '- ${_rp(widget.discount)}'));
     }
@@ -1095,6 +1119,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
           'material_id':  i.productId,
           'qty_kg':       i.qty,
           'price_per_kg': i.price,
+          'is_return':    i.isReturn,
         }).toList();
 
         await ApiService.financeBeli(
@@ -1122,6 +1147,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
             'material_id': i.productId,
             'qty':         i.qty,
             'price':       i.price,
+            'is_return':   i.isReturn,
           }).toList(),
         );
         if (!mounted) return;
@@ -1255,11 +1281,12 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
         _ThermalLine('No. Nota : ${widget.invoiceNo}'),
       _ThermalLine(dash('-')),
       ...widget.items.expand((item) {
-        final n = item.productName.length > charW
-            ? '${item.productName.substring(0, charW - 2)}..'
-            : item.productName;
+        final rawName = item.productName + (item.isReturn ? ' (balik)' : '');
+        final n = rawName.length > charW
+            ? '${rawName.substring(0, charW - 2)}..'
+            : rawName;
         final left  = '  ${_fmtQ(item.qty)}kg x ${_rpNoPrefix(item.price)}';
-        final right = _rpNoPrefix(item.subtotal);
+        final right = (item.isReturn ? '-' : '') + _rpNoPrefix(item.subtotal);
         return [
           _ThermalLine(n, bold: true),
           _ThermalLine(lr(left, right)),
@@ -1267,6 +1294,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       }),
       _ThermalLine(dash('-')),
       _ThermalLine(lr('Subtotal', _rp(widget.subtotal))),
+      if (widget.reverseSubtotal > 0)
+        _ThermalLine(lr('Barang Balik', '- ${_rp(widget.reverseSubtotal)}')),
       if (widget.discount > 0)
         _ThermalLine(lr('Diskon', '- ${_rp(widget.discount)}')),
       _ThermalLine(dash('=')),

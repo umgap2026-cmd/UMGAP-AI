@@ -242,6 +242,14 @@
     padding: 8px 12px; font-size: 13px; font-weight: 900; text-align: center; margin-top: 8px;
   }
   .item-warn { font-size: 11px; font-weight: 800; color: var(--bad); margin-top: 6px; display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-return-lbl {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11.5px;
+    font-weight: 800; color: var(--muted); cursor: pointer;
+  }
+  .item-return-lbl input[type="checkbox"] { width: 15px; height: 15px; accent-color: #ea580c; cursor: pointer; }
+  .item-row.is-return { background: #fff7ed; }
+  .item-row.is-return .item-return-lbl { color: #c2410c; }
+  .item-row.is-return .item-sub { background: #ffedd5; color: #c2410c; }
   .item-note {
     width: 100%; margin-top: 8px; border: none; border-radius: 10px; background: #eef1f7;
     padding: 8px 10px; font-size: 12px; font-family: inherit; color: #33415c;
@@ -755,6 +763,10 @@
                     </div>
                     <div class="item-sub line-sub">Rp 0</div>
                   </div>
+                  <label class="item-return-lbl">
+                    <input type="checkbox" class="item-is-return" />
+                    <span>🔁 Baris ini arah TERBALIK dari nota ini (mis. beli balik dari customer di nota Jual, atau jual balik ke pemasok di nota Beli)</span>
+                  </label>
                   <input type="text" class="item-note" placeholder="Catatan barang (opsional) — mis. kotor, lot kemarin…" autocomplete="off" />
                   <div class="item-warn">
                     ⚠️ Qty melebihi stok tersedia
@@ -942,9 +954,18 @@
     }
     function rowQty(r) { return qtyNum(r.querySelector(".item-qty").value || "0"); }
     function rowPrice(r) { return qtyNum(r.querySelector(".item-price").value || "0"); }
+    function rowIsReturn(r) {
+      var ret = r.querySelector(".item-is-return");
+      return !!(ret && ret.checked);
+    }
     function subTot() {
       var t = 0;
-      L.querySelectorAll(".item-row").forEach(function (r) { t += rowPrice(r) * rowQty(r); });
+      L.querySelectorAll(".item-row").forEach(function (r) { if (!rowIsReturn(r)) t += rowPrice(r) * rowQty(r); });
+      return t;
+    }
+    function reverseSubTot() {
+      var t = 0;
+      L.querySelectorAll(".item-row").forEach(function (r) { if (rowIsReturn(r)) t += rowPrice(r) * rowQty(r); });
       return t;
     }
     function updateTotalQty() {
@@ -988,6 +1009,7 @@
     }
     function grand() {
       var sub = subTot();
+      var revSub = reverseSubTot();
       updateTotalQty();
       var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
       collectAdjustments().forEach(function (a) {
@@ -997,7 +1019,7 @@
           else ongkirBeban += a.amount;
         }
       });
-      var raw = sub - totalDp - ongkirPotongan;
+      var raw = sub - totalDp - ongkirPotongan - revSub;
       var g = Math.max(0, raw);
 
       // Kotak "Pakai Saldo" HARUS berperilaku seperti DP: ikut mengurangi
@@ -1011,16 +1033,18 @@
       G.textContent = rp(displayTotal);
       HT.textContent = rp(displayTotal);
       var parts = [];
+      if (revSub > 0) parts.push("Barang balik -" + rp(revSub));
       if (totalDp > 0) parts.push("DP " + rp(totalDp));
       if (ongkirPotongan > 0) parts.push("Ongkir " + rp(ongkirPotongan));
       if (ongkirBeban > 0) parts.push("Ongkir beban " + rp(ongkirBeban));
       if (creditApplied > 0) parts.push("Saldo dipakai " + rp(creditApplied));
       DL.textContent = parts.length ? "Subtotal " + rp(sub) + " · " + parts.join(" · ") : "";
 
-      // DP/potongan lebih besar dari nilai barang -> sisanya bukan hilang,
-      // otomatis jadi saldo pihak ini di server (lihat dp_excess di core.py).
-      // Arah kalimatnya HARUS jelas siapa yang punya saldo ke siapa --
-      // "saldo Pak Bagas" gampang disalahartikan seolah itu uang Pak Bagas.
+      // DP/potongan/barang-balik lebih besar dari nilai barang -> sisanya
+      // bukan hilang, otomatis jadi saldo pihak ini di server (lihat
+      // dp_excess/reverse_subtotal di core.py). Arah kalimatnya HARUS jelas
+      // siapa yang punya saldo ke siapa -- "saldo Pak Bagas" gampang
+      // disalahartikan seolah itu uang Pak Bagas.
       var excess = Math.max(0, -raw);
       var dpHint = document.getElementById("dpExcessHint");
       if (excess > 0) {
@@ -1028,7 +1052,7 @@
         var typeRadioNow = document.querySelector('input[name="nota_type"]:checked');
         var notaTypeNow = typeRadioNow ? typeRadioNow.value : "JUAL";
         var arah = notaTypeNow === "BELI" ? ("saldo KITA di " + name) : ("saldo " + name + " di kita");
-        dpHint.textContent = "⚠️ DP/potongan (" + rp(totalDp + ongkirPotongan) +
+        dpHint.textContent = "⚠️ DP/potongan/barang balik (" + rp(totalDp + ongkirPotongan + revSub) +
           ") lebih besar dari nilai barang (" + rp(sub) + "). Sisa " + rp(excess) +
           " otomatis jadi " + arah + " — bisa dipotongkan otomatis di nota berikutnya.";
         dpHint.style.display = "block";
@@ -1071,6 +1095,7 @@
           price: price,
           subtotal: qty * price,
           note: noteInp ? noteInp.value.trim() : "",
+          is_return: rowIsReturn(r),
         });
       });
       return items;
@@ -1089,6 +1114,7 @@
         notaDateTxt = dParts[2] + "/" + dParts[1] + "/" + dParts[0];
       }
       var sub = subTot();
+      var revSub = reverseSubTot();
       var totalDp = 0, ongkirBeban = 0, ongkirPotongan = 0;
       collectAdjustments().forEach(function (a) {
         if (a.type === "DP") totalDp += a.amount;
@@ -1097,7 +1123,7 @@
           else ongkirBeban += a.amount;
         }
       });
-      var raw = sub - totalDp - ongkirPotongan;
+      var raw = sub - totalDp - ongkirPotongan - revSub;
       var baseTotal = Math.max(0, raw);
       var dpExcess = Math.max(0, -raw);
       var creditApplied = Math.min(qtyNum(document.getElementById("creditAppliedInput").value || "0"), baseTotal);
@@ -1110,12 +1136,12 @@
       var totalQtyText = Object.keys(byUnit).map(function (u) { return fmtQty(byUnit[u]) + " " + u; }).join(" + ");
 
       var rowsHtml = items.map(function (it, idx) {
-        var nameCell = escapeHtml(it.name) +
+        var nameCell = (it.is_return ? "🔁 " : "") + escapeHtml(it.name) +
           (it.note ? "<div style='font-size:11px; color:var(--muted); font-weight:600'>" + escapeHtml(it.note) + "</div>" : "");
-        return "<tr><td>" + (idx + 1) + "</td><td>" + nameCell + "</td>" +
+        return "<tr" + (it.is_return ? " style='background:#fff7ed'" : "") + "><td>" + (idx + 1) + "</td><td>" + nameCell + "</td>" +
           "<td style='text-align:right'>" + fmtQty(it.qty) + " " + escapeHtml(it.unit) + "</td>" +
           "<td style='text-align:right'>" + rp(it.price) + "</td>" +
-          "<td style='text-align:right'>" + rp(it.subtotal) + "</td></tr>";
+          "<td style='text-align:right'>" + (it.is_return ? "−" : "") + rp(it.subtotal) + "</td></tr>";
       }).join("");
 
       var html = "<div class='pv-meta'><strong>" + (notaType === "BELI" ? "Nota Beli" : "Nota Jual") +
@@ -1126,6 +1152,7 @@
         (totalQtyText ? "<div class='pv-hint'>⚖️ Total Berat Barang: <strong>" + totalQtyText + "</strong></div>" : "") +
         "<div class='pv-summary'>" +
         "<div class='pv-line'><span>Subtotal</span><span>" + rp(sub) + "</span></div>" +
+        (revSub > 0 ? "<div class='pv-line'><span>🔁 Arah Kebalik</span><span>-" + rp(revSub) + "</span></div>" : "") +
         (totalDp > 0 ? "<div class='pv-line'><span>DP</span><span>-" + rp(totalDp) + "</span></div>" : "") +
         (ongkirPotongan > 0 ? "<div class='pv-line'><span>Ongkir (potongan)</span><span>-" + rp(ongkirPotongan) + "</span></div>" : "") +
         (ongkirBeban > 0 ? "<div class='pv-line'><span>Ongkir (beban terpisah, tidak kurangi total)</span><span>" + rp(ongkirBeban) + "</span></div>" : "") +
@@ -1379,19 +1406,29 @@
     function bindRow(r) {
       var s = r.querySelector(".item-material"), q = r.querySelector(".item-qty"),
         p = r.querySelector(".item-price"), o = r.querySelector(".line-sub"),
-        warn = r.querySelector(".item-warn"), d = r.querySelector(".item-del");
+        warn = r.querySelector(".item-warn"), d = r.querySelector(".item-del"),
+        ret = r.querySelector(".item-is-return");
       initLov(s);
       function c() {
         var n = rowQty(r), price = rowPrice(r);
-        o.textContent = rp(price * n);
+        var isReturn = rowIsReturn(r);
+        r.classList.toggle("is-return", isReturn);
+        o.textContent = (isReturn ? "− " : "") + rp(price * n);
         var hasVal = !!s.getAttribute("data-value");
         var stock = parseFloat(s.getAttribute("data-stock") || "0");
-        warn.style.display = hasVal && n > stock ? "flex" : "none";
+        // Cek stok cuma relevan kalau baris ini arahnya keluar gudang (OUT):
+        // baris normal di nota Jual, atau baris barang-balik di nota Beli.
+        var typeRadioNow = document.querySelector('input[name="nota_type"]:checked');
+        var notaTypeNow = typeRadioNow ? typeRadioNow.value : "JUAL";
+        var forwardIsOut = notaTypeNow !== "BELI";
+        var rowIsOut = isReturn ? !forwardIsOut : forwardIsOut;
+        warn.style.display = hasVal && rowIsOut && n > stock ? "flex" : "none";
         grand();
       }
       s.addEventListener("lovchange", c);
       p.addEventListener("input", c);
       q.addEventListener("input", c);
+      if (ret) ret.addEventListener("change", c);
       q.addEventListener("blur", function () {
         var n = qtyNum(q.value || "0");
         q.value = n > 0 ? fmtQty(n) : "";
@@ -1410,6 +1447,9 @@
       c.querySelector(".item-note").value = "";
       c.querySelector(".line-sub").textContent = "Rp 0";
       c.querySelector(".item-warn").style.display = "none";
+      var cRet = c.querySelector(".item-is-return");
+      if (cRet) cRet.checked = false;
+      c.classList.remove("is-return");
       L.appendChild(c);
       bindRow(c);
       grand();
@@ -1434,6 +1474,8 @@
       row.querySelector(".item-price").value = it.price;
       var noteInp = row.querySelector(".item-note");
       if (noteInp) noteInp.value = it.note || "";
+      var retInp = row.querySelector(".item-is-return");
+      if (retInp) retInp.checked = !!it.is_return;
     }
     function applyItemsSnapshot(items) {
       L.querySelectorAll(".item-row").forEach(function (r) { r.remove(); });
@@ -1562,6 +1604,11 @@
       var pBeli = document.getElementById("partyPickerBeli"), pJual = document.getElementById("partyPickerJual");
       if (pBeli) pBeli.style.display = type === "BELI" ? "block" : "none";
       if (pJual) pJual.style.display = type === "BELI" ? "none" : "block";
+      // Arah OUT/IN tiap baris tergantung nota_type (lihat bindRow) --
+      // pindah Jual/Beli perlu re-cek warning stok tiap baris.
+      L.querySelectorAll(".item-qty").forEach(function (q) {
+        q.dispatchEvent(new Event("input"));
+      });
     }
     document.querySelectorAll('input[name="nota_type"]').forEach(function (r) {
       r.addEventListener("change", function () { applyNotaType(r.value); checkPartyCredit(); });
@@ -1674,6 +1721,7 @@
         items.push({
           material_id: parseInt(val, 10), qty: rowQty(r), price: rowPrice(r),
           note: noteInp ? noteInp.value.trim() : "",
+          is_return: rowIsReturn(r),
         });
       });
       if (!items.length) {
@@ -1806,6 +1854,7 @@
             material_name: (s.querySelector(".lov-btn-text").textContent || "").split(" · ")[0],
             unit: s.getAttribute("data-unit") || "",
             note: noteInp ? noteInp.value.trim() : "",
+            is_return: rowIsReturn(r),
           });
         });
         var checkedType = document.querySelector('input[name="nota_type"]:checked');

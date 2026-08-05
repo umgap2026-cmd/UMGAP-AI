@@ -482,6 +482,19 @@ def _ensure_fin_transaction_item_note_schema(cur):
         """)
 
 
+def _ensure_fin_transaction_item_direction_schema(cur):
+    """Lazy-migration: arah per baris barang ('IN'/'OUT', vokabuler sama
+    dgn movement_type di _update_stock_avco) -- dipakai utk nota campuran
+    (barang balik dlm 1 nota, mis. nota Jual yg ada baris "beli balik").
+    NULL utk baris lama/nota normal -- arahnya tetap diturunkan dari
+    fin_transactions.type seperti sebelumnya, kode lama tidak perlu berubah."""
+    if not _col_exists(cur, "fin_transaction_items", "direction"):
+        cur.execute("""
+            ALTER TABLE fin_transaction_items
+                ADD COLUMN IF NOT EXISTS direction VARCHAR(3) NULL;
+        """)
+
+
 def create_fin_expense_entry(category, amount, note, created_by):
     """Catat 1 beban/pengeluaran operasional (bukan lewat nota) -- kategori
     bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat).
@@ -1981,6 +1994,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
+        _ensure_fin_transaction_item_direction_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -1992,7 +2006,18 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             if not cur.fetchone():
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
-        for item in items:
+        # Nota campuran: item boleh bawa "is_return": true -- artinya baris
+        # itu arahnya KEBALIK dari mode nota (di sini: JUAL), yaitu barang
+        # yang kita BELI BALIK dari customer ini dalam nota yang sama
+        # (mis. dia jual kuningan 100kg TAPI juga beli aluminium 29kg dari
+        # kita -- 2 arah, 1 nota). forward = arah normal (dijual, stok OUT,
+        # masuk HPP). reverse = arah kebalik (dibeli balik, stok IN, TIDAK
+        # masuk HPP -- itu bukan penjualan). Cuma item forward yg perlu cek
+        # stok cukup (arahnya keluar).
+        forward_items = [i for i in items if not i.get("is_return")]
+        reverse_items = [i for i in items if i.get("is_return")]
+
+        for item in forward_items:
             mat_id = int(item["material_id"])
             qty = float(item.get("qty", 0))
             cur.execute("""
@@ -2009,13 +2034,14 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
                     f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
                 )
 
-        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        raw_total = subtotal_bruto - discount - ongkir_potongan
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in forward_items)
+        reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
+        raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
-        # Kalau DP/potongan yang diinput di nota ini LEBIH BESAR dari nilai
-        # barangnya (raw_total negatif), sisanya bukan hilang -- itu uang
-        # customer yang belum "terpakai" & harus jadi saldo (HUTANG kita ke
-        # dia) yang bisa dipotongkan otomatis di nota berikutnya.
+        # Kalau DP/potongan/barang-balik yang diinput di nota ini LEBIH BESAR
+        # dari nilai barangnya (raw_total negatif), sisanya bukan hilang --
+        # itu uang customer yang belum "terpakai" & harus jadi saldo (HUTANG
+        # kita ke dia) yang bisa dipotongkan otomatis di nota berikutnya.
         dp_excess = max(0.0, -raw_total)
 
         # nota_date (opsional, "YYYY-MM-DD") -- kalau diisi, nomor nota &
@@ -2063,7 +2089,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         txn_id = cur.fetchone()["id"]
 
         hpp_total = 0.0
-        for item in items:
+        for item in forward_items:
             mat_id = int(item["material_id"])
             qty = float(item.get("qty", 0))
             price = float(item.get("price", 0))
@@ -2079,13 +2105,33 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
-                VALUES (%s, %s, %s, %s, %s, %s);
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, 'OUT');
             """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
 
             _update_stock_avco(
                 cur, mat_id, qty, avg, 'OUT', txn_id,
                 note=f"Invoice {invoice_no} — {customer_name}"
+            )
+
+        # Barang balik (dibeli balik dari customer ini dlm nota yg sama):
+        # stok MASUK pakai harga yg kita bayar utk baris itu (bukan HPP,
+        # bukan penjualan -- ini pembelian dlm nota Jual).
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, 'IN');
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
+
+            _update_stock_avco(
+                cur, mat_id, qty, price, 'IN', txn_id,
+                note=f"Barang balik (beli) — Invoice {invoice_no} — {customer_name}"
             )
 
         if credit_amount > 0:
@@ -2124,6 +2170,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             "hpp": hpp_total,
             "laba": grand_total - hpp_total,
             "dp_excess": dp_excess,
+            "reverse_subtotal": reverse_subtotal,
         }
     except ValueError:
         conn.rollback()
@@ -2167,6 +2214,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
+        _ensure_fin_transaction_item_direction_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -2178,13 +2226,41 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             if not cur.fetchone():
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
-        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        raw_total = subtotal_bruto - discount - ongkir_potongan
+        # Nota campuran: item boleh bawa "is_return": true -- artinya baris
+        # itu arahnya KEBALIK dari mode nota (di sini: BELI), yaitu barang
+        # yang kita JUAL BALIK ke supplier ini dalam nota yang sama. forward
+        # = arah normal (dibeli, stok IN). reverse = arah kebalik (dijual
+        # balik, stok OUT, masuk HPP -- ini penjualan sungguhan) -- perlu
+        # cek stok cukup krn arahnya keluar.
+        forward_items = [i for i in items if not i.get("is_return")]
+        reverse_items = [i for i in items if i.get("is_return")]
+
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            cur.execute("""
+                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                FROM fin_materials m
+                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                WHERE m.id=%s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            if not row or float(row["qty"]) < qty:
+                stok_ada = float(row["qty"]) if row else 0
+                raise ValueError(
+                    f"Stok {row['name'] if row else mat_id} tidak cukup utk dijual balik. "
+                    f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
+                )
+
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in forward_items)
+        reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
+        raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
-        # Kalau DP yang diinput di nota ini LEBIH BESAR dari nilai barang yang
-        # didapat (raw_total negatif), sisanya bukan hilang -- itu uang kita
-        # yang belum "terpakai" & harus jadi saldo (PIUTANG kita ke pemasok)
-        # yang bisa dipotongkan otomatis di nota belanja berikutnya.
+        # Kalau DP/barang-balik yang diinput di nota ini LEBIH BESAR dari
+        # nilai barang yang didapat (raw_total negatif), sisanya bukan
+        # hilang -- itu uang kita yang belum "terpakai" & harus jadi saldo
+        # (PIUTANG kita ke pemasok) yang bisa dipotongkan otomatis di nota
+        # belanja berikutnya.
         dp_excess = max(0.0, -raw_total)
 
         # nota_date (opsional, "YYYY-MM-DD") -- kalau diisi, nomor nota &
@@ -2231,7 +2307,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         ))
         txn_id = cur.fetchone()["id"]
 
-        for item in items:
+        for item in forward_items:
             mat_id = int(item["material_id"])
             qty = float(item.get("qty", 0))
             price = float(item.get("price", 0))
@@ -2239,13 +2315,42 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
-                VALUES (%s, %s, %s, %s, %s, %s);
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, 'IN');
             """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
 
             _update_stock_avco(
                 cur, mat_id, qty, price, 'IN', txn_id,
                 note=f"Nota {invoice_no} — {supplier_name}"
+            )
+
+        # Barang balik (dijual balik ke supplier ini dlm nota yg sama): stok
+        # KELUAR pakai HPP (avg cost SAAT INI), bukan harga inputan -- harga
+        # inputan itu nilai penjualannya (subtotal/pendapatan baris ini).
+        hpp_total = 0.0
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+
+            cur.execute(
+                "SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                (mat_id,)
+            )
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            hpp_total += qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, 'OUT');
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
+
+            _update_stock_avco(
+                cur, mat_id, qty, avg, 'OUT', txn_id,
+                note=f"Barang balik (jual) — Nota {invoice_no} — {supplier_name}"
             )
 
         if credit_amount > 0:
@@ -2282,6 +2387,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
             "ongkir": ongkir_beban + ongkir_potongan,
             "total": grand_total,
             "dp_excess": dp_excess,
+            "reverse_subtotal": reverse_subtotal,
+            "hpp": hpp_total,
         }
     except ValueError:
         conn.rollback()
@@ -2327,6 +2434,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         _ensure_fin_expense_schema(cur)
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
+        _ensure_fin_transaction_item_direction_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -2370,58 +2478,72 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             if not cur.fetchone():
                 raise ValueError(f"Barang dengan material_id={mat_id} tidak ditemukan di gudang.")
 
-        # Balikkan stok dari item-item LAMA
+        # Balikkan stok dari item-item LAMA -- per-item, krn nota campuran
+        # bisa punya baris dgn arah beda-beda (direction kolom baru; NULL
+        # utk nota lama sblm fitur ini, fallback ke arah blanket seperti
+        # sebelumnya).
         cur.execute("""
-            SELECT material_id, qty_kg, price_per_kg
+            SELECT material_id, qty_kg, price_per_kg, direction
             FROM fin_transaction_items WHERE transaction_id = %s;
         """, (txn_id,))
         old_items = cur.fetchall()
-        original_movement = 'IN' if is_beli else 'OUT'
+        default_movement = 'IN' if is_beli else 'OUT'
         for it in old_items:
+            orig_movement = it.get("direction") or default_movement
             _reverse_stock_movement(
                 cur, it["material_id"], float(it["qty_kg"]), txn_id,
-                original_movement, note=f"Edit nota {invoice_no} (versi lama)")
+                orig_movement, note=f"Edit nota {invoice_no} (versi lama)")
 
         cur.execute("DELETE FROM fin_transaction_items WHERE transaction_id = %s;", (txn_id,))
 
-        # Untuk JUAL, cek stok cukup untuk item-item BARU (setelah reversal di atas)
-        if not is_beli:
-            for item in items:
-                mat_id = int(item["material_id"])
-                qty = float(item.get("qty", 0))
-                cur.execute("""
-                    SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
-                    FROM fin_materials m
-                    LEFT JOIN fin_stock_summary s ON s.material_id = m.id
-                    WHERE m.id=%s;
-                """, (mat_id,))
-                row = cur.fetchone()
-                if not row or float(row["qty"]) < qty:
-                    stok_ada = float(row["qty"]) if row else 0
-                    raise ValueError(
-                        f"Stok {row['name'] if row else mat_id} tidak cukup untuk perubahan ini. "
-                        f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
-                    )
+        # Nota campuran: item boleh bawa "is_return": true -- arah kebalik
+        # dari mode nota ini (lihat create_fin_invoice/create_fin_purchase_invoice
+        # utk penjelasan lengkap). forward = arah normal nota ini, reverse =
+        # arah kebalik.
+        forward_items = [i for i in items if not i.get("is_return")]
+        reverse_items = [i for i in items if i.get("is_return")]
+        # Item yg arahnya KELUAR (stok berkurang) yg perlu cek stok cukup:
+        # forward kalau nota JUAL, reverse kalau nota BELI.
+        out_items = reverse_items if is_beli else forward_items
+        for item in out_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            cur.execute("""
+                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                FROM fin_materials m
+                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                WHERE m.id=%s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            if not row or float(row["qty"]) < qty:
+                stok_ada = float(row["qty"]) if row else 0
+                raise ValueError(
+                    f"Stok {row['name'] if row else mat_id} tidak cukup untuk perubahan ini. "
+                    f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
+                )
 
-        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items)
-        raw_total = subtotal_bruto - discount - ongkir_potongan
+        subtotal_bruto = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in forward_items)
+        reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
+        raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
         # Sama seperti create_fin_invoice/create_fin_purchase_invoice: kalau
-        # DP hasil edit lebih besar dari nilai barang, sisanya jadi saldo
-        # baru (bukan hilang).
+        # DP/barang-balik hasil edit lebih besar dari nilai barang, sisanya
+        # jadi saldo baru (bukan hilang).
         dp_excess = max(0.0, -raw_total)
 
-        for item in items:
+        hpp_total = 0.0
+        for item in forward_items:
             mat_id = int(item["material_id"])
             qty = float(item.get("qty", 0))
             price = float(item.get("price", 0))
             subtotal = qty * price
+            direction = 'IN' if is_beli else 'OUT'
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None))
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None, direction))
 
             if is_beli:
                 _update_stock_avco(
@@ -2433,9 +2555,40 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                     (mat_id,))
                 avg_row = cur.fetchone()
                 avg = float(avg_row["avg"]) if avg_row else 0
+                hpp_total += qty * avg
                 _update_stock_avco(
                     cur, mat_id, qty, avg, 'OUT', txn_id,
                     note=f"Edit nota {invoice_no} — {customer_name}")
+
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty", 0))
+            price = float(item.get("price", 0))
+            subtotal = qty * price
+            direction = 'OUT' if is_beli else 'IN'
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, note, direction)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """, (txn_id, mat_id, qty, price, subtotal, (item.get("note") or "").strip() or None, direction))
+
+            if is_beli:
+                # Barang balik di nota BELI = dijual balik -- keluar, HPP.
+                cur.execute(
+                    "SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                    (mat_id,))
+                avg_row = cur.fetchone()
+                avg = float(avg_row["avg"]) if avg_row else 0
+                hpp_total += qty * avg
+                _update_stock_avco(
+                    cur, mat_id, qty, avg, 'OUT', txn_id,
+                    note=f"Barang balik (jual) — Edit nota {invoice_no} — {customer_name}")
+            else:
+                # Barang balik di nota JUAL = dibeli balik -- masuk, harga inputan.
+                _update_stock_avco(
+                    cur, mat_id, qty, price, 'IN', txn_id,
+                    note=f"Barang balik (beli) — Edit nota {invoice_no} — {customer_name}")
 
         is_debt = not is_paid
         new_note = f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else "")
@@ -2486,6 +2639,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             "invoice_id": txn_id, "invoice_no": invoice_no, "total": grand_total,
             "dp_excess": dp_excess, "nota_type": "BELI" if is_beli else "JUAL",
             "party_name": customer_name,
+            "reverse_subtotal": reverse_subtotal, "hpp": hpp_total,
         }
     except ValueError:
         conn.rollback()
@@ -2513,6 +2667,7 @@ def get_fin_invoice_detail(txn_id):
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
+        _ensure_fin_transaction_item_direction_schema(cur)
         conn.commit()
 
         cur.execute("""
@@ -2529,15 +2684,20 @@ def get_fin_invoice_detail(txn_id):
             return None, []
 
         invoice_no, payment_method, extra_notes = _parse_nota_note(row.get("note"))
+        nota_type = "BELI" if row.get("type") == "BELI_GUDANG" else "JUAL"
+        # Arah "normal" nota ini (forward) -- item dgn direction NULL
+        # (nota lama sblm fitur barang-balik) dianggap forward juga.
+        forward_direction = 'IN' if nota_type == "BELI" else 'OUT'
 
         cur.execute("""
             SELECT ti.material_id, m.name AS product_name, m.unit, ti.qty_kg AS qty,
-                   ti.price_per_kg AS price, ti.subtotal, ti.note
+                   ti.price_per_kg AS price, ti.subtotal, ti.note, ti.direction
             FROM fin_transaction_items ti
             LEFT JOIN fin_materials m ON m.id = ti.material_id
             WHERE ti.transaction_id = %s
             ORDER BY ti.id ASC;
         """, (txn_id,))
+        raw_items = cur.fetchall()
         items = [{
             "material_id": r.get("material_id"),
             "product_name": r.get("product_name") or "-",
@@ -2546,14 +2706,23 @@ def get_fin_invoice_detail(txn_id):
             "price": int(r["price"] or 0),
             "subtotal": float(r["subtotal"] or 0),
             "note": r.get("note") or "",
-        } for r in cur.fetchall()]
+            "direction": r.get("direction") or forward_direction,
+            "is_return": bool(r.get("direction")) and r.get("direction") != forward_direction,
+        } for r in raw_items]
 
-        items_subtotal = sum(it["subtotal"] for it in items)
+        # Nota campuran: item forward (arah normal) vs reverse (barang
+        # balik, arah kebalik) dipisah supaya ringkasan & tampilan cetak
+        # tidak salah jumlah (lihat templates/invoice_print.html).
+        forward_only = [it for it in items if not it["is_return"]]
+        reverse_only = [it for it in items if it["is_return"]]
+        items_subtotal = sum(it["subtotal"] for it in forward_only)
+        reverse_subtotal = sum(it["subtotal"] for it in reverse_only)
+        has_mixed_items = len(reverse_only) > 0
+
         grand_total = float(row.get("total_amount") or 0)
         profile = get_company_profile()
-        nota_type = "BELI" if row.get("type") == "BELI_GUDANG" else "JUAL"
 
-        total_discount = max(0.0, items_subtotal - grand_total)
+        total_discount = max(0.0, items_subtotal - reverse_subtotal - grand_total)
         dp_amount = float(row.get("dp_amount") or 0)
         ongkir_potongan_amount = float(row.get("ongkir_potongan_amount") or 0)
         discount_breakdown = []
@@ -2589,6 +2758,8 @@ def get_fin_invoice_detail(txn_id):
             "subtotal": items_subtotal,
             "discount": total_discount,
             "discount_breakdown": discount_breakdown,
+            "has_mixed_items": has_mixed_items,
+            "reverse_subtotal": reverse_subtotal,
             "dp_amount": dp_amount,
             "ongkir_potongan_amount": ongkir_potongan_amount,
             "related_expenses": related_expenses,
@@ -2783,14 +2954,18 @@ def cancel_fin_transaction(txn_id, cancelled_by):
             )
 
         cur.execute("""
-            SELECT material_id, qty_kg, price_per_kg
+            SELECT material_id, qty_kg, price_per_kg, direction
             FROM fin_transaction_items WHERE transaction_id = %s;
         """, (txn_id,))
-        original_movement = 'IN' if txn["type"] == 'BELI_GUDANG' else 'OUT'
+        # Per-item, krn nota campuran bisa punya baris dgn arah beda-beda
+        # (kolom direction; NULL utk nota lama sblm fitur ini, fallback ke
+        # arah blanket berdasar type transaksi seperti sebelumnya).
+        default_movement = 'IN' if txn["type"] == 'BELI_GUDANG' else 'OUT'
         for it in cur.fetchall():
+            orig_movement = it.get("direction") or default_movement
             _reverse_stock_movement(
                 cur, it["material_id"], float(it["qty_kg"]), txn_id,
-                original_movement, note=f"Pembatalan nota #{txn_id}")
+                orig_movement, note=f"Pembatalan nota #{txn_id}")
 
         if debt:
             cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt["id"],))
@@ -3875,8 +4050,40 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in items)
-        grand_total = max(0.0, total - discount)
+        _ensure_fin_transaction_item_direction_schema(cur)
+        conn.commit()
+
+        # Nota campuran: item boleh bawa "is_return": true -- barang yang
+        # kita JUAL BALIK ke orang ini dlm transaksi Beli yg sama (lihat
+        # create_fin_purchase_invoice() utk penjelasan lengkap pola yg sama).
+        forward_items = [i for i in items if not i.get("is_return")]
+        reverse_items = [i for i in items if i.get("is_return")]
+
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item.get("qty_kg", 0))
+            cur.execute("""
+                SELECT COALESCE(s.qty_kg, 0) AS qty, m.name
+                FROM fin_materials m
+                LEFT JOIN fin_stock_summary s ON s.material_id = m.id
+                WHERE m.id=%s;
+            """, (mat_id,))
+            row = cur.fetchone()
+            if not row or float(row["qty"]) < qty:
+                stok_ada = float(row["qty"]) if row else 0
+                raise ValueError(
+                    f"Stok {row['name'] if row else mat_id} tidak cukup utk dijual balik. "
+                    f"Tersedia: {stok_ada:.1f} kg, diminta: {qty:.1f} kg"
+                )
+
+        total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in forward_items)
+        reverse_subtotal = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in reverse_items)
+        raw_total = total - discount - reverse_subtotal
+        grand_total = max(0.0, raw_total)
+        # Sama seperti create_fin_purchase_invoice(): kalau barang balik lebih
+        # besar dari nilai beliannya, sisanya jadi saldo PIUTANG kita ke
+        # orang ini (bisa dipotongkan otomatis di transaksi berikutnya).
+        excess = max(0.0, -raw_total)
 
         cur.execute("""
             INSERT INTO fin_transactions
@@ -3886,7 +4093,7 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
         """, (party_name or None, note or None, is_debt, grand_total, created_by))
         txn_id = cur.fetchone()["id"]
 
-        for item in items:
+        for item in forward_items:
             mat_id = int(item["material_id"])
             qty = float(item["qty_kg"])
             price = float(item["price_per_kg"])
@@ -3894,14 +4101,47 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
 
             cur.execute("""
                 INSERT INTO fin_transaction_items
-                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal)
-                VALUES (%s, %s, %s, %s, %s);
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, direction)
+                VALUES (%s, %s, %s, %s, %s, 'IN');
             """, (txn_id, mat_id, qty, price, subtotal))
 
             _update_stock_avco(cur, mat_id, qty, price, 'IN', txn_id,
                                note=f"Beli dari {party_name or 'orang'}")
 
-        if is_debt and party_name:
+        hpp_total = 0.0
+        for item in reverse_items:
+            mat_id = int(item["material_id"])
+            qty = float(item["qty_kg"])
+            price = float(item["price_per_kg"])
+            subtotal = qty * price
+
+            cur.execute(
+                "SELECT COALESCE(avg_cost_per_kg, 0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                (mat_id,)
+            )
+            row = cur.fetchone()
+            avg = float(row["avg"]) if row else 0
+            hpp_total += qty * avg
+
+            cur.execute("""
+                INSERT INTO fin_transaction_items
+                    (transaction_id, material_id, qty_kg, price_per_kg, subtotal, direction)
+                VALUES (%s, %s, %s, %s, %s, 'OUT');
+            """, (txn_id, mat_id, qty, price, subtotal))
+
+            _update_stock_avco(cur, mat_id, qty, avg, 'OUT', txn_id,
+                               note=f"Barang balik (jual) — Beli dari {party_name or 'orang'}")
+
+        if excess > 0 and party_name:
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, transaction_id, note)
+                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+            """, (party_name, excess, excess, txn_id,
+                  "Sisa barang balik — jadi saldo kita di pihak ini, "
+                  "bisa dipotongkan otomatis saat belanja berikutnya ke sana"))
+
+        if is_debt and party_name and grand_total > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note)
@@ -3914,6 +4154,9 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
             "total": total,
             "discount": discount,
             "grand_total": grand_total,
+            "reverse_subtotal": reverse_subtotal,
+            "hpp": hpp_total,
+            "dp_excess": excess,
         }
     except ValueError:
         conn.rollback()

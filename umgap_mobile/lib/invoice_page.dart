@@ -53,6 +53,7 @@ class CartItem {
   final String productName;
   final int    price;
   final double qty;
+  final bool   isReturn;
 
   double get subtotal => price * qty;
 
@@ -61,13 +62,15 @@ class CartItem {
     required this.productName,
     required this.price,
     required this.qty,
+    this.isReturn = false,
   });
 
-  CartItem copyWith({double? qty, int? price}) => CartItem(
+  CartItem copyWith({double? qty, int? price, bool? isReturn}) => CartItem(
     productId:   productId,
     productName: productName,
     price:       price ?? this.price,
     qty:         qty   ?? this.qty,
+    isReturn:    isReturn ?? this.isReturn,
   );
 }
 
@@ -135,6 +138,7 @@ class _InvoicePageState extends State<InvoicePage>
   late String       _payMethod;
   late bool         _isPaid;
   late List<CartItem> _cart;
+  bool _addAsReturn = false;
 
   // ── Color helpers ─────────────────────────────
   Color get _colorDark  => _isBeli ? _cBeliDark  : _cJualDark;
@@ -196,6 +200,7 @@ class _InvoicePageState extends State<InvoicePage>
         _cart.clear();
         _priceCtrl.clear();
         _qtyCtrl.text = '1';
+        _addAsReturn = false;
       });
       _saveDraft();
     }
@@ -225,10 +230,11 @@ class _InvoicePageState extends State<InvoicePage>
         'isBeli':  _isBeli,
         'savedAt': DateTime.now().toIso8601String(),
         'cart':    _cart.map((c) => {
-          'id':    c.productId,
-          'name':  c.productName,
-          'price': c.price,
-          'qty':   c.qty,
+          'id':       c.productId,
+          'name':     c.productName,
+          'price':    c.price,
+          'qty':      c.qty,
+          'isReturn': c.isReturn,
         }).toList(),
       };
       await _notaStorage.write(
@@ -250,6 +256,7 @@ class _InvoicePageState extends State<InvoicePage>
         productName: i['name'] as String,
         price:       (i['price'] as num).toInt(),
         qty:         (i['qty'] as num).toDouble(),
+        isReturn:    i['isReturn'] == true,
       )).toList();
 
       final savedAt = DateTime.tryParse(d['savedAt'] ?? '');
@@ -515,10 +522,14 @@ class _InvoicePageState extends State<InvoicePage>
       _priceCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   double get _previewQty  => double.tryParse(_qtyCtrl.text.trim()) ?? 0;
   double get _previewSub  => _manualPrice * _previewQty;
-  double get _subtotal    => _cart.fold(0.0, (s, c) => s + c.subtotal);
+  double get _subtotal    =>
+      _cart.where((c) => !c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
+  double get _revSubtotal =>
+      _cart.where((c) => c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
   double get _disc        =>
       _isBeli ? 0 : (double.tryParse(_discCtrl.text.trim()) ?? 0);
-  double get _total       => (_subtotal - _disc).clamp(0, double.infinity);
+  double get _total       =>
+      (_subtotal - _disc - _revSubtotal).clamp(0, double.infinity);
 
   // ── Kontak ─────────────────────────────────────
   Future<void> _pickContact() async {
@@ -802,7 +813,8 @@ class _InvoicePageState extends State<InvoicePage>
     setState(() {
       final id  = int.tryParse('${_selMat!['id']}') ?? 0;
       final idx = _cart.indexWhere(
-              (c) => c.productId == id && c.price == _manualPrice);
+              (c) => c.productId == id && c.price == _manualPrice
+                  && c.isReturn == _addAsReturn);
       if (idx >= 0) {
         _cart[idx] = _cart[idx].copyWith(qty: _cart[idx].qty + _previewQty);
       } else {
@@ -812,10 +824,12 @@ class _InvoicePageState extends State<InvoicePage>
           '${_selMat!['name'] ?? _selMat!['material_name'] ?? 'Barang'}',
           price:       _manualPrice,
           qty:         _previewQty,
+          isReturn:    _addAsReturn,
         ));
       }
       _qtyCtrl.text = '1';
       _priceCtrl.clear();
+      _addAsReturn = false;
     });
     _saveDraft();
   }
@@ -902,6 +916,7 @@ class _InvoicePageState extends State<InvoicePage>
     final notes = _notesCtrl.text.trim();
     final disc  = _disc;
     final sub   = _subtotal;
+    final revSub = _revSubtotal;
     final total = _total;
     final paid  = _isPaid;
 
@@ -924,6 +939,7 @@ class _InvoicePageState extends State<InvoicePage>
         notes:         notes,
         discount:      disc,
         subtotal:      sub,
+        reverseSubtotal: revSub,
         grandTotal:    total,
         items:         snap,
         isPaid:        paid,
@@ -951,11 +967,14 @@ class _InvoicePageState extends State<InvoicePage>
         'material_id':  c.productId,
         'qty_kg':       c.qty,
         'price_per_kg': c.price,
+        'is_return':    c.isReturn,
       }).toList();
       final supplier  = _nameCtrl.text.trim();
       final phone     = _phoneCtrl.text.trim();
       final notes     = _notesCtrl.text.trim();
       final sub       = _subtotal;
+      final revSub    = _revSubtotal;
+      final total     = _total;
       final paid      = _isPaid;
 
       // Generate nomor nota beli lokal
@@ -986,7 +1005,8 @@ class _InvoicePageState extends State<InvoicePage>
           notes:         notes,
           discount:      0,
           subtotal:      sub,
-          grandTotal:    sub,
+          reverseSubtotal: revSub,
+          grandTotal:    total,
           items:         snap,
           isPaid:        paid,
           isBeli:        true,
@@ -1407,10 +1427,63 @@ class _InvoicePageState extends State<InvoicePage>
               );
             }),
 
+            // Toggle arah kebalik — cuma relevan kalau sudah ada barang
+            // lain di nota ini (baris pertama selalu arah normal).
+            if (_cart.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => setState(() => _addAsReturn = !_addAsReturn),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _addAsReturn
+                          ? const Color(0xFFFFF7ED)
+                          : UColors.inputBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: _addAsReturn
+                              ? const Color(0xFFEA580C).withOpacity(0.4)
+                              : _colorMid.withOpacity(0.12)),
+                    ),
+                    child: Row(children: [
+                      Checkbox(
+                        value: _addAsReturn,
+                        activeColor: const Color(0xFFEA580C),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        onChanged: (v) =>
+                            setState(() => _addAsReturn = v ?? false),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _isBeli
+                              ? 'Barang ini arah TERBALIK (kita JUAL balik ke pemasok)'
+                              : 'Barang ini arah TERBALIK (kita BELI balik dari customer)',
+                          style: TextStyle(
+                            fontSize: _rfs(context, 11),
+                            fontWeight: FontWeight.w700,
+                            color: _addAsReturn
+                                ? const Color(0xFFC2410C)
+                                : UColors.textMid,
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+
             // Harga
             UField(
               controller: _priceCtrl,
-              label: _isBeli ? 'Harga Beli / kg *' : 'Harga Jual / kg *',
+              label: _isBeli
+                  ? (_addAsReturn ? 'Harga Jual Balik / kg *' : 'Harga Beli / kg *')
+                  : (_addAsReturn ? 'Harga Beli Balik / kg *' : 'Harga Jual / kg *'),
               hint: 'Contoh: 150000',
               prefixIcon: _isBeli
                   ? Icons.price_check_rounded
@@ -1570,10 +1643,24 @@ class _InvoicePageState extends State<InvoicePage>
                         Expanded(child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item.productName,
-                                  style: const TextStyle(fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: UColors.textDark)),
+                              Row(children: [
+                                if (item.isReturn) Container(
+                                  margin: const EdgeInsets.only(right: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                      color: const Color(0xFFFFEDD5),
+                                      borderRadius: BorderRadius.circular(5)),
+                                  child: const Text('🔁 balik',
+                                      style: TextStyle(fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFFC2410C))),
+                                ),
+                                Expanded(child: Text(item.productName,
+                                    style: const TextStyle(fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: UColors.textDark))),
+                              ]),
                               Text(
                                 '${_rp(item.price)}/kg × '
                                     '${_fmtQty(item.qty)} = '
@@ -1582,9 +1669,12 @@ class _InvoicePageState extends State<InvoicePage>
                                     color: UColors.textMid),
                               ),
                             ])),
-                        Text(_rp(item.subtotal), style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w800,
-                            color: _colorMid)),
+                        Text(
+                            (item.isReturn ? '− ' : '') + _rp(item.subtotal),
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w800,
+                                color: item.isReturn
+                                    ? const Color(0xFFC2410C) : _colorMid)),
                         const SizedBox(width: 6),
                         GestureDetector(
                           onTap: () => _editItem(i),
@@ -1624,17 +1714,27 @@ class _InvoicePageState extends State<InvoicePage>
                         bottomLeft: Radius.circular(16),
                         bottomRight: Radius.circular(16)),
                   ),
-                  child: Row(children: [
-                    Text('${_cart.length} item',
-                        style: const TextStyle(fontSize: 12,
-                            color: UColors.textMid)),
-                    const Spacer(),
-                    Text(_isBeli ? 'Total Beli  ' : 'Subtotal  ',
-                        style: const TextStyle(fontSize: 13,
-                            color: UColors.textMid)),
-                    Text(_rp(_subtotal), style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w900,
-                        color: _colorDark)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Row(children: [
+                      Text('${_cart.length} item',
+                          style: const TextStyle(fontSize: 12,
+                              color: UColors.textMid)),
+                      const Spacer(),
+                      Text(_isBeli ? 'Total Beli  ' : 'Subtotal  ',
+                          style: const TextStyle(fontSize: 13,
+                              color: UColors.textMid)),
+                      Text(_rp(_subtotal), style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w900,
+                          color: _colorDark)),
+                    ]),
+                    if (_revSubtotal > 0) Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                          '🔁 Arah kebalik  − ${_rp(_revSubtotal)}',
+                          style: const TextStyle(fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFC2410C))),
+                    ),
                   ]),
                 ),
               ]),
@@ -1689,6 +1789,11 @@ class _InvoicePageState extends State<InvoicePage>
                 ),
                 child: Column(children: [
                   _SumRow('Subtotal', _rp(_subtotal)),
+                  if (_revSubtotal > 0) ...[
+                    const SizedBox(height: 8),
+                    _SumRow('🔁 Arah Kebalik', '− ${_rp(_revSubtotal)}',
+                        color: const Color(0xFFC2410C)),
+                  ],
                   if (_disc > 0) ...[
                     const SizedBox(height: 8),
                     _SumRow('Diskon', '− ${_rp(_disc)}',
@@ -1767,10 +1872,15 @@ class _InvoicePageState extends State<InvoicePage>
                           const Text('Total Modal Beli',
                               style: TextStyle(fontSize: 11,
                                   color: UColors.textMid)),
-                          Text(_rp(_subtotal),
+                          Text(_rp(_total),
                               style: TextStyle(fontSize: 20,
                                   fontWeight: FontWeight.w900,
                                   color: _cBeliDark)),
+                          if (_revSubtotal > 0) Text(
+                              '🔁 Jual balik − ${_rp(_revSubtotal)}',
+                              style: const TextStyle(fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFC2410C))),
                         ]),
                     const Spacer(),
                     Column(crossAxisAlignment: CrossAxisAlignment.end,
