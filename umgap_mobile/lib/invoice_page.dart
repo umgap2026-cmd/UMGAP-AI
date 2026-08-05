@@ -358,6 +358,148 @@ class _InvoicePageState extends State<InvoicePage>
     }
   }
 
+  // ── Modal pencarian barang (search + kategori + HPP) ──
+  // Meniru pola LOV di web (templates/invoice_form.html): search nama +
+  // chip kategori, tiap baris tampilkan stok & HPP supaya admin tidak
+  // salah pilih barang di gudang yang isinya banyak jenis.
+  void _showMaterialPicker() {
+    String query = '';
+    String selectedCat = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(builder: (sheetCtx, setModalState) {
+          final cats = <String>{};
+          for (final m in _materials) {
+            final c = '${m['category'] ?? ''}'.trim();
+            if (c.isNotEmpty) cats.add(c);
+          }
+          final catList = cats.toList()..sort();
+
+          final filtered = _materials.where((m) {
+            final name =
+                '${m['name'] ?? m['material_name'] ?? ''}'.toLowerCase();
+            final cat = '${m['category'] ?? ''}'.trim();
+            final matchQ = query.trim().isEmpty ||
+                name.contains(query.trim().toLowerCase());
+            final matchCat = selectedCat.isEmpty || cat == selectedCat;
+            return matchQ && matchCat;
+          }).toList();
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.4,
+            maxChildSize: 0.92,
+            expand: false,
+            builder: (ctx, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10, bottom: 6),
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('Pilih Barang Gudang',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w800,
+                            color: UColors.textDark)),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Cari nama barang…',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        filled: true,
+                        fillColor: UColors.inputBg,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
+                      ),
+                      onChanged: (v) => setModalState(() => query = v),
+                    ),
+                  ),
+                  if (catList.isNotEmpty) Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                    child: Wrap(spacing: 6, runSpacing: 6, children: [
+                      ChoiceChip(
+                        label: const Text('Semua'),
+                        selected: selectedCat.isEmpty,
+                        onSelected: (_) => setModalState(() => selectedCat = ''),
+                      ),
+                      ...catList.map((c) => ChoiceChip(
+                        label: Text(c),
+                        selected: selectedCat == c,
+                        onSelected: (_) =>
+                            setModalState(() => selectedCat = selectedCat == c ? '' : c),
+                      )),
+                    ]),
+                  ),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text('Barang tidak ditemukan',
+                                style: TextStyle(color: UColors.textLight)))
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1, indent: 16, endIndent: 16),
+                            itemBuilder: (ctx, i) {
+                              final m = filtered[i];
+                              final id = int.tryParse('${m['id']}') ?? 0;
+                              final nm = '${m['name'] ?? m['material_name'] ?? '-'}';
+                              final stok = double.tryParse(
+                                  '${m['qty_kg'] ?? m['stock'] ?? 0}') ?? 0.0;
+                              final hpp = double.tryParse(
+                                  '${m['avg_cost_per_kg'] ?? 0}') ?? 0.0;
+                              final unit = '${m['unit'] ?? 'kg'}';
+                              final stokColor = _isBeli
+                                  ? UColors.textMid
+                                  : (stok > 0 ? UColors.success : UColors.danger);
+                              return ListTile(
+                                title: Text(nm, style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 14)),
+                                subtitle: Text(
+                                  'Stok ${stok.toStringAsFixed(1)} $unit'
+                                  '${hpp > 0 ? ' · HPP ${_rp(hpp)}' : ''}',
+                                  style: TextStyle(fontSize: 12, color: stokColor),
+                                ),
+                                onTap: () {
+                                  setState(() => _selId = id);
+                                  Navigator.pop(sheetCtx);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ]),
+              );
+            },
+          );
+        });
+      },
+    );
+  }
+
   // ── Helpers ────────────────────────────────────
   Map<String, dynamic>? get _selMat {
     if (_selId == null || _materials.isEmpty) return null;
@@ -1169,55 +1311,36 @@ class _InvoicePageState extends State<InvoicePage>
                 fontSize: 13, fontWeight: FontWeight.w600,
                 color: UColors.textMid)),
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                  color: UColors.inputBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: _colorMid.withOpacity(0.18))),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: _materials.any((m) =>
-                  (int.tryParse('${m['id']}') ?? 0) == _selId)
-                      ? _selId : null,
-                  isExpanded: true,
-                  hint: const Text('Pilih barang'),
-                  icon: Icon(Icons.keyboard_arrow_down_rounded,
-                      color: _colorMid),
-                  items: _materials.map((m) {
-                    final id   = int.tryParse('${m['id']}') ?? 0;
-                    final nm   = '${m['name'] ?? m['material_name'] ?? '-'}';
-                    final stok = double.tryParse(
-                        '${m['qty_kg'] ?? m['stock'] ?? 0}') ?? 0.0;
-                    // Untuk BELI: tampilkan stok saat ini (info)
-                    // Untuk JUAL: stok harus cukup
-                    final stokStr = '${stok.toStringAsFixed(1)} kg';
-                    final stokColor = _isBeli
-                        ? _colorMid
-                        : (stok > 0 ? UColors.success : UColors.danger);
-                    return DropdownMenuItem<int>(
-                      value: id,
-                      child: Row(children: [
-                        Expanded(child: Text(nm,
-                            style: const TextStyle(fontSize: 13),
-                            overflow: TextOverflow.ellipsis)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: stokColor.withOpacity(0.10),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(stokStr, style: TextStyle(
-                              fontSize: 10, fontWeight: FontWeight.w700,
-                              color: stokColor)),
-                        ),
-                      ]),
-                    );
-                  }).toList(),
-                  onChanged: (v) => setState(() => _selId = v),
-                ),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _showMaterialPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                    color: UColors.inputBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _colorMid.withOpacity(0.18))),
+                child: Row(children: [
+                  Icon(Icons.search_rounded, color: _colorMid, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _selMat != null
+                          ? '${_selMat!['name'] ?? _selMat!['material_name'] ?? '-'}'
+                          : 'Cari & pilih barang…',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: _selMat != null
+                              ? FontWeight.w700 : FontWeight.w400,
+                          color: _selMat != null
+                              ? UColors.textDark : UColors.textLight),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down_rounded, color: _colorMid),
+                ]),
               ),
             ),
 
@@ -1243,27 +1366,42 @@ class _InvoicePageState extends State<InvoicePage>
             ),
             const SizedBox(height: 8),
 
-            // Info stok
+            // Info stok + HPP
             if (_selMat != null) Builder(builder: (_) {
               final stok = double.tryParse(
                   '${_selMat!['qty_kg'] ?? _selMat!['stock'] ?? 0}') ?? 0.0;
+              final hpp = double.tryParse(
+                  '${_selMat!['avg_cost_per_kg'] ?? 0}') ?? 0.0;
+              final unit = '${_selMat!['unit'] ?? 'kg'}';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(children: [
-                  Icon(
-                    _isBeli ? Icons.add_box_rounded : Icons.inventory_2_rounded,
-                    color: _isBeli ? _colorMid : UColors.success,
-                    size: _rfs(context, 13),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _isBeli
-                        ? 'Stok saat ini: ${stok.toStringAsFixed(1)} kg → akan bertambah'
-                        : 'Stok tersedia: ${stok.toStringAsFixed(1)} kg',
-                    style: TextStyle(
-                        fontSize: _rfs(context, 11),
-                        color: _isBeli ? _colorMid : UColors.success,
-                        fontWeight: FontWeight.w600),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(
+                      _isBeli ? Icons.add_box_rounded : Icons.inventory_2_rounded,
+                      color: _isBeli ? _colorMid : UColors.success,
+                      size: _rfs(context, 13),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isBeli
+                          ? 'Stok saat ini: ${stok.toStringAsFixed(1)} $unit → akan bertambah'
+                          : 'Stok tersedia: ${stok.toStringAsFixed(1)} $unit',
+                      style: TextStyle(
+                          fontSize: _rfs(context, 11),
+                          color: _isBeli ? _colorMid : UColors.success,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ]),
+                  if (hpp > 0) Padding(
+                    padding: const EdgeInsets.only(top: 3, left: 19),
+                    child: Text(
+                      'HPP (harga pokok rata-rata): ${_rp(hpp)} / $unit',
+                      style: TextStyle(
+                          fontSize: _rfs(context, 11),
+                          color: UColors.textMid,
+                          fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ]),
               );
