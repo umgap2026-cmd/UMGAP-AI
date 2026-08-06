@@ -389,3 +389,39 @@ def mobile_invoice_history():
         import traceback
         print(f"[INVOICE HISTORY] Error: {traceback.format_exc()}")
         return mobile_api_response(ok=False, message=str(e), status_code=500)
+
+
+@mobile_invoice_bp.route("/invoice/<int:txn_id>/detail", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def mobile_invoice_full_detail(txn_id):
+    """
+    Detail lengkap 1 nota (header + items) utk layar "Riwayat Nota" mobile,
+    dibaca dari fin_transactions/fin_transaction_items lewat
+    get_fin_invoice_detail() -- sumber yg SAMA dipakai web (invoice_print.html),
+    jadi nota campuran (barang balik) & field terkait (has_mixed_items,
+    reverse_subtotal, direction, is_return per item) otomatis ikut.
+    Beda dgn /invoice/<id> (legacy, baca tabel invoices lama yg sudah tidak
+    dipakai aplikasi).
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    from core import get_fin_invoice_detail
+    from routes.mobile.finance import _clean
+    try:
+        invoice, items = get_fin_invoice_detail(txn_id)
+        if not invoice:
+            return mobile_api_response(ok=False, message="Nota tidak ditemukan.", status_code=404)
+
+        invoice = dict(invoice)
+        invoice.pop("created_at", None)  # datetime mentah, tidak perlu dikirim -- pakai created_at_wib
+
+        return mobile_api_response(
+            ok=True, message="OK",
+            data=_clean({"invoice": invoice, "items": items}),
+            status_code=200
+        )
+    except Exception as e:
+        import traceback
+        print(f"[INVOICE FULL DETAIL] Error: {traceback.format_exc()}")
+        return mobile_api_response(ok=False, message=str(e), status_code=500)

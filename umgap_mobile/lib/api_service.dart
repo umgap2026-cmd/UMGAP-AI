@@ -1071,6 +1071,55 @@ class ApiService {
   }
 
 
+  // ── Nota: Riwayat (list) ───────────────────
+  static Future<Map<String, dynamic>> invoiceHistory({
+    String q = "",
+    String type = "",
+    String status = "",
+    String dateFrom = "",
+    String dateTo = "",
+    int limit = 300,
+    int offset = 0,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/invoice/history",
+      queryParameters: {
+        if (q.isNotEmpty) "q": q,
+        if (type.isNotEmpty) "type": type,
+        if (status.isNotEmpty) "status": status,
+        if (dateFrom.isNotEmpty) "date_from": dateFrom,
+        if (dateTo.isNotEmpty) "date_to": dateTo,
+        "limit": limit,
+        "offset": offset,
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal memuat riwayat nota");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Nota: Detail lengkap 1 nota (header + items) ──
+  static Future<Map<String, dynamic>> invoiceFullDetail(int txnId) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/invoice/$txnId/detail",
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal memuat detail nota");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Nota: Batalkan (kembalikan stok & HPP + hapus hutang/piutang) ──
+  static Future<void> invoiceCancel(int txnId) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/transactions/$txnId/cancel",
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal membatalkan nota");
+  }
+
   // ── Finance: Buat Invoice dari stok gudang ──
   static Future<Map<String, dynamic>> financeCreateInvoice({
     required Map<String, dynamic> header,

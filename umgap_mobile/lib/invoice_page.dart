@@ -9,6 +9,7 @@ import 'api_service.dart';
 import 'u_kit.dart';
 import 'cache_service.dart';
 import 'invoice_print_page.dart';
+import 'nota_history_page.dart';
 
 // ── Responsive font size ──────────────────────────────────────
 double _rfs(BuildContext context, double base) {
@@ -1034,7 +1035,18 @@ class _InvoicePageState extends State<InvoicePage>
 
     return Scaffold(
       backgroundColor: UColors.surface,
-      appBar: UAppBar(title: 'Nota Transaksi'),
+      appBar: UAppBar(
+        title: 'Nota Transaksi',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: Colors.white),
+            tooltip: 'Riwayat Nota',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const NotaHistoryPage(),
+            )),
+          ),
+        ],
+      ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
