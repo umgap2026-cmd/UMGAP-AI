@@ -755,6 +755,17 @@ class ApiService {
     );
     _ensureOk(res, "Gagal menyembunyikan pengumuman");
   }
+
+  /// Hapus semua pengumuman sekaligus (admin/owner: hapus beneran utk semua
+  /// orang; karyawan: cuma sembunyikan dari daftarnya sendiri)
+  static Future<void> clearAllAnnouncements() async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/announcements/clear-all",
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menghapus semua pengumuman");
+  }
   // ── Download Excel statistik ──────────────
   static Future<List<int>> downloadStatsExcel({
     String? dateFrom,

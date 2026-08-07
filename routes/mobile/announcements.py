@@ -182,3 +182,46 @@ def mobile_dismiss_announcement(ann_id):
     finally:
         cur.close()
         conn.close()
+
+
+@mobile_announcements_bp.route("/announcements/clear-all",
+                                methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_clear_all_announcements():
+    """
+    Hapus semua pengumuman dari daftar sekaligus. Admin/owner -> soft-delete
+    beneran (is_active=FALSE, hilang utk semua orang, sama seperti hapus per-
+    item). Karyawan biasa -> cuma sembunyikan dari daftarnya sendiri (isi
+    announcement_reads.dismissed_at utk semua pengumuman aktif saat ini),
+    sama seperti dismiss per-item tapi sekaligus semua.
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    user = request.mobile_user
+    role = (user.get("role") or "").strip().lower()
+    user_id = user["user_id"]
+
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        if role in ("admin", "owner"):
+            cur.execute("UPDATE announcements SET is_active=FALSE WHERE is_active=TRUE;")
+        else:
+            cur.execute("""
+                INSERT INTO announcement_reads (announcement_id, user_id, dismissed_at)
+                SELECT a.id, %s, CURRENT_TIMESTAMP
+                FROM announcements a
+                WHERE a.is_active = TRUE
+                ON CONFLICT (announcement_id, user_id)
+                DO UPDATE SET dismissed_at = CURRENT_TIMESTAMP;
+            """, (user_id,))
+        conn.commit()
+        return mobile_api_response(ok=True, message="Semua pengumuman dihapus.",
+            data={}, status_code=200)
+    except Exception as e:
+        conn.rollback()
+        return mobile_api_response(ok=False, message=f"Gagal: {e}", status_code=500)
+    finally:
+        cur.close()
+        conn.close()

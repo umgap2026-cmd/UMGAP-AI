@@ -100,6 +100,65 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
+  Future<void> _clearAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Hapus Semua Pengumuman?',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        content: Text(
+          _canPost
+              ? 'Semua pengumuman akan dihapus dan tidak terlihat oleh semua karyawan.'
+              : 'Semua pengumuman akan disembunyikan dari daftar kamu.\nPengguna lain tidak terpengaruh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: UColors.danger,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus Semua', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    try {
+      await ApiService.clearAllAnnouncements();
+      if (!mounted) return;
+      uSnack(context, 'Semua pengumuman dihapus');
+      load();
+    } catch (e) {
+      if (mounted) uSnack(context, e.toString(), isError: true);
+    }
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> item) async {
+    final id = item['id'] as int;
+    final isRead = item['is_read'] == true || item['read_at'] != null;
+    if (!isRead) await _markRead(id);
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DetailSheet(item: item),
+    );
+  }
+
   Future<void> _adminDelete(int id) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -232,6 +291,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       ),
                     ),
                   ),
+                if (rows.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_sweep_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    tooltip: 'Hapus Semua',
+                    onPressed: _clearAll,
+                  ),
               ],
             ),
           ),
@@ -310,11 +379,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ),
               ),
               child: GestureDetector(
-                onTap: isRead ? null : () => _markRead(id),
+                onTap: () => _openDetail(item),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    // Belum dibaca = terang (putih, menonjol); sudah dibaca
+                    // = gelap/pudar (nge-blend, sekaligus jadi penanda visual
+                    // "sudah dibaca" tanpa perlu tombol terpisah).
+                    color: isRead
+                        ? const Color(0xFFE4E9F2)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: isRead
                         ? null
@@ -323,11 +397,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       UColors.primary.withOpacity(0.2),
                       width: 1.5,
                     ),
-                    boxShadow: [
+                    boxShadow: isRead
+                        ? []
+                        : [
                       BoxShadow(
-                        color: UColors.primary.withOpacity(
-                          isRead ? 0.04 : 0.10,
-                        ),
+                        color: UColors.primary.withOpacity(0.10),
                         blurRadius: 14,
                         offset: const Offset(0, 4),
                       ),
@@ -420,29 +494,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ),
                         Padding(
                           padding: const EdgeInsets.only(right: 10),
-                          child: Column(
-                            mainAxisAlignment:
-                            MainAxisAlignment.center,
-                            children: [
-                              if (!_canPost && !isRead)
-                                _ActionBtn(
-                                  icon: Icons.check_rounded,
-                                  color: UColors.success,
-                                  tooltip: 'Tandai Dibaca',
-                                  onTap: () => _markRead(id),
-                                ),
-                              if (!_canPost && !isRead)
-                                const SizedBox(height: 6),
-                              _ActionBtn(
-                                icon: Icons.close_rounded,
-                                color: UColors.danger,
-                                tooltip:
-                                _canPost ? 'Hapus Semua' : 'Hapus',
-                                onTap: () => _canPost
-                                    ? _adminDelete(id)
-                                    : _dismiss(id),
-                              ),
-                            ],
+                          child: _ActionBtn(
+                            icon: Icons.close_rounded,
+                            color: UColors.danger,
+                            tooltip: 'Hapus',
+                            onTap: () => _canPost
+                                ? _adminDelete(id)
+                                : _dismiss(id),
                           ),
                         ),
                       ],
@@ -456,6 +514,104 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ),
     );
   }
+}
+
+class _DetailSheet extends StatelessWidget {
+  final Map<String, dynamic> item;
+  const _DetailSheet({required this.item});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.of(context).size.height * 0.8,
+    ),
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(24),
+        topRight: Radius.circular(24),
+      ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16, top: 10),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: UColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  color: UColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${item['title'] ?? '-'}',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: UColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${item['created_at'] ?? item['created_at_wib'] ?? '-'}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: UColors.textLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: UColors.textLight),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            child: Text(
+              '${item['message'] ?? item['body'] ?? ''}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: UColors.textMid,
+                height: 1.6,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ActionBtn extends StatelessWidget {
