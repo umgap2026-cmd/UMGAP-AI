@@ -272,6 +272,11 @@
     .fk-thanks, .fk-sig-lbl, .fk-notes-txt {
       font-weight: 700 !important;
     }
+    /* Baris NAMA BARANG/QTY/HARGA di tabel item -- ini isi paling penting
+       di nota, tapi masih pakai font tipis (400-600) dari style inline di
+       HTML (yang menang atas CSS biasa, makanya butuh !important di sini
+       jg). Ditebalkan semua isi tabel body, termasuk catatan barang. */
+    .fk-tbl tbody td, .fk-tbl tbody td * { font-weight: 700 !important; }
     .fk-meta, .fk-notes, .fk-total-qty { background: none !important; border: 1.5px solid #000; }
     .fk-section-row td { background: none !important; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
     /* Header tabel: dot-matrix tidak bisa cetak teks putih di atas blok
