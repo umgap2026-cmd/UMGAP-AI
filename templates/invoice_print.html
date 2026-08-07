@@ -753,6 +753,26 @@
     fitFaktur();
     setTimeout(fitFaktur, 200);
 
+    // PENTING: fitFaktur() di atas ngecilin faktur pakai transform:scale()
+    // + margin-left + tinggi pvBody dipatok manual (inline style) supaya
+    // pas di layar HP/laptop sempit. Kalau ini DIBIARKAN nempel pas print,
+    // hasil cetak fisik ikut kekecilin/kegeser sesuai lebar LAYAR saat itu
+    // (bukan lebar kertas) -- itu penyebab hasil cetak "kurang lebar" &
+    // posisi ketarik miring. Balikin ke ukuran ASLI (tanpa transform sama
+    // sekali) pas mau print, baru kembalikan tampilan zoom-fit lagi
+    // setelah selesai (beforeprint/afterprint jalan utk window.print()
+    // MAUPUN Ctrl+P, tidak cuma tombol Print di halaman ini).
+    window.addEventListener("beforeprint", function () {
+      faktur.style.transform = "";
+      faktur.style.marginLeft = "";
+      faktur.style.cursor = "";
+      pvBody.style.height = "";
+      pvBody.style.justifyContent = "";
+    });
+    window.addEventListener("afterprint", function () {
+      fitFaktur();
+    });
+
     if (zoomOverlay && zoomInner) {
       window.closeFakturZoom = function () {
         zoomOverlay.classList.remove("open");
