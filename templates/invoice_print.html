@@ -212,11 +212,15 @@
   .fk-sig-name { font-size: 12px; font-weight: 700; border-top: 1px solid #666; padding-top: 4px; display: inline-block; min-width: 130px; text-align: center; }
 
   @media print {
-    /* Tinggi halaman ikut PANJANG ISI NOTA (auto), bukan dipatok 11in --
-       nota pendek jadi cuma makan kertas seperlunya, bukan selalu 1 halaman
-       penuh 11in yang kebanyakan kosong. Lebar tetap 9.5in (lebar kertas
-       continuous form). */
-    @page { size: 9.5in auto; margin: 0; }
+    /* JANGAN pasang lebar tetap (mis. 9.5in) di sini -- printer continuous
+       form fisik cuma bisa makan kertas 1 arah (tidak bisa "diputar").
+       Kalau lebar CSS < tinggi kertas yg dipilih di dialog print (mis.
+       Legal 8.5x14in), browser otomatis nganggep dokumen ini "landscape"
+       & mutar 90° -- itu penyebab hasil cetak jadi menyamping/miring.
+       Cukup margin:0, biarkan orientasi ikut default Portrait di dialog
+       print & lebar ikut kertas yg dipilih user (.faktur width:100% di
+       bawah, bukan angka tetap). */
+    @page { margin: 0; }
     html, body { background: #fff; padding: 0; margin: 0; height: auto; }
     .head-card, .hero-strip, .main-card:not(.pv-only), .bottom-nav { display: none !important; }
     /* "UMGAP • Reserve 2026" ada di base.html, dirender di SETIAP halaman
@@ -240,10 +244,10 @@
        (total berat, catatan, footer) satu-satu malah bikin browser
        "menyerah" & melempar SEMUANYA ke kertas ke-2 yang isinya cuma
        sedikit tapi tetap makan 1 lembar penuh -- itu penyebab nota 2
-       lembar padahal isinya dikit. Dgn @page tinggi auto + 1 blok utuh,
-       browser akan menyesuaikan tinggi kertas biar semua muat di 1
-       lembar, bukan malah memecah. Baris tabel tetap dijaga jgn kepotong
-       di TENGAH baris (beda kasus dgn "pindah section").  */
+       lembar padahal isinya dikit. Dijadikan 1 blok utuh, browser akan
+       coba semaksimal mungkin muat semua di 1 lembar drpd memecah.
+       Baris tabel tetap dijaga jgn kepotong di TENGAH baris (beda kasus
+       dgn "pindah section").  */
     .faktur {
       box-shadow: none; width: 100%; min-height: 0; padding: 0.25in 0.4in;
       break-inside: avoid; page-break-inside: avoid;
