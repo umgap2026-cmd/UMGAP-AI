@@ -212,11 +212,71 @@
   .fk-sig-name { font-size: 12px; font-weight: 700; border-top: 1px solid #666; padding-top: 4px; display: inline-block; min-width: 130px; text-align: center; }
 
   @media print {
-    @page { size: 9.5in 11in; margin: 0; }
-    body { background: #fff; padding: 0; }
+    /* Tinggi halaman ikut PANJANG ISI NOTA (auto), bukan dipatok 11in --
+       nota pendek jadi cuma makan kertas seperlunya, bukan selalu 1 halaman
+       penuh 11in yang kebanyakan kosong. Lebar tetap 9.5in (lebar kertas
+       continuous form). */
+    @page { size: 9.5in auto; margin: 0; }
+    html, body { background: #fff; padding: 0; margin: 0; height: auto; }
     .head-card, .hero-strip, .main-card:not(.pv-only), .bottom-nav { display: none !important; }
-    .screen, .wrap, .pv-body { display: block; padding: 0; margin: 0; max-width: none; overflow: visible; }
-    .faktur { box-shadow: none; width: 100%; min-height: 0; }
+    /* "UMGAP • Reserve 2026" ada di base.html, dirender di SETIAP halaman
+       (termasuk di sini) setelah semua konten -- kalau tidak disembunyikan
+       ikut ketarik ke halaman/kertas berikutnya. Judul "Preview Faktur" +
+       keterangannya juga cuma chrome tampilan layar, bukan bagian nota. */
+    .footer-note, .pv-only .sec-title, .pv-only .sec-desc, .pv-only .divider {
+      display: none !important;
+    }
+    .pv-only.main-card, .pv-only .inner {
+      background: none !important; padding: 0 !important;
+      margin: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    }
+    .screen, .wrap, .pv-body {
+      display: block; padding: 0; margin: 0; max-width: none;
+      min-height: 0; height: auto; overflow: visible;
+    }
+    /* PENTING: seluruh nota dipaksa jadi 1 blok utuh yang TIDAK BOLEH
+       kepotong ke halaman lain (break-inside: avoid di .faktur SENDIRI --
+       BUKAN per-bagian kecil spt sebelumnya). Menandai tiap bagian kecil
+       (total berat, catatan, footer) satu-satu malah bikin browser
+       "menyerah" & melempar SEMUANYA ke kertas ke-2 yang isinya cuma
+       sedikit tapi tetap makan 1 lembar penuh -- itu penyebab nota 2
+       lembar padahal isinya dikit. Dgn @page tinggi auto + 1 blok utuh,
+       browser akan menyesuaikan tinggi kertas biar semua muat di 1
+       lembar, bukan malah memecah. Baris tabel tetap dijaga jgn kepotong
+       di TENGAH baris (beda kasus dgn "pindah section").  */
+    .faktur {
+      box-shadow: none; width: 100%; min-height: 0; padding: 0.25in 0.4in;
+      break-inside: avoid; page-break-inside: avoid;
+    }
+    .fk-tbl tr { break-inside: avoid; page-break-inside: avoid; }
+    /* Rapatkan jarak antar-bagian bawah nota -- makin ringkas, makin
+       kecil kemungkinan nyerempet ke kertas berikutnya. */
+    .fk-tbl { margin-bottom: 8px; }
+    .fk-total-qty, .fk-notes { margin-bottom: 8px; padding: 6px 12px; }
+    .fk-footer { margin-top: 10px; padding-top: 8px; }
+
+    /* Printer dot-matrix/continuous form itu MONOKROM & tidak bisa cetak
+       abu-abu/warna pastel dgn jelas (cuma bisa "kena tinta" atau tidak) --
+       teks abu-abu (#666/#888) yg di layar kelihatan rapi jadi pudar/buram
+       kalau dicetak fisik. Semua teks di faktur dipaksa HITAM PEKAT saat
+       print (bedanya penting/tidak penting dari font-weight, bukan warna).
+       Background warna (badge lunas/belum, section campuran, catatan,
+       total qty) juga diganti jadi kotak bergaris tepi hitam biasa --
+       fill warna pastel cuma jadi noda buram di dot-matrix. */
+    .faktur, .faktur * { color: #000 !important; }
+    .fk-type, .fk-date, .fk-m-lbl, .fk-m-val, .fk-tbl tfoot .lbl,
+    .fk-thanks, .fk-sig-lbl, .fk-notes-txt {
+      font-weight: 700 !important;
+    }
+    .fk-meta, .fk-notes, .fk-total-qty { background: none !important; border: 1.5px solid #000; }
+    .fk-section-row td { background: none !important; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+    /* Header tabel: dot-matrix tidak bisa cetak teks putih di atas blok
+       hitam penuh (jadi kosong/tidak kebaca) -- ganti jadi teks hitam
+       tebal dgn garis bawah tebal, tanpa fill. */
+    .fk-tbl thead tr { background: none !important; }
+    .fk-tbl thead th { border-bottom: 2.5px solid #000; font-weight: 900 !important; }
+    .fk-tbl tbody tr:nth-child(even) { background: none !important; }
+    .fk-badge { background: none !important; border: 1.5px solid #000 !important; }
   }
 </style>
 
