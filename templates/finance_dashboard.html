@@ -197,13 +197,22 @@
   /* ── FORM ── */
   label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
   .field { margin-bottom: 12px; }
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], input[type="date"] {
     width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb;
     box-shadow: var(--soft-in); padding: 13px 14px; font-size: 14px; color: var(--text);
     -webkit-appearance: none; appearance: none; font-family: inherit; transition: box-shadow 0.2s;
   }
   input:focus { box-shadow: var(--soft-in), 0 0 0 3px rgba(37, 99, 235, 0.15); }
   input::placeholder { color: var(--muted); font-size: 13px; }
+
+  /* ── tanggal: Otomatis (Hari Ini) / Atur Manual ── */
+  .date-mode-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+  .date-mode-btn {
+    flex: 1; border: none; border-radius: 10px; padding: 9px 8px; font-size: 11px; font-weight: 900;
+    background: #f2f5fb; color: var(--muted); cursor: pointer; font-family: inherit;
+    box-shadow: var(--soft-in); transition: all 0.15s;
+  }
+  .date-mode-btn.active { background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.22); }
   .party-select-helper {
     width: 100%; border: none; outline: none; border-radius: 13px; background: #eef2ff;
     box-shadow: var(--soft-in); padding: 12px 14px; font-size: 13px; color: var(--blue); font-weight: 700;
@@ -629,6 +638,14 @@
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+            <div class="field">
+              <label>Tanggal</label>
+              <div class="date-mode-toggle">
+                <button type="button" class="date-mode-btn active" onclick="setDateMode(this,'auto')">Otomatis (Hari Ini)</button>
+                <button type="button" class="date-mode-btn" onclick="setDateMode(this,'manual')">Atur Manual</button>
+              </div>
+              <input type="date" name="date" class="manual-date-input" style="display:none" />
+            </div>
             <button type="submit" class="btn-submit">Simpan Hutang</button>
           </form>
         </details>
@@ -641,7 +658,7 @@
           <div class="item-top">
             <div>
               <div class="item-name">{{ d.party_name or "-" }}</div>
-              <div class="item-meta">Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
+              <div class="item-meta">{{ d.created_at_wib }} &bull; Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
               {% if d.note %}<div class="item-note">{{ d.note }}</div>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
@@ -668,7 +685,7 @@
         {% if debts.hutang %}
         <table>
           <thead>
-            <tr><th>Pemasok</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Catatan</th><th style="min-width: 220px">Bayar / Cicil</th><th></th></tr>
+            <tr><th>Pemasok</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Bayar / Cicil</th><th></th></tr>
           </thead>
           <tbody>
             {% for d in debts.hutang %}
@@ -678,6 +695,7 @@
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
               <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
               <td class="muted">{{ d.note or "-" }}</td>
+              <td class="muted">{{ d.created_at_wib }}</td>
               <td>
                 <form method="post" action="/finance/debts/{{ d.id }}/pay" class="pay-form-td">
                   <input type="number" name="amount" placeholder="Jumlah bayar" min="1" required />
@@ -744,6 +762,14 @@
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+            <div class="field">
+              <label>Tanggal</label>
+              <div class="date-mode-toggle">
+                <button type="button" class="date-mode-btn active" onclick="setDateMode(this,'auto')">Otomatis (Hari Ini)</button>
+                <button type="button" class="date-mode-btn" onclick="setDateMode(this,'manual')">Atur Manual</button>
+              </div>
+              <input type="date" name="date" class="manual-date-input" style="display:none" />
+            </div>
             <button type="submit" class="btn-submit">Simpan Piutang</button>
           </form>
         </details>
@@ -756,7 +782,7 @@
           <div class="item-top">
             <div>
               <div class="item-name">{{ d.party_name or "-" }}</div>
-              <div class="item-meta">Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
+              <div class="item-meta">{{ d.created_at_wib }} &bull; Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
               {% if d.note %}<div class="item-note">{{ d.note }}</div>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
@@ -783,7 +809,7 @@
         {% if debts.piutang %}
         <table>
           <thead>
-            <tr><th>Pelanggan</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Catatan</th><th style="min-width: 220px">Terima Pembayaran</th><th></th></tr>
+            <tr><th>Pelanggan</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Terima Pembayaran</th><th></th></tr>
           </thead>
           <tbody>
             {% for d in debts.piutang %}
@@ -793,6 +819,7 @@
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
               <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
               <td class="muted">{{ d.note or "-" }}</td>
+              <td class="muted">{{ d.created_at_wib }}</td>
               <td>
                 <form method="post" action="/finance/debts/{{ d.id }}/pay" class="pay-form-td">
                   <input type="number" name="amount" placeholder="Jumlah diterima" min="1" required />
@@ -839,6 +866,14 @@
               <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="amount" min="1" placeholder="0" required /></div>
             </div>
             <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
+            <div class="field">
+              <label>Tanggal</label>
+              <div class="date-mode-toggle">
+                <button type="button" class="date-mode-btn active" onclick="setDateMode(this,'auto')">Otomatis (Hari Ini)</button>
+                <button type="button" class="date-mode-btn" onclick="setDateMode(this,'manual')">Atur Manual</button>
+              </div>
+              <input type="date" name="date" class="manual-date-input" style="display:none" />
+            </div>
             <button type="submit" class="btn-submit">Simpan Beban</button>
           </form>
         </details>
@@ -1048,6 +1083,22 @@
 </div>
 
 <script>
+  // Tanggal Otomatis (Hari Ini) / Atur Manual -- dipakai form Hutang,
+  // Piutang & Beban. "auto" = kosongkan input tanggal (backend otomatis
+  // pakai hari ini kalau field "date" kosong, lihat _resolve_nota_datetime
+  // di core.py -- pola sama persis dgn Tanggal Nota di /nota/new).
+  function setDateMode(btn, mode) {
+    var toggle = btn.closest(".date-mode-toggle");
+    var field = toggle.closest(".field");
+    var dateInp = field.querySelector(".manual-date-input");
+    toggle.querySelectorAll(".date-mode-btn").forEach(function (b) {
+      b.classList.toggle("active", b === btn);
+    });
+    if (dateInp) {
+      dateInp.style.display = mode === "manual" ? "block" : "none";
+      if (mode === "auto") dateInp.value = "";
+    }
+  }
   (function () {
     // Dropdown "pilih dari yang sudah ada" -- isi otomatis field nama teks
     // di sebelahnya dgn nama PERSIS SAMA supaya saldo piutang/hutang

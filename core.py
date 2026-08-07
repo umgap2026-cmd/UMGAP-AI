@@ -495,9 +495,12 @@ def _ensure_fin_transaction_item_direction_schema(cur):
         """)
 
 
-def create_fin_expense_entry(category, amount, note, created_by):
+def create_fin_expense_entry(category, amount, note, created_by, expense_date=None):
     """Catat 1 beban/pengeluaran operasional (bukan lewat nota) -- kategori
     bebas teks (mis. Uang Makan, Karyawan, BBM, Dana Darurat).
+    expense_date (opsional, "YYYY-MM-DD"): tanggal manual -- kosong/None
+    berarti otomatis pakai HARI INI (lihat _resolve_nota_datetime, dipakai
+    ulang di sini krn perilakunya persis sama dgn tanggal nota).
     Return dict {id, category, amount}."""
     category = (category or "").strip()
     try:
@@ -511,16 +514,18 @@ def create_fin_expense_entry(category, amount, note, created_by):
     if amount <= 0:
         raise ValueError("Jumlah beban harus lebih dari 0.")
 
+    created_at_utc, _ = _resolve_nota_datetime(expense_date)
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_expense_schema(cur)
         cur.execute("""
             INSERT INTO fin_transactions
-                (type, party_name, note, total_amount, created_by, expense_category)
-            VALUES ('PENGELUARAN', %s, %s, %s, %s, %s)
+                (type, party_name, note, total_amount, created_by, expense_category, created_at)
+            VALUES ('PENGELUARAN', %s, %s, %s, %s, %s, %s)
             RETURNING id;
-        """, (category, note or None, amount, created_by, category))
+        """, (category, note or None, amount, created_by, category, created_at_utc))
         expense_id = cur.fetchone()["id"]
         conn.commit()
         return {"id": expense_id, "category": category, "amount": amount}
@@ -4309,7 +4314,11 @@ def list_fin_debts():
             WHERE is_settled = FALSE
             ORDER BY type, created_at DESC;
         """)
-        rows = _clean([dict(r) for r in cur.fetchall()])
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["created_at_wib"] = _utc_naive_to_wib_string(r.get("created_at"), fmt="%d/%m/%Y")
+            r.pop("created_at", None)
+        rows = _clean(rows)
         hutang = [r for r in rows if r["type"] == "HUTANG"]
         piutang = [r for r in rows if r["type"] == "PIUTANG"]
         return {
@@ -4481,9 +4490,12 @@ def _consume_party_credit(cur, party_name, credit_type, amount):
         sisa -= potong
 
 
-def create_fin_debt_entry(debt_type, party_name, amount, note):
+def create_fin_debt_entry(debt_type, party_name, amount, note, entry_date=None):
     """Catat hutang/piutang manual (bukan tertaut nota) -- mis. hutang ke
-    pemasok/piutang ke pelanggan di luar transaksi Nota. Return dict {id}."""
+    pemasok/piutang ke pelanggan di luar transaksi Nota.
+    entry_date (opsional, "YYYY-MM-DD"): tanggal manual -- kosong/None
+    berarti otomatis pakai HARI INI (lihat _resolve_nota_datetime).
+    Return dict {id}."""
     debt_type = (debt_type or "").strip().upper()
     party_name = (party_name or "").strip()
     note = (note or "").strip()
@@ -4500,16 +4512,17 @@ def create_fin_debt_entry(debt_type, party_name, amount, note):
         raise ValueError("Jumlah harus lebih dari 0.")
 
     party_type = "SUPPLIER" if debt_type == "HUTANG" else "PELANGGAN"
+    created_at_utc, _ = _resolve_nota_datetime(entry_date)
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute("""
             INSERT INTO fin_debts
-                (type, party_name, party_type, amount, remaining, note)
-            VALUES (%s, %s, %s, %s, %s, %s)
+                (type, party_name, party_type, amount, remaining, note, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
-        """, (debt_type, party_name, party_type, amount, amount, note or None))
+        """, (debt_type, party_name, party_type, amount, amount, note or None, created_at_utc))
         debt_id = cur.fetchone()["id"]
         conn.commit()
         return {"id": debt_id, "party_name": party_name}

@@ -189,6 +189,7 @@ def finance_debts_add():
             party_name=request.form.get("party_name"),
             amount=request.form.get("amount"),
             note=request.form.get("note"),
+            entry_date=request.form.get("date"),
         )
         flash("Berhasil dicatat.", "success")
     except ValueError as e:
@@ -256,6 +257,7 @@ def finance_expenses_add():
             amount=request.form.get("amount"),
             note=request.form.get("note"),
             created_by=session.get("user_id"),
+            expense_date=request.form.get("date"),
         )
         flash(f"Beban '{result['category']}' berhasil dicatat.", "success")
     except ValueError as e:

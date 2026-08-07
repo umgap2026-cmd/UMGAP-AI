@@ -238,6 +238,66 @@
     margin-top: 10px;
   }
 
+  /* ── mode toggle: Bulanan / Mingguan ── */
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+  }
+  .mode-toggle-btn {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 11px 8px;
+    font-size: 13px;
+    font-weight: 900;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .mode-toggle-btn.active {
+    background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(41, 83, 126, 0.22);
+  }
+  .week-nav {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .week-nav-btn {
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 12px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    color: var(--blue);
+    font-weight: 900;
+    font-size: 13px;
+    padding: 0 14px;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .week-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--text);
+    padding: 0 8px;
+    text-align: center;
+  }
+
   /* ── stat pills: 2-col on mobile, 4-col on tablet+ ── */
   .stat-row {
     display: grid;
@@ -546,8 +606,8 @@
 
     <div class="stat-row">
       <div class="stat-pill">
-        <div class="s-num">{{ month }}</div>
-        <div class="s-lbl">Bulan</div>
+        <div class="s-num">{{ period_label }}</div>
+        <div class="s-lbl">{{ 'Minggu' if mode == 'week' else 'Bulan' }}</div>
       </div>
       <div class="stat-pill blue">
         <div class="s-num">{{ workdays }}</div>
@@ -570,12 +630,52 @@
       <!-- Filter -->
       <div class="main-card">
         <div class="inner">
-          <h2 class="title">Filter Bulan</h2>
-          <p class="desc">Pilih bulan untuk melihat data payroll.</p>
+          <h2 class="title">Filter Periode</h2>
+          <p class="desc">Pilih bulanan atau mingguan untuk melihat data payroll.</p>
           <div class="divider"></div>
-          <form method="GET" action="/admin/payroll">
-            <label>Pilih Bulan</label>
-            <input type="month" name="month" value="{{ month }}" required />
+
+          <div class="mode-toggle">
+            <button
+              type="button"
+              class="mode-toggle-btn{{ ' active' if mode != 'week' else '' }}"
+              onclick="setPayrollMode('month')"
+            >
+              📅 Bulanan
+            </button>
+            <button
+              type="button"
+              class="mode-toggle-btn{{ ' active' if mode == 'week' else '' }}"
+              onclick="setPayrollMode('week')"
+            >
+              🗓️ Mingguan
+            </button>
+          </div>
+
+          <form method="GET" action="/admin/payroll" id="payrollFilterForm">
+            <input type="hidden" name="mode" id="payrollModeInput" value="{{ mode }}" />
+
+            <div id="monthFilterGroup" style="display: {{ 'none' if mode == 'week' else 'block' }}">
+              <label>Pilih Bulan</label>
+              <input type="month" name="month" value="{{ month }}" {{ '' if mode == 'week' else 'required' }} />
+            </div>
+
+            <div id="weekFilterGroup" style="display: {{ 'block' if mode == 'week' else 'none' }}">
+              <label>Pilih Tanggal di Minggu Itu</label>
+              <input
+                type="date"
+                name="week"
+                value="{{ week_start.isoformat() if week_start else '' }}"
+                {{ 'required' if mode == 'week' else '' }}
+              />
+              {% if mode == 'week' %}
+              <div class="week-nav">
+                <a class="week-nav-btn" href="/admin/payroll?mode=week&week={{ prev_week }}">←</a>
+                <div class="week-label">{{ period_label }}</div>
+                <a class="week-nav-btn" href="/admin/payroll?mode=week&week={{ next_week }}">→</a>
+              </div>
+              {% endif %}
+            </div>
+
             <button class="btn-primary" type="submit">Tampilkan</button>
           </form>
           <p class="mini" style="margin-top: 10px; text-align: center">
@@ -584,11 +684,28 @@
         </div>
       </div>
 
+      <script>
+        function setPayrollMode(mode) {
+          document.getElementById("payrollModeInput").value = mode;
+          document.getElementById("monthFilterGroup").style.display = mode === "week" ? "none" : "block";
+          document.getElementById("weekFilterGroup").style.display = mode === "week" ? "block" : "none";
+          document.querySelectorAll(".mode-toggle-btn").forEach(function (b) {
+            b.classList.toggle("active", b.textContent.trim().includes(mode === "week" ? "Mingguan" : "Bulanan"));
+          });
+          var monthInp = document.querySelector('input[name="month"]');
+          var weekInp = document.querySelector('input[name="week"]');
+          if (monthInp) monthInp.required = mode !== "week";
+          if (weekInp) weekInp.required = mode === "week";
+        }
+      </script>
+
       <!-- Data -->
       <div class="main-card">
         <div class="inner">
           <h2 class="title">Daftar Payroll</h2>
-          <p class="desc">Rekap gaji karyawan bulan {{ month }}.</p>
+          <p class="desc">
+            {{ 'Rekap gaji karyawan minggu ' ~ period_label ~ '.' if mode == 'week' else 'Rekap gaji karyawan bulan ' ~ month ~ '.' }}
+          </p>
           <div class="divider"></div>
 
           <!-- MOBILE cards -->

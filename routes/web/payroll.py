@@ -20,25 +20,61 @@ def count_workdays_only_sunday_off(start_date, end_date):
     return n
 
 
+def _week_range(week_start_str):
+    """Senin–Sabtu untuk minggu yang mengandung week_start_str (atau minggu berjalan).
+    Sama seperti routes/mobile/payroll.py::_get_week_range agar slip gaji web & mobile selaras."""
+    start = None
+    if week_start_str:
+        try:
+            start = date.fromisoformat(week_start_str)
+        except ValueError:
+            start = None
+    if start is None:
+        today = date.today()
+        start = today - timedelta(days=today.weekday())
+    start = start - timedelta(days=start.weekday())
+    end = start + timedelta(days=5)
+    return start, end
+
+
 @payroll_bp.route("/admin/payroll")
 def admin_payroll():
     deny = admin_required()
     if deny:
         return deny
 
-    month = request.args.get("month")
+    mode = (request.args.get("mode") or "month").strip().lower()
+    if mode not in ("month", "week"):
+        mode = "month"
 
+    month = request.args.get("month")
     if not month:
         today = date.today()
         month = f"{today.year:04d}-{today.month:02d}"
 
-    year = int(month.split("-")[0])
-    mon = int(month.split("-")[1])
+    if mode == "week":
+        week_start, week_end = _week_range(request.args.get("week", ""))
+        start_date = week_start
+        end_date = week_end + timedelta(days=1)  # exclusif, Senin..Sabtu
 
-    start_date = date(year, mon, 1)
-    end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+        # Minggu berjalan (belum selesai) -> hari kerja cuma sampai hari ini,
+        # sama seperti perhitungan di /payslip (payslip.html) agar selaras.
+        WORKDAYS = 6
+        today = date.today()
+        if week_end > today:
+            WORKDAYS = max(min((today - week_start).days + 1, 6), 0)
 
-    WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
+        period_label = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
+    else:
+        year = int(month.split("-")[0])
+        mon = int(month.split("-")[1])
+
+        start_date = date(year, mon, 1)
+        end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+
+        WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
+        week_start = week_end = None
+        period_label = month
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -70,8 +106,12 @@ def admin_payroll():
         daily_salary = int(r.get("daily_salary") or 0)
         monthly_salary = int(r.get("monthly_salary") or 0)
 
-        if daily_salary == 0 and monthly_salary > 0 and WORKDAYS > 0:
-            daily_salary = int(round(monthly_salary / WORKDAYS))
+        if daily_salary == 0 and monthly_salary > 0:
+            if mode == "week":
+                # 26 hari kerja/bulan (6 hari/minggu) -- sama dgn /payslip
+                daily_salary = int(round(monthly_salary / 26))
+            elif WORKDAYS > 0:
+                daily_salary = int(round(monthly_salary / WORKDAYS))
 
         days_present = int(r.get("days_present") or 0)
 
@@ -89,27 +129,17 @@ def admin_payroll():
 
     return render_template(
         "admin_payroll.html",
+        mode=mode,
         month=month,
+        week_start=week_start,
+        week_end=week_end,
+        prev_week=(week_start - timedelta(days=7)).isoformat() if week_start else "",
+        next_week=(week_start + timedelta(days=7)).isoformat() if week_start else "",
+        period_label=period_label,
         rows=result,
         workdays=int(WORKDAYS)
     )
 
-
-def _week_range(week_start_str):
-    """Senin–Sabtu untuk minggu yang mengandung week_start_str (atau minggu berjalan).
-    Sama seperti routes/mobile/payroll.py::_get_week_range agar slip gaji web & mobile selaras."""
-    start = None
-    if week_start_str:
-        try:
-            start = date.fromisoformat(week_start_str)
-        except ValueError:
-            start = None
-    if start is None:
-        today = date.today()
-        start = today - timedelta(days=today.weekday())
-    start = start - timedelta(days=start.weekday())
-    end = start + timedelta(days=5)
-    return start, end
 
 
 @payroll_bp.route("/payslip")
