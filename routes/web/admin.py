@@ -574,6 +574,20 @@ def admin_attendance():
     conn.commit()
     cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
     employees = cur.fetchall()
+
+    # Karyawan yg BOLEH di-checkout admin: sudah absen masuk sendiri hari
+    # ini TAPI belum checkout -- begitu di-checkout, otomatis hilang dari
+    # daftar ini (tidak match lagi filter checkout_at IS NULL).
+    cur.execute("""
+        SELECT u.id, u.name, u.email
+        FROM users u
+        JOIN attendance a ON a.user_id = u.id AND a.work_date = CURRENT_DATE
+        WHERE u.role = 'employee'
+          AND a.checkin_at IS NOT NULL
+          AND a.checkout_at IS NULL
+        ORDER BY u.name ASC;
+    """)
+    checkout_eligible = cur.fetchall()
     # Ambil 1 baris lebih dari page size utk tahu apakah masih ada halaman
     # berikutnya, tanpa perlu query COUNT(*) terpisah.
     cur.execute("""
@@ -622,6 +636,7 @@ def admin_attendance():
 
     return render_template(
         "admin_attendance.html", employees=employees, rows=rows,
+        checkout_eligible=checkout_eligible,
         page=page, has_next=has_next, has_prev=page > 1,
         today_recap=today_recap, recap_counts=recap_counts,
         today_display=date.today().strftime("%d/%m/%Y"),
@@ -684,23 +699,41 @@ def admin_attendance_add():
 
 @admin_bp.route("/admin/attendance/checkout-employee", methods=["POST"])
 def admin_attendance_checkout_employee():
-    """Checkout langsung (jam sekarang) untuk karyawan yang sudah check-in
-    sendiri hari ini — tidak menyentuh/menimpa data check-in-nya sama sekali,
-    beda dari admin_attendance_add() yang selalu ikut submit ulang check-in."""
+    """Checkout langsung (jam sekarang) utk 1 atau lebih karyawan yang
+    sudah check-in sendiri hari ini -- tidak menyentuh/menimpa data
+    check-in-nya sama sekali, beda dari admin_attendance_add() yang selalu
+    ikut submit ulang check-in. Terima "user_ids" (checkbox multi-pilih,
+    beberapa field bernama sama) ATAU "user_id" tunggal (kompatibel lama)."""
     deny = admin_required()
     if deny:
         return deny
 
-    try:
-        user_id = int(request.form["user_id"])
-    except (KeyError, ValueError):
+    user_ids = [int(v) for v in request.form.getlist("user_ids") if v.isdigit()]
+    if not user_ids:
+        single = (request.form.get("user_id") or "").strip()
+        if single.isdigit():
+            user_ids = [int(single)]
+
+    if not user_ids:
         flash("Pilih karyawan yang mau di-checkout.", "danger")
         return redirect("/admin/attendance")
 
-    try:
-        record_checkout(user_id, date.today())
-        flash("Karyawan berhasil di-checkout.", "success")
-    except ValueError as e:
-        flash(str(e), "danger")
+    ok_count = 0
+    errors = []
+    for uid in user_ids:
+        try:
+            record_checkout(uid, date.today())
+            ok_count += 1
+        except ValueError as e:
+            errors.append(str(e))
+
+    if ok_count:
+        flash(
+            f"{ok_count} karyawan berhasil di-checkout." if ok_count > 1
+            else "Karyawan berhasil di-checkout.",
+            "success",
+        )
+    for e in errors:
+        flash(e, "danger")
 
     return redirect("/admin/attendance")

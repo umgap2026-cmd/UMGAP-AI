@@ -458,6 +458,46 @@
     margin-top: 5px;
   }
 
+  /* checkbox multi-pilih karyawan (dipakai Checkout Karyawan) */
+  .user-check-list {
+    max-height: 240px;
+    overflow-y: auto;
+    border-radius: 13px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .user-check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .user-check-item:hover { background: rgba(47, 95, 143, 0.07); }
+  .user-check-item input[type="checkbox"] {
+    width: 17px; height: 17px; flex: 0 0 auto;
+    accent-color: var(--blue); cursor: pointer;
+  }
+  .user-check-item small { color: var(--muted); font-weight: 600; }
+  .user-check-item.select-all {
+    font-weight: 900;
+    border-bottom: 1px solid rgba(125, 138, 166, 0.22);
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+  }
+  .user-check-empty {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 8px 10px;
+  }
+
   /* list-of-value: pemilihan karyawan yang bisa dicari (bukan <select> polos) */
   .lov { position: relative; }
   .lov-btn {
@@ -1223,34 +1263,32 @@ Detail:
     <div class="main-card">
       <div class="inner">
         <div class="sec-title">🚪 Checkout Karyawan</div>
-        <div class="sec-desc">Karyawan yang sudah absen masuk sendiri hari ini — checkout langsung tanpa mengubah data masuknya.</div>
+        <div class="sec-desc">Karyawan yang sudah absen masuk sendiri hari ini — checkout langsung tanpa mengubah data masuknya. Bisa pilih lebih dari 1 sekaligus.</div>
         <div class="divider"></div>
-        <form method="POST" action="/admin/attendance/checkout-employee" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap">
-          <div class="field" style="flex: 1; min-width: 220px; margin-bottom: 0">
+        {% if checkout_eligible %}
+        <form method="POST" action="/admin/attendance/checkout-employee" id="checkoutForm">
+          <div class="field" style="margin-bottom: 14px">
             <label>Pilih Karyawan</label>
-            <div class="lov emp-lov" data-value="">
-              <button type="button" class="lov-btn placeholder">
-                <span class="lov-btn-text">— Pilih Karyawan —</span>
-                <span class="care">▾</span>
-              </button>
-              <div class="lov-panel">
-                <div class="lov-search-wrap">
-                  <input type="text" class="lov-search" placeholder="Cari nama karyawan…" autocomplete="off" />
-                </div>
-                <div class="lov-list">
-                  {% for e in employees %}
-                  <div class="lov-item" data-id="{{ e.id }}" data-search="{{ (e.name ~ ' ' ~ e.email)|lower }}">
-                    {{ e.name }}
-                    <span class="stk">{{ e.email }}</span>
-                  </div>
-                  {% endfor %}
-                  <div class="lov-empty" style="display: none">Karyawan tidak ditemukan</div>
-                </div>
-              </div>
+            <input
+              type="text"
+              id="checkoutSearch"
+              placeholder="Cari nama karyawan…"
+              style="margin-bottom: 8px"
+            />
+            <div class="user-check-list" id="checkoutCheckList">
+              <label class="user-check-item select-all">
+                <input type="checkbox" id="checkoutPickAll" />
+                <span>Pilih Semua</span>
+              </label>
+              {% for e in checkout_eligible %}
+              <label class="user-check-item" data-name="{{ (e.name or '')|lower }}">
+                <input type="checkbox" class="checkout-check" name="user_ids" value="{{ e.id }}" />
+                <span>{{ e.name }} <small>({{ e.email }})</small></span>
+              </label>
+              {% endfor %}
             </div>
-            <input type="hidden" name="user_id" class="emp-lov-input" required />
           </div>
-          <button class="btn-submit" type="submit" style="width: auto; height: 50px; padding: 0 22px; margin: 0; background: linear-gradient(180deg, #059669 0%, #047857 100%); box-shadow: 0 10px 20px rgba(5,150,105,0.22)">
+          <button class="btn-submit" type="submit" id="checkoutBtn" disabled style="width: auto; height: 50px; padding: 0 22px; margin: 0; background: linear-gradient(180deg, #059669 0%, #047857 100%); box-shadow: 0 10px 20px rgba(5,150,105,0.22)">
             <svg viewBox="0 0 24 24">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
@@ -1259,6 +1297,9 @@ Detail:
             Checkout Sekarang
           </button>
         </form>
+        {% else %}
+        <p class="field-hint" style="font-size: 13px">Tidak ada karyawan yang perlu di-checkout saat ini — semua yang sudah absen masuk hari ini sudah di-checkout (atau belum ada yang absen masuk).</p>
+        {% endif %}
       </div>
     </div>
 
@@ -1512,6 +1553,57 @@ Detail:
     }
     syncTs();
     setInterval(syncTs, 1000);
+
+    /* Checkbox multi-pilih "Checkout Karyawan" -- Pilih Semua + search +
+       tombol aktif cuma kalau ada minimal 1 yg dicentang. */
+    (function () {
+      var pickAllEl = document.getElementById("checkoutPickAll");
+      var searchEl = document.getElementById("checkoutSearch");
+      var btnEl = document.getElementById("checkoutBtn");
+      var checks = Array.prototype.slice.call(
+        document.querySelectorAll(".checkout-check"),
+      );
+      if (!checks.length) return;
+
+      function updateBtn() {
+        var any = checks.some(function (cb) { return cb.checked; });
+        if (btnEl) btnEl.disabled = !any;
+      }
+      function visibleChecks() {
+        return checks.filter(function (cb) {
+          return cb.closest(".user-check-item").style.display !== "none";
+        });
+      }
+      if (pickAllEl) {
+        pickAllEl.addEventListener("change", function () {
+          visibleChecks().forEach(function (cb) {
+            cb.checked = pickAllEl.checked;
+          });
+          updateBtn();
+        });
+      }
+      checks.forEach(function (cb) {
+        cb.addEventListener("change", function () {
+          var visible = visibleChecks();
+          var checkedVisible = visible.filter(function (c) { return c.checked; });
+          if (pickAllEl) {
+            pickAllEl.checked = visible.length > 0 && checkedVisible.length === visible.length;
+            pickAllEl.indeterminate = checkedVisible.length > 0 && checkedVisible.length < visible.length;
+          }
+          updateBtn();
+        });
+      });
+      if (searchEl) {
+        searchEl.addEventListener("input", function () {
+          var q = searchEl.value.trim().toLowerCase();
+          checks.forEach(function (cb) {
+            var item = cb.closest(".user-check-item");
+            var name = item.getAttribute("data-name") || "";
+            item.style.display = !q || name.indexOf(q) !== -1 ? "" : "none";
+          });
+        });
+      }
+    })();
 
     /* LOV: pilih karyawan yang bisa dicari (ganti <select> polos) */
     document.querySelectorAll(".emp-lov").forEach(function (wrap) {
