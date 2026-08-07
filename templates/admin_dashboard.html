@@ -600,6 +600,52 @@
         font-size: 11px;
         color: var(--muted);
       }
+      .user-check-list {
+        max-height: 220px;
+        overflow-y: auto;
+        border-radius: 14px;
+        background: #f2f5fb;
+        box-shadow: var(--soft-in);
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .user-check-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 10px;
+        font-size: 13px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .user-check-item:hover {
+        background: rgba(47, 95, 143, 0.07);
+      }
+      .user-check-item input[type="checkbox"] {
+        width: 17px;
+        height: 17px;
+        flex: 0 0 auto;
+        accent-color: var(--blue);
+        cursor: pointer;
+      }
+      .user-check-item small {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .user-check-item.select-all {
+        font-weight: 900;
+        border-bottom: 1px solid rgba(125, 138, 166, 0.22);
+        padding-bottom: 10px;
+        margin-bottom: 4px;
+      }
+      .user-check-empty {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 8px 10px;
+      }
 
       /* download buttons */
       .dl-btns {
@@ -1218,24 +1264,32 @@
                   <input id="dateEnd" type="date" />
                 </div>
                 <div class="field">
-                  <label>Karyawan (opsional)</label>
-                  <select id="userPick">
-                    <option value="">(Semua karyawan)</option>
-                    {% for e in employees %}
-                    <option value="{{ e.id }}">
-                      {{ e.name }} ({{ e.email }})
-                    </option>
-                    {% endfor %}
-                  </select>
-                  <div class="field-hint">Kosongkan untuk download semua.</div>
-                </div>
-                <div class="field">
-                  <label>Cari Nama</label>
+                  <label>Karyawan (opsional, bisa pilih lebih dari 1)</label>
                   <input
                     id="searchName"
                     type="text"
-                    placeholder="Ketik nama karyawan…"
+                    placeholder="Cari nama karyawan…"
+                    style="margin-bottom: 8px"
                   />
+                  <div class="user-check-list" id="userCheckList">
+                    <label class="user-check-item select-all">
+                      <input type="checkbox" id="userPickAll" />
+                      <span>Pilih Semua</span>
+                    </label>
+                    {% for e in employees %}
+                    <label class="user-check-item" data-name="{{ (e.name or '')|lower }}">
+                      <input type="checkbox" class="user-check" value="{{ e.id }}" />
+                      <span>{{ e.name }} <small>({{ e.email }})</small></span>
+                    </label>
+                    {% else %}
+                    <div class="user-check-empty">Belum ada karyawan.</div>
+                    {% endfor %}
+                  </div>
+                  <div class="field-hint">
+                    Kosongkan semua utk download/print SEMUA karyawan.
+                    Pilih satu atau beberapa utk yg tidak digaji / perlu
+                    direkap terpisah.
+                  </div>
                 </div>
               </div>
 
@@ -1293,7 +1347,7 @@
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
-                      1 Orang
+                      Terpilih
                     </button>
                     <button
                       id="btnPrint"
@@ -1740,11 +1794,70 @@
 
       var startEl = document.getElementById("dateStart");
       var endEl = document.getElementById("dateEnd");
-      var pickEl = document.getElementById("userPick");
       var hintEl = document.getElementById("rangeHint");
       var btnAll = document.getElementById("btnAll");
       var btnOne = document.getElementById("btnOne");
       var btnPrint = document.getElementById("btnPrint");
+      var pickAllEl = document.getElementById("userPickAll");
+      var userChecks = Array.prototype.slice.call(
+        document.querySelectorAll(".user-check"),
+      );
+      var searchEl = document.getElementById("searchName");
+
+      function getSelectedUids() {
+        return userChecks
+          .filter(function (cb) {
+            return cb.checked;
+          })
+          .map(function (cb) {
+            return cb.value;
+          });
+      }
+
+      // "Pilih Semua" -- centang/uncentang semua sekaligus. Kalau user
+      // klik satu-satu sampai semua/tidak-semua tercentang, sinkronkan
+      // balik status checkbox "Pilih Semua"-nya (termasuk indeterminate
+      // saat cuma sebagian yg tercentang).
+      if (pickAllEl) {
+        pickAllEl.addEventListener("change", function () {
+          userChecks.forEach(function (cb) {
+            if (cb.closest(".user-check-item").style.display !== "none") {
+              cb.checked = pickAllEl.checked;
+            }
+          });
+          validate();
+        });
+      }
+      userChecks.forEach(function (cb) {
+        cb.addEventListener("change", function () {
+          var visible = userChecks.filter(function (c) {
+            return c.closest(".user-check-item").style.display !== "none";
+          });
+          var checkedVisible = visible.filter(function (c) {
+            return c.checked;
+          });
+          if (pickAllEl) {
+            pickAllEl.checked =
+              visible.length > 0 && checkedVisible.length === visible.length;
+            pickAllEl.indeterminate =
+              checkedVisible.length > 0 &&
+              checkedVisible.length < visible.length;
+          }
+          validate();
+        });
+      });
+
+      // Cari nama -- filter baris checkbox yg tampil (bukan hapus opsi)
+      if (searchEl) {
+        searchEl.addEventListener("input", function () {
+          var q = searchEl.value.trim().toLowerCase();
+          userChecks.forEach(function (cb) {
+            var item = cb.closest(".user-check-item");
+            var name = item.getAttribute("data-name") || "";
+            item.style.display = !q || name.indexOf(q) !== -1 ? "" : "none";
+          });
+        });
+      }
 
       function setHint(msg, cls) {
         hintEl.className = "range-hint " + (cls || "");
@@ -1779,10 +1892,11 @@
           return { ok: false };
         }
         setHint("Periode: " + s + " s/d " + e + " (" + d + " hari)", "ok");
+        var uids = getSelectedUids();
         btnAll.disabled = false;
-        btnOne.disabled = !pickEl.value;
+        btnOne.disabled = uids.length === 0;
         btnPrint.disabled = false;
-        return { ok: true, start: s, end: e, uid: pickEl.value };
+        return { ok: true, start: s, end: e, uids: uids };
       }
 
       // default: hari ini
@@ -1794,7 +1908,6 @@
 
       startEl.addEventListener("change", validate);
       endEl.addEventListener("change", validate);
-      pickEl.addEventListener("change", validate);
 
       btnAll.addEventListener("click", function () {
         var v = validate();
@@ -1807,10 +1920,10 @@
       });
       btnOne.addEventListener("click", function () {
         var v = validate();
-        if (!v.ok || !v.uid) return;
+        if (!v.ok || !v.uids.length) return;
         window.location.href =
-          "/admin/data/range_user.xlsx?user_id=" +
-          encodeURIComponent(v.uid) +
+          "/admin/data/range_user.xlsx?user_ids=" +
+          encodeURIComponent(v.uids.join(",")) +
           "&start_date=" +
           encodeURIComponent(v.start) +
           "&end_date=" +
@@ -1824,7 +1937,8 @@
           encodeURIComponent(v.start) +
           "&end_date=" +
           encodeURIComponent(v.end);
-        if (v.uid) url += "&user_id=" + encodeURIComponent(v.uid);
+        if (v.uids.length)
+          url += "&user_ids=" + encodeURIComponent(v.uids.join(","));
         window.open(url, "_blank");
       });
     </script>

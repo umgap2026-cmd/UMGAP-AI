@@ -38,6 +38,25 @@ INDO_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 STATUS_LABEL = {"PRESENT": "Hadir", "SICK": "Sakit", "LEAVE": "Izin", "ABSENT": "Absen"}
 
 
+def _parse_user_ids(args):
+    """Terima "user_ids" (koma-pisah, dari checkbox multi-pilih) ATAU
+    "user_id" tunggal (kompatibel dgn link lama /range_user.xlsx).
+    Kosong/None = semua karyawan (tidak difilter) -- termasuk yg tidak
+    digaji tapi tetap tercatat absensinya terpisah."""
+    ids_str = (args.get("user_ids") or "").strip()
+    if ids_str:
+        ids = []
+        for part in ids_str.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+        return ids or None
+    single = (args.get("user_id") or "").strip()
+    if single.isdigit():
+        return [int(single)]
+    return None
+
+
 def count_workdays_only_sunday_off(start_date, end_date):
     d = start_date
     n = 0
@@ -96,7 +115,7 @@ def export_range():
     # tanggal dari UI tidak pernah benar-benar kepakai.
     start_str = (request.args.get("start_date") or request.args.get("start") or "").strip()
     end_str = (request.args.get("end_date") or request.args.get("end") or "").strip()
-    user_id_str = (request.args.get("user_id") or "").strip()
+    user_ids = _parse_user_ids(request.args)
 
     start_date = _parse_date(start_str)
     end_date = _parse_date(end_str)
@@ -109,13 +128,13 @@ def export_range():
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 
-    user_id = int(user_id_str) if user_id_str.isdigit() else None
-
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Ambil user employee (atau 1 orang saja kalau user_id diisi)
+        # Ambil user employee (atau cuma yg dipilih kalau user_ids diisi --
+        # sengaja bisa lebih dari 1, mis. buat pisahin yg tidak digaji tapi
+        # tetap perlu direkap absensinya sendiri)
         cur.execute("""
             SELECT
                 u.id,
@@ -125,9 +144,9 @@ def export_range():
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
             WHERE u.role = 'employee'
-              AND (%s::int IS NULL OR u.id = %s::int)
+              AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
             ORDER BY u.name ASC;
-        """, (user_id, user_id))
+        """, (user_ids, user_ids))
         employees = cur.fetchall()
 
         # Ambil absensi rentang tanggal (termasuk jam pulang/checkout_at)
@@ -440,7 +459,7 @@ def export_range_print():
 
     start_str = (request.args.get("start_date") or request.args.get("start") or "").strip()
     end_str = (request.args.get("end_date") or request.args.get("end") or "").strip()
-    user_id_str = (request.args.get("user_id") or "").strip()
+    user_ids = _parse_user_ids(request.args)
 
     start_date = _parse_date(start_str)
     end_date = _parse_date(end_str)
@@ -452,8 +471,6 @@ def export_range_print():
 
     if end_date < start_date:
         start_date, end_date = end_date, start_date
-
-    user_id = int(user_id_str) if user_id_str.isdigit() else None
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -467,9 +484,9 @@ def export_range_print():
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
             WHERE u.role = 'employee'
-              AND (%s::int IS NULL OR u.id = %s::int)
+              AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
             ORDER BY u.name ASC;
-        """, (user_id, user_id))
+        """, (user_ids, user_ids))
         employees = cur.fetchall()
 
         cur.execute("""
