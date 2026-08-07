@@ -699,11 +699,13 @@ def admin_attendance_add():
 
 @admin_bp.route("/admin/attendance/checkout-employee", methods=["POST"])
 def admin_attendance_checkout_employee():
-    """Checkout langsung (jam sekarang) utk 1 atau lebih karyawan yang
-    sudah check-in sendiri hari ini -- tidak menyentuh/menimpa data
-    check-in-nya sama sekali, beda dari admin_attendance_add() yang selalu
-    ikut submit ulang check-in. Terima "user_ids" (checkbox multi-pilih,
-    beberapa field bernama sama) ATAU "user_id" tunggal (kompatibel lama)."""
+    """Checkout utk 1 atau lebih karyawan yang sudah check-in sendiri hari
+    ini -- tidak menyentuh/menimpa data check-in-nya sama sekali, beda dari
+    admin_attendance_add() yang selalu ikut submit ulang check-in. Terima
+    "user_ids" (checkbox multi-pilih, beberapa field bernama sama) ATAU
+    "user_id" tunggal (kompatibel lama). "checkout_time" opsional
+    (datetime-local) -- kosong = jam sekarang, diisi = jam itu dipakai
+    utk SEMUA karyawan yang dicentang."""
     deny = admin_required()
     if deny:
         return deny
@@ -718,11 +720,16 @@ def admin_attendance_checkout_employee():
         flash("Pilih karyawan yang mau di-checkout.", "danger")
         return redirect("/admin/attendance")
 
+    checkout_time_str = (request.form.get("checkout_time") or "").strip()
+    checkout_dt = _parse_manual_wib_naive(checkout_time_str) if checkout_time_str else None
+    if checkout_time_str and not checkout_dt:
+        flash("Format jam checkout tidak valid, pakai jam sekarang.", "danger")
+
     ok_count = 0
     errors = []
     for uid in user_ids:
         try:
-            record_checkout(uid, date.today())
+            record_checkout(uid, date.today(), checkout_dt)
             ok_count += 1
         except ValueError as e:
             errors.append(str(e))
