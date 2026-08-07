@@ -168,15 +168,15 @@
   }
   .fk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #111; margin-bottom: 16px; }
   .fk-logos { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  .fk-logos img { height: 34px; object-fit: contain; }
-  .fk-biz { font-size: 19px; font-weight: 900; letter-spacing: -0.3px; }
+  .fk-logos img { height: 48px; object-fit: contain; }
+  .fk-biz { font-size: 24px; font-weight: 900; letter-spacing: -0.3px; }
   .fk-type { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
   .fk-right { text-align: right; }
   .fk-no { font-size: 13px; font-weight: 800; font-family: var(--mono); margin-bottom: 4px; }
   .fk-date { font-size: 11px; color: #666; }
-  .fk-badge { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; }
-  .fk-badge.lunas { background: #d1fae5; color: #065f46; border: 1.5px solid #6ee7b7; }
-  .fk-badge.belum { background: #fef3c7; color: #92400e; border: 1.5px solid #fcd34d; }
+  .fk-badge { display: inline-block; margin-top: 8px; padding: 7px 18px; border-radius: 7px; font-size: 15px; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase; }
+  .fk-badge.lunas { background: #d1fae5; color: #065f46; border: 2px solid #6ee7b7; }
+  .fk-badge.belum { background: #fef3c7; color: #92400e; border: 2px solid #fcd34d; }
 
   .fk-meta { background: #f9f9f9; border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; display: grid; grid-template-columns: 110px 1fr 110px 1fr; gap: 5px 14px; }
   .fk-m-lbl { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
@@ -188,7 +188,7 @@
   .fk-tbl thead th.r { text-align: right; }
   .fk-tbl tbody tr { border-bottom: 1px solid #eee; }
   .fk-tbl tbody tr:nth-child(even) { background: #fafafa; }
-  .fk-section-row td { background: #f2f5fb !important; font-size: 10.5px !important; font-weight: 800 !important; color: #445 !important; padding: 6px 10px !important; text-transform: uppercase; letter-spacing: 0.3px; }
+  .fk-section-row td { background: #f2f5fb !important; font-size: 13px !important; font-weight: 900 !important; color: #223 !important; padding: 8px 10px !important; text-transform: uppercase; letter-spacing: 0.3px; }
   .fk-tbl tbody td { padding: 7px 10px; font-size: 12px; }
   .fk-tbl tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
   .fk-tbl tfoot td { padding: 6px 10px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -585,7 +585,12 @@
               {% endif %}
 
               <div class="fk-footer">
-                <div class="fk-thanks">Terima kasih! 🙏<br />Nota ini diterbitkan oleh sistem UMGAP.</div>
+                <div class="fk-thanks">
+                  Terima kasih! 🙏<br />
+                  Nota ini diterbitkan oleh sistem UMGAP.<br />
+                  ⚠️ Tidak menerima barang yang bertentangan dengan hukum.<br />
+                  🌐 arvlogam.my.id
+                </div>
                 <div class="fk-sig">
                   <div class="fk-sig-lbl">Kasir / Penerima</div>
                   <div class="fk-sig-name">{{ invoice.created_by_name or '-' }}</div>
