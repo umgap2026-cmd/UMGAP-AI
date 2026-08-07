@@ -212,15 +212,15 @@
   .fk-sig-name { font-size: 12px; font-weight: 700; border-top: 1px solid #666; padding-top: 4px; display: inline-block; min-width: 130px; text-align: center; }
 
   @media print {
-    /* JANGAN pasang lebar tetap (mis. 9.5in) di sini -- printer continuous
-       form fisik cuma bisa makan kertas 1 arah (tidak bisa "diputar").
-       Kalau lebar CSS < tinggi kertas yg dipilih di dialog print (mis.
-       Legal 8.5x14in), browser otomatis nganggep dokumen ini "landscape"
-       & mutar 90° -- itu penyebab hasil cetak jadi menyamping/miring.
-       Cukup margin:0, biarkan orientasi ikut default Portrait di dialog
-       print & lebar ikut kertas yg dipilih user (.faktur width:100% di
-       bawah, bukan angka tetap). */
-    @page { margin: 0; }
+    /* Paksa PORTRAIT eksplisit lewat keyword (bukan angka lebar/tinggi) --
+       ini sinyal paling kuat ke browser soal orientasi, beda dgn coba2
+       nebak dari proporsi lebar/tinggi (yg kemarin masih kebaca landscape
+       oleh sebagian printer/driver continuous form). Kalau hasil cetak
+       fisik MASIH menyamping setelah ini, itu tandanya dialog print di
+       komputer (bukan kode) yg perlu diubah manual -- lihat catatan di
+       chat utk cara ceknya (dropdown "Orientation" di jendela print,
+       pastikan "Portrait" bukan "Landscape"). */
+    @page { size: portrait; margin: 0; }
     html, body { background: #fff; padding: 0; margin: 0; height: auto; }
     .head-card, .hero-strip, .main-card:not(.pv-only), .bottom-nav { display: none !important; }
     /* "UMGAP • Reserve 2026" ada di base.html, dirender di SETIAP halaman
