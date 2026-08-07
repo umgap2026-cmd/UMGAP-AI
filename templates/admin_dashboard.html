@@ -656,6 +656,15 @@
         cursor: not-allowed;
         transform: none !important;
       }
+      .btn-print {
+        background: linear-gradient(180deg, #16a34a 0%, #14532d 100%);
+        color: #fff;
+        box-shadow: 0 10px 22px rgba(22, 163, 74, 0.25);
+      }
+      .btn-print:hover:not([disabled]) {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 30px rgba(22, 163, 74, 0.32);
+      }
 
       /* range hint chip */
       .range-hint {
@@ -1286,6 +1295,19 @@
                       </svg>
                       1 Orang
                     </button>
+                    <button
+                      id="btnPrint"
+                      class="btn-dl btn-print"
+                      type="button"
+                      disabled
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                      </svg>
+                      Print
+                    </button>
                   </div>
                   <div class="range-hint" id="rangeHint">
                     <svg
@@ -1722,6 +1744,7 @@
       var hintEl = document.getElementById("rangeHint");
       var btnAll = document.getElementById("btnAll");
       var btnOne = document.getElementById("btnOne");
+      var btnPrint = document.getElementById("btnPrint");
 
       function setHint(msg, cls) {
         hintEl.className = "range-hint " + (cls || "");
@@ -1739,7 +1762,7 @@
           e = endEl.value;
         if (!s || !e) {
           setHint("Pilih tanggal mulai &amp; selesai", "");
-          btnAll.disabled = btnOne.disabled = true;
+          btnAll.disabled = btnOne.disabled = btnPrint.disabled = true;
           return { ok: false };
         }
         // Bebas pilih rentang tanggal berapa pun (tidak dibatasi 1 bulan
@@ -1747,17 +1770,18 @@
         var d = daysDiff(s, e);
         if (d < 1) {
           setHint("Tanggal akhir harus ≥ tanggal awal", "err");
-          btnAll.disabled = btnOne.disabled = true;
+          btnAll.disabled = btnOne.disabled = btnPrint.disabled = true;
           return { ok: false };
         }
         if (d > 366) {
           setHint("Maksimal 366 hari", "warn");
-          btnAll.disabled = btnOne.disabled = true;
+          btnAll.disabled = btnOne.disabled = btnPrint.disabled = true;
           return { ok: false };
         }
         setHint("Periode: " + s + " s/d " + e + " (" + d + " hari)", "ok");
         btnAll.disabled = false;
         btnOne.disabled = !pickEl.value;
+        btnPrint.disabled = false;
         return { ok: true, start: s, end: e, uid: pickEl.value };
       }
 
@@ -1791,6 +1815,17 @@
           encodeURIComponent(v.start) +
           "&end_date=" +
           encodeURIComponent(v.end);
+      });
+      btnPrint.addEventListener("click", function () {
+        var v = validate();
+        if (!v.ok) return;
+        var url =
+          "/admin/data/range_print?start_date=" +
+          encodeURIComponent(v.start) +
+          "&end_date=" +
+          encodeURIComponent(v.end);
+        if (v.uid) url += "&user_id=" + encodeURIComponent(v.uid);
+        window.open(url, "_blank");
       });
     </script>
   </body>

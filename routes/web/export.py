@@ -2,7 +2,7 @@ import io
 import calendar
 from datetime import date, timedelta
 
-from flask import Blueprint, request, send_file
+from flask import Blueprint, request, send_file, render_template
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
@@ -32,6 +32,10 @@ FONT_BOLD = Font(bold=True)
 ALIGN_CENTER = Alignment(horizontal="center", vertical="center")
 ALIGN_LEFT = Alignment(horizontal="left", vertical="center")
 ALIGN_RIGHT = Alignment(horizontal="right", vertical="center")
+
+
+INDO_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+STATUS_LABEL = {"PRESENT": "Hadir", "SICK": "Sakit", "LEAVE": "Izin", "ABSENT": "Absen"}
 
 
 def count_workdays_only_sunday_off(start_date, end_date):
@@ -416,4 +420,151 @@ def export_range():
         as_attachment=True,
         download_name=filename,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+# =========================
+# EXPORT PRINT (continuous form, sama kertas dgn nota)
+# =========================
+@export_bp.route("/admin/data/range_print")
+def export_range_print():
+    """Rekap absensi & gaji, versi print continuous form -- data & rumus
+    gaji SAMA PERSIS dgn export_range() (Sheet Absensi + Rekap Gaji di
+    atas), cuma disusun jadi 1 halaman cetak per kertas dot-matrix,
+    bukan file .xlsx."""
+    deny = admin_required()
+    if deny:
+        return deny
+
+    ensure_hr_v2_schema()
+
+    start_str = (request.args.get("start_date") or request.args.get("start") or "").strip()
+    end_str = (request.args.get("end_date") or request.args.get("end") or "").strip()
+    user_id_str = (request.args.get("user_id") or "").strip()
+
+    start_date = _parse_date(start_str)
+    end_date = _parse_date(end_str)
+
+    if not start_date or not end_date:
+        today = date.today()
+        start_date = today.replace(day=1)
+        end_date = today
+
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
+
+    user_id = int(user_id_str) if user_id_str.isdigit() else None
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                u.id,
+                u.name,
+                COALESCE(p.daily_salary, 0) AS daily_salary,
+                COALESCE(p.monthly_salary, 0) AS monthly_salary
+            FROM users u
+            LEFT JOIN payroll_settings p ON p.user_id = u.id
+            WHERE u.role = 'employee'
+              AND (%s::int IS NULL OR u.id = %s::int)
+            ORDER BY u.name ASC;
+        """, (user_id, user_id))
+        employees = cur.fetchall()
+
+        cur.execute("""
+            SELECT a.user_id, a.work_date, a.status, a.arrival_type,
+                   a.checkin_at, a.checkout_at
+            FROM attendance a
+            WHERE a.work_date >= %s AND a.work_date <= %s
+            ORDER BY a.user_id ASC, a.work_date ASC;
+        """, (start_date, end_date))
+        attendance_rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    attendance_map = {}
+    for row in attendance_rows:
+        attendance_map[(row["user_id"], row["work_date"])] = row
+
+    workdays = count_workdays_only_sunday_off(start_date, end_date)
+
+    all_dates = []
+    d = start_date
+    while d <= end_date:
+        all_dates.append(d)
+        d += timedelta(days=1)
+
+    result_employees = []
+    grand_total_salary = 0
+
+    for emp in employees:
+        daily_salary = rupiah_excel(emp.get("daily_salary"))
+        monthly_salary = rupiah_excel(emp.get("monthly_salary"))
+        if daily_salary == 0 and monthly_salary > 0 and workdays > 0:
+            daily_salary = round(monthly_salary / workdays)
+
+        day_rows = []
+        present_count = sick_count = leave_count = absent_count = 0
+
+        for dt in all_dates:
+            row = attendance_map.get((emp["id"], dt))
+            status = row["status"] if row else None
+            # Minggu libur & memang tidak ada aktivitas -- lewati baris ini
+            # drpd numpuk kertas kosong percuma (baris "-" tiap Minggu).
+            if dt.weekday() == 6 and not row:
+                continue
+
+            if status == "PRESENT":
+                present_count += 1
+            elif status == "SICK":
+                sick_count += 1
+            elif status == "LEAVE":
+                leave_count += 1
+            elif status == "ABSENT":
+                absent_count += 1
+
+            checkin = "-"
+            if row and row.get("checkin_at"):
+                try:
+                    checkin = row["checkin_at"].strftime("%H:%M")
+                except Exception:
+                    checkin = str(row["checkin_at"])
+            checkout = "-"
+            if row and row.get("checkout_at"):
+                try:
+                    checkout = row["checkout_at"].strftime("%H:%M")
+                except Exception:
+                    checkout = str(row["checkout_at"])
+
+            day_rows.append({
+                "day_name": INDO_DAYS[dt.weekday()],
+                "date_str": dt.strftime("%d/%m/%Y"),
+                "checkin": checkin,
+                "checkout": checkout,
+                "status_label": STATUS_LABEL.get(status, "-"),
+            })
+
+        salary_paid = daily_salary * present_count
+        grand_total_salary += salary_paid
+
+        result_employees.append({
+            "name": emp["name"],
+            "day_rows": day_rows,
+            "present_count": present_count,
+            "sick_count": sick_count,
+            "leave_count": leave_count,
+            "absent_count": absent_count,
+            "daily_salary": daily_salary,
+            "salary_paid": salary_paid,
+        })
+
+    return render_template(
+        "admin_attendance_print.html",
+        employees=result_employees,
+        start_date=start_date,
+        end_date=end_date,
+        workdays=workdays,
+        grand_total_salary=grand_total_salary,
     )
