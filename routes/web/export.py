@@ -9,7 +9,7 @@ from openpyxl.utils import get_column_letter
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_required, ensure_hr_v2_schema, _parse_date
+from core import admin_required, ensure_hr_v2_schema, _parse_date, get_payroll_report
 
 export_bp = Blueprint("export", __name__)
 
@@ -34,10 +34,6 @@ ALIGN_LEFT = Alignment(horizontal="left", vertical="center")
 ALIGN_RIGHT = Alignment(horizontal="right", vertical="center")
 
 
-INDO_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
-STATUS_LABEL = {"PRESENT": "Hadir", "SICK": "Sakit", "LEAVE": "Izin", "ABSENT": "Absen"}
-
-
 def _parse_user_ids(args):
     """Terima "user_ids" (koma-pisah, dari checkbox multi-pilih) ATAU
     "user_id" tunggal (kompatibel dgn link lama /range_user.xlsx).
@@ -55,16 +51,6 @@ def _parse_user_ids(args):
     if single.isdigit():
         return [int(single)]
     return None
-
-
-def count_workdays_only_sunday_off(start_date, end_date):
-    d = start_date
-    n = 0
-    while d <= end_date:
-        if d.weekday() != 6:  # Minggu libur
-            n += 1
-        d += timedelta(days=1)
-    return n
 
 
 def rupiah_excel(value):
@@ -314,26 +300,21 @@ def export_range():
     # =========================
     ws2 = wb.create_sheet("Rekap Gaji")
 
-    ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=11)
+    ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
     c = ws2.cell(1, 1, f"REKAP GAJI KARYAWAN ({start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')})")
     c.fill = FILL_TITLE
     c.font = FONT_TITLE
     c.alignment = ALIGN_CENTER
 
-    workdays = count_workdays_only_sunday_off(start_date, end_date)
+    # SATU SUMBER KEBENARAN dgn halaman Gaji Karyawan & Export Print --
+    # base gaji + penyesuaian manual (potongan/bonus) + status dibayar
+    # SELALU sama persis di sini.
+    payroll_employees, workdays = get_payroll_report(start_date, end_date, user_ids)
 
     headers = [
-        "No",
-        "Nama",
-        "Hari Kerja",
-        "Hadir",
-        "Sakit",
-        "Izin",
-        "Absen",
-        "Terlambat",
-        "Gaji Harian",
-        "Gaji Dibayar",
-        "Keterangan",
+        "No", "Nama", "Hari Kerja", "Hadir", "Sakit", "Izin", "Absen",
+        "Terlambat", "Gaji Harian", "Gaji Pokok", "Penyesuaian",
+        "Total Dibayar", "Status Bayar", "Keterangan Penyesuaian",
     ]
     for col, h in enumerate(headers, start=1):
         cell = ws2.cell(3, col, h)
@@ -345,54 +326,31 @@ def export_range():
     row_idx = 4
     grand_total_salary = 0
 
-    for no, emp in enumerate(employees, start=1):
-        present_count = 0
-        sick_count = 0
-        leave_count = 0
-        absent_count = 0
-        late_count = 0
+    for no, emp in enumerate(payroll_employees, start=1):
+        grand_total_salary += emp["final_total"]
 
-        d = start_date
-        while d <= end_date:
-            row = attendance_map.get((emp["id"], d))
-            status = row["status"] if row else None
-            arrival_type = row["arrival_type"] if row else None
-
-            if status == "PRESENT":
-                present_count += 1
-            elif status == "SICK":
-                sick_count += 1
-            elif status == "LEAVE":
-                leave_count += 1
-            elif status == "ABSENT":
-                absent_count += 1
-
-            if arrival_type == "LATE":
-                late_count += 1
-
-            d += timedelta(days=1)
-
-        daily_salary = rupiah_excel(emp.get("daily_salary"))
-        monthly_salary = rupiah_excel(emp.get("monthly_salary"))
-
-        if daily_salary == 0 and monthly_salary > 0 and workdays > 0:
-            daily_salary = round(monthly_salary / workdays)
-
-        salary_paid = daily_salary * present_count
-        grand_total_salary += salary_paid
+        adj_note = "; ".join(
+            f"{a['date_str']}: {a['note'] or ('Bonus' if a['amount'] > 0 else 'Potongan')}"
+            for a in emp["adjustments"]
+        )
+        pay = emp.get("payment")
+        pay_status = f"Sudah dibayar ({pay['paid_at_wib']})" if pay else "Belum dibayar"
 
         values = [
             no,
             emp["name"],
             workdays,
-            present_count,
-            sick_count,
-            leave_count,
-            absent_count,
-            late_count,
-            daily_salary,
-            salary_paid,
-            "",
+            emp["present_count"],
+            emp["sick_count"],
+            emp["leave_count"],
+            emp["absent_count"],
+            emp["late_count"],
+            rupiah_excel(emp["daily_salary"]),
+            rupiah_excel(emp["base_salary"]),
+            rupiah_excel(emp["adjustments_total"]),
+            rupiah_excel(emp["final_total"]),
+            pay_status,
+            adj_note,
         ]
 
         for col, val in enumerate(values, start=1):
@@ -400,7 +358,7 @@ def export_range():
             cell.border = BORDER
             if col in (1, 3, 4, 5, 6, 7, 8):
                 cell.alignment = ALIGN_CENTER
-            elif col in (9, 10):
+            elif col in (9, 10, 11, 12):
                 cell.alignment = ALIGN_RIGHT
                 cell.number_format = '#,##0'
             else:
@@ -409,16 +367,16 @@ def export_range():
         row_idx += 1
 
     # Total akhir
-    for col in range(1, 11 + 1):
+    for col in range(1, 14 + 1):
         ws2.cell(row_idx, col).border = BORDER
         ws2.cell(row_idx, col).fill = FILL_TOTAL
 
     ws2.cell(row_idx, 1, "TOTAL").font = FONT_BOLD
     ws2.cell(row_idx, 1).alignment = ALIGN_CENTER
-    ws2.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=9)
-    ws2.cell(row_idx, 10, grand_total_salary).font = FONT_BOLD
-    ws2.cell(row_idx, 10).alignment = ALIGN_RIGHT
-    ws2.cell(row_idx, 10).number_format = '#,##0'
+    ws2.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=11)
+    ws2.cell(row_idx, 12, grand_total_salary).font = FONT_BOLD
+    ws2.cell(row_idx, 12).alignment = ALIGN_RIGHT
+    ws2.cell(row_idx, 12).number_format = '#,##0'
 
     ws2.freeze_panes = "A4"
     auto_fit(ws2, min_width=10, max_width=24)
@@ -472,110 +430,11 @@ def export_range_print():
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT
-                u.id,
-                u.name,
-                COALESCE(p.daily_salary, 0) AS daily_salary,
-                COALESCE(p.monthly_salary, 0) AS monthly_salary
-            FROM users u
-            LEFT JOIN payroll_settings p ON p.user_id = u.id
-            WHERE u.role = 'employee'
-              AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
-            ORDER BY u.name ASC;
-        """, (user_ids, user_ids))
-        employees = cur.fetchall()
-
-        cur.execute("""
-            SELECT a.user_id, a.work_date, a.status, a.arrival_type,
-                   a.checkin_at, a.checkout_at
-            FROM attendance a
-            WHERE a.work_date >= %s AND a.work_date <= %s
-            ORDER BY a.user_id ASC, a.work_date ASC;
-        """, (start_date, end_date))
-        attendance_rows = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    attendance_map = {}
-    for row in attendance_rows:
-        attendance_map[(row["user_id"], row["work_date"])] = row
-
-    workdays = count_workdays_only_sunday_off(start_date, end_date)
-
-    all_dates = []
-    d = start_date
-    while d <= end_date:
-        all_dates.append(d)
-        d += timedelta(days=1)
-
-    result_employees = []
-    grand_total_salary = 0
-
-    for emp in employees:
-        daily_salary = rupiah_excel(emp.get("daily_salary"))
-        monthly_salary = rupiah_excel(emp.get("monthly_salary"))
-        if daily_salary == 0 and monthly_salary > 0 and workdays > 0:
-            daily_salary = round(monthly_salary / workdays)
-
-        day_rows = []
-        present_count = sick_count = leave_count = absent_count = 0
-
-        for dt in all_dates:
-            row = attendance_map.get((emp["id"], dt))
-            status = row["status"] if row else None
-            # Minggu libur & memang tidak ada aktivitas -- lewati baris ini
-            # drpd numpuk kertas kosong percuma (baris "-" tiap Minggu).
-            if dt.weekday() == 6 and not row:
-                continue
-
-            if status == "PRESENT":
-                present_count += 1
-            elif status == "SICK":
-                sick_count += 1
-            elif status == "LEAVE":
-                leave_count += 1
-            elif status == "ABSENT":
-                absent_count += 1
-
-            checkin = "-"
-            if row and row.get("checkin_at"):
-                try:
-                    checkin = row["checkin_at"].strftime("%H:%M")
-                except Exception:
-                    checkin = str(row["checkin_at"])
-            checkout = "-"
-            if row and row.get("checkout_at"):
-                try:
-                    checkout = row["checkout_at"].strftime("%H:%M")
-                except Exception:
-                    checkout = str(row["checkout_at"])
-
-            day_rows.append({
-                "day_name": INDO_DAYS[dt.weekday()],
-                "date_str": dt.strftime("%d/%m/%Y"),
-                "checkin": checkin,
-                "checkout": checkout,
-                "status_label": STATUS_LABEL.get(status, "-"),
-            })
-
-        salary_paid = daily_salary * present_count
-        grand_total_salary += salary_paid
-
-        result_employees.append({
-            "name": emp["name"],
-            "day_rows": day_rows,
-            "present_count": present_count,
-            "sick_count": sick_count,
-            "leave_count": leave_count,
-            "absent_count": absent_count,
-            "daily_salary": daily_salary,
-            "salary_paid": salary_paid,
-        })
+    # SATU SUMBER KEBENARAN dgn halaman Gaji Karyawan & Excel Sheet "Rekap
+    # Gaji" -- base gaji + penyesuaian manual (potongan/bonus) + status
+    # dibayar SELALU sama persis di sini.
+    result_employees, workdays = get_payroll_report(start_date, end_date, user_ids)
+    grand_total_salary = sum(e["final_total"] for e in result_employees)
 
     return render_template(
         "admin_attendance_print.html",

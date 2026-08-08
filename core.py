@@ -1487,6 +1487,351 @@ def _ensure_attendance_checkout_column(cur):
     cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS checkout_auto BOOLEAN NOT NULL DEFAULT FALSE;")
 
 
+# =========================
+# PAYROLL: penyesuaian manual (potongan/bonus) + pembayaran ke Beban
+# =========================
+INDO_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+ATTENDANCE_STATUS_LABEL = {"PRESENT": "Hadir", "SICK": "Sakit", "LEAVE": "Izin", "ABSENT": "Absen"}
+
+
+def count_workdays_only_sunday_off(start_date, end_date):
+    """Hitung hari kerja (Minggu libur) dari start_date s/d end_date INKLUSIF
+    kedua-duanya -- konvensi dipakai bareng oleh get_payroll_report() &
+    seluruh pemanggilnya (halaman Gaji Karyawan, Ekspor Excel & Print)."""
+    d = start_date
+    n = 0
+    while d <= end_date:
+        if d.weekday() != 6:
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _ensure_payroll_adjustments_schema(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payroll_adjustments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            adjustment_date DATE NOT NULL,
+            amount NUMERIC NOT NULL,
+            note TEXT,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_payroll_adj_user_date
+            ON payroll_adjustments(user_id, adjustment_date);
+    """)
+
+
+def _ensure_payroll_payments_schema(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payroll_payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            amount NUMERIC NOT NULL,
+            fin_transaction_id INTEGER,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (user_id, period_start, period_end)
+        );
+    """)
+
+
+def add_payroll_adjustment(user_id, adjustment_date, amount, note, created_by):
+    """Catat potongan (amount negatif, mis. berangkat setengah hari) atau
+    bonus (amount positif, mis. bonus full seminggu) manual utk 1 karyawan
+    di 1 tanggal tertentu -- bebas admin yang tentukan, tidak ada aturan
+    baku. adjustment_date menentukan periode mana yang "kena" penyesuaian
+    ini (lihat get_payroll_report -- difilter by range, sama utk halaman
+    Gaji Karyawan MAUPUN Ekspor Data supaya angkanya selalu selaras).
+    Return dict {id}."""
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        amount = 0.0
+    note = (note or "").strip()
+
+    if amount == 0:
+        raise ValueError("Jumlah penyesuaian tidak boleh 0.")
+    if not adjustment_date:
+        raise ValueError("Tanggal penyesuaian wajib diisi.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_payroll_adjustments_schema(cur)
+        cur.execute("""
+            INSERT INTO payroll_adjustments
+                (user_id, adjustment_date, amount, note, created_by)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (user_id, adjustment_date, amount, note or None, created_by))
+        adj_id = cur.fetchone()["id"]
+        conn.commit()
+        return {"id": adj_id}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat penyesuaian gaji: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_payroll_adjustment(adjustment_id):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_payroll_adjustments_schema(cur)
+        cur.execute("DELETE FROM payroll_adjustments WHERE id=%s RETURNING id;", (adjustment_id,))
+        row = cur.fetchone()
+        conn.commit()
+        if not row:
+            raise ValueError("Penyesuaian tidak ditemukan.")
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus penyesuaian: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def record_payroll_payment(user_id, employee_name, period_start, period_end, amount, created_by):
+    """Tandai gaji 1 karyawan utk periode [period_start, period_end]
+    (inklusif) sebagai SUDAH DIBAYAR -- otomatis catat sbg Beban di
+    Finance (kategori "Gaji Karyawan") supaya Total Beban & laba di
+    Finance ikut mencerminkan biaya gaji beneran (base + potongan/bonus).
+    Raise ValueError kalau periode+karyawan ini SUDAH pernah dibayar
+    (dicegah UNIQUE constraint) -- supaya tidak dobel catat Beban."""
+    amount = float(amount or 0)
+    if amount <= 0:
+        raise ValueError("Tidak ada gaji yang perlu dibayar (total Rp 0 atau minus).")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_payroll_payments_schema(cur)
+        cur.execute("""
+            SELECT id FROM payroll_payments
+            WHERE user_id=%s AND period_start=%s AND period_end=%s;
+        """, (user_id, period_start, period_end))
+        if cur.fetchone():
+            raise ValueError("Gaji karyawan ini utk periode tsb sudah pernah dibayar & dicatat.")
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+    period_label = f"{period_start.strftime('%d/%m/%Y')} - {period_end.strftime('%d/%m/%Y')}"
+    expense = create_fin_expense_entry(
+        category="Gaji Karyawan",
+        amount=amount,
+        note=f"Gaji {employee_name} periode {period_label}",
+        created_by=created_by,
+        expense_date=period_end.isoformat(),
+    )
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_payroll_payments_schema(cur)
+        cur.execute("""
+            INSERT INTO payroll_payments
+                (user_id, period_start, period_end, amount, fin_transaction_id, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """, (user_id, period_start, period_end, amount, expense.get("id"), created_by))
+        payment_id = cur.fetchone()["id"]
+        conn.commit()
+        return {"id": payment_id, "fin_transaction_id": expense.get("id")}
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Beban tercatat tapi gagal menandai status dibayar: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_payroll_report(start_date, end_date, user_ids=None):
+    """
+    SATU SUMBER KEBENARAN rekap absensi + gaji (base + penyesuaian manual
+    + status dibayar) utk 1 rentang tanggal INKLUSIF kedua ujungnya --
+    dipakai bareng oleh halaman Gaji Karyawan (routes/web/payroll.py) &
+    Ekspor Data Excel/Print (routes/web/export.py) supaya angka gaji yang
+    ditampilkan SELALU sama persis di mana pun dilihat.
+
+    user_ids: None = semua karyawan, atau list int utk filter tertentu
+    (dipakai Ekspor Data yg punya fitur pilih beberapa karyawan).
+
+    Return (employees, workdays) -- employees list of dict:
+      id, name, daily_salary, day_rows (Hari/Tanggal/JamMasuk/JamKeluar/
+      Status per hari kerja, Minggu tanpa aktivitas dilewati),
+      present_count/sick_count/leave_count/absent_count,
+      base_salary, adjustments (list {id,date_str,amount,note}),
+      adjustments_total, final_total, payment (dict atau None).
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_payroll_adjustments_schema(cur)
+        _ensure_payroll_payments_schema(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT u.id, u.name,
+                COALESCE(p.daily_salary, 0) AS daily_salary,
+                COALESCE(p.monthly_salary, 0) AS monthly_salary
+            FROM users u
+            LEFT JOIN payroll_settings p ON p.user_id = u.id
+            WHERE u.role = 'employee'
+              AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
+            ORDER BY u.name ASC;
+        """, (user_ids, user_ids))
+        employees_raw = cur.fetchall()
+
+        cur.execute("""
+            SELECT user_id, work_date, status, arrival_type, checkin_at, checkout_at
+            FROM attendance
+            WHERE work_date >= %s AND work_date <= %s;
+        """, (start_date, end_date))
+        att_map = {}
+        for r in cur.fetchall():
+            att_map[(r["user_id"], r["work_date"])] = r
+
+        cur.execute("""
+            SELECT id, user_id, adjustment_date, amount, note
+            FROM payroll_adjustments
+            WHERE adjustment_date >= %s AND adjustment_date <= %s
+            ORDER BY adjustment_date ASC, id ASC;
+        """, (start_date, end_date))
+        adj_map = {}
+        for r in cur.fetchall():
+            adj_map.setdefault(r["user_id"], []).append(r)
+
+        cur.execute("""
+            SELECT user_id, amount, created_at
+            FROM payroll_payments
+            WHERE period_start = %s AND period_end = %s;
+        """, (start_date, end_date))
+        payment_map = {r["user_id"]: r for r in cur.fetchall()}
+    finally:
+        cur.close()
+        conn.close()
+
+    workdays = count_workdays_only_sunday_off(start_date, end_date)
+
+    all_dates = []
+    d = start_date
+    while d <= end_date:
+        all_dates.append(d)
+        d += timedelta(days=1)
+
+    employees = []
+    for emp in employees_raw:
+        daily_salary = int(emp.get("daily_salary") or 0)
+        monthly_salary = int(emp.get("monthly_salary") or 0)
+        if daily_salary == 0 and monthly_salary > 0 and workdays > 0:
+            daily_salary = int(round(monthly_salary / workdays))
+
+        day_rows = []
+        present_count = sick_count = leave_count = absent_count = late_count = 0
+        for dt in all_dates:
+            row = att_map.get((emp["id"], dt))
+            status = row["status"] if row else None
+            arrival_type = row["arrival_type"] if row else None
+            # Minggu libur & tidak ada aktivitas -- lewati drpd numpuk
+            # baris kosong percuma.
+            if dt.weekday() == 6 and not row:
+                continue
+
+            if status == "PRESENT":
+                present_count += 1
+            elif status == "SICK":
+                sick_count += 1
+            elif status == "LEAVE":
+                leave_count += 1
+            elif status == "ABSENT":
+                absent_count += 1
+            if arrival_type == "LATE":
+                late_count += 1
+
+            checkin = "-"
+            if row and row.get("checkin_at"):
+                try:
+                    checkin = row["checkin_at"].strftime("%H:%M")
+                except Exception:
+                    checkin = str(row["checkin_at"])
+            checkout = "-"
+            if row and row.get("checkout_at"):
+                try:
+                    checkout = row["checkout_at"].strftime("%H:%M")
+                except Exception:
+                    checkout = str(row["checkout_at"])
+
+            day_rows.append({
+                "day_name": INDO_DAYS[dt.weekday()],
+                "date_str": dt.strftime("%d/%m/%Y"),
+                "checkin": checkin,
+                "checkout": checkout,
+                "status_label": ATTENDANCE_STATUS_LABEL.get(status, "-"),
+            })
+
+        base_salary = daily_salary * present_count
+
+        adjustments = []
+        adjustments_total = 0.0
+        for a in adj_map.get(emp["id"], []):
+            amt = float(a["amount"] or 0)
+            adjustments_total += amt
+            adjustments.append({
+                "id": a["id"],
+                "date_str": a["adjustment_date"].strftime("%d/%m/%Y"),
+                "amount": amt,
+                "note": a.get("note") or "",
+            })
+
+        final_total = base_salary + adjustments_total
+
+        payment_row = payment_map.get(emp["id"])
+        payment = None
+        if payment_row:
+            payment = {
+                "amount": float(payment_row["amount"] or 0),
+                "paid_at_wib": _utc_naive_to_wib_string(payment_row.get("created_at")),
+            }
+
+        employees.append({
+            "id": emp["id"],
+            "name": emp["name"],
+            "daily_salary": daily_salary,
+            "day_rows": day_rows,
+            "present_count": present_count,
+            "sick_count": sick_count,
+            "leave_count": leave_count,
+            "absent_count": absent_count,
+            "late_count": late_count,
+            "base_salary": base_salary,
+            "adjustments": adjustments,
+            "adjustments_total": adjustments_total,
+            "final_total": final_total,
+            "payment": payment,
+        })
+
+    return employees, workdays
+
+
 def record_checkout(user_id, work_date, checkout_time=None):
     """
     Catat jam pulang (check-out) untuk attendance yang SUDAH ADA hari itu

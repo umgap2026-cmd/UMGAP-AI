@@ -370,7 +370,15 @@
     }
   }
 
-  /* ── mobile payroll cards ── */
+  .mini {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .fill {
+    fill: currentColor;
+  }
+
+  /* ── payroll item: expandable per-karyawan (ganti mobile-card/desktop-table split) ── */
   .plist {
     display: grid;
     gap: 10px;
@@ -380,18 +388,21 @@
     background: #fff;
     border-radius: 18px;
     box-shadow: var(--shadow-out);
-    padding: 14px;
+    overflow: hidden;
   }
+  .pitem-summary {
+    padding: 14px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .pitem-summary::-webkit-details-marker { display: none; }
   .pitem-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
   }
-  .pinfo {
-    min-width: 0;
-    flex: 1;
-  }
+  .pinfo { min-width: 0; flex: 1; }
   .pname {
     margin: 0;
     font-weight: 1000;
@@ -401,23 +412,24 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .pdaily {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-  }
+  .pdaily { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .ppaid-wrap { flex: 0 0 auto; text-align: right; }
   .ppaid {
     font-size: 15px;
     font-weight: 1000;
     color: #15803d;
-    flex: 0 0 auto;
-    text-align: right;
-    /* allow wrapping for long currency strings */
-    max-width: 48%;
     word-break: break-word;
     white-space: normal;
     line-height: 1.3;
   }
+  .padj-hint { font-size: 10.5px; color: var(--blue); font-weight: 800; margin-top: 2px; }
+  .ppaid-status {
+    font-size: 10px;
+    font-weight: 900;
+    margin-top: 4px;
+    color: #d97706;
+  }
+  .ppaid-status.paid { color: #15803d; }
   .pstats {
     margin-top: 10px;
     display: flex;
@@ -433,119 +445,149 @@
     color: var(--muted);
     font-weight: 800;
   }
-  .pstat b {
-    color: var(--text);
+  .pstat b { color: var(--text); }
+  .pstat.hadir b { color: #15803d; }
+  .pstat.sakit b { color: #d97706; }
+  .pstat.cuti b { color: #2563eb; }
+  .pstat.absen b { color: #dc2626; }
+
+  .pdet-body {
+    padding: 4px 14px 16px;
+    border-top: 1px solid rgba(125, 138, 166, 0.14);
   }
-  .pstat.hadir b {
-    color: #15803d;
+  .pdet-section-title {
+    font-size: 12px;
+    font-weight: 900;
+    color: #2a3b58;
+    margin: 14px 0 8px;
   }
-  .pstat.sakit b {
-    color: #d97706;
-  }
-  .pstat.cuti b {
-    color: #2563eb;
-  }
-  .pstat.absen b {
-    color: #dc2626;
-  }
-  .pformula {
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--muted);
+  .pdet-tbl-wrap { overflow-x: auto; border-radius: 12px; box-shadow: var(--soft-in); }
+  .pdet-tbl { width: 100%; border-collapse: collapse; min-width: 420px; background: #f9fafc; }
+  .pdet-tbl th, .pdet-tbl td { padding: 8px 10px; font-size: 12px; text-align: left; border-bottom: 1px solid rgba(125,138,166,0.12); }
+  .pdet-tbl th { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 900; }
+
+  .padj-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: #f2f5fb;
     border-radius: 10px;
-    padding: 6px 10px;
-    display: inline-block;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .padj-row .padj-info { flex: 1; min-width: 0; color: var(--text); font-weight: 700; }
+  .padj-row .padj-note { display: block; font-weight: 500; color: var(--muted); font-size: 11px; }
+  .padj-row .padj-amt { font-weight: 900; white-space: nowrap; }
+  .padj-amt.pos { color: #15803d; }
+  .padj-amt.neg { color: #dc2626; }
+  .padj-del {
+    border: none;
+    background: rgba(220,38,38,0.1);
+    color: #dc2626;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 12px;
+    flex: 0 0 auto;
   }
 
-  /* ── desktop table ── */
-  .tablewrap {
-    display: none;
-    overflow-x: auto;
-    margin: 4px -2px 0;
+  .add-toggle {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px;
+    background: #eef2ff;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 900;
+    color: var(--blue);
+    margin-top: 6px;
   }
-  table {
+  .add-toggle::-webkit-details-marker { display: none; }
+  .add-form { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .add-form input[type="text"],
+  .add-form input[type="number"],
+  .add-form input[type="date"] {
     width: 100%;
-    border-collapse: collapse;
-    min-width: 640px;
-    background: #fff;
-    border-radius: 18px;
-    box-shadow: var(--shadow-out);
-    overflow: hidden;
-  }
-  th,
-  td {
-    padding: 12px 14px;
-    border-bottom: 1px solid rgba(125, 138, 166, 0.13);
-    text-align: left;
-    vertical-align: middle;
-    font-size: 14px;
-  }
-  th {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 900;
-    background: #f8faff;
-  }
-  .t-money {
-    font-weight: 1000;
-    color: #15803d;
-    font-size: 15px;
-    white-space: nowrap;
-  }
-  .t-mini {
-    font-size: 12px;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .tbadge {
-    display: inline-flex;
-    padding: 4px 9px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 900;
+    border: none;
+    outline: none;
+    border-radius: 10px;
     background: #f2f5fb;
     box-shadow: var(--soft-in);
+    padding: 10px 12px;
+    font-size: 13px;
     color: var(--text);
+    font-family: inherit;
   }
-  .tbadge.hadir {
-    background: rgba(21, 128, 61, 0.1);
-    color: #15803d;
-  }
-  .tbadge.sakit {
-    background: rgba(217, 119, 6, 0.1);
-    color: #d97706;
-  }
-  .tbadge.cuti {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-  }
-  .tbadge.absen {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-  }
-  .tfoot-total td {
-    font-weight: 1000;
-    background: #f8faff;
-    border-top: 2px solid rgba(125, 138, 166, 0.2);
-    border-bottom: none;
-  }
-
-  @media (min-width: 901px) {
-    .plist {
-      display: none;
-    }
-    .tablewrap {
-      display: block;
-    }
-  }
-
-  .mini {
+  .kind-toggle { display: flex; gap: 8px; }
+  .kind-toggle input { display: none; }
+  .kind-toggle label {
+    flex: 1;
+    text-align: center;
+    padding: 9px 8px;
+    border-radius: 10px;
+    background: #f2f5fb;
+    box-shadow: var(--soft-in);
+    font-weight: 900;
     font-size: 12px;
     color: var(--muted);
+    cursor: pointer;
   }
-  .fill {
-    fill: currentColor;
+  .kind-toggle input:checked + label {
+    background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
+    color: #fff;
+  }
+  .btn-mini {
+    border: none;
+    border-radius: 10px;
+    padding: 10px;
+    font-weight: 900;
+    font-size: 12.5px;
+    cursor: pointer;
+    font-family: inherit;
+    background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
+    color: #fff;
+  }
+
+  .pdet-summary-box {
+    margin-top: 14px;
+    background: #f9fafc;
+    border-radius: 12px;
+    box-shadow: var(--soft-in);
+    padding: 12px 14px;
+  }
+  .psum-row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 3px 0; }
+  .psum-row.total { font-size: 15px; font-weight: 1000; color: var(--text); border-top: 1px dashed rgba(125,138,166,0.3); margin-top: 6px; padding-top: 8px; }
+  .psum-row .neg { color: #dc2626; }
+  .psum-row .pos { color: #15803d; }
+
+  .pay-box {
+    margin-top: 12px;
+    background: rgba(21,128,61,0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #15803d;
+  }
+  .btn-pay {
+    width: 100%;
+    margin-top: 12px;
+    border: none;
+    border-radius: 12px;
+    padding: 13px;
+    font-weight: 900;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    background: linear-gradient(180deg, #16a34a 0%, #14532d 100%);
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(22,163,74,0.24);
   }
 </style>
 
@@ -602,7 +644,7 @@
 
     <!-- STAT PILLS -->
     {% set ns = namespace(total=0) %} {% for r in rows %}{% set ns.total =
-    ns.total + r.salary_paid %}{% endfor %}
+    ns.total + r.final_total %}{% endfor %}
 
     <div class="stat-row">
       <div class="stat-pill">
@@ -705,89 +747,149 @@
           <h2 class="title">Daftar Payroll</h2>
           <p class="desc">
             {{ 'Rekap gaji karyawan minggu ' ~ period_label ~ '.' if mode == 'week' else 'Rekap gaji karyawan bulan ' ~ month ~ '.' }}
+            Ketuk nama utk lihat rincian absen jam masuk/keluar, tambah potongan/bonus, & catat pembayaran.
           </p>
           <div class="divider"></div>
 
-          <!-- MOBILE cards -->
           <div class="plist">
             {% for r in rows %}
-            <div class="pitem">
-              <div class="pitem-top">
-                <div class="pinfo">
-                  <p class="pname">{{ r.name }}</p>
-                  <p class="pdaily">
-                    Rp {{ "{:,}".format(r.daily_salary).replace(",",".") }} /
-                    hari
-                  </p>
+            <details class="pitem">
+              <summary class="pitem-summary">
+                <div class="pitem-top">
+                  <div class="pinfo">
+                    <p class="pname">{{ r.name }}</p>
+                    <p class="pdaily">
+                      Rp {{ "{:,}".format(r.daily_salary).replace(",",".") }} / hari
+                    </p>
+                  </div>
+                  <div class="ppaid-wrap">
+                    <div class="ppaid">
+                      Rp {{ "{:,}".format(r.final_total|round|int).replace(",",".") }}
+                    </div>
+                    {% if r.adjustments_total != 0 %}
+                    <div class="padj-hint">
+                      {{ 'Bonus' if r.adjustments_total > 0 else 'Potongan' }}
+                      Rp {{ "{:,}".format(r.adjustments_total|abs|round|int).replace(",",".") }}
+                    </div>
+                    {% endif %}
+                    {% if r.payment %}
+                    <div class="ppaid-status paid">✅ Dibayar</div>
+                    {% else %}
+                    <div class="ppaid-status">⏳ Belum dibayar</div>
+                    {% endif %}
+                  </div>
                 </div>
-                <div class="ppaid">
-                  Rp {{ "{:,}".format(r.salary_paid).replace(",",".") }}
+                <div class="pstats">
+                  <div class="pstat hadir">Hadir <b>{{ r.present_count }}</b></div>
+                  <div class="pstat sakit">Sakit <b>{{ r.sick_count }}</b></div>
+                  <div class="pstat cuti">Izin <b>{{ r.leave_count }}</b></div>
+                  <div class="pstat absen">Absen <b>{{ r.absent_count }}</b></div>
                 </div>
-              </div>
-              <div class="pstats">
-                <div class="pstat hadir">Hadir <b>{{ r.days_present }}</b></div>
-                <div class="pstat sakit">Sakit <b>{{ r.days_sick }}</b></div>
-                <div class="pstat cuti">Cuti <b>{{ r.days_leave }}</b></div>
-                <div class="pstat absen">Absen <b>{{ r.days_absent }}</b></div>
-              </div>
-              <div class="pformula">
-                {{ "{:,}".format(r.daily_salary).replace(",",".") }} × {{
-                r.days_present }} hari
-              </div>
-            </div>
-            {% endfor %} {% if rows|length == 0 %}
-            <p class="mini">Belum ada data karyawan.</p>
-            {% endif %}
-          </div>
+              </summary>
 
-          <!-- DESKTOP table -->
-          <div class="tablewrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Karyawan</th>
-                  <th>Gaji Harian</th>
-                  <th>Hadir</th>
-                  <th>Sakit</th>
-                  <th>Cuti</th>
-                  <th>Absen</th>
-                  <th>Total Dibayar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in rows %}
-                <tr>
-                  <td><b>{{ r.name }}</b></td>
-                  <td class="t-mini">
-                    Rp {{ "{:,}".format(r.daily_salary).replace(",",".") }}
-                  </td>
-                  <td>
-                    <span class="tbadge hadir">{{ r.days_present }}</span>
-                  </td>
-                  <td><span class="tbadge sakit">{{ r.days_sick }}</span></td>
-                  <td><span class="tbadge cuti">{{ r.days_leave }}</span></td>
-                  <td><span class="tbadge absen">{{ r.days_absent }}</span></td>
-                  <td class="t-money">
-                    Rp {{ "{:,}".format(r.salary_paid).replace(",",".") }}
-                  </td>
-                </tr>
-                {% endfor %} {% if rows|length == 0 %}
-                <tr>
-                  <td colspan="7" class="mini">Belum ada data karyawan.</td>
-                </tr>
+              <div class="pdet-body">
+                <div class="pdet-section-title">📋 Rincian Absensi</div>
+                <div class="pdet-tbl-wrap">
+                  <table class="pdet-tbl">
+                    <thead>
+                      <tr><th>Hari</th><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                      {% for d in r.day_rows %}
+                      <tr>
+                        <td>{{ d.day_name }}</td>
+                        <td>{{ d.date_str }}</td>
+                        <td>{{ d.checkin }}</td>
+                        <td>{{ d.checkout }}</td>
+                        <td>{{ d.status_label }}</td>
+                      </tr>
+                      {% else %}
+                      <tr><td colspan="5" class="mini">Belum ada data absensi.</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pdet-section-title">💰 Potongan / Bonus</div>
+                {% for a in r.adjustments %}
+                <div class="padj-row">
+                  <div class="padj-info">
+                    {{ a.date_str }}
+                    {% if a.note %}<span class="padj-note">{{ a.note }}</span>{% endif %}
+                  </div>
+                  <div class="padj-amt {{ 'pos' if a.amount > 0 else 'neg' }}">
+                    {{ '+' if a.amount > 0 else '-' }}Rp {{ "{:,}".format(a.amount|abs|round|int).replace(",",".") }}
+                  </div>
+                  <form method="POST" action="/admin/payroll/adjustments/{{ a.id }}/delete" onsubmit="return confirm('Hapus penyesuaian ini?');">
+                    <input type="hidden" name="mode" value="{{ mode }}" />
+                    <input type="hidden" name="month" value="{{ month }}" />
+                    <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
+                    <button type="submit" class="padj-del" title="Hapus">✕</button>
+                  </form>
+                </div>
+                {% else %}
+                <p class="mini">Belum ada potongan/bonus di periode ini.</p>
+                {% endfor %}
+
+                <details class="add-toggle-wrap">
+                  <summary class="add-toggle">
+                    <span>+ Tambah Potongan/Bonus</span>
+                    <span>▾</span>
+                  </summary>
+                  <form method="POST" action="/admin/payroll/adjustments/add" class="add-form">
+                    <input type="hidden" name="mode" value="{{ mode }}" />
+                    <input type="hidden" name="month" value="{{ month }}" />
+                    <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
+                    <input type="hidden" name="user_id" value="{{ r.id }}" />
+
+                    <div class="kind-toggle">
+                      <input type="radio" name="kind" value="potongan" id="k-pot-{{ r.id }}" checked />
+                      <label for="k-pot-{{ r.id }}">➖ Potongan</label>
+                      <input type="radio" name="kind" value="bonus" id="k-bon-{{ r.id }}" />
+                      <label for="k-bon-{{ r.id }}">➕ Bonus</label>
+                    </div>
+                    <input type="number" name="amount" min="1" placeholder="Jumlah (Rp)" required />
+                    <input type="date" name="adjustment_date" value="{{ end_date.isoformat() }}" min="{{ start_date.isoformat() }}" max="{{ end_date.isoformat() }}" required />
+                    <input type="text" name="note" placeholder="Catatan (mis. berangkat setengah hari, bonus full seminggu)" />
+                    <button type="submit" class="btn-mini">Simpan</button>
+                  </form>
+                </details>
+
+                <div class="pdet-summary-box">
+                  <div class="psum-row"><span>Gaji Pokok</span><span>Rp {{ "{:,}".format(r.base_salary|round|int).replace(",",".") }}</span></div>
+                  {% if r.adjustments_total != 0 %}
+                  <div class="psum-row">
+                    <span>Penyesuaian</span>
+                    <span class="{{ 'pos' if r.adjustments_total > 0 else 'neg' }}">
+                      {{ '+' if r.adjustments_total > 0 else '-' }}Rp {{ "{:,}".format(r.adjustments_total|abs|round|int).replace(",",".") }}
+                    </span>
+                  </div>
+                  {% endif %}
+                  <div class="psum-row total"><span>TOTAL</span><span>Rp {{ "{:,}".format(r.final_total|round|int).replace(",",".") }}</span></div>
+                </div>
+
+                {% if r.payment %}
+                <div class="pay-box">
+                  ✅ Sudah dibayar Rp {{ "{:,}".format(r.payment.amount|round|int).replace(",",".") }} pada {{ r.payment.paid_at_wib }} — tercatat sbg Beban "Gaji Karyawan" di Finance.
+                </div>
+                {% elif r.final_total > 0 %}
+                <form method="POST" action="/admin/payroll/pay" onsubmit="return confirm('Catat gaji {{ r.name }} sebesar Rp {{ "{:,}".format(r.final_total|round|int).replace(",",".") }} sbg Beban di Finance?');">
+                  <input type="hidden" name="mode" value="{{ mode }}" />
+                  <input type="hidden" name="month" value="{{ month }}" />
+                  <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
+                  <input type="hidden" name="user_id" value="{{ r.id }}" />
+                  <input type="hidden" name="employee_name" value="{{ r.name }}" />
+                  <input type="hidden" name="period_start" value="{{ start_date.isoformat() }}" />
+                  <input type="hidden" name="period_end" value="{{ end_date.isoformat() }}" />
+                  <input type="hidden" name="amount" value="{{ r.final_total }}" />
+                  <button type="submit" class="btn-pay">💰 Bayar &amp; Catat ke Beban</button>
+                </form>
                 {% endif %}
-              </tbody>
-              {% if rows|length > 0 %}
-              <tfoot>
-                <tr class="tfoot-total">
-                  <td colspan="6">Total Dibayar</td>
-                  <td class="t-money">
-                    Rp {{ "{:,}".format(ns.total).replace(",",".") }}
-                  </td>
-                </tr>
-              </tfoot>
-              {% endif %}
-            </table>
+              </div>
+            </details>
+            {% else %}
+            <p class="mini">Belum ada data karyawan.</p>
+            {% endfor %}
           </div>
         </div>
       </div>

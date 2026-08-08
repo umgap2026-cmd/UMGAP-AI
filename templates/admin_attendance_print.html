@@ -144,11 +144,26 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="lbl">Hadir {{ emp.present_count }} &bull; Sakit {{ emp.sick_count }} &bull; Izin {{ emp.leave_count }} &bull; Absen {{ emp.absent_count }}</td>
+                  <td colspan="5" class="lbl">Hadir {{ emp.present_count }} &bull; Sakit {{ emp.sick_count }} &bull; Izin {{ emp.leave_count }} &bull; Absen {{ emp.absent_count }} &bull; Terlambat {{ emp.late_count }}</td>
                 </tr>
                 <tr>
-                  <td colspan="4" class="grand-lbl">TOTAL GAJI ({{ emp.present_count }} hari &times; Rp {{ "{:,}".format(emp.daily_salary).replace(",",".") }})</td>
-                  <td class="grand r">Rp {{ "{:,}".format(emp.salary_paid).replace(",",".") }}</td>
+                  <td colspan="4" class="lbl">Gaji Pokok ({{ emp.present_count }} hari &times; Rp {{ "{:,}".format(emp.daily_salary).replace(",",".") }})</td>
+                  <td class="r">Rp {{ "{:,}".format(emp.base_salary|round|int).replace(",",".") }}</td>
+                </tr>
+                {% if emp.adjustments_total != 0 %}
+                <tr>
+                  <td colspan="4" class="lbl">Penyesuaian ({{ emp.adjustments|length }} entri)</td>
+                  <td class="r">{{ '+' if emp.adjustments_total > 0 else '-' }}Rp {{ "{:,}".format(emp.adjustments_total|abs|round|int).replace(",",".") }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td colspan="4" class="grand-lbl">TOTAL GAJI</td>
+                  <td class="grand r">Rp {{ "{:,}".format(emp.final_total|round|int).replace(",",".") }}</td>
+                </tr>
+                <tr>
+                  <td colspan="5" class="lbl">
+                    {% if emp.payment %}✅ Sudah dibayar ({{ emp.payment.paid_at_wib }}){% else %}⏳ Belum dibayar{% endif %}
+                  </td>
                 </tr>
               </tfoot>
             </table>

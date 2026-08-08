@@ -1,23 +1,17 @@
 from datetime import date, timedelta
 
-from flask import Blueprint, render_template, request, session, redirect
+from flask import Blueprint, render_template, request, session, redirect, flash
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_required, is_logged_in
+from core import (
+    admin_required, is_logged_in, _parse_date,
+    get_payroll_report, add_payroll_adjustment, delete_payroll_adjustment,
+    record_payroll_payment,
+)
 
 
 payroll_bp = Blueprint("payroll", __name__)
-
-
-def count_workdays_only_sunday_off(start_date, end_date):
-    d = start_date
-    n = 0
-    while d < end_date:
-        if d.weekday() != 6:
-            n += 1
-        d = d.fromordinal(d.toordinal() + 1)
-    return n
 
 
 def _week_range(week_start_str):
@@ -55,14 +49,15 @@ def admin_payroll():
     if mode == "week":
         week_start, week_end = _week_range(request.args.get("week", ""))
         start_date = week_start
-        end_date = week_end + timedelta(days=1)  # exclusif, Senin..Sabtu
+        end_date = week_end  # inklusif, Senin..Sabtu
 
-        # Minggu berjalan (belum selesai) -> hari kerja cuma sampai hari ini,
-        # sama seperti perhitungan di /payslip (payslip.html) agar selaras.
-        WORKDAYS = 6
+        # Minggu berjalan (belum selesai) -> hari kerja cuma sampai hari ini
+        # yg ditampilkan di stat pill, sama spt /payslip -- ini murni
+        # tampilan, tidak mengubah rumus gaji (mode week selalu /26).
+        WORKDAYS_DISPLAY = 6
         today = date.today()
         if week_end > today:
-            WORKDAYS = max(min((today - week_start).days + 1, 6), 0)
+            WORKDAYS_DISPLAY = max(min((today - week_start).days + 1, 6), 0)
 
         period_label = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
     else:
@@ -70,62 +65,16 @@ def admin_payroll():
         mon = int(month.split("-")[1])
 
         start_date = date(year, mon, 1)
-        end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+        end_date_exclusive = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+        end_date = end_date_exclusive - timedelta(days=1)  # inklusif
 
-        WORKDAYS = count_workdays_only_sunday_off(start_date, end_date)
+        WORKDAYS_DISPLAY = None  # dihitung dari get_payroll_report di bawah
         week_start = week_end = None
         period_label = month
 
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    cur.execute("""
-        SELECT u.id, u.name,
-            COALESCE(p.daily_salary, 0) AS daily_salary,
-            COALESCE(p.monthly_salary, 0) AS monthly_salary,
-            COALESCE(SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END), 0) AS days_present,
-            COALESCE(SUM(CASE WHEN a.status='SICK' THEN 1 ELSE 0 END), 0) AS days_sick,
-            COALESCE(SUM(CASE WHEN a.status='LEAVE' THEN 1 ELSE 0 END), 0) AS days_leave,
-            COALESCE(SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END), 0) AS days_absent
-        FROM users u
-        LEFT JOIN payroll_settings p ON p.user_id = u.id
-        LEFT JOIN attendance a ON a.user_id = u.id
-            AND a.work_date >= %s AND a.work_date < %s
-        WHERE u.role = 'employee'
-        GROUP BY u.id, u.name, p.daily_salary, p.monthly_salary
-        ORDER BY u.name ASC;
-    """, (start_date, end_date))
-
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-
-    result = []
-
-    for r in rows:
-        daily_salary = int(r.get("daily_salary") or 0)
-        monthly_salary = int(r.get("monthly_salary") or 0)
-
-        if daily_salary == 0 and monthly_salary > 0:
-            if mode == "week":
-                # 26 hari kerja/bulan (6 hari/minggu) -- sama dgn /payslip
-                daily_salary = int(round(monthly_salary / 26))
-            elif WORKDAYS > 0:
-                daily_salary = int(round(monthly_salary / WORKDAYS))
-
-        days_present = int(r.get("days_present") or 0)
-
-        result.append({
-            "id": r["id"],
-            "name": r["name"],
-            "daily_salary": daily_salary,
-            "workdays": int(WORKDAYS),
-            "days_present": days_present,
-            "days_sick": int(r.get("days_sick") or 0),
-            "days_leave": int(r.get("days_leave") or 0),
-            "days_absent": int(r.get("days_absent") or 0),
-            "salary_paid": int(daily_salary * days_present),
-        })
+    result, workdays = get_payroll_report(start_date, end_date)
+    if WORKDAYS_DISPLAY is not None:
+        workdays = WORKDAYS_DISPLAY
 
     return render_template(
         "admin_payroll.html",
@@ -136,9 +85,104 @@ def admin_payroll():
         prev_week=(week_start - timedelta(days=7)).isoformat() if week_start else "",
         next_week=(week_start + timedelta(days=7)).isoformat() if week_start else "",
         period_label=period_label,
+        start_date=start_date,
+        end_date=end_date,
         rows=result,
-        workdays=int(WORKDAYS)
+        workdays=int(workdays),
     )
+
+
+def _payroll_redirect_url():
+    """Balik ke halaman Gaji Karyawan dgn periode (mode/month/week) yg lagi
+    dibuka -- dikirim form sbg hidden field spy admin tidak ke-reset ke
+    periode default habis nambah penyesuaian / bayar gaji."""
+    mode = (request.form.get("mode") or "month").strip().lower()
+    if mode == "week":
+        week = (request.form.get("week") or "").strip()
+        return f"/admin/payroll?mode=week&week={week}"
+    month = (request.form.get("month") or "").strip()
+    return f"/admin/payroll?mode=month&month={month}"
+
+
+@payroll_bp.route("/admin/payroll/adjustments/add", methods=["POST"])
+def admin_payroll_adjustment_add():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    try:
+        user_id = int(request.form.get("user_id"))
+    except (TypeError, ValueError):
+        flash("Pilih karyawan dulu.", "danger")
+        return redirect(_payroll_redirect_url())
+
+    adjustment_date = _parse_date((request.form.get("adjustment_date") or "").strip())
+    kind = (request.form.get("kind") or "potongan").strip().lower()
+    try:
+        amount = abs(float(request.form.get("amount") or 0))
+    except ValueError:
+        amount = 0
+
+    if kind == "potongan":
+        amount = -amount
+
+    try:
+        add_payroll_adjustment(
+            user_id=user_id,
+            adjustment_date=adjustment_date,
+            amount=amount,
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        flash("Penyesuaian gaji berhasil dicatat.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect(_payroll_redirect_url())
+
+
+@payroll_bp.route("/admin/payroll/adjustments/<int:adjustment_id>/delete", methods=["POST"])
+def admin_payroll_adjustment_delete(adjustment_id):
+    deny = admin_required()
+    if deny:
+        return deny
+
+    try:
+        delete_payroll_adjustment(adjustment_id)
+        flash("Penyesuaian dihapus.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect(_payroll_redirect_url())
+
+
+@payroll_bp.route("/admin/payroll/pay", methods=["POST"])
+def admin_payroll_pay():
+    deny = admin_required()
+    if deny:
+        return deny
+
+    try:
+        user_id = int(request.form.get("user_id"))
+        employee_name = request.form.get("employee_name") or "-"
+        period_start = _parse_date(request.form.get("period_start"))
+        period_end = _parse_date(request.form.get("period_end"))
+        amount = float(request.form.get("amount") or 0)
+    except (TypeError, ValueError):
+        flash("Data pembayaran tidak valid.", "danger")
+        return redirect(_payroll_redirect_url())
+
+    try:
+        record_payroll_payment(
+            user_id=user_id, employee_name=employee_name,
+            period_start=period_start, period_end=period_end,
+            amount=amount, created_by=session.get("user_id"),
+        )
+        flash(f"Gaji {employee_name} dicatat sbg Beban di Finance.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect(_payroll_redirect_url())
 
 
 
