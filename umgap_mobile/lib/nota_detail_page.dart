@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
 import 'invoice_page.dart';
+import 'invoice_print_page.dart';
 
 // ════════════════════════════════════════════
 //  DETAIL NOTA — dipanggil dari Riwayat Nota
@@ -46,6 +47,42 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
       if (!mounted) return;
       setState(() { _loading = false; _error = '$e'; });
     }
+  }
+
+  void _printNota() {
+    final inv = _invoice;
+    if (inv == null) return;
+    final isBeli = inv['nota_type'] == 'BELI';
+    final cartItems = _items.map((it) {
+      final m = Map<String, dynamic>.from(it);
+      final note = '${m['note'] ?? ''}';
+      return CartItem(
+        productId:   (m['material_id'] as num?)?.toInt() ?? 0,
+        productName: '${m['product_name'] ?? '-'}',
+        price:       (m['price'] as num?)?.toInt() ?? 0,
+        qty:         (m['qty'] as num?)?.toDouble() ?? 0,
+        isReturn:    m['is_return'] == true,
+        note:        note.isNotEmpty ? note : null,
+      );
+    }).toList();
+
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => InvoicePrintPage(
+        invoiceId:       inv['id'],
+        invoiceNo:       '${inv['invoice_no'] ?? ''}',
+        customerName:    '${inv['customer_name'] ?? ''}',
+        customerPhone:   '${inv['customer_phone'] ?? ''}',
+        paymentMethod:   '${inv['payment_method'] ?? 'CASH'}',
+        notes:           '${inv['notes'] ?? ''}',
+        discount:        (inv['discount'] as num?)?.toDouble() ?? 0,
+        subtotal:        (inv['subtotal'] as num?)?.toDouble() ?? 0,
+        reverseSubtotal: (inv['reverse_subtotal'] as num?)?.toDouble() ?? 0,
+        grandTotal:      (inv['grand_total'] as num?)?.toDouble() ?? 0,
+        items:           cartItems,
+        isPaid:          inv['is_paid'] == true,
+        isBeli:          isBeli,
+      ),
+    ));
   }
 
   Future<void> _editNota() async {
@@ -174,6 +211,12 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
           title: _invoice?['invoice_no'] ?? 'Detail Nota',
           onBack: () => Navigator.pop(context, _changed),
           actions: [
+            if (_invoice != null)
+              IconButton(
+                icon: const Icon(Icons.print_rounded, color: Colors.white),
+                tooltip: 'Cetak / Share PDF & Gambar',
+                onPressed: _printNota,
+              ),
             if (_invoice != null && _invoice!['cancelled_at'] == null)
               IconButton(
                 icon: const Icon(Icons.edit_rounded, color: Colors.white),

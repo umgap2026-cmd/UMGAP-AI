@@ -1,7 +1,11 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -95,6 +99,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   int     _paperWidth = 80;
+  final _thermalKey = GlobalKey();
+  bool    _sharingImage = false;
   bool    _btPrinting = false;
   String? _connectedBt;
 
@@ -1073,6 +1079,32 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     }
   }
 
+  // ── Share nota sbg gambar (PNG) ──
+  Future<void> _shareThermalImage() async {
+    setState(() => _sharingImage = true);
+    try {
+      await Future.delayed(const Duration(milliseconds: 100));
+      final boundary = _thermalKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/Nota_${widget.invoiceNo.replaceAll('/', '-')}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        subject: 'Nota ${widget.invoiceNo}',
+        text: 'Nota ${widget.invoiceNo}',
+      );
+    } catch (e) {
+      if (mounted) _snack('Gagal share gambar: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _sharingImage = false);
+    }
+  }
+
   void _snack(String msg, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1402,7 +1434,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(20),
-                child: _buildThermalPreview(),
+                child: RepaintBoundary(
+                  key: _thermalKey,
+                  child: Container(color: Colors.white, child: _buildThermalPreview()),
+                ),
               ),
             )),
             _ActionBar(children: [
@@ -1419,6 +1454,14 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 label: 'PDF\nThermal',
                 color: const Color(0xFF00838F),
                 onTap: _shareThermalPdf,
+              )),
+              const SizedBox(width: 10),
+              Expanded(flex: 2, child: _ActionBtn(
+                icon: _sharingImage ? null : Icons.image_rounded,
+                label: _sharingImage ? 'Memproses...' : 'Share\nGambar',
+                color: const Color(0xFF6D28D9),
+                loading: _sharingImage,
+                onTap: _sharingImage ? null : _shareThermalImage,
               )),
             ]),
           ]),

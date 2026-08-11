@@ -304,9 +304,11 @@ class _InvoicePageState extends State<InvoicePage>
   Future<void> _loadPartyBalances() async {
     setState(() => _loadingBalances = true);
     try {
+      // Tidak difilter by reason -- tampilkan SEMUA saldo terbuka (spt di
+      // Finance), krn saldo lama/manual sblm kolom `reason` ada belum tentu
+      // ke-tag 'TITIP_DANA' oleh backfill, jangan sampai hilang dari daftar.
       final list = await ApiService.financeListPartyBalances(
         creditType: _isBeli ? 'PIUTANG' : 'HUTANG',
-        reason: 'TITIP_DANA',
       );
       if (!mounted) return;
       setState(() => _partyBalances = List<Map<String, dynamic>>.from(list));
@@ -1940,8 +1942,8 @@ class _InvoicePageState extends State<InvoicePage>
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
                   _isBeli
-                      ? '💰 Ada DP ke Pemasok Ini — klik nama utk pilih otomatis:'
-                      : '💰 Ada Titipan DP dari Orang Ini — klik nama utk pilih otomatis:',
+                      ? '💰 Ada Saldo Terbuka ke Pemasok Ini — klik nama utk pilih otomatis:'
+                      : '💰 Ada Saldo Terbuka dari Orang Ini — klik nama utk pilih otomatis:',
                   style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700,
                       color: UColors.textMid),
                 ),
