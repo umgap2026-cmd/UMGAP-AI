@@ -817,10 +817,13 @@ def create_invoice():
             "payment_method": "CASH",
             "notes":          "...",
             "discount":       0,
-            "is_paid":        "1"
+            "is_paid":        "1",
+            "adjustments":    [{"type": "DP"|"ONGKIR", "amount": 0, "mode": "BEBAN"|"POTONGAN", "category": "..."}],
+            "credit_applied": 0,
+            "nota_date":      "2026-04-28"
         },
         "items": [
-            {"material_id": 1, "qty": 2.5, "price": 200000}
+            {"material_id": 1, "qty": 2.5, "price": 200000, "note": "...", "is_return": false}
         ]
     }
     Returns: { "invoice_id": ..., "invoice_no": "INV-20260502-0001" }
@@ -841,6 +844,9 @@ def create_invoice():
     notes          = (header.get("notes")          or "").strip()
     discount       = float(header.get("discount", 0) or 0)
     is_paid        = str(header.get("is_paid", "1")) == "1"
+    adjustments    = header.get("adjustments") or []
+    credit_applied = header.get("credit_applied", 0)
+    nota_date      = (header.get("nota_date") or "").strip() or None
 
     from core import create_fin_invoice
     try:
@@ -853,8 +859,251 @@ def create_invoice():
             is_paid=is_paid,
             items=items,
             created_by=request.mobile_user.get("id"),
+            adjustments=adjustments,
+            credit_applied=credit_applied,
+            nota_date=nota_date,
         )
         return mobile_api_response(ok=True, message="Invoice berhasil dibuat.", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+# ════════════════════════════════════════════════════════════════
+#  PURCHASE INVOICE — Nota Beli resmi (nomor BELI-..., adjustments,
+#  saldo, tanggal manual) -- simetris dgn create_invoice() di atas.
+#  TERPISAH dari /finance/buy (create_fin_purchase, dipakai fitur
+#  "Kasir Beli" finance_beli_page.dart) -- jangan digabung.
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/purchase-invoice", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def create_purchase_invoice():
+    """
+    Buat nota BELI_GUDANG resmi (nomor "BELI-YYYYMMDD-####") dari stok
+    fin_materials -- versi mobile dari alur Nota Beli web (create_fin_purchase_invoice).
+    Body JSON:
+    {
+        "header": {
+            "supplier_name":  "Pak Budi",
+            "supplier_phone": "081234567890",
+            "payment_method": "CASH",
+            "notes":          "...",
+            "is_paid":        "1",
+            "adjustments":    [{"type": "DP"|"ONGKIR", "amount": 0, "mode": "BEBAN"|"POTONGAN", "category": "..."}],
+            "credit_applied": 0,
+            "nota_date":      "2026-04-28"
+        },
+        "items": [
+            {"material_id": 1, "qty": 2.5, "price": 200000, "note": "...", "is_return": false}
+        ]
+    }
+    Returns: { "invoice_id": ..., "invoice_no": "BELI-20260502-0001", ... }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data   = request.get_json(silent=True) or {}
+    header = data.get("header", {})
+    items  = data.get("items", [])
+
+    supplier_name  = (header.get("supplier_name")  or "").strip()
+    supplier_phone = (header.get("supplier_phone") or "").strip()
+    payment_method = (header.get("payment_method") or "CASH").strip().upper()
+    notes          = (header.get("notes")          or "").strip()
+    is_paid        = str(header.get("is_paid", "1")) == "1"
+    adjustments    = header.get("adjustments") or []
+    credit_applied = header.get("credit_applied", 0)
+    nota_date      = (header.get("nota_date") or "").strip() or None
+
+    from core import create_fin_purchase_invoice
+    try:
+        result = create_fin_purchase_invoice(
+            supplier_name=supplier_name,
+            supplier_phone=supplier_phone,
+            payment_method=payment_method,
+            notes=notes,
+            discount=0,
+            is_paid=is_paid,
+            items=items,
+            created_by=request.mobile_user.get("id"),
+            adjustments=adjustments,
+            credit_applied=credit_applied,
+            nota_date=nota_date,
+        )
+        return mobile_api_response(ok=True, message="Nota Beli berhasil dibuat.", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+# ════════════════════════════════════════════════════════════════
+#  SALDO HUTANG/PIUTANG PIHAK — dicek saat bikin nota, spy bisa
+#  dipotongkan otomatis sbg DP (mirror /nota/check-credit di web).
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/party-balances", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def party_balances():
+    """
+    Daftar saldo piutang/hutang terbuka digabung per nama pihak -- dipakai
+    tampilkan chip "klik utk pilih" di form Nota mobile, mirror open_piutang/
+    open_hutang yg dikirim ke templates/invoice_form.html web.
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    debt_type = (request.args.get("type") or "PIUTANG").strip().upper()
+    if debt_type not in ("PIUTANG", "HUTANG"):
+        debt_type = "PIUTANG"
+
+    reason = (request.args.get("reason") or "").strip().upper() or None
+    if reason not in (None, "TITIP_DANA", "HUTANG_BARANG"):
+        reason = None
+
+    from core import list_fin_party_balances
+    return mobile_api_response(ok=True, message="OK",
+        data=_clean(list_fin_party_balances(debt_type, reason=reason)))
+
+
+@mobile_finance_bp.route("/finance/party-names", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def party_names():
+    """Daftar semua nama pihak yg pernah dipakai (nota + hutang/piutang) --
+    dipakai LOV "riwayat nama" saat klik field nama di form Nota mobile."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import list_fin_party_names
+    return mobile_api_response(ok=True, message="OK", data=_clean(list_fin_party_names()))
+
+
+@mobile_finance_bp.route("/finance/party-credit", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def party_credit():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    party_name  = request.args.get("party_name") or ""
+    credit_type = (request.args.get("type") or "PIUTANG").strip().upper()
+    if credit_type not in ("PIUTANG", "HUTANG"):
+        credit_type = "PIUTANG"
+
+    from core import find_party_credit
+    credit = find_party_credit(party_name, credit_type)
+    if not credit:
+        return mobile_api_response(ok=True, message="OK", data={"available": 0, "party_name": None})
+    return mobile_api_response(ok=True, message="OK", data=_clean(credit))
+
+
+# ════════════════════════════════════════════════════════════════
+#  PROFIL PERUSAHAAN — logo & nama umum (bukan per akun), sumber
+#  tunggal dipakai web & mobile bersama (company_profile, 1 baris DB).
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/company-profile", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def company_profile_get():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    from core import get_company_profile
+    return mobile_api_response(ok=True, message="OK", data=get_company_profile())
+
+
+@mobile_finance_bp.route("/finance/company-profile", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def company_profile_set():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data          = request.get_json(silent=True) or {}
+    company_name  = (data.get("company_name") or "").strip()
+    address       = (data.get("address") or "").strip()
+    phone         = (data.get("phone") or "").strip()
+    logo_base64   = data.get("logo_base64")
+    logo_mime     = (data.get("logo_mime") or "image/png").strip()
+
+    logo_data_uri = None
+    if logo_base64:
+        if len(logo_base64) > 3_800_000:  # ~2.8MB raw, sama batasnya dgn web
+            return mobile_api_response(ok=False, message="Ukuran logo terlalu besar (maks ~2.8MB).", status_code=400)
+        logo_data_uri = f"data:{logo_mime};base64,{logo_base64}"
+
+    from core import set_company_profile, get_company_profile
+    set_company_profile(
+        company_name or None, logo_data_uri, request.mobile_user.get("id"),
+        address=address or None, phone=phone or None,
+    )
+    return mobile_api_response(ok=True, message="Profil perusahaan tersimpan.", data=get_company_profile())
+
+
+# ════════════════════════════════════════════════════════════════
+#  DRAFT NOTA — dibagikan ke SEMUA admin/owner (mirror /nota web),
+#  supaya nota yang belum selesai diisi bisa dilanjutkan oleh admin
+#  lain, bukan cuma tersimpan lokal di 1 HP.
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/nota-drafts", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def nota_drafts_list():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import list_nota_drafts
+    return mobile_api_response(ok=True, message="OK", data=_clean(list_nota_drafts()))
+
+
+@mobile_finance_bp.route("/finance/nota-drafts/save", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def nota_drafts_save():
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data       = request.get_json(silent=True) or {}
+    nota_type  = data.get("nota_type") or "JUAL"
+    draft_name = data.get("draft_name") or ""
+    form_data  = data.get("form_data") or {}
+
+    from core import save_nota_draft
+    try:
+        draft = save_nota_draft(
+            user_id=request.mobile_user.get("id"),
+            nota_type=nota_type, draft_name=draft_name, form_data=form_data,
+        )
+        return mobile_api_response(ok=True, message="Draft tersimpan, bisa dilihat semua admin.", data=_clean(draft))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+@mobile_finance_bp.route("/finance/nota-drafts/<int:draft_id>/delete", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def nota_drafts_delete(draft_id):
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import delete_nota_draft
+    try:
+        delete_nota_draft(draft_id)
+        return mobile_api_response(ok=True, message="Draft dihapus.", data={"id": draft_id})
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
 
@@ -1051,9 +1300,12 @@ def trip_sell(trip_id):
 
     is_debt = payment_type == "HUTANG"
 
+    from core import _ensure_fin_debts_reason_schema
+
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_debts_reason_schema(cur)
         # Pastikan trip masih OPEN
         cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
         t = cur.fetchone()
@@ -1104,8 +1356,8 @@ def trip_sell(trip_id):
             pname = prow["name"] if prow else "Lapak Jakarta"
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, note)
-                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, note, reason)
+                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s, 'HUTANG_BARANG');
             """, (pname, total, total, f"Jual perjalanan trip#{trip_id}"))
 
         conn.commit()

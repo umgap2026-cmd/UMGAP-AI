@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 import 'cache_service.dart';
+import 'u_kit.dart' show uShowNamePicker;
 
 const _kPrimary     = Color(0xFF1565C0);
 const _kPrimaryMid  = Color(0xFF1E88E5);
@@ -160,12 +161,28 @@ class _AdminAttendanceHistoryPageState extends State<AdminAttendanceHistoryPage>
                 hintText: "Cari nama karyawan...",
                 hintStyle: const TextStyle(color: _kTextLight, fontSize: 13),
                 prefixIcon: const Icon(Icons.search_rounded, color: _kPrimary, size: 20),
-                suffixIcon: searchController.text.isNotEmpty
-                    ? IconButton(
-                  icon: const Icon(Icons.close_rounded, color: _kTextLight, size: 18),
-                  onPressed: () { searchController.clear(); setState(() {}); },
-                )
-                    : null,
+                suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    icon: const Icon(Icons.list_alt_rounded, color: _kPrimary, size: 20),
+                    tooltip: 'Pilih dari daftar karyawan',
+                    onPressed: () async {
+                      final names = attendanceList
+                          .map((e) => readValue(e as Map, ["employee_name", "user_name"]))
+                          .where((n) => n != '-').toList();
+                      final picked = await uShowNamePicker(context,
+                          title: 'Pilih Karyawan', names: names,
+                          allLabel: 'Semua Karyawan');
+                      if (picked != null) {
+                        setState(() => searchController.text = picked);
+                      }
+                    },
+                  ),
+                  if (searchController.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: _kTextLight, size: 18),
+                      onPressed: () { searchController.clear(); setState(() {}); },
+                    ),
+                ]),
                 filled: true,
                 fillColor: _kInputBg,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

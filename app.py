@@ -60,6 +60,8 @@ from routes.mobile.finance import mobile_finance_bp  # ← FINANCE
 from routes.mobile.owner_insight import mobile_owner_bp
 from routes.web.owner import owner_bp
 from routes.mobile.owner_stats import mobile_owner_stats_bp
+from routes.mobile.caption import mobile_caption_bp
+from routes.mobile.content import mobile_content_bp
 
 app = Flask(__name__)
 
@@ -188,6 +190,8 @@ app.register_blueprint(mobile_profile_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_finance_bp, url_prefix="/api/mobile")  # ← FINANCE
 app.register_blueprint(mobile_owner_bp, url_prefix="/api/mobile")
 app.register_blueprint(mobile_owner_stats_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_caption_bp, url_prefix="/api/mobile")
+app.register_blueprint(mobile_content_bp, url_prefix="/api/mobile")
 
 @app.route("/api/mobile/send-reminder", methods=["POST"])
 def send_daily_reminder():

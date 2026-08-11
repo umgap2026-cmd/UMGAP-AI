@@ -1121,6 +1121,22 @@ class ApiService {
     return _asMap(_asMap(res.data)['data']);
   }
 
+  // ── Nota: Edit nota Jual/Beli yang sudah tersimpan ──
+  static Future<Map<String, dynamic>> editNotaInvoice({
+    required int txnId,
+    required Map<String, dynamic> header,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/invoice/$txnId/edit",
+      data: {...header, "items": items},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menyimpan perubahan nota");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
   // ── Nota: Batalkan (kembalikan stok & HPP + hapus hutang/piutang) ──
   static Future<void> invoiceCancel(int txnId) async {
     final headers = await _headers();
@@ -1147,6 +1163,202 @@ class ApiService {
     );
     _ensureOk(res, "Gagal membuat nota");
     return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Finance: Buat Nota Beli resmi (BELI-...) dari stok gudang ──
+  static Future<Map<String, dynamic>> financeCreatePurchaseInvoice({
+    required Map<String, dynamic> header,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final authHeaders = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/purchase-invoice",
+      data: {
+        "header": header,
+        "items":  items,
+      },
+      options: Options(headers: authHeaders),
+    );
+    _ensureOk(res, "Gagal membuat nota beli");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Finance: Daftar saldo hutang/piutang terbuka (chip "klik utk pilih") ──
+  static Future<List<dynamic>> financeListPartyBalances({
+    required String creditType, // 'PIUTANG' | 'HUTANG'
+    String? reason, // 'TITIP_DANA' | 'HUTANG_BARANG' | null (semua)
+  }) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/party-balances",
+      queryParameters: {"type": creditType, if (reason != null) "reason": reason},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal muat daftar saldo");
+    final data = _asMap(res.data)['data'];
+    return data is List ? data : [];
+  }
+
+  // ── Daftar semua nama pihak yg pernah dipakai (LOV riwayat nama) ──
+  static Future<List<dynamic>> financeListPartyNames() async {
+    final headers = await _headers();
+    final res = await dio.get("/api/mobile/finance/party-names",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal memuat riwayat nama");
+    final data = _asMap(res.data)['data'];
+    return data is List ? data : [];
+  }
+
+  // ── Draft Nota Bersama (kelihatan semua admin) ──
+  static Future<List<dynamic>> financeListNotaDrafts() async {
+    final headers = await _headers();
+    final res = await dio.get("/api/mobile/finance/nota-drafts",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal memuat draft nota");
+    final data = _asMap(res.data)['data'];
+    return data is List ? data : [];
+  }
+
+  static Future<Map<String, dynamic>> financeSaveNotaDraft({
+    required String notaType,
+    String draftName = '',
+    required Map<String, dynamic> formData,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/nota-drafts/save",
+      data: {"nota_type": notaType, "draft_name": draftName, "form_data": formData},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menyimpan draft");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  static Future<void> financeDeleteNotaDraft(int id) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/finance/nota-drafts/$id/delete",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal menghapus draft");
+  }
+
+  // ── Finance: Cek saldo hutang/piutang pihak (dipakai sbg DP) ──
+  static Future<Map<String, dynamic>> financeCheckPartyCredit({
+    required String partyName,
+    required String creditType, // 'PIUTANG' | 'HUTANG'
+  }) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/party-credit",
+      queryParameters: {"party_name": partyName, "type": creditType},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal cek saldo");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Profil Perusahaan (umum, bukan per akun) ──
+  static Future<Map<String, dynamic>> getCompanyProfile() async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/company-profile",
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal memuat profil perusahaan");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  static Future<Map<String, dynamic>> updateCompanyProfile({
+    required String name,
+    String? address,
+    String? phone,
+    Uint8List? logoBytes,
+    String? logoMime,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/company-profile",
+      data: {
+        "company_name": name,
+        "address":      address ?? "",
+        "phone":        phone ?? "",
+        if (logoBytes != null) "logo_base64": base64Encode(logoBytes),
+        if (logoBytes != null) "logo_mime":   logoMime ?? "image/png",
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal simpan profil perusahaan");
+    return _asMap(_asMap(res.data)['data']);
+  }
+
+  // ── Caption AI ──────────────────────────────
+  static Future<String> generateCaptionAi({
+    required String product,
+    String price = '',
+    String brand = '',
+    String platform = 'Instagram',
+    String style = 'Santai',
+    String notes = '',
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/caption-ai",
+      data: {
+        "product": product, "price": price, "brand": brand,
+        "platform": platform, "style": style, "notes": notes,
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal membuat caption");
+    return '${_asMap(res.data)['data']['caption'] ?? ''}';
+  }
+
+  // ── Kalender Konten ─────────────────────────
+  static Future<List<dynamic>> contentPlansList() async {
+    final headers = await _headers();
+    final res = await dio.get("/api/mobile/content-plans",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal memuat rencana konten");
+    final data = _asMap(res.data)['data'];
+    return data is List ? data : [];
+  }
+
+  static Future<void> contentPlanAdd({
+    required String planDate,
+    required String platform,
+    required String contentType,
+    String notes = '',
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/content-plans/add",
+      data: {
+        "plan_date": planDate, "platform": platform,
+        "content_type": contentType, "notes": notes,
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menambah rencana konten");
+  }
+
+  static Future<void> contentPlanDone(int id) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/content-plans/$id/done",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal menandai selesai");
+  }
+
+  static Future<void> contentPlanUndo(int id) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/content-plans/$id/undo",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal membatalkan status selesai");
+  }
+
+  static Future<void> contentPlanDelete(int id) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/content-plans/$id/delete",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal menghapus rencana konten");
   }
 
 // ════════════════════════════════════════════

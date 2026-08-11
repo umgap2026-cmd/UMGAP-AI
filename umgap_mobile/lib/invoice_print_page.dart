@@ -1,8 +1,11 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:io' show Platform, File;
 import 'dart:typed_data';
-import 'dart:io' show Platform;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -69,9 +72,7 @@ class InvoicePrintPage extends StatefulWidget {
   final double        grandTotal;
   final List<CartItem> items;
   final bool          isPaid;
-  // ── Nota Beli ──
-  final bool                         isBeli;
-  final List<Map<String, dynamic>>?  beliRawItems; // material_id, qty_kg, price_per_kg, is_return
+  final bool          isBeli;
 
   const InvoicePrintPage({
     super.key,
@@ -88,7 +89,6 @@ class InvoicePrintPage extends StatefulWidget {
     this.reverseSubtotal = 0,
     this.isPaid      = true,
     this.isBeli      = false,
-    this.beliRawItems,
   });
 
   @override
@@ -99,15 +99,15 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   int     _paperWidth = 80;
+  final _thermalKey = GlobalKey();
+  bool    _sharingImage = false;
   bool    _btPrinting = false;
   String? _connectedBt;
-  bool    _dbSaved    = false; // mencegah double-save ke DB
 
   // Company info
   String     _companyName  = '';
   String     _companyAddr  = '';
   String     _companyPhone = '';
-  String     _logoPath     = '';
   Uint8List? _logoBytes;
 
   static const _disclaimer = 'Tidak menerima barang yang bertentangan dengan hukum!';
@@ -120,52 +120,25 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     _loadSettings();
   }
 
-  // ── Load dari FlutterSecureStorage, fallback ke API ──
+  // ── Logo & nama perusahaan — profil umum (bukan per akun/HP),
+  //  sumber tunggal dipakai bersama web (company_profile). ──
   Future<void> _loadSettings() async {
-    // 1. Coba dari secure storage (prioritas)
     try {
-      final name  = await readNotaSetting(kNotaName);
-      final addr  = await readNotaSetting(kNotaAddr);
-      final phone = await readNotaSetting(kNotaPhone);
-      final logo  = await readNotaSetting(kNotaLogo);
-
-      if (mounted && (name.isNotEmpty || addr.isNotEmpty)) {
-        setState(() {
-          if (name.isNotEmpty)  _companyName  = name;
-          if (addr.isNotEmpty)  _companyAddr  = addr;
-          if (phone.isNotEmpty) _companyPhone = phone;
-          _logoPath = logo;
-        });
-      }
-
-      // Load logo bytes untuk PDF
-      if (logo.isNotEmpty) {
-        final f = File(logo);
-        if (await f.exists()) {
-          final bytes = await f.readAsBytes();
+      final p = await ApiService.getCompanyProfile();
+      if (!mounted) return;
+      setState(() {
+        _companyName  = (p['company_name'] ?? '').toString();
+        _companyAddr  = (p['address'] ?? '').toString();
+        _companyPhone = (p['phone'] ?? '').toString();
+      });
+      final uri = (p['logo_data_uri'] ?? '').toString();
+      if (uri.startsWith('data:') && uri.contains('base64,')) {
+        try {
+          final bytes = base64Decode(uri.split('base64,').last);
           if (mounted) setState(() => _logoBytes = bytes);
-        }
+        } catch (_) {}
       }
     } catch (_) {}
-
-    // 2. Jika nama masih kosong, fallback ke API profile
-    if (_companyName.isEmpty) {
-      try {
-        final p = await ApiService.getMyProfile();
-        if (!mounted) return;
-        setState(() {
-          if (_companyName.isEmpty)
-            _companyName = (p['company_name'] ?? p['full_name'] ?? '')
-                .toString().trim();
-          if (_companyAddr.isEmpty)
-            _companyAddr = (p['address'] ?? p['alamat'] ?? '')
-                .toString().trim();
-          if (_companyPhone.isEmpty)
-            _companyPhone = (p['phone'] ?? p['hp'] ?? '')
-                .toString().trim();
-        });
-      } catch (_) {}
-    }
   }
 
   @override
@@ -1059,107 +1032,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   Color get _themeLight => widget.isBeli
       ? const Color(0xFF00897B) : const Color(0xFF1E88E5);
 
-  // ══════════════════════════════════════════════
-  //  CATAT KE DATABASE (manual button)
-  //  JUAL  → financeJual (kirim ke laporan)
-  //  BELI  → financeBeli (tambah stok + HPP)
-  // ══════════════════════════════════════════════
-  Future<void> _sendToDb() async {
-    if (_dbSaved) {
-      _snack('Sudah pernah dicatat ke database');
-      return;
-    }
-
-    final isBeli  = widget.isBeli;
-    final title   = isBeli ? 'Catat ke Stok Gudang?' : 'Kirim ke Laporan?';
-    final icon    = isBeli ? Icons.add_box_rounded : Icons.account_balance_wallet_rounded;
-    final color   = isBeli ? const Color(0xFF00796B) : const Color(0xFF1565C0);
-    final content = isBeli
-        ? 'Stok gudang & HPP akan diperbarui untuk ${widget.items.length} '
-        'barang senilai ${_rp(widget.grandTotal)}.\n\n'
-        'Supplier: ${widget.customerName}'
-        : 'Catat penjualan "${widget.customerName.isNotEmpty
-        ? widget.customerName : 'Customer'}" '
-        'sebesar ${_rp(widget.grandTotal)} ke laporan keuangan?';
-    final btnLabel = isBeli ? 'Catat ke Gudang' : 'Kirim';
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: Row(children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title)),  // ← tambah Expanded
-        ]),
-        content: Text(content),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: color,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10))),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(btnLabel,
-                style: const TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-
-    try {
-      if (isBeli) {
-        // ── BELI: tambah stok + HPP via financeBeli ──
-        final rawItems = widget.beliRawItems ?? widget.items.map((i) => {
-          'material_id':  i.productId,
-          'qty_kg':       i.qty,
-          'price_per_kg': i.price,
-          'is_return':    i.isReturn,
-        }).toList();
-
-        await ApiService.financeBeli(
-          partyName: widget.customerName.isNotEmpty
-              ? widget.customerName : 'Supplier',
-          isDebt: !widget.isPaid,
-          note:   '${widget.invoiceNo} - ${widget.paymentMethod}',
-          items:  rawItems,
-        );
-        if (!mounted) return;
-        setState(() => _dbSaved = true);
-        _snack('✓ Stok & HPP gudang berhasil diperbarui');
-      } else {
-        // ── JUAL: buat invoice + kurangi stok ──
-        await ApiService.financeCreateInvoice(
-          header: {
-            'customer_name':  widget.customerName,
-            'customer_phone': widget.customerPhone,
-            'payment_method': widget.paymentMethod,
-            'notes':          widget.notes,
-            'discount':       widget.discount.toInt(),
-            'is_paid':        widget.isPaid ? '1' : '0',
-          },
-          items: widget.items.map((i) => {
-            'material_id': i.productId,
-            'qty':         i.qty,
-            'price':       i.price,
-            'is_return':   i.isReturn,
-          }).toList(),
-        );
-        if (!mounted) return;
-        setState(() => _dbSaved = true);
-        _snack('✓ Berhasil dicatat ke laporan keuangan');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _snack('Gagal catat: $e', isError: true);
-    }
-  }
-
   Future<void> _shareProfessionalPdf() async {
     try {
       final bytes = await _buildProfessionalPdf();
@@ -1204,6 +1076,32 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
           filename: 'Thermal_${widget.invoiceNo}.pdf');
     } catch (e) {
       if (mounted) _snack('Gagal buat PDF: $e', isError: true);
+    }
+  }
+
+  // ── Share nota sbg gambar (PNG) ──
+  Future<void> _shareThermalImage() async {
+    setState(() => _sharingImage = true);
+    try {
+      await Future.delayed(const Duration(milliseconds: 100));
+      final boundary = _thermalKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/Nota_${widget.invoiceNo.replaceAll('/', '-')}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        subject: 'Nota ${widget.invoiceNo}',
+        text: 'Nota ${widget.invoiceNo}',
+      );
+    } catch (e) {
+      if (mounted) _snack('Gagal share gambar: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _sharingImage = false);
     }
   }
 
@@ -1358,18 +1256,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                     ),
                   ),
                   const SizedBox(height: 8),
-                ] else if (_logoPath.isNotEmpty &&
-                    File(_logoPath).existsSync()) ...[
-                  Center(
-                    child: SizedBox(
-                      height: 52,
-                      child: Image.file(
-                        File(_logoPath),
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                 ],
 
                 // Baris-baris teks
@@ -1459,59 +1345,21 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                           fontSize: 11, fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (_dbSaved) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('✓ Tersimpan',
-                              style: TextStyle(color: Colors.white,
-                                  fontSize: 9, fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ],
+                        child: const Text('✓ Tersimpan',
+                            style: TextStyle(color: Colors.white,
+                                fontSize: 9, fontWeight: FontWeight.w700)),
+                      ),
                     ]),
                   ],
                 )),
-                // ── Tombol Catat ke DB (manual) ──────
-                IconButton(
-                  icon: Icon(
-                    widget.isBeli
-                        ? Icons.add_box_rounded
-                        : Icons.send_rounded,
-                    color: _dbSaved
-                        ? Colors.white38
-                        : Colors.white,
-                    size: 20,
-                  ),
-                  tooltip: widget.isBeli
-                      ? (_dbSaved ? 'Sudah dicatat' : 'Catat ke Stok Gudang')
-                      : (_dbSaved ? 'Sudah dikirim' : 'Kirim ke Laporan'),
-                  onPressed: _dbSaved ? null : _sendToDb,
-                ),
-                // ── Edit nota ────────────────────────
-                IconButton(
-                  icon: const Icon(Icons.edit_rounded,
-                      color: Colors.white, size: 20),
-                  tooltip: 'Edit Nota',
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => InvoicePage(
-                        initName:      widget.customerName,
-                        initPhone:     widget.customerPhone,
-                        initPayMethod: widget.paymentMethod,
-                        initNotes:     widget.notes,
-                        initDiscount:  widget.discount,
-                        initIsPaid:    widget.isPaid,
-                        initCart:      widget.items,
-                      ),
-                    ),
-                  ),
-                ),
                 if (_connectedBt != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -1586,7 +1434,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(20),
-                child: _buildThermalPreview(),
+                child: RepaintBoundary(
+                  key: _thermalKey,
+                  child: Container(color: Colors.white, child: _buildThermalPreview()),
+                ),
               ),
             )),
             _ActionBar(children: [
@@ -1603,6 +1454,14 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 label: 'PDF\nThermal',
                 color: const Color(0xFF00838F),
                 onTap: _shareThermalPdf,
+              )),
+              const SizedBox(width: 10),
+              Expanded(flex: 2, child: _ActionBtn(
+                icon: _sharingImage ? null : Icons.image_rounded,
+                label: _sharingImage ? 'Memproses...' : 'Share\nGambar',
+                color: const Color(0xFF6D28D9),
+                loading: _sharingImage,
+                onTap: _sharingImage ? null : _shareThermalImage,
               )),
             ]),
           ]),

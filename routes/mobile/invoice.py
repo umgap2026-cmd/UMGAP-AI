@@ -425,3 +425,53 @@ def mobile_invoice_full_detail(txn_id):
         import traceback
         print(f"[INVOICE FULL DETAIL] Error: {traceback.format_exc()}")
         return mobile_api_response(ok=False, message=str(e), status_code=500)
+
+
+@mobile_invoice_bp.route("/invoice/<int:txn_id>/edit", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_invoice_edit(txn_id):
+    """
+    Edit nota Jual/Beli yang sudah ada -- versi mobile dari /nota/<id>/edit
+    web, pakai fungsi core yg SAMA (update_fin_invoice_transaction) supaya
+    hasilnya identik (stok/HPP/hutang-piutang lama dibalik, lalu diterapkan
+    ulang dari item baru). Tidak bisa dipakai kalau nota sudah ada
+    cicilan/pembayaran atau sudah dibatalkan/dihapus (lihat ValueError dari
+    fungsi core). Tanggal & pakai-saldo TIDAK bisa diubah lewat edit (sama
+    seperti web) -- kalau perlu itu, batalkan & buat nota baru.
+    Body JSON: {customer_name, customer_phone, payment_method, notes,
+                is_paid, adjustments, items}
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    role = (request.mobile_user.get("role") or "").strip().lower()
+    if role not in ("admin", "owner"):
+        return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
+
+    data           = request.get_json(silent=True) or {}
+    customer_name  = data.get("customer_name")
+    customer_phone = data.get("customer_phone")
+    payment_method = data.get("payment_method") or "CASH"
+    notes          = data.get("notes")
+    is_paid        = str(data.get("is_paid", "1")) == "1"
+    adjustments    = data.get("adjustments") or []
+    items          = data.get("items") or []
+
+    from core import update_fin_invoice_transaction
+    try:
+        result = update_fin_invoice_transaction(
+            txn_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            payment_method=payment_method,
+            notes=notes,
+            discount=0,
+            is_paid=is_paid,
+            items=items,
+            edited_by=request.mobile_user.get("id"),
+            adjustments=adjustments,
+        )
+        from routes.mobile.finance import _clean
+        return mobile_api_response(ok=True, message="Nota berhasil diperbarui.", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
