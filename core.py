@@ -5078,6 +5078,7 @@ def get_fin_daily_report(report_date):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_trip_items_cost_column(conn, cur)
+        _ensure_transaction_cancel_columns(cur)
         conn.commit()
         cur.execute("""
             SELECT
@@ -5094,7 +5095,7 @@ def get_fin_daily_report(report_date):
             FROM fin_transactions t
             LEFT JOIN fin_transaction_items i ON i.transaction_id = t.id
             LEFT JOIN fin_materials m ON m.id = i.material_id
-            WHERE t.created_at::date = %s
+            WHERE t.created_at::date = %s AND t.cancelled_at IS NULL
             GROUP BY t.id
             ORDER BY t.created_at DESC;
         """, (report_date,))
@@ -5159,6 +5160,7 @@ def get_fin_daily_report(report_date):
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date = %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
+              AND t.cancelled_at IS NULL
               AND i.material_id IS NOT NULL;
         """, (report_date,))
         hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
@@ -5637,10 +5639,13 @@ def get_fin_weekly_report(week_start, week_end):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_transaction_cancel_columns(cur)
+        conn.commit()
         cur.execute("""
             SELECT type, SUM(total_amount) AS total, COUNT(*) AS count
             FROM fin_transactions
             WHERE created_at::date >= %s AND created_at::date <= %s
+              AND cancelled_at IS NULL
             GROUP BY type;
         """, (week_start, week_end))
         by_type = {r["type"]: dict(r) for r in cur.fetchall()}
@@ -5666,6 +5671,7 @@ def get_fin_weekly_report(week_start, week_end):
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.created_at::date >= %s AND t.created_at::date <= %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
+              AND t.cancelled_at IS NULL
               AND i.material_id IS NOT NULL;
         """, (week_start, week_end))
         hpp = float((cur.fetchone() or {}).get("hpp", 0))
@@ -5681,6 +5687,7 @@ def get_fin_weekly_report(week_start, week_end):
                 SUM(CASE WHEN type = 'PENGELUARAN'  THEN total_amount ELSE 0 END) AS biaya
             FROM fin_transactions
             WHERE created_at::date >= %s AND created_at::date <= %s
+              AND cancelled_at IS NULL
             GROUP BY hari ORDER BY hari;
         """, (week_start, week_end))
         per_hari = [dict(r) for r in cur.fetchall()]
