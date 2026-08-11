@@ -814,8 +814,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   // ══════════════════════════════════════════
   //  ESC/POS BYTES untuk Bluetooth
   //  ATURAN PRINT AMAN:
-  //  • cut(mode: PosCutMode.full) -- sudah include feed 5 baris bawaan,
-  //    jangan tambah feed manual lagi sblm cut (boros kertas)
+  //  • potong kertas manual (emptyLines(2) + GS V 48), BUKAN generator.cut()
+  //    -- generator.cut() bawaan library feed 5 baris kosong dulu (boros)
   //  • delay(1500ms) sebelum disconnect
   //  • guard _btPrinting
   // ══════════════════════════════════════════
@@ -974,9 +974,12 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     bytes += generator.text(_poweredBy,
         styles: const PosStyles(align: PosAlign.center));
 
-    // cut() sudah feed 5 baris kosong bawaan sblm motong kertas --
-    // jangan tambah feed manual lagi di sini, itu yg bikin boros kertas.
-    bytes += generator.cut(mode: PosCutMode.full);
+    // generator.cut() bawaan library feed 5 baris kosong dulu sblm potong --
+    // itu yg bikin kertas kosong kepanjangan. Ganti manual: cukup 2 baris
+    // (masih aman drpd kepotong nyangkut ke tulisan), lalu kirim langsung
+    // perintah potong (GS V 48 = full cut) tanpa lewat generator.cut().
+    bytes += generator.emptyLines(2);
+    bytes += Uint8List.fromList(const [0x1D, 0x56, 0x30]); // GS V '0' = full cut
 
     return bytes;
   }
