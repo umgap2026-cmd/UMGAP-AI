@@ -142,6 +142,8 @@ def add_mobile_api_headers(response):
 # ------ REGISTER WEB -----
 app.register_blueprint(system_bp)
 app.register_blueprint(auth_bp)
+from routes.web.biofinger_push import biofinger_push_bp
+app.register_blueprint(biofinger_push_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(attendance_bp)
 app.register_blueprint(admin_bp)
