@@ -5043,20 +5043,33 @@ def delete_fin_debt(debt_id):
         conn.close()
 
 
-def merge_all_duplicate_fin_debts(debt_type):
+def merge_fin_debts(debt_ids, party_name=None, note=None):
     """
-    Gabungkan SEMUA kelompok hutang/piutang TERBUKA (belum lunas) yang nama
-    pihaknya sama (case/whitespace-insensitive, ada >1 baris) jadi SATU
-    baris per pihak -- mis. kalau "Bpk Budi" punya 3 entri terpisah dari
-    3 nota berbeda, digabung jadi 1 baris dgn amount/paid_amount/remaining
-    dijumlah. Baris hasil gabungan `transaction_id`-nya di-NULL-kan (tidak
-    ditautkan ke satu nota manapun) supaya tidak ikut kehapus kalau salah
-    satu nota asalnya nanti dihapus permanen (purge_fin_transaction).
-    Return dict {merged_parties, merged_rows}.
+    Gabungkan baris-baris hutang/piutang TERTENTU yang DIPILIH MANUAL oleh
+    admin (lewat checklist di UI -- BUKAN otomatis berdasar kecocokan nama
+    persis), jadi SATU baris. Baris yang dipilih boleh nama-nya berbeda
+    (mis. "Bpk Budi" vs "Pak Budi" yg sebenarnya orang yang sama) -- admin
+    menentukan/mengedit nama & catatan akhir hasil gabungan; `note` kalau
+    dikirim (termasuk string kosong) dipakai APA ADANYA (admin boleh
+    mengedit gabungan otomatis atau menulis catatan baru dari nol), kalau
+    None (tidak dikirim sama sekali) baru di-gabung otomatis dari catatan
+    baris-baris asal.
+
+    Baris hasil gabungan `transaction_id`-nya di-NULL-kan (tidak ditautkan
+    ke satu nota manapun) supaya tidak ikut kehapus kalau salah satu nota
+    asalnya nanti dihapus permanen (purge_fin_transaction).
+
+    Return dict {merged_count, kept_id, remaining}. Raise ValueError kalau
+    kurang dari 2 baris valid dipilih, atau baris yang dipilih campur
+    Hutang & Piutang.
     """
-    debt_type = (debt_type or "").strip().upper()
-    if debt_type not in ("HUTANG", "PIUTANG"):
-        raise ValueError("Jenis tidak valid.")
+    try:
+        debt_ids = [int(d) for d in (debt_ids or []) if str(d).strip()]
+    except (TypeError, ValueError):
+        raise ValueError("Data yang dipilih tidak valid.")
+    debt_ids = list(dict.fromkeys(debt_ids))  # buang duplikat, jaga urutan
+    if len(debt_ids) < 2:
+        raise ValueError("Pilih minimal 2 baris untuk digabung.")
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5064,55 +5077,53 @@ def merge_all_duplicate_fin_debts(debt_type):
         _ensure_fin_debts_reason_schema(cur)
         conn.commit()
         cur.execute("""
-            SELECT LOWER(TRIM(party_name)) AS norm_name, COUNT(*) AS cnt
+            SELECT id, type, party_name, amount, paid_amount, remaining, note, reason
             FROM fin_debts
-            WHERE type = %s AND is_settled = FALSE
-              AND party_name IS NOT NULL AND TRIM(party_name) <> ''
-            GROUP BY LOWER(TRIM(party_name))
-            HAVING COUNT(*) > 1;
-        """, (debt_type,))
-        groups = cur.fetchall()
+            WHERE id = ANY(%s) AND is_settled = FALSE
+            ORDER BY created_at ASC
+            FOR UPDATE;
+        """, (debt_ids,))
+        rows = cur.fetchall()
+        if len(rows) < 2:
+            raise ValueError("Sebagian data yang dipilih tidak ditemukan atau sudah lunas.")
+        if len(rows) != len(debt_ids):
+            raise ValueError("Sebagian data yang dipilih tidak ditemukan atau sudah lunas.")
+        if len({r["type"] for r in rows}) > 1:
+            raise ValueError("Tidak bisa menggabung Hutang dan Piutang sekaligus -- pilih jenis yang sama.")
 
-        merged_parties = 0
-        merged_rows = 0
-        for g in groups:
-            cur.execute("""
-                SELECT id, amount, paid_amount, remaining, note, reason
-                FROM fin_debts
-                WHERE type = %s AND is_settled = FALSE AND LOWER(TRIM(party_name)) = %s
-                ORDER BY created_at ASC
-                FOR UPDATE;
-            """, (debt_type, g["norm_name"]))
-            rows = cur.fetchall()
-            if len(rows) <= 1:
-                continue
+        total_amount = sum(float(r["amount"] or 0) for r in rows)
+        total_paid = sum(float(r["paid_amount"] or 0) for r in rows)
+        total_remaining = sum(float(r["remaining"] or 0) for r in rows)
+        keep = rows[0]
 
-            total_amount = sum(float(r["amount"] or 0) for r in rows)
-            total_paid = sum(float(r["paid_amount"] or 0) for r in rows)
-            total_remaining = sum(float(r["remaining"] or 0) for r in rows)
-            keep = rows[0]
-            reasons = {r["reason"] for r in rows if r["reason"]}
-            reason = reasons.pop() if len(reasons) == 1 else None
+        final_name = (party_name or "").strip() or keep["party_name"]
+
+        reasons = {r["reason"] for r in rows if r["reason"]}
+        reason = reasons.pop() if len(reasons) == 1 else None
+
+        if note is not None:
+            final_note = note.strip() or None
+        else:
             seen_notes = dict.fromkeys(
                 (r["note"] or "").strip() for r in rows if (r["note"] or "").strip())
-            notes = "; ".join(seen_notes)
+            final_note = "; ".join(seen_notes) or None
 
-            cur.execute("""
-                UPDATE fin_debts
-                SET amount = %s, paid_amount = %s, remaining = %s, note = %s,
-                    reason = %s, transaction_id = NULL,
-                    is_settled = %s
-                WHERE id = %s;
-            """, (total_amount, total_paid, total_remaining, notes or None, reason,
-                  total_remaining <= 0.01, keep["id"]))
+        cur.execute("""
+            UPDATE fin_debts
+            SET party_name = %s, amount = %s, paid_amount = %s, remaining = %s,
+                note = %s, reason = %s, transaction_id = NULL, is_settled = %s
+            WHERE id = %s;
+        """, (final_name, total_amount, total_paid, total_remaining, final_note, reason,
+              total_remaining <= 0.01, keep["id"]))
 
-            other_ids = [r["id"] for r in rows[1:]]
-            cur.execute("DELETE FROM fin_debts WHERE id = ANY(%s);", (other_ids,))
-            merged_parties += 1
-            merged_rows += len(rows) - 1
+        other_ids = [r["id"] for r in rows[1:]]
+        cur.execute("DELETE FROM fin_debts WHERE id = ANY(%s);", (other_ids,))
 
         conn.commit()
-        return {"merged_parties": merged_parties, "merged_rows": merged_rows}
+        return {"merged_count": len(rows), "kept_id": keep["id"], "remaining": total_remaining}
+    except ValueError:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise ValueError(f"Gagal menggabungkan: {e}")

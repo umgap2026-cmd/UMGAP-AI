@@ -274,6 +274,25 @@
   .reason-badge { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-top: 4px; }
   .reason-badge.titip { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
   .reason-badge.barang { background: rgba(120, 53, 15, 0.10); color: #92400e; }
+
+  /* Mode gabung hutang/piutang -- checklist manual */
+  .merge-check-wrap { display: none; align-items: center; gap: 6px; margin-bottom: 8px;
+    font-size: 12px; font-weight: 700; color: var(--blue); cursor: pointer; }
+  .merge-check-wrap input { width: 16px; height: 16px; accent-color: var(--blue); cursor: pointer; }
+  .merge-th, .merge-td { display: none; text-align: center !important; }
+  .tab-panel.merge-mode .merge-check-wrap { display: flex; }
+  .tab-panel.merge-mode .merge-th, .tab-panel.merge-mode .merge-td { display: table-cell; }
+  .tab-panel.merge-mode .item-row { border: 1.5px dashed rgba(37, 99, 235, 0.25); }
+  .merge-bar { position: sticky; bottom: 12px; margin-top: 10px; background: var(--blue);
+    color: #fff; border-radius: 14px; padding: 10px 16px; display: none;
+    align-items: center; justify-content: space-between; gap: 10px;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35); font-size: 13px; font-weight: 700; z-index: 5; }
+  .tab-panel.merge-mode .merge-bar.has-selection { display: flex; }
+  .merge-bar button { border: none; border-radius: 10px; padding: 8px 14px; font-weight: 800;
+    font-size: 12px; cursor: pointer; }
+  .merge-bar .btn-do-merge { background: #fff; color: var(--blue); }
+  .merge-bar .btn-do-merge:disabled { opacity: 0.5; cursor: not-allowed; }
+  .merge-bar .btn-cancel-merge { background: rgba(255,255,255,0.15); color: #fff; }
   .item-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .item-actions form { display: flex; gap: 6px; align-items: center; flex: 1 1 auto; }
   .item-actions input[type="number"], .item-actions input[type="text"] { padding: 9px 10px; font-size: 12px; }
@@ -612,11 +631,7 @@
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }} &bull; {{ debts.hutang|length }} transaksi belum lunas</div>
           </div>
           <div style="display:flex; gap:8px;">
-            <form method="post" action="/finance/debts/merge-duplicates"
-                  onsubmit="return confirm('Gabungkan semua hutang dengan nama pihak yang sama jadi satu baris?');">
-              <input type="hidden" name="type" value="HUTANG" />
-              <button type="submit" class="pill-btn">🔗 Gabung Duplikat</button>
-            </form>
+            <button type="button" class="pill-btn btn-toggle-merge" data-type="HUTANG">🔗 Gabung</button>
             <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
           </div>
         </div>
@@ -672,6 +687,11 @@
       <div class="item-list mobile-only">
         {% for d in debts.hutang %}
         <div class="item-row red fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
+          <label class="merge-check-wrap">
+            <input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" />
+            <span>Pilih utk digabung</span>
+          </label>
           <div class="item-top">
             <div>
               <div class="item-name">{{ d.party_name or "-" }}</div>
@@ -703,11 +723,13 @@
         {% if debts.hutang %}
         <table>
           <thead>
-            <tr><th>Pemasok</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Alasan</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Bayar / Cicil</th><th></th></tr>
+            <tr><th class="merge-th">Gabung</th><th>Pemasok</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Alasan</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Bayar / Cicil</th><th></th></tr>
           </thead>
           <tbody>
             {% for d in debts.hutang %}
             <tr>
+              <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -739,6 +761,13 @@
         {% endif %}
       </div>
     </div>
+    <div class="merge-bar" id="mergeBarHutang">
+      <span><span class="merge-count">0</span> dipilih</span>
+      <div>
+        <button type="button" class="btn-cancel-merge" data-type="HUTANG">Batal</button>
+        <button type="button" class="btn-do-merge" data-type="HUTANG" disabled>Gabungkan</button>
+      </div>
+    </div>
     </div>
     <!-- /tab-panel hutang -->
 
@@ -752,11 +781,7 @@
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }} &bull; {{ debts.piutang|length }} transaksi belum dibayar</div>
           </div>
           <div style="display:flex; gap:8px;">
-            <form method="post" action="/finance/debts/merge-duplicates"
-                  onsubmit="return confirm('Gabungkan semua piutang dengan nama pihak yang sama jadi satu baris?');">
-              <input type="hidden" name="type" value="PIUTANG" />
-              <button type="submit" class="pill-btn">🔗 Gabung Duplikat</button>
-            </form>
+            <button type="button" class="pill-btn btn-toggle-merge" data-type="PIUTANG">🔗 Gabung</button>
             <button type="button" class="pill-btn wa" id="btnSharePiutang">💬 Share ke WA</button>
           </div>
         </div>
@@ -812,6 +837,11 @@
       <div class="item-list mobile-only">
         {% for d in debts.piutang %}
         <div class="item-row green fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
+          <label class="merge-check-wrap">
+            <input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" />
+            <span>Pilih utk digabung</span>
+          </label>
           <div class="item-top">
             <div>
               <div class="item-name">{{ d.party_name or "-" }}</div>
@@ -843,11 +873,13 @@
         {% if debts.piutang %}
         <table>
           <thead>
-            <tr><th>Pelanggan</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Alasan</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Terima Pembayaran</th><th></th></tr>
+            <tr><th class="merge-th">Gabung</th><th>Pelanggan</th><th>Total</th><th>Sudah Dibayar</th><th>Sisa</th><th>Alasan</th><th>Catatan</th><th>Tanggal</th><th style="min-width: 220px">Terima Pembayaran</th><th></th></tr>
           </thead>
           <tbody>
             {% for d in debts.piutang %}
             <tr>
+              <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -877,6 +909,13 @@
         {% else %}
         <p class="empty-hint">Tidak ada piutang dari pelanggan.</p>
         {% endif %}
+      </div>
+    </div>
+    <div class="merge-bar" id="mergeBarPiutang">
+      <span><span class="merge-count">0</span> dipilih</span>
+      <div>
+        <button type="button" class="btn-cancel-merge" data-type="PIUTANG">Batal</button>
+        <button type="button" class="btn-do-merge" data-type="PIUTANG" disabled>Gabungkan</button>
       </div>
     </div>
     </div>
@@ -1117,6 +1156,25 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="mergeDebtModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">Gabungkan <span id="mergeDebtCount"></span> Baris</div>
+      <button type="button" class="modal-close" onclick="closeMergeDebtModal()">✕</button>
+    </div>
+    <form method="post" action="/finance/debts/merge" id="mergeDebtForm">
+      <input type="hidden" name="debt_ids" id="mergeDebtIdsInp" />
+      <label style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block">Nama Gabungan</label>
+      <input type="text" name="party_name" id="mergeDebtNameInp" placeholder="Nama" required />
+      <label style="font-size:12px; font-weight:700; color:var(--muted); margin:10px 0 4px; display:block">
+        Catatan (bisa edit hasil gabungan otomatis, atau hapus &amp; tulis baru)
+      </label>
+      <textarea name="note" id="mergeDebtNoteInp" rows="3" placeholder="Catatan…" style="width:100%; resize:vertical"></textarea>
+      <button type="submit" class="pill-btn primary" style="width:100%; padding:12px; margin-top:12px">Gabungkan Sekarang</button>
+    </form>
+  </div>
+</div>
+
 <script>
   // Tanggal Otomatis (Hari Ini) / Atur Manual -- dipakai form Hutang,
   // Piutang & Beban. "auto" = kosongkan input tanggal (backend otomatis
@@ -1291,6 +1349,76 @@
       editDebtOverlay.classList.add("open");
     };
 
+    // Mode Gabung Hutang/Piutang -- checklist manual (bukan otomatis)
+    var mergeDebtOverlay = document.getElementById("mergeDebtModalOverlay");
+    window.closeMergeDebtModal = function () { mergeDebtOverlay.classList.remove("open"); };
+    mergeDebtOverlay.addEventListener("click", function (e) {
+      if (e.target === mergeDebtOverlay) closeMergeDebtModal();
+    });
+    var mergeDebtIdsInp = document.getElementById("mergeDebtIdsInp");
+    var mergeDebtNameInp = document.getElementById("mergeDebtNameInp");
+    var mergeDebtNoteInp = document.getElementById("mergeDebtNoteInp");
+    var mergeDebtCount = document.getElementById("mergeDebtCount");
+
+    function getMergePanel(type) {
+      return document.querySelector('.tab-panel[data-tab-panel="' + (type === "HUTANG" ? "hutang" : "piutang") + '"]');
+    }
+    function updateMergeBar(type) {
+      var panel = getMergePanel(type);
+      if (!panel) return;
+      var checks = panel.querySelectorAll(".debt-merge-check:checked");
+      var bar = document.getElementById(type === "HUTANG" ? "mergeBarHutang" : "mergeBarPiutang");
+      bar.querySelector(".merge-count").textContent = checks.length;
+      bar.classList.toggle("has-selection", checks.length > 0);
+      bar.querySelector(".btn-do-merge").disabled = checks.length < 2;
+    }
+    document.querySelectorAll(".btn-toggle-merge").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        var entering = !panel.classList.contains("merge-mode");
+        panel.classList.toggle("merge-mode", entering);
+        if (!entering) {
+          panel.querySelectorAll(".debt-merge-check:checked").forEach(function (c) { c.checked = false; });
+        }
+        updateMergeBar(type);
+      });
+    });
+    document.querySelectorAll(".btn-cancel-merge").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        panel.classList.remove("merge-mode");
+        panel.querySelectorAll(".debt-merge-check:checked").forEach(function (c) { c.checked = false; });
+        updateMergeBar(type);
+      });
+    });
+    document.addEventListener("change", function (e) {
+      if (e.target.classList && e.target.classList.contains("debt-merge-check")) {
+        updateMergeBar(e.target.getAttribute("data-type"));
+      }
+    });
+    document.querySelectorAll(".btn-do-merge").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
+        if (checks.length < 2) return;
+        var ids = checks.map(function (c) { return c.value; });
+        var names = checks.map(function (c) { return c.getAttribute("data-name") || ""; }).filter(Boolean);
+        var seenNotes = [];
+        checks.forEach(function (c) {
+          var n = (c.getAttribute("data-note") || "").trim();
+          if (n && seenNotes.indexOf(n) === -1) seenNotes.push(n);
+        });
+        mergeDebtIdsInp.value = ids.join(",");
+        mergeDebtNameInp.value = names[0] || "";
+        mergeDebtNoteInp.value = seenNotes.join("; ");
+        mergeDebtCount.textContent = checks.length;
+        mergeDebtOverlay.classList.add("open");
+      });
+    });
+
     document.addEventListener("click", function (e) {
       var btn;
       if ((btn = e.target.closest(".btn-open-edit"))) {
@@ -1322,6 +1450,7 @@
       closeEditModal();
       closeEditExpenseModal();
       closeEditDebtModal();
+      closeMergeDebtModal();
     });
 
     // Tab switch: Barang Gudang / Hutang / Piutang -- supaya Hutang & Piutang

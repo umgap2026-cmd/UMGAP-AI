@@ -7,7 +7,7 @@ from core import (
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
-    merge_all_duplicate_fin_debts,
+    merge_fin_debts,
     list_fin_party_names,
     list_fin_categories, list_fin_activity_log,
     create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
@@ -246,23 +246,22 @@ def finance_debts_delete(debt_id):
     return redirect("/finance")
 
 
-@finance_bp.route("/finance/debts/merge-duplicates", methods=["POST"])
-def finance_debts_merge_duplicates():
+@finance_bp.route("/finance/debts/merge", methods=["POST"])
+def finance_debts_merge():
     deny = owner_or_admin_required()
     if deny:
         return deny
 
-    debt_type = (request.form.get("type") or "").strip().upper()
+    debt_ids = [d for d in (request.form.get("debt_ids") or "").split(",") if d.strip()]
+    party_name = request.form.get("party_name")
+    # Field catatan SENGAJA selalu dikirim dari form (biar admin bisa edit
+    # gabungan otomatis atau ganti total dgn catatan baru) -- kosongkan
+    # kalau memang mau kosong, bukan "tidak diisi".
+    note = request.form.get("note")
+
     try:
-        result = merge_all_duplicate_fin_debts(debt_type)
-        if result["merged_parties"] > 0:
-            flash(
-                f"{result['merged_parties']} nama digabung "
-                f"({result['merged_rows']} baris duplikat disatukan).",
-                "success",
-            )
-        else:
-            flash("Tidak ada duplikat nama yang perlu digabung.", "success")
+        result = merge_fin_debts(debt_ids, party_name=party_name, note=note)
+        flash(f"{result['merged_count']} baris berhasil digabung jadi 1.", "success")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")
