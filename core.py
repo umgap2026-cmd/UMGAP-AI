@@ -331,7 +331,10 @@ def send_email(to_email, subject, body):
 # =========================
 def _ensure_transaction_cancel_columns(cur):
     """Lazy-migration: pastikan kolom pembatalan nota tersedia di fin_transactions.
-    Dipakai bersama oleh routes/mobile/finance.py dan routes/mobile/invoice.py."""
+    Dipakai bersama oleh routes/mobile/finance.py dan routes/mobile/invoice.py.
+    `credit_applied` (baru): jumlah saldo pihak lain yg dipotong (dipakai sbg
+    DP) saat nota ini dibuat -- disimpan supaya `cancel_fin_transaction` tahu
+    persis berapa yg harus dikembalikan kalau nota ini dibatalkan."""
     cur.execute("""
         ALTER TABLE fin_transactions
             ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL,
@@ -339,7 +342,8 @@ def _ensure_transaction_cancel_columns(cur):
             ADD COLUMN IF NOT EXISTS print_size VARCHAR(20) NULL,
             ADD COLUMN IF NOT EXISTS delete_reason TEXT NULL,
             ADD COLUMN IF NOT EXISTS delete_mode VARCHAR(20) NULL,
-            ADD COLUMN IF NOT EXISTS related_transaction_id INTEGER NULL;
+            ADD COLUMN IF NOT EXISTS related_transaction_id INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS credit_applied NUMERIC(14,2) NULL;
     """)
 
 
@@ -2457,13 +2461,14 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount, created_at)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at, credit_applied)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             customer_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc,
+            credit_amount if credit_amount > 0 else None
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -2677,13 +2682,14 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount, created_at)
-            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at, credit_applied)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             supplier_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
-            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc
+            is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc,
+            credit_amount if credit_amount > 0 else None
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -3313,9 +3319,10 @@ def cancel_fin_transaction(txn_id, cancelled_by):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_debts_reason_schema(cur)
 
         cur.execute("""
-            SELECT id, type, party_name, is_debt, total_amount, cancelled_at
+            SELECT id, type, party_name, is_debt, total_amount, cancelled_at, credit_applied
             FROM fin_transactions WHERE id = %s FOR UPDATE;
         """, (txn_id,))
         txn = cur.fetchone()
@@ -3326,9 +3333,13 @@ def cancel_fin_transaction(txn_id, cancelled_by):
         if txn["cancelled_at"] is not None:
             raise ValueError("Nota ini sudah pernah dibatalkan.")
 
+        # Nota bisa punya lebih dari 1 baris fin_debts (mis. dp_excess DAN
+        # debt tercatat terpisah, atau sisa dari edit sebelumnya) -- ambil
+        # SEMUA, bukan cuma satu (bug lama: fetchone() bikin baris ke-2+
+        # tertinggal tidak ke-hapus/ke-cek saat nota dibatalkan).
         cur.execute("SELECT id, paid_amount FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
-        debt = cur.fetchone()
-        if debt and float(debt["paid_amount"] or 0) > 0:
+        debts = cur.fetchall()
+        if any(float(d["paid_amount"] or 0) > 0 for d in debts):
             raise ValueError(
                 "Nota ini tidak bisa dibatalkan karena hutang/piutangnya "
                 "sudah memiliki cicilan/pembayaran. Batalkan pembayarannya dulu."
@@ -3348,8 +3359,28 @@ def cancel_fin_transaction(txn_id, cancelled_by):
                 cur, it["material_id"], float(it["qty_kg"]), txn_id,
                 orig_movement, note=f"Pembatalan nota #{txn_id}")
 
-        if debt:
-            cur.execute("DELETE FROM fin_debts WHERE id = %s;", (debt["id"],))
+        if debts:
+            cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
+
+        # Kalau nota ini dulu dibuat dengan "pakai saldo" (memotong saldo
+        # titip-dana pihak lain), kembalikan saldo itu -- kalau tidak,
+        # saldo pihak tsb hilang permanen walau notanya sudah dibatalkan.
+        credit_applied = float(txn.get("credit_applied") or 0)
+        if credit_applied > 0 and txn["party_name"]:
+            refund_type = "HUTANG" if txn["type"] == "JUAL_INVOICE" else "PIUTANG"
+            refund_party_type = "PELANGGAN" if txn["type"] == "JUAL_INVOICE" else "SUPPLIER"
+            # transaction_id SENGAJA NULL (bukan txn_id) -- kalau nota ini
+            # nanti dihapus permanen (purge_fin_transaction), itu akan
+            # menghapus SEMUA fin_debts yg transaction_id-nya = txn_id;
+            # baris pengembalian saldo ini harus tetap ada meski notanya
+            # sudah dihapus permanen, jadi dilepas tautannya (spt entry manual).
+            cur.execute("""
+                INSERT INTO fin_debts
+                    (type, party_name, party_type, amount, remaining, note, reason)
+                VALUES (%s, %s, %s, %s, %s, %s, 'TITIP_DANA');
+            """, (refund_type, txn["party_name"], refund_party_type,
+                  credit_applied, credit_applied,
+                  f"Saldo dikembalikan — nota #{txn_id} dibatalkan"))
 
         cur.execute("""
             UPDATE fin_transactions
