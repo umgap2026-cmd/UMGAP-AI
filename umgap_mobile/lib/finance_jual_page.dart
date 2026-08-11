@@ -83,7 +83,7 @@ class _FinanceJualPageState extends State<FinanceJualPage> {
       );
       if (!mounted) return;
       HapticFeedback.lightImpact();
-      final laba = int.tryParse('${res['laba'] ?? 0}') ?? 0;
+      final laba = uInt(res['laba']);
       await showDialog(
         context: context, barrierDismissible: false,
         builder: (_) => AlertDialog(

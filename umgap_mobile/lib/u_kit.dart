@@ -894,9 +894,16 @@ void uSnack(BuildContext context, String msg, {bool isError = false}) {
     ));
 }
 
+// Parse angka dari API (num langsung, atau string -- termasuk string
+// berkoma desimal spt "1894200.0" yang bikin int.tryParse gagal & jadi 0).
+int uInt(dynamic v) {
+  if (v is num) return v.toInt();
+  return double.tryParse('$v')?.toInt() ?? 0;
+}
+
 // Format rupiah
 String uRupiah(dynamic v) {
-  final n = (v is num ? v.toInt() : int.tryParse('$v') ?? 0);
+  final n = uInt(v);
   if (n == 0) return 'Rp -';
   return 'Rp ${n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
 }

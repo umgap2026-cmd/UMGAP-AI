@@ -28,8 +28,7 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
   }
 
   Future<void> _bayar(Map<String, dynamic> debt) async {
-    final ctrl = TextEditingController(
-        text: '${int.tryParse('${debt["remaining"] ?? 0}') ?? 0}');
+    final ctrl = TextEditingController(text: '${uInt(debt["remaining"])}');
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -38,7 +37,7 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('${debt['party_name']}', style: UText.h5),
           const SizedBox(height: 4),
-          Text('Sisa: ${uRupiah(int.tryParse('${debt["remaining"] ?? 0}') ?? 0)}', style: UText.bodyS),
+          Text('Sisa: ${uRupiah(debt["remaining"])}', style: UText.bodyS),
           const SizedBox(height: USpace.base),
           TextField(controller: ctrl, keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: 'Jumlah dibayar',
@@ -284,8 +283,8 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
   Widget build(BuildContext context) {
     final hutang       = List<dynamic>.from(_data['hutang']        ?? []);
     final piutang      = List<dynamic>.from(_data['piutang']       ?? []);
-    final totalHutang  = (_data['total_hutang']  as num?)?.toInt() ?? 0;
-    final totalPiutang = int.tryParse('${_data["total_piutang"] ?? 0}') ?? 0;
+    final totalHutang  = uInt(_data['total_hutang']);
+    final totalPiutang = uInt(_data['total_piutang']);
 
     return Scaffold(
       backgroundColor: UColors.surface,
@@ -366,7 +365,7 @@ class _DebtCard extends StatelessWidget {
       required this.onBayar, required this.onEdit, required this.onDelete});
   @override
   Widget build(BuildContext context) {
-    final remaining = int.tryParse('${debt["remaining"] ?? 0}') ?? 0;
+    final remaining = uInt(debt['remaining']);
     final amount    = (debt['amount']    as num?)?.toInt() ?? 0;
     final paid      = (debt['paid_amount'] as num?)?.toInt() ?? (amount - remaining);
     final pct       = amount > 0 ? 1 - (remaining / amount) : 0.0;

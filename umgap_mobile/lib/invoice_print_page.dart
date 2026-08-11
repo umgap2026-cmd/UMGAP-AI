@@ -814,8 +814,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   // ══════════════════════════════════════════
   //  ESC/POS BYTES untuk Bluetooth
   //  ATURAN PRINT AMAN:
-  //  • feed(3) sebelum cut
-  //  • cut(mode: PosCutMode.full)
+  //  • cut(mode: PosCutMode.full) -- sudah include feed 5 baris bawaan,
+  //    jangan tambah feed manual lagi sblm cut (boros kertas)
   //  • delay(1500ms) sebelum disconnect
   //  • guard _btPrinting
   // ══════════════════════════════════════════
@@ -974,7 +974,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     bytes += generator.text(_poweredBy,
         styles: const PosStyles(align: PosAlign.center));
 
-    bytes += generator.feed(3);
+    // cut() sudah feed 5 baris kosong bawaan sblm motong kertas --
+    // jangan tambah feed manual lagi di sini, itu yg bikin boros kertas.
     bytes += generator.cut(mode: PosCutMode.full);
 
     return bytes;
