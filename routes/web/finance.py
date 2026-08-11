@@ -190,6 +190,7 @@ def finance_debts_add():
             amount=request.form.get("amount"),
             note=request.form.get("note"),
             entry_date=request.form.get("date"),
+            reason=request.form.get("reason"),
         )
         flash("Berhasil dicatat.", "success")
     except ValueError as e:

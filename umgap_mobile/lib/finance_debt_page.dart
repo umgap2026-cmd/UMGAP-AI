@@ -181,6 +181,21 @@ class _DebtCard extends StatelessWidget {
             child: LinearProgressIndicator(value: pct.clamp(0.0, 1.0),
                 minHeight: 6, backgroundColor: color.withOpacity(0.10),
                 valueColor: AlwaysStoppedAnimation(color))),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: (debt['reason'] == 'TITIP_DANA'
+                ? const Color(0xFF2563EB) : const Color(0xFF92400E)).withOpacity(0.10),
+            borderRadius: BorderRadius.circular(URadius.full),
+          ),
+          child: Text(
+            debt['reason'] == 'TITIP_DANA' ? '💰 Titip Dana' : '📦 Hutang Barang',
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800,
+                color: debt['reason'] == 'TITIP_DANA'
+                    ? const Color(0xFF1D4ED8) : const Color(0xFF92400E)),
+          ),
+        ),
         if (debt['note'] != null && '${debt['note']}'.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text('${debt['note']}', style: UText.caption,

@@ -267,12 +267,32 @@ class _PayrollPageState extends State<PayrollPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   prefixIcon: const Icon(Icons.search_rounded,
                       color: UColors.primary, size: 20),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          color: Colors.grey, size: 18),
-                      onPressed: () { _search.clear(); setState(() => _query = ''); })
-                      : null,
+                  suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      icon: const Icon(Icons.list_alt_rounded,
+                          color: UColors.primary, size: 20),
+                      tooltip: 'Pilih karyawan',
+                      onPressed: () async {
+                        final names = allRows
+                            .map((r) => '${(r as Map)['name'] ?? ''}')
+                            .where((n) => n.isNotEmpty).toList();
+                        final picked = await uShowNamePicker(context,
+                            title: 'Pilih Karyawan', names: names,
+                            allLabel: 'Semua Karyawan');
+                        if (picked != null) {
+                          setState(() {
+                            _search.text = picked.isEmpty ? '' : picked;
+                            _query = picked.toLowerCase();
+                          });
+                        }
+                      },
+                    ),
+                    if (_query.isNotEmpty)
+                      IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.grey, size: 18),
+                          onPressed: () { _search.clear(); setState(() => _query = ''); }),
+                  ]),
                   filled: true,
                   fillColor: const Color(0xFFF2F5FC),
                   contentPadding: const EdgeInsets.symmetric(

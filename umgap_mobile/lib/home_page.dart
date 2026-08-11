@@ -21,6 +21,8 @@ import 'invoice_page.dart';
 import 'login_page.dart';
 import 'admin_buy_prices_page.dart';
 import 'admin_hpp_ai_page.dart';
+import 'caption_ai_page.dart';
+import 'content_calendar_page.dart';
 import 'u_kit.dart';
 import 'notification_service.dart';
 import 'profile_page.dart';
@@ -201,6 +203,16 @@ class _HomePageState extends State<HomePage>
       'title': 'HPP AI',
       'icon': Icons.auto_graph_rounded,
       'color': _cPurple
+    },
+    {
+      'title': 'Caption AI',
+      'icon': Icons.auto_awesome_rounded,
+      'color': _cAmber
+    },
+    {
+      'title': 'Kalender Konten',
+      'icon': Icons.event_note_rounded,
+      'color': _cOrange
     },
   ]
       : isOwner
@@ -453,6 +465,8 @@ class _HomePageState extends State<HomePage>
       'Nota': const InvoicePage(),
       'Harga Beli': const AdminBuyPricesPage(),
       'HPP AI': const AdminHppAiPage(),
+      'Caption AI': const CaptionAiPage(),
+      'Kalender Konten': const ContentCalendarPage(),
       'Profil': const ProfilePage(),
       'Slip Gaji': const PayslipPage(),
       'Kasir & Keuangan': const FinanceKasirPage(),

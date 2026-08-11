@@ -23,6 +23,7 @@ class _PointsPageState extends State<PointsPage>
   late TabController _tab;
   final _rankKey = GlobalKey();
   bool _sharing  = false;
+  String? _logFilterName;
 
   @override
   void initState() {
@@ -128,6 +129,9 @@ class _PointsPageState extends State<PointsPage>
   Widget build(BuildContext context) {
     final employees = List<dynamic>.from(data['employees'] ?? []);
     final logs      = List<dynamic>.from(data['logs'] ?? []);
+    final filteredLogs = (_logFilterName == null || _logFilterName!.isEmpty)
+        ? logs
+        : logs.where((l) => '${l['user_name']}' == _logFilterName).toList();
     final sorted    = [...employees]
       ..sort((a,b) => (b['points_admin'] as num? ?? 0)
           .compareTo(a['points_admin'] as num? ?? 0));
@@ -150,7 +154,24 @@ class _PointsPageState extends State<PointsPage>
                   const Expanded(child: Text('Poin Karyawan',
                       style: TextStyle(color: Colors.white,
                           fontWeight: FontWeight.w700, fontSize: 18))),
-
+                  IconButton(
+                    icon: Icon(
+                        _logFilterName != null
+                            ? Icons.filter_alt_rounded
+                            : Icons.filter_alt_outlined,
+                        color: Colors.white, size: 20),
+                    tooltip: 'Filter Karyawan',
+                    onPressed: () async {
+                      final names = logs.map((l) => '${l['user_name'] ?? ''}')
+                          .where((n) => n.isNotEmpty).toList();
+                      final picked = await uShowNamePicker(context,
+                          title: 'Filter Log Poin', names: names,
+                          allLabel: 'Semua Karyawan');
+                      if (picked != null) {
+                        setState(() => _logFilterName = picked.isEmpty ? null : picked);
+                      }
+                    },
+                  ),
                 ])),
             TabBar(controller: _tab, indicatorColor: Colors.white,
                 indicatorWeight: 3, labelColor: Colors.white,
@@ -244,15 +265,40 @@ class _PointsPageState extends State<PointsPage>
 
         // ════ TAB 3: LOG POIN ════
         RefreshIndicator(color: UColors.primary, onRefresh: load,
-            child: logs.isEmpty
+            child: Column(children: [
+              if (_logFilterName != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Row(children: [
+                    Expanded(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                          color: UColors.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Row(children: [
+                        const Icon(Icons.person_rounded, size: 14, color: UColors.primary),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(_logFilterName!, style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: UColors.primary),
+                            overflow: TextOverflow.ellipsis)),
+                        GestureDetector(
+                          onTap: () => setState(() => _logFilterName = null),
+                          child: const Icon(Icons.close_rounded, size: 16, color: UColors.primary),
+                        ),
+                      ]),
+                    )),
+                  ]),
+                ),
+              Expanded(
+                child: filteredLogs.isEmpty
                 ? const UEmptyState(icon: Icons.history_rounded,
                 title: 'Tidak ada log poin')
                 : ListView.builder(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(16),
-                itemCount: logs.length,
+                itemCount: filteredLogs.length,
                 itemBuilder: (_, i) {
-                  final item = Map<String, dynamic>.from(logs[i]);
+                  final item = Map<String, dynamic>.from(filteredLogs[i]);
                   final delta = int.tryParse('${item['delta']}') ?? 0;
                   final isPos = delta >= 0;
                   return Container(
@@ -292,7 +338,10 @@ class _PointsPageState extends State<PointsPage>
                                   color: isPos ? UColors.success : UColors.danger)),
                         ])),
                   );
-                })),
+                }),
+              ),
+            ]),
+          ),
       ]),
     );
   }

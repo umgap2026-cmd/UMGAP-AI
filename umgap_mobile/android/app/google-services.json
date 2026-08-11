@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "153316741169-36r0ekga6g8sh8db9dusk89emd46pkul.apps.googleusercontent.com",
+          "client_id": "153316741169-kdg2ta2lfd1ajqoq3kmch10vg9k553og.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.umgapai.umgap",
-            "certificate_hash": "ffeb3f8b608abf3f11ed6d8bb9008a08c269b626"
+            "certificate_hash": "65876c3e0d19150395be1fd3ae7b9ca61bf0fa06"
           }
         },
         {

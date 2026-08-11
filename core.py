@@ -482,6 +482,22 @@ def _ensure_fin_transaction_item_note_schema(cur):
         """)
 
 
+def _ensure_fin_debts_reason_schema(cur):
+    """Lazy-migration: alasan kenapa baris hutang/piutang ini ada --
+    'TITIP_DANA' (uang dititip duluan/DP berlebih, jadi saldo yang bisa
+    dipotongkan otomatis di transaksi berikutnya) atau 'HUTANG_BARANG'
+    (barang sudah diambil/dikirim, belum dibayar). Backfill sekali utk
+    baris lama pakai pola teks `note` yang sudah konsisten dipakai
+    selama ini (lihat create_fin_invoice/create_fin_purchase_invoice)."""
+    if not _col_exists(cur, "fin_debts", "reason"):
+        cur.execute("ALTER TABLE fin_debts ADD COLUMN IF NOT EXISTS reason VARCHAR(20) NULL;")
+        cur.execute("""
+            UPDATE fin_debts SET reason = 'TITIP_DANA'
+            WHERE reason IS NULL AND (note ILIKE %s OR note ILIKE %s);
+        """, ('%Sisa DP%', '%jadi saldo%'))
+        cur.execute("UPDATE fin_debts SET reason = 'HUTANG_BARANG' WHERE reason IS NULL;")
+
+
 def _ensure_fin_transaction_item_direction_schema(cur):
     """Lazy-migration: arah per baris barang ('IN'/'OUT', vokabuler sama
     dgn movement_type di _update_stock_avco) -- dipakai utk nota campuran
@@ -895,6 +911,7 @@ def record_fin_trip_sell(trip_id, material_id, qty_kg, price_per_kg, party_id, p
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_trip_items_cost_column(conn, cur)
+        _ensure_fin_debts_reason_schema(cur)
         _fin_trip_require_open(cur, trip_id)
 
         if party_id:
@@ -943,8 +960,8 @@ def record_fin_trip_sell(trip_id, material_id, qty_kg, price_per_kg, party_id, p
             pname = prow["name"] if prow else "Lapak Perjalanan"
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, note)
-                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, note, reason)
+                VALUES ('PIUTANG', %s, 'LAPAK_JKT', %s, %s, %s, 'HUTANG_BARANG');
             """, (pname, subtotal, subtotal, f"Jual perjalanan trip#{trip_id}"))
 
         conn.commit()
@@ -2180,6 +2197,13 @@ def ensure_company_profile_schema():
                 CONSTRAINT company_profile_singleton CHECK (id = 1)
             );
         """)
+        # Lazy-migration: alamat & telepon (dipakai app mobile, sebelumnya
+        # cuma disimpan per-HP -- sekarang jadi bagian profil umum spy
+        # senada dgn logo/nama yg sudah general).
+        if not _col_exists(cur, "company_profile", "address"):
+            cur.execute("ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS address TEXT NULL;")
+        if not _col_exists(cur, "company_profile", "phone"):
+            cur.execute("ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS phone VARCHAR(40) NULL;")
         conn.commit()
     finally:
         cur.close()
@@ -2191,31 +2215,35 @@ def get_company_profile():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("SELECT company_name, logo_data_uri FROM company_profile WHERE id=1;")
+        cur.execute("SELECT company_name, logo_data_uri, address, phone FROM company_profile WHERE id=1;")
         row = cur.fetchone()
         return {
             "company_name": (row or {}).get("company_name") or "",
             "logo_data_uri": (row or {}).get("logo_data_uri") or "",
+            "address": (row or {}).get("address") or "",
+            "phone": (row or {}).get("phone") or "",
         }
     finally:
         cur.close()
         conn.close()
 
 
-def set_company_profile(company_name, logo_data_uri, updated_by):
+def set_company_profile(company_name, logo_data_uri, updated_by, address=None, phone=None):
     ensure_company_profile_schema()
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO company_profile (id, company_name, logo_data_uri, updated_by, updated_at)
-            VALUES (1, %s, %s, %s, CURRENT_TIMESTAMP)
+            INSERT INTO company_profile (id, company_name, logo_data_uri, address, phone, updated_by, updated_at)
+            VALUES (1, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ON CONFLICT (id) DO UPDATE SET
                 company_name  = COALESCE(EXCLUDED.company_name, company_profile.company_name),
                 logo_data_uri = COALESCE(EXCLUDED.logo_data_uri, company_profile.logo_data_uri),
+                address       = COALESCE(EXCLUDED.address, company_profile.address),
+                phone         = COALESCE(EXCLUDED.phone, company_profile.phone),
                 updated_by    = EXCLUDED.updated_by,
                 updated_at    = CURRENT_TIMESTAMP;
-        """, (company_name or None, logo_data_uri or None, updated_by))
+        """, (company_name or None, logo_data_uri or None, address or None, phone or None, updated_by))
         conn.commit()
     finally:
         cur.close()
@@ -2345,6 +2373,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -2490,8 +2519,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         if dp_excess > 0 and customer_name:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s, 'TITIP_DANA');
             """, (customer_name, dp_excess, dp_excess, txn_id,
                   f"Sisa DP nota {invoice_no} — jadi saldo {customer_name} di kita, "
                   f"bisa dipotongkan otomatis saat dia beli lagi"))
@@ -2499,8 +2528,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         if is_debt and customer_name and debt_amount > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s, 'HUTANG_BARANG');
             """, (customer_name, debt_amount, debt_amount, txn_id,
                   f"Invoice {invoice_no} — belum dibayar"))
 
@@ -2565,6 +2594,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -2709,8 +2739,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         if dp_excess > 0 and supplier_name:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s, 'TITIP_DANA');
             """, (supplier_name, dp_excess, dp_excess, txn_id,
                   f"Sisa DP nota {invoice_no} — jadi saldo kita di {supplier_name}, "
                   f"bisa dipotongkan otomatis saat belanja berikutnya ke sana"))
@@ -2718,8 +2748,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         if is_debt and supplier_name and debt_amount > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('HUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('HUTANG', %s, 'SUPPLIER', %s, %s, %s, %s, 'HUTANG_BARANG');
             """, (supplier_name, debt_amount, debt_amount, txn_id,
                   f"Nota {invoice_no} — belum dibayar"))
 
@@ -2785,6 +2815,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -2955,8 +2986,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             party_type = 'SUPPLIER' if is_beli else 'PELANGGAN'
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'HUTANG_BARANG');
             """, (debt_type, customer_name, party_type, grand_total, grand_total, txn_id,
                   f"Nota {invoice_no} — belum dibayar (hasil edit)"))
 
@@ -2972,8 +3003,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
             )
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'TITIP_DANA');
             """, (excess_type, customer_name, party_type, dp_excess, dp_excess, txn_id, excess_note))
 
         cur.execute("""
@@ -4401,6 +4432,7 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_transaction_item_direction_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
         conn.commit()
 
         # Nota campuran: item boleh bawa "is_return": true -- barang yang
@@ -4485,8 +4517,8 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
         if excess > 0 and party_name:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('PIUTANG', %s, 'SUPPLIER', %s, %s, %s, %s, 'TITIP_DANA');
             """, (party_name, excess, excess, txn_id,
                   "Sisa barang balik — jadi saldo kita di pihak ini, "
                   "bisa dipotongkan otomatis saat belanja berikutnya ke sana"))
@@ -4494,8 +4526,8 @@ def create_fin_purchase(party_name, is_debt, note, discount, items, created_by):
         if is_debt and party_name and grand_total > 0.01:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('HUTANG', %s, 'PELANGGAN', %s, %s, %s, %s, 'HUTANG_BARANG');
             """, (party_name, grand_total, grand_total, txn_id, "Beli barang — belum dibayar"))
 
         conn.commit()
@@ -4538,6 +4570,7 @@ def create_fin_sale_kasir(party_name, is_debt, note, items, created_by):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_debts_reason_schema(cur)
         total = sum(float(i.get("qty_kg", 0)) * float(i.get("price_per_kg", 0)) for i in items)
 
         for item in items:
@@ -4590,8 +4623,8 @@ def create_fin_sale_kasir(party_name, is_debt, note, items, created_by):
         if is_debt and party_name:
             cur.execute("""
                 INSERT INTO fin_debts
-                    (type, party_name, party_type, amount, remaining, transaction_id, note)
-                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s);
+                    (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
+                VALUES ('PIUTANG', %s, 'PELANGGAN', %s, %s, %s, %s, 'HUTANG_BARANG');
             """, (party_name, total, total, txn_id, "Jual barang — belum dibayar"))
 
         conn.commit()
@@ -4652,9 +4685,11 @@ def list_fin_debts():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_debts_reason_schema(cur)
+        conn.commit()
         cur.execute("""
             SELECT id, type, party_name, amount, paid_amount,
-                   remaining, due_date, is_settled, note, created_at
+                   remaining, due_date, is_settled, note, created_at, reason
             FROM fin_debts
             WHERE is_settled = FALSE
             ORDER BY type, created_at DESC;
@@ -4677,7 +4712,7 @@ def list_fin_debts():
         conn.close()
 
 
-def list_fin_party_balances(debt_type):
+def list_fin_party_balances(debt_type, reason=None):
     """
     Saldo piutang/hutang terbuka, DIGABUNG per nama pihak (SUM remaining,
     exact match case/whitespace-insensitive) -- dipakai dropdown "pilih dari
@@ -4685,19 +4720,35 @@ def list_fin_party_balances(debt_type):
     SUDAH ADA alih-alih ngetik ulang (rawan beda ejaan spt "Pak Bagas" vs
     "Pak Bagas Sulawesi" yang jadinya dianggap 2 pihak berbeda & saldo tidak
     ketemu/kepotong). debt_type: 'PIUTANG' atau 'HUTANG'.
+    reason (opsional): 'TITIP_DANA' atau 'HUTANG_BARANG' -- filter supaya
+    cuma saldo titip-dana (yg secara semantik memang layak dipakai sbg DP
+    di nota baru) yang ditawarkan, bukan tercampur dgn hutang barang biasa.
     """
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("""
-            SELECT MAX(TRIM(party_name)) AS party_name, SUM(remaining) AS remaining
-            FROM fin_debts
-            WHERE type = %s AND is_settled = FALSE
-                  AND party_name IS NOT NULL AND TRIM(party_name) <> ''
-            GROUP BY LOWER(TRIM(party_name))
-            HAVING SUM(remaining) > 0.01
-            ORDER BY MAX(TRIM(party_name)) ASC;
-        """, (debt_type,))
+        _ensure_fin_debts_reason_schema(cur)
+        conn.commit()
+        if reason:
+            cur.execute("""
+                SELECT MAX(TRIM(party_name)) AS party_name, SUM(remaining) AS remaining
+                FROM fin_debts
+                WHERE type = %s AND is_settled = FALSE AND reason = %s
+                      AND party_name IS NOT NULL AND TRIM(party_name) <> ''
+                GROUP BY LOWER(TRIM(party_name))
+                HAVING SUM(remaining) > 0.01
+                ORDER BY MAX(TRIM(party_name)) ASC;
+            """, (debt_type, reason))
+        else:
+            cur.execute("""
+                SELECT MAX(TRIM(party_name)) AS party_name, SUM(remaining) AS remaining
+                FROM fin_debts
+                WHERE type = %s AND is_settled = FALSE
+                      AND party_name IS NOT NULL AND TRIM(party_name) <> ''
+                GROUP BY LOWER(TRIM(party_name))
+                HAVING SUM(remaining) > 0.01
+                ORDER BY MAX(TRIM(party_name)) ASC;
+            """, (debt_type,))
         return [{"party_name": r["party_name"], "remaining": float(r["remaining"])} for r in cur.fetchall()]
     finally:
         cur.close()
@@ -4835,15 +4886,20 @@ def _consume_party_credit(cur, party_name, credit_type, amount):
         sisa -= potong
 
 
-def create_fin_debt_entry(debt_type, party_name, amount, note, entry_date=None):
+def create_fin_debt_entry(debt_type, party_name, amount, note, entry_date=None, reason=None):
     """Catat hutang/piutang manual (bukan tertaut nota) -- mis. hutang ke
     pemasok/piutang ke pelanggan di luar transaksi Nota.
     entry_date (opsional, "YYYY-MM-DD"): tanggal manual -- kosong/None
     berarti otomatis pakai HARI INI (lihat _resolve_nota_datetime).
+    reason (opsional): 'TITIP_DANA' atau 'HUTANG_BARANG', default
+    'HUTANG_BARANG' kalau tidak diisi/tidak valid.
     Return dict {id}."""
     debt_type = (debt_type or "").strip().upper()
     party_name = (party_name or "").strip()
     note = (note or "").strip()
+    reason = (reason or "").strip().upper()
+    if reason not in ("TITIP_DANA", "HUTANG_BARANG"):
+        reason = "HUTANG_BARANG"
     try:
         amount = float(amount or 0)
     except (TypeError, ValueError):
@@ -4862,12 +4918,13 @@ def create_fin_debt_entry(debt_type, party_name, amount, note, entry_date=None):
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_fin_debts_reason_schema(cur)
         cur.execute("""
             INSERT INTO fin_debts
-                (type, party_name, party_type, amount, remaining, note, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (type, party_name, party_type, amount, remaining, note, created_at, reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
-        """, (debt_type, party_name, party_type, amount, amount, note or None, created_at_utc))
+        """, (debt_type, party_name, party_type, amount, amount, note or None, created_at_utc, reason))
         debt_id = cur.fetchone()["id"]
         conn.commit()
         return {"id": debt_id, "party_name": party_name}

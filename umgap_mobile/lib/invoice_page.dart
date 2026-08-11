@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -20,23 +21,9 @@ double _rfs(BuildContext context, double base) {
 }
 
 // ════════════════════════════════════════════
-//  Storage helpers — flutter_secure_storage
+//  Storage helpers — flutter_secure_storage (draft nota)
 // ════════════════════════════════════════════
 const _notaStorage = FlutterSecureStorage();
-
-Future<void> saveNotaSetting(String key, String value) =>
-    value.isEmpty
-        ? _notaStorage.delete(key: key)
-        : _notaStorage.write(key: key, value: value);
-
-Future<String> readNotaSetting(String key) async =>
-    await _notaStorage.read(key: key) ?? '';
-
-// ── Storage keys ──────────────────────────────
-const kNotaName  = 'nota_company_name';
-const kNotaAddr  = 'nota_company_addr';
-const kNotaPhone = 'nota_company_phone';
-const kNotaLogo  = 'nota_logo_path';
 
 // ── Colors ─────────────────────────────────────
 const _cJualDark  = Color(0xFF0D47A1);
@@ -55,6 +42,7 @@ class CartItem {
   final int    price;
   final double qty;
   final bool   isReturn;
+  final String? note;
 
   double get subtotal => price * qty;
 
@@ -64,19 +52,52 @@ class CartItem {
     required this.price,
     required this.qty,
     this.isReturn = false,
+    this.note,
   });
 
-  CartItem copyWith({double? qty, int? price, bool? isReturn}) => CartItem(
+  CartItem copyWith({double? qty, int? price, bool? isReturn, String? note}) => CartItem(
     productId:   productId,
     productName: productName,
     price:       price ?? this.price,
     qty:         qty   ?? this.qty,
     isReturn:    isReturn ?? this.isReturn,
+    note:        note ?? this.note,
   );
+}
+
+// ════════════════════════════════════════════
+//  ADJUSTMENT — baris "Potongan & Biaya" (DP/Ongkir),
+//  mirror section yg sama di web (invoice_form.html).
+// ════════════════════════════════════════════
+class _AdjRow {
+  String type;   // 'DP' | 'ONGKIR'
+  String mode;   // 'BEBAN' | 'POTONGAN' -- cuma relevan utk ONGKIR
+  final TextEditingController amountCtrl = TextEditingController();
+  final TextEditingController categoryCtrl = TextEditingController();
+
+  _AdjRow({this.type = 'DP', this.mode = 'BEBAN'});
+
+  double get amount => double.tryParse(amountCtrl.text.trim()) ?? 0;
+
+  void dispose() {
+    amountCtrl.dispose();
+    categoryCtrl.dispose();
+  }
+
+  Map<String, dynamic> toJson() => {
+    'type': type,
+    'amount': amount,
+    if (type == 'ONGKIR') 'mode': mode,
+    if (type == 'ONGKIR' && mode == 'BEBAN' && categoryCtrl.text.trim().isNotEmpty)
+      'category': categoryCtrl.text.trim(),
+  };
 }
 
 String _fmtQty(double q) =>
     q == q.truncateToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
+
+String _fmtDatePretty(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
 String _rp(num v) {
   if (v == 0) return 'Rp -';
@@ -97,6 +118,7 @@ class InvoicePage extends StatefulWidget {
   final double?         initDiscount;
   final bool?           initIsPaid;
   final List<CartItem>? initCart;
+  final int? editTxnId;
 
   const InvoicePage({
     super.key,
@@ -107,6 +129,7 @@ class InvoicePage extends StatefulWidget {
     this.initDiscount,
     this.initIsPaid,
     this.initCart,
+    this.editTxnId,
   });
 
   @override
@@ -117,6 +140,8 @@ class _InvoicePageState extends State<InvoicePage>
     with SingleTickerProviderStateMixin {
   bool _loading    = true;
   bool _submitting = false;
+  bool get _isEditMode => widget.editTxnId != null;
+  String _editInvoiceNo = '';
 
   // ── Mode: false = JUAL, true = BELI ──────────
   bool _isBeli = false;
@@ -130,16 +155,37 @@ class _InvoicePageState extends State<InvoicePage>
 
   final _qtyCtrl   = TextEditingController(text: '1');
   final _priceCtrl = TextEditingController();
+  final _itemNoteCtrl = TextEditingController();
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _notesCtrl;
   late final TextEditingController _discCtrl;
+  final _nameFocus = FocusNode();
 
   late String       _payMethod;
   late bool         _isPaid;
   late List<CartItem> _cart;
   bool _addAsReturn = false;
+
+  // ── Potongan & Biaya (DP/Ongkir) — kedua mode ──
+  final List<_AdjRow> _adjustments = [];
+
+  // ── Saldo hutang/piutang pihak (dipakai sbg DP) ──
+  double  _creditAvailable = 0;
+  String? _creditPartyName;
+  final _creditCtrl = TextEditingController();
+  bool    _creditChecking = false;
+  double get _creditApplied => _creditCtrl.text.trim().isEmpty
+      ? 0 : (double.tryParse(_creditCtrl.text.trim()) ?? 0);
+
+  // ── Daftar saldo terbuka (chip "klik utk pilih", proaktif) ──
+  List<Map<String, dynamic>> _partyBalances = [];
+  bool _loadingBalances = false;
+
+  // ── Tanggal nota (opsional, manual) ──
+  bool      _autoDate   = true;
+  DateTime? _manualDate;
 
   // ── Color helpers ─────────────────────────────
   Color get _colorDark  => _isBeli ? _cBeliDark  : _cJualDark;
@@ -173,24 +219,37 @@ class _InvoicePageState extends State<InvoicePage>
     _notesCtrl.addListener(_saveDraft);
     _discCtrl.addListener(_saveDraft);
 
-    // Load materials lalu cek draft (hanya jika bukan dari initCart)
+    // Cek saldo hutang/piutang pihak begitu nama selesai diisi
+    _nameFocus.addListener(() {
+      if (!_nameFocus.hasFocus) _checkPartyCredit();
+    });
+
+    // Load materials, lalu: mode edit → tarik data nota; else cek draft
+    // lokal (hanya jika bukan dari initCart).
     _loadMaterials().then((_) {
-      if (widget.initCart == null || widget.initCart!.isEmpty) {
+      if (_isEditMode) {
+        _loadEditData();
+      } else if (widget.initCart == null || widget.initCart!.isEmpty) {
         _loadDraft();
       }
     });
+    if (!_isEditMode) _loadPartyBalances();
   }
 
   @override
   void dispose() {
     _modeAnim.dispose();
-    _qtyCtrl.dispose();  _priceCtrl.dispose();
-    _nameCtrl.dispose(); _phoneCtrl.dispose();
-    _notesCtrl.dispose(); _discCtrl.dispose();
+    _qtyCtrl.dispose();  _priceCtrl.dispose(); _itemNoteCtrl.dispose();
+    _nameCtrl.dispose(); _phoneCtrl.dispose(); _nameFocus.dispose();
+    _notesCtrl.dispose(); _discCtrl.dispose(); _creditCtrl.dispose();
+    for (final a in _adjustments) a.dispose();
     super.dispose();
   }
 
   void _switchMode(bool toBeli) {
+    // Jenis nota (Jual/Beli) tidak bisa diubah saat edit -- sudah ditentukan
+    // sejak nota dibuat.
+    if (_isEditMode) return;
     if (_isBeli == toBeli) return;
     setState(() => _isBeli = toBeli);
     if (toBeli) _modeAnim.forward(); else _modeAnim.reverse();
@@ -205,6 +264,82 @@ class _InvoicePageState extends State<InvoicePage>
       });
       _saveDraft();
     }
+    // Arah saldo (HUTANG/PIUTANG) berbeda per mode -- cek ulang.
+    _checkPartyCredit();
+    _loadPartyBalances();
+  }
+
+  // ── Cek saldo hutang/piutang pihak (dipakai sbg DP) ──
+  // Mode Jual → cek HUTANG (saldo customer di kita). Mode Beli → cek
+  // PIUTANG (saldo kita di supplier). Mirror invoice_form.html:1662-1666.
+  Future<void> _checkPartyCredit() async {
+    final party = _nameCtrl.text.trim();
+    if (party.isEmpty) {
+      if (mounted) setState(() { _creditAvailable = 0; _creditPartyName = null; _creditCtrl.clear(); });
+      return;
+    }
+    setState(() => _creditChecking = true);
+    try {
+      final res = await ApiService.financeCheckPartyCredit(
+        partyName: party,
+        creditType: _isBeli ? 'PIUTANG' : 'HUTANG',
+      );
+      if (!mounted) return;
+      final avail = (res['available'] as num?)?.toDouble() ?? 0;
+      setState(() {
+        _creditAvailable = avail;
+        _creditPartyName = avail > 0 ? party : null;
+        if (avail <= 0) _creditCtrl.clear();
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _creditChecking = false);
+    }
+  }
+
+  // ── Daftar saldo terbuka (proaktif, tampil sbg chip klik) ──
+  // Mode Jual → HUTANG (titipan dana orang lain ke kita). Mode Beli →
+  // PIUTANG (saldo kita di supplier). Mirror open_hutang/open_piutang di
+  // invoice_form.html web.
+  Future<void> _loadPartyBalances() async {
+    setState(() => _loadingBalances = true);
+    try {
+      final list = await ApiService.financeListPartyBalances(
+        creditType: _isBeli ? 'PIUTANG' : 'HUTANG',
+        reason: 'TITIP_DANA',
+      );
+      if (!mounted) return;
+      setState(() => _partyBalances = List<Map<String, dynamic>>.from(list));
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingBalances = false);
+    }
+  }
+
+  // ── Riwayat nama (semua pihak yg pernah dipakai) + search ──
+  List<String>? _partyNamesCache;
+
+  Future<void> _pickFromPartyHistory() async {
+    try {
+      _partyNamesCache ??= (await ApiService.financeListPartyNames())
+          .map((e) => '$e').toList();
+    } catch (e) {
+      if (mounted) uSnack(context, 'Gagal memuat riwayat nama: $e', isError: true);
+      return;
+    }
+    if (!mounted) return;
+    final picked = await uShowNamePicker(context,
+        title: 'Riwayat Nama', names: _partyNamesCache!,
+        allLabel: 'Ketik nama baru');
+    if (picked != null && picked.isNotEmpty) {
+      setState(() => _nameCtrl.text = picked);
+      _checkPartyCredit();
+    }
+  }
+
+  void _pickPartyBalance(String name) {
+    setState(() => _nameCtrl.text = name);
+    _checkPartyCredit();
   }
 
   // ══════════════════════════════════════════════
@@ -212,7 +347,137 @@ class _InvoicePageState extends State<InvoicePage>
   // ══════════════════════════════════════════════
   static const _kDraft = 'invoice_draft_v1';
 
+  // ── Snapshot form saat ini (dipakai draft lokal MAUPUN draft
+  //  bersama server) ──
+  Map<String, dynamic> _buildDraftSnapshot() => {
+    'name':    _nameCtrl.text,
+    'phone':   _phoneCtrl.text,
+    'notes':   _notesCtrl.text,
+    'disc':    _discCtrl.text,
+    'pay':     _payMethod,
+    'isPaid':  _isPaid,
+    'isBeli':  _isBeli,
+    'savedAt': DateTime.now().toIso8601String(),
+    'cart':    _cart.map((c) => {
+      'id':       c.productId,
+      'name':     c.productName,
+      'price':    c.price,
+      'qty':      c.qty,
+      'isReturn': c.isReturn,
+      'note':     c.note,
+    }).toList(),
+    'adjustments': _adjustments.map((a) => {
+      'type': a.type, 'mode': a.mode,
+      'amount': a.amountCtrl.text, 'category': a.categoryCtrl.text,
+    }).toList(),
+    'creditApplied': _creditCtrl.text,
+    'autoDate': _autoDate,
+    'manualDate': _manualDate?.toIso8601String(),
+  };
+
+  // ── Terapkan snapshot draft (lokal ATAU dari server) ke form ──
+  void _applyDraftSnapshot(Map<String, dynamic> d) {
+    final cartData = d['cart'] as List? ?? [];
+    final draftCart = cartData.map((i) => CartItem(
+      productId:   ((i['id'] as num?) ?? 0).toInt(),
+      productName: i['name'] as String? ?? '-',
+      price:       ((i['price'] as num?) ?? 0).toInt(),
+      qty:         ((i['qty'] as num?) ?? 0).toDouble(),
+      isReturn:    i['isReturn'] == true,
+      note:        (i['note'] as String?)?.isNotEmpty == true ? i['note'] as String : null,
+    )).toList();
+
+    final adjData = d['adjustments'] as List? ?? [];
+    final draftAdjustments = adjData.map((a) {
+      final row = _AdjRow(
+        type: (a['type'] as String?) ?? 'DP',
+        mode: (a['mode'] as String?) ?? 'BEBAN',
+      );
+      row.amountCtrl.text = (a['amount'] as String?) ?? '';
+      row.categoryCtrl.text = (a['category'] as String?) ?? '';
+      return row;
+    }).toList();
+
+    setState(() {
+      _nameCtrl.text  = d['name']  ?? '';
+      _phoneCtrl.text = d['phone'] ?? '';
+      _notesCtrl.text = d['notes'] ?? '';
+      _discCtrl.text  = d['disc']  ?? '0';
+      _payMethod      = d['pay']   ?? 'CASH';
+      _isPaid         = d['isPaid'] ?? true;
+      final isBeli    = d['isBeli'] ?? false;
+      _isBeli         = isBeli;
+      if (isBeli) _modeAnim.forward();
+      _cart           = draftCart;
+      for (final a in _adjustments) a.dispose();
+      _adjustments..clear()..addAll(draftAdjustments);
+      _creditCtrl.text = (d['creditApplied'] as String?) ?? '';
+      _autoDate   = d['autoDate'] as bool? ?? true;
+      final md    = d['manualDate'] as String?;
+      _manualDate = (md != null && md.isNotEmpty) ? DateTime.tryParse(md) : null;
+    });
+    _checkPartyCredit();
+  }
+
+  // ── Mode edit: tarik data nota yg sudah tersimpan lalu isi form ──
+  // (tanggal & pakai-saldo TIDAK bisa diubah lewat edit, sama spt web --
+  // adjustments DP/Ongkir disintesis dari dp_amount/ongkir_potongan_amount
+  // krn rincian per-baris aslinya tidak disimpan terpisah, sama persis
+  // pola invoice_form.html:530-536.)
+  Future<void> _loadEditData() async {
+    try {
+      final res = await ApiService.invoiceFullDetail(widget.editTxnId!);
+      final invoice = Map<String, dynamic>.from(res['invoice'] ?? {});
+      final items = List<dynamic>.from(res['items'] ?? []);
+      final isBeli = '${invoice['nota_type'] ?? 'JUAL'}' == 'BELI';
+
+      final cart = items.map((it) {
+        final m = Map<String, dynamic>.from(it);
+        final note = '${m['note'] ?? ''}';
+        return {
+          'id':       m['material_id'],
+          'name':     m['product_name'] ?? '-',
+          'price':    m['price'],
+          'qty':      m['qty'],
+          'isReturn': m['is_return'] == true,
+          'note':     note.isNotEmpty ? note : null,
+        };
+      }).toList();
+
+      final dpAmount    = (invoice['dp_amount'] as num?)?.toDouble() ?? 0;
+      final ongkirPotongan = (invoice['ongkir_potongan_amount'] as num?)?.toDouble() ?? 0;
+      final adjustments = [
+        if (dpAmount > 0)
+          {'type': 'DP', 'mode': 'BEBAN', 'amount': dpAmount.toStringAsFixed(0), 'category': ''},
+        if (ongkirPotongan > 0)
+          {'type': 'ONGKIR', 'mode': 'POTONGAN', 'amount': ongkirPotongan.toStringAsFixed(0), 'category': ''},
+      ];
+
+      if (!mounted) return;
+      setState(() => _editInvoiceNo = '${invoice['invoice_no'] ?? ''}');
+      _applyDraftSnapshot({
+        'name':    invoice['customer_name'] ?? '',
+        'phone':   invoice['customer_phone'] ?? '',
+        'notes':   invoice['notes'] ?? '',
+        'disc':    '0',
+        'pay':     invoice['payment_method'] ?? 'CASH',
+        'isPaid':  invoice['is_paid'] ?? true,
+        'isBeli':  isBeli,
+        'cart':    cart,
+        'adjustments': adjustments,
+        'creditApplied': '',
+        'autoDate': true,
+        'manualDate': null,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      uSnack(context, 'Gagal memuat data nota: $e', isError: true);
+    }
+  }
+
   Future<void> _saveDraft() async {
+    // Mode edit tidak ikut nimpa draft nota-baru yg mgkn sedang tersimpan
+    if (_isEditMode) return;
     // Tidak perlu simpan kalau kosong
     if (_cart.isEmpty &&
         _nameCtrl.text.isEmpty &&
@@ -221,26 +486,160 @@ class _InvoicePageState extends State<InvoicePage>
       return;
     }
     try {
-      final draft = {
-        'name':    _nameCtrl.text,
-        'phone':   _phoneCtrl.text,
-        'notes':   _notesCtrl.text,
-        'disc':    _discCtrl.text,
-        'pay':     _payMethod,
-        'isPaid':  _isPaid,
-        'isBeli':  _isBeli,
-        'savedAt': DateTime.now().toIso8601String(),
-        'cart':    _cart.map((c) => {
-          'id':       c.productId,
-          'name':     c.productName,
-          'price':    c.price,
-          'qty':      c.qty,
-          'isReturn': c.isReturn,
-        }).toList(),
-      };
       await _notaStorage.write(
-          key: _kDraft, value: jsonEncode(draft));
+          key: _kDraft, value: jsonEncode(_buildDraftSnapshot()));
     } catch (_) {}
+  }
+
+  // ── Simpan sbg Draft Bersama (server, kelihatan semua admin) ──
+  Future<void> _saveSharedDraft() async {
+    if (_cart.isEmpty) {
+      uSnack(context, 'Keranjang masih kosong', isError: true); return;
+    }
+    final nameCtrl = TextEditingController(
+        text: _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Simpan Draft Bersama'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Draft ini akan bisa dilihat & dilanjutkan oleh semua admin.',
+              style: TextStyle(fontSize: 12, color: UColors.textMid)),
+          const SizedBox(height: 12),
+          TextField(controller: nameCtrl,
+              decoration: InputDecoration(labelText: 'Nama draft (opsional)',
+                  hintText: 'Kosongkan utk otomatis',
+                  filled: true, fillColor: UColors.inputBg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _colorMid),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ApiService.financeSaveNotaDraft(
+        notaType: _isBeli ? 'BELI' : 'JUAL',
+        draftName: nameCtrl.text.trim(),
+        formData: _buildDraftSnapshot(),
+      );
+      if (mounted) uSnack(context, 'Draft tersimpan, bisa dilihat semua admin ✓');
+    } catch (e) {
+      if (mounted) uSnack(context, e.toString(), isError: true);
+    }
+  }
+
+  // ── Buka daftar Draft Bersama (dari server, semua admin) ──
+  Future<void> _openSharedDrafts() async {
+    List<dynamic> drafts = [];
+    bool loading = true;
+    String? err;
+    try {
+      drafts = await ApiService.financeListNotaDrafts();
+      loading = false;
+    } catch (e) {
+      err = e.toString();
+      loading = false;
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(builder: (sheetCtx, setModalState) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65, minChildSize: 0.35, maxChildSize: 0.9,
+          expand: false,
+          builder: (ctx, scrollController) => Container(
+            decoration: const BoxDecoration(color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 6),
+                child: Container(width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4))),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text('📂 Draft Bersama (semua admin)', style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: UColors.textDark)),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: loading
+                    ? const Center(child: CircularProgressIndicator(color: UColors.primary))
+                    : err != null
+                        ? Center(child: Text('Gagal memuat: $err',
+                            style: const TextStyle(color: UColors.danger)))
+                        : drafts.isEmpty
+                            ? const Center(child: Text('Belum ada draft bersama',
+                                style: TextStyle(color: UColors.textLight)))
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                itemCount: drafts.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                                itemBuilder: (ctx, i) {
+                                  final d = Map<String, dynamic>.from(drafts[i]);
+                                  final isBeli = '${d['nota_type']}' == 'BELI';
+                                  return ListTile(
+                                    leading: Text(isBeli ? '📦' : '🛒', style: const TextStyle(fontSize: 18)),
+                                    title: Text('${d['draft_name'] ?? '-'}', style: const TextStyle(
+                                        fontWeight: FontWeight.w700, fontSize: 13)),
+                                    subtitle: Text(
+                                        'oleh ${d['created_by_name'] ?? '-'} • ${d['updated_at_wib'] ?? ''}',
+                                        style: const TextStyle(fontSize: 11, color: UColors.textLight)),
+                                    trailing: GestureDetector(
+                                      onTap: () async {
+                                        final delOk = await showDialog<bool>(
+                                          context: ctx,
+                                          builder: (_) => AlertDialog(
+                                            title: const Text('Hapus draft ini?'),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(backgroundColor: UColors.danger),
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (delOk == true) {
+                                          try {
+                                            await ApiService.financeDeleteNotaDraft(
+                                                int.tryParse('${d['id']}') ?? 0);
+                                            setModalState(() => drafts.removeAt(i));
+                                          } catch (e) {
+                                            if (mounted) uSnack(context, e.toString(), isError: true);
+                                          }
+                                        }
+                                      },
+                                      child: const Icon(Icons.delete_outline_rounded, color: UColors.danger, size: 20),
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(sheetCtx);
+                                      final formData = Map<String, dynamic>.from(d['form_data'] ?? {});
+                                      _applyDraftSnapshot(formData);
+                                    },
+                                  );
+                                },
+                              ),
+              ),
+            ]),
+          ),
+        );
+      }),
+    );
   }
 
   Future<void> _loadDraft() async {
@@ -252,13 +651,7 @@ class _InvoicePageState extends State<InvoicePage>
       final cartData = d['cart'] as List? ?? [];
       if (cartData.isEmpty && (d['name'] ?? '').toString().isEmpty) return;
 
-      final draftCart = cartData.map((i) => CartItem(
-        productId:   (i['id'] as num).toInt(),
-        productName: i['name'] as String,
-        price:       (i['price'] as num).toInt(),
-        qty:         (i['qty'] as num).toDouble(),
-        isReturn:    i['isReturn'] == true,
-      )).toList();
+      final draftCartLen = cartData.length;
 
       final savedAt = DateTime.tryParse(d['savedAt'] ?? '');
       final timeStr = savedAt != null
@@ -282,7 +675,7 @@ class _InvoicePageState extends State<InvoicePage>
           ]),
           content: Text(
             'Nota belum selesai dari $timeStr\n'
-                '${draftCart.length} barang'
+                '$draftCartLen barang'
                 '${(d['name'] ?? '').toString().isNotEmpty ? ' — ${d['name']}' : ''}\n\n'
                 'Lanjut dari draft atau buat nota baru?',
           ),
@@ -302,18 +695,7 @@ class _InvoicePageState extends State<InvoicePage>
                       borderRadius: BorderRadius.circular(10))),
               onPressed: () {
                 Navigator.pop(context);
-                setState(() {
-                  _nameCtrl.text  = d['name']  ?? '';
-                  _phoneCtrl.text = d['phone'] ?? '';
-                  _notesCtrl.text = d['notes'] ?? '';
-                  _discCtrl.text  = d['disc']  ?? '0';
-                  _payMethod      = d['pay']   ?? 'CASH';
-                  _isPaid         = d['isPaid'] ?? true;
-                  final isBeli    = d['isBeli'] ?? false;
-                  _isBeli         = isBeli;
-                  if (isBeli) _modeAnim.forward();
-                  _cart           = draftCart;
-                });
+                _applyDraftSnapshot(d);
               },
               child: const Text('Lanjut Draft',
                   style: TextStyle(color: Colors.white)),
@@ -529,8 +911,27 @@ class _InvoicePageState extends State<InvoicePage>
       _cart.where((c) => c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
   double get _disc        =>
       _isBeli ? 0 : (double.tryParse(_discCtrl.text.trim()) ?? 0);
+  // ── Potongan & Biaya (DP/Ongkir) ──
+  double get _adjDpTotal => _adjustments
+      .where((a) => a.type == 'DP').fold(0.0, (s, a) => s + a.amount);
+  double get _adjOngkirPotongan => _adjustments
+      .where((a) => a.type == 'ONGKIR' && a.mode == 'POTONGAN')
+      .fold(0.0, (s, a) => s + a.amount);
+  double get _adjOngkirBeban => _adjustments
+      .where((a) => a.type == 'ONGKIR' && a.mode == 'BEBAN')
+      .fold(0.0, (s, a) => s + a.amount);
+  // Total sebelum saldo dipotong (dipakai buat batas atas input saldo)
+  double get _rawTotal =>
+      (_subtotal - _disc - _revSubtotal - _adjDpTotal - _adjOngkirPotongan)
+          .clamp(0, double.infinity);
   double get _total       =>
-      (_subtotal - _disc - _revSubtotal).clamp(0, double.infinity);
+      (_rawTotal - _creditApplied).clamp(0, double.infinity);
+  // "YYYY-MM-DD" kalau diatur manual, null = otomatis hari ini
+  String? get _notaDateStr => (!_autoDate && _manualDate != null)
+      ? '${_manualDate!.year.toString().padLeft(4,'0')}-'
+        '${_manualDate!.month.toString().padLeft(2,'0')}-'
+        '${_manualDate!.day.toString().padLeft(2,'0')}'
+      : null;
 
   // ── Kontak ─────────────────────────────────────
   Future<void> _pickContact() async {
@@ -813,9 +1214,12 @@ class _InvoicePageState extends State<InvoicePage>
     }
     setState(() {
       final id  = int.tryParse('${_selMat!['id']}') ?? 0;
-      final idx = _cart.indexWhere(
+      final note = _itemNoteCtrl.text.trim();
+      // Item dgn catatan tidak digabung ke baris lain spy catatannya
+      // tetap jelas per baris (bukan tercampur ke qty gabungan).
+      final idx = note.isEmpty ? _cart.indexWhere(
               (c) => c.productId == id && c.price == _manualPrice
-                  && c.isReturn == _addAsReturn);
+                  && c.isReturn == _addAsReturn && (c.note ?? '').isEmpty) : -1;
       if (idx >= 0) {
         _cart[idx] = _cart[idx].copyWith(qty: _cart[idx].qty + _previewQty);
       } else {
@@ -826,10 +1230,12 @@ class _InvoicePageState extends State<InvoicePage>
           price:       _manualPrice,
           qty:         _previewQty,
           isReturn:    _addAsReturn,
+          note:        note.isEmpty ? null : note,
         ));
       }
       _qtyCtrl.text = '1';
       _priceCtrl.clear();
+      _itemNoteCtrl.clear();
       _addAsReturn = false;
     });
     _saveDraft();
@@ -839,6 +1245,7 @@ class _InvoicePageState extends State<InvoicePage>
   Future<void> _editItem(int idx) async {
     final qC = TextEditingController(text: _fmtQty(_cart[idx].qty));
     final pC = TextEditingController(text: '${_cart[idx].price}');
+    final nC = TextEditingController(text: _cart[idx].note ?? '');
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -864,6 +1271,13 @@ class _InvoicePageState extends State<InvoicePage>
                   filled: true, fillColor: UColors.inputBg,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10)))),
+          const SizedBox(height: 10),
+          TextField(controller: nC,
+              decoration: InputDecoration(
+                  labelText: 'Catatan barang (opsional)',
+                  filled: true, fillColor: UColors.inputBg,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)))),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
@@ -880,16 +1294,79 @@ class _InvoicePageState extends State<InvoicePage>
     if (!mounted || ok != true) return;
     final q = double.tryParse(qC.text.trim()) ?? 0;
     final p = int.tryParse(pC.text.trim()) ?? 0;
+    final n = nC.text.trim();
     setState(() {
       if (q <= 0) _cart.removeAt(idx);
       else _cart[idx] = _cart[idx].copyWith(
-          qty: q, price: p > 0 ? p : null);
+          qty: q, price: p > 0 ? p : null, note: n.isEmpty ? null : n);
     });
     _saveDraft();
   }
 
+  // ── Payload helpers (dipakai submit & preview) ──
+  List<Map<String, dynamic>> _buildItemsPayload() => _cart.map((c) => {
+    'material_id': c.productId,
+    'qty':         c.qty,
+    'price':       c.price,
+    'note':        c.note ?? '',
+    'is_return':   c.isReturn,
+  }).toList();
+
+  List<Map<String, dynamic>> _buildAdjustmentsPayload() {
+    final list = _adjustments
+        .where((a) => a.amount > 0)
+        .map((a) => a.toJson())
+        .toList();
+    if (!_isBeli && _disc > 0) list.add({'type': 'DP', 'amount': _disc});
+    return list;
+  }
+
+  void _resetFormAfterSubmit() {
+    for (final a in _adjustments) a.dispose();
+    _cart.clear(); _nameCtrl.clear(); _phoneCtrl.clear();
+    _notesCtrl.clear(); _discCtrl.text = '0';
+    _payMethod = 'CASH'; _isPaid = true; _submitting = false;
+    _priceCtrl.clear(); _itemNoteCtrl.clear();
+    _qtyCtrl.text = '1'; _selId = null; _addAsReturn = false;
+    _adjustments.clear();
+    _creditCtrl.clear(); _creditAvailable = 0; _creditPartyName = null;
+    _autoDate = true; _manualDate = null;
+  }
+
+  Future<bool> _confirmSubmit({
+    required String title, required String content,
+    required String btnLabel, required Color color, required IconData icon,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(title)),
+        ]),
+        content: Text(content),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10))),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(btnLabel, style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   // ══════════════════════════════════════════════
-  //  SUBMIT JUAL → createInvoice → print page
+  //  SUBMIT JUAL → langsung simpan ke database, baru
+  //  pindah ke halaman cetak (nota sudah tersimpan).
   // ══════════════════════════════════════════════
   Future<void> _submitJual() async {
     if (_cart.isEmpty) {
@@ -898,120 +1375,62 @@ class _InvoicePageState extends State<InvoicePage>
     if (_nameCtrl.text.trim().isEmpty) {
       uSnack(context, 'Nama customer wajib diisi', isError: true); return;
     }
+    final name = _nameCtrl.text.trim();
+    final ok = await _confirmSubmit(
+      title: 'Buat & Simpan Nota?',
+      content: 'Nota penjualan untuk "$name" sebesar ${_rp(_total)} '
+          'akan langsung tersimpan ke laporan keuangan.',
+      btnLabel: 'Buat Nota', color: _cJualMid,
+      icon: Icons.receipt_long_rounded,
+    );
+    if (!ok || !mounted) return;
+
     setState(() => _submitting = true);
-
-    // Generate nomor nota lokal — backend baru dipanggil saat
-    // user pencet "Kirim ke DB" di print page
-    final now = DateTime.now();
-    final noNota = 'INV-'
-        '${now.year}'
-        '${now.month.toString().padLeft(2, '0')}'
-        '${now.day.toString().padLeft(2, '0')}'
-        '-${now.hour.toString().padLeft(2, '0')}'
-        '${now.minute.toString().padLeft(2, '0')}';
-
-    final snap  = List<CartItem>.from(_cart);
-    final name  = _nameCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
-    final pay   = _payMethod;
-    final notes = _notesCtrl.text.trim();
-    final disc  = _disc;
-    final sub   = _subtotal;
+    final snap   = List<CartItem>.from(_cart);
+    final phone  = _phoneCtrl.text.trim();
+    final pay    = _payMethod;
+    final notes  = _notesCtrl.text.trim();
+    final disc   = _disc + _adjDpTotal + _adjOngkirPotongan + _creditApplied;
+    final sub    = _subtotal;
     final revSub = _revSubtotal;
-    final total = _total;
-    final paid  = _isPaid;
+    final total  = _total;
+    final paid   = _isPaid;
 
-    // Hapus draft & reset form
-    await _clearDraft();
-    setState(() {
-      _cart.clear(); _nameCtrl.clear(); _phoneCtrl.clear();
-      _notesCtrl.clear(); _discCtrl.text = '0';
-      _payMethod = 'CASH'; _isPaid = true; _submitting = false;
-    });
-
-    if (!context.mounted) return;
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => InvoicePrintPage(
-        invoiceId:     0,
-        invoiceNo:     noNota,
-        customerName:  name,
-        customerPhone: phone,
-        paymentMethod: pay,
-        notes:         notes,
-        discount:      disc,
-        subtotal:      sub,
-        reverseSubtotal: revSub,
-        grandTotal:    total,
-        items:         snap,
-        isPaid:        paid,
-        isBeli:        false,
-      ),
-    ));
-  }
-
-  // ══════════════════════════════════════════════
-  //  SUBMIT BELI → financeBeli → tambah stok + HPP
-  // ══════════════════════════════════════════════
-  // ══════════════════════════════════════════════
-  //  SUBMIT BELI → langsung ke print page
-  //  Simpan ke database MANUAL dari print page
-  // ══════════════════════════════════════════════
-  Future<void> _submitBeli() async {
-    if (_cart.isEmpty) {
-      uSnack(context, 'Keranjang masih kosong', isError: true); return;
-    }
-    setState(() => _submitting = true);
     try {
-      // Kumpulkan semua data SEBELUM clear
-      final snap      = List<CartItem>.from(_cart);
-      final beliItems = _cart.map((c) => {
-        'material_id':  c.productId,
-        'qty_kg':       c.qty,
-        'price_per_kg': c.price,
-        'is_return':    c.isReturn,
-      }).toList();
-      final supplier  = _nameCtrl.text.trim();
-      final phone     = _phoneCtrl.text.trim();
-      final notes     = _notesCtrl.text.trim();
-      final sub       = _subtotal;
-      final revSub    = _revSubtotal;
-      final total     = _total;
-      final paid      = _isPaid;
-
-      // Generate nomor nota beli lokal
-      final now = DateTime.now();
-      final noNota = 'BELI-'
-          '${now.year}'
-          '${now.month.toString().padLeft(2, '0')}'
-          '${now.day.toString().padLeft(2, '0')}'
-          '-${now.hour.toString().padLeft(2, '0')}'
-          '${now.minute.toString().padLeft(2, '0')}';
-
-      // Reset form
+      final result = await ApiService.financeCreateInvoice(
+        header: {
+          'customer_name':  name,
+          'customer_phone': phone,
+          'payment_method': pay,
+          'notes':          notes,
+          'discount':       0,
+          'is_paid':        paid ? '1' : '0',
+          'adjustments':    _buildAdjustmentsPayload(),
+          'credit_applied': _creditApplied,
+          'nota_date':      _notaDateStr,
+        },
+        items: _buildItemsPayload(),
+      );
       await _clearDraft();
-      setState(() {
-        _cart.clear(); _nameCtrl.clear(); _phoneCtrl.clear();
-        _notesCtrl.clear(); _isPaid = true; _submitting = false;
-        _priceCtrl.clear(); _qtyCtrl.text = '1'; _selId = null;
-      });
+      if (!mounted) return;
+      setState(_resetFormAfterSubmit);
 
       if (!context.mounted) return;
       Navigator.push(context, MaterialPageRoute(
         builder: (_) => InvoicePrintPage(
-          invoiceId:     0,
-          invoiceNo:     noNota,
-          customerName:  supplier.isNotEmpty ? supplier : 'Supplier',
+          invoiceId:     result['invoice_id'],
+          invoiceNo:     '${result['invoice_no'] ?? ''}',
+          customerName:  name,
           customerPhone: phone,
-          paymentMethod: paid ? 'LUNAS' : 'BELUM LUNAS',
+          paymentMethod: pay,
           notes:         notes,
-          discount:      0,
+          discount:      disc,
           subtotal:      sub,
           reverseSubtotal: revSub,
           grandTotal:    total,
           items:         snap,
           isPaid:        paid,
-          isBeli:        true,
-          beliRawItems:  beliItems,
+          isBeli:        false,
         ),
       ));
     } catch (e) {
@@ -1019,6 +1438,321 @@ class _InvoicePageState extends State<InvoicePage>
       uSnack(context, e.toString(), isError: true);
       setState(() => _submitting = false);
     }
+  }
+
+  // ══════════════════════════════════════════════
+  //  SUBMIT BELI → langsung simpan ke database (nota
+  //  BELI resmi via /finance/purchase-invoice), baru
+  //  pindah ke halaman cetak.
+  // ══════════════════════════════════════════════
+  Future<void> _submitBeli() async {
+    if (_cart.isEmpty) {
+      uSnack(context, 'Keranjang masih kosong', isError: true); return;
+    }
+    final supplier = _nameCtrl.text.trim();
+    final displayName = supplier.isNotEmpty ? supplier : 'Pembelian Umum';
+    final ok = await _confirmSubmit(
+      title: 'Catat Pembelian?',
+      content: 'Pembelian dari "$displayName" senilai ${_rp(_total)} akan '
+          'langsung tersimpan & menambah stok gudang.',
+      btnLabel: 'Catat', color: _cBeliMid,
+      icon: Icons.add_box_rounded,
+    );
+    if (!ok || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final snap   = List<CartItem>.from(_cart);
+      final phone  = _phoneCtrl.text.trim();
+      final notes  = _notesCtrl.text.trim();
+      final sub    = _subtotal;
+      final revSub = _revSubtotal;
+      final total  = _total;
+      final paid   = _isPaid;
+      final disc   = _adjDpTotal + _adjOngkirPotongan + _creditApplied;
+
+      final result = await ApiService.financeCreatePurchaseInvoice(
+        header: {
+          'supplier_name':  supplier,
+          'supplier_phone': phone,
+          'payment_method': 'CASH',
+          'notes':          notes,
+          'is_paid':        paid ? '1' : '0',
+          'adjustments':    _buildAdjustmentsPayload(),
+          'credit_applied': _creditApplied,
+          'nota_date':      _notaDateStr,
+        },
+        items: _buildItemsPayload(),
+      );
+
+      await _clearDraft();
+      if (!mounted) return;
+      setState(_resetFormAfterSubmit);
+
+      if (!context.mounted) return;
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => InvoicePrintPage(
+          invoiceId:     result['invoice_id'],
+          invoiceNo:     '${result['invoice_no'] ?? ''}',
+          customerName:  displayName,
+          customerPhone: phone,
+          paymentMethod: paid ? 'LUNAS' : 'BELUM LUNAS',
+          notes:         notes,
+          discount:      disc,
+          subtotal:      sub,
+          reverseSubtotal: revSub,
+          grandTotal:    total,
+          items:         snap,
+          isPaid:        paid,
+          isBeli:        true,
+        ),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      uSnack(context, e.toString(), isError: true);
+      setState(() => _submitting = false);
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  SUBMIT EDIT — simpan perubahan ke nota yg sudah
+  //  ada (tanggal & pakai-saldo tidak bisa diubah).
+  // ══════════════════════════════════════════════
+  Future<void> _submitEdit() async {
+    if (_cart.isEmpty) {
+      uSnack(context, 'Keranjang masih kosong', isError: true); return;
+    }
+    if (!_isBeli && _nameCtrl.text.trim().isEmpty) {
+      uSnack(context, 'Nama customer wajib diisi', isError: true); return;
+    }
+    final ok = await _confirmSubmit(
+      title: 'Simpan Perubahan Nota?',
+      content: '$_editInvoiceNo akan diperbarui — stok & HPP lama otomatis '
+          'dibalik lalu diterapkan ulang sesuai barang yang baru.',
+      btnLabel: 'Simpan Perubahan', color: _colorMid,
+      icon: Icons.edit_rounded,
+    );
+    if (!ok || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final result = await ApiService.editNotaInvoice(
+        txnId: widget.editTxnId!,
+        header: {
+          'customer_name':  _nameCtrl.text.trim(),
+          'customer_phone': _phoneCtrl.text.trim(),
+          'payment_method': _payMethod,
+          'notes':          _notesCtrl.text.trim(),
+          'is_paid':        _isPaid ? '1' : '0',
+          'adjustments':    _buildAdjustmentsPayload(),
+        },
+        items: _buildItemsPayload(),
+      );
+      if (!mounted) return;
+      uSnack(context, 'Nota ${result['invoice_no'] ?? ''} berhasil diperbarui ✓');
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      uSnack(context, e.toString(), isError: true);
+      setState(() => _submitting = false);
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  PREVIEW — ringkasan nota sebelum disimpan
+  //  (murni dari state form saat ini, tanpa panggil API)
+  // ══════════════════════════════════════════════
+  void _showPreview() {
+    if (_cart.isEmpty) {
+      uSnack(context, 'Keranjang masih kosong', isError: true); return;
+    }
+    final party = _nameCtrl.text.trim().isEmpty
+        ? (_isBeli ? 'Pembelian Umum' : '-') : _nameCtrl.text.trim();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.75, minChildSize: 0.4, maxChildSize: 0.92,
+        expand: false,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 6),
+              child: Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(4))),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                Icon(Icons.visibility_rounded, color: _colorMid, size: 18),
+                const SizedBox(width: 8),
+                Text('Preview Nota — belum tersimpan', style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800,
+                    color: UColors.textDark)),
+              ]),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  Text(_isBeli ? 'Supplier' : 'Customer', style: const TextStyle(
+                      fontSize: 11, color: UColors.textLight)),
+                  Text(party, style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w800)),
+                  Text(_autoDate
+                      ? 'Tanggal: hari ini'
+                      : 'Tanggal: ${_manualDate != null ? _fmtDatePretty(_manualDate!) : '-'}',
+                      style: const TextStyle(fontSize: 11, color: UColors.textMid)),
+                  const SizedBox(height: 14),
+                  ..._cart.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(children: [
+                      if (c.isReturn) const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Text('🔁', style: TextStyle(fontSize: 12)),
+                      ),
+                      Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c.productName, style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700)),
+                            Text('${_fmtQty(c.qty)} kg × ${_rp(c.price)}'
+                                '${(c.note ?? '').isNotEmpty ? ' — ${c.note}' : ''}',
+                                style: const TextStyle(fontSize: 11,
+                                    color: UColors.textMid)),
+                          ])),
+                      Text((c.isReturn ? '− ' : '') + _rp(c.subtotal),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                              color: c.isReturn ? const Color(0xFFC2410C) : UColors.textDark)),
+                    ]),
+                  )),
+                  const Divider(height: 24),
+                  _RingkasanRow('Subtotal', _rp(_subtotal)),
+                  if (_revSubtotal > 0)
+                    _RingkasanRow('🔁 Barang balik', '− ${_rp(_revSubtotal)}'),
+                  if (!_isBeli && _disc > 0)
+                    _RingkasanRow('Diskon', '− ${_rp(_disc)}'),
+                  for (final a in _adjustments.where((a) => a.amount > 0))
+                    _RingkasanRow(
+                      a.type == 'DP' ? 'DP' : 'Ongkir (${a.mode == 'BEBAN' ? 'Beban' : 'Potongan'})',
+                      a.mode == 'BEBAN' && a.type == 'ONGKIR'
+                          ? _rp(a.amount) : '− ${_rp(a.amount)}',
+                    ),
+                  if (_creditApplied > 0)
+                    _RingkasanRow('Pakai saldo ${_creditPartyName ?? party}',
+                        '− ${_rp(_creditApplied)}'),
+                  const SizedBox(height: 8),
+                  _RingkasanRow('TOTAL', _rp(_total), bold: true),
+                  const SizedBox(height: 4),
+                  Text(_isPaid ? '✓ LUNAS' : '⏳ BELUM LUNAS', style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800,
+                      color: _isPaid ? UColors.success : UColors.warning)),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ── Baris "Potongan & Biaya" (DP/Ongkir) ──────
+  Widget _buildAdjRow(int i) {
+    final row = _adjustments[i];
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: UColors.inputBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _colorMid.withOpacity(0.12)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: row.type,
+              isDense: true,
+              decoration: const InputDecoration(
+                  isDense: true, border: InputBorder.none,
+                  labelText: 'Jenis'),
+              items: const [
+                DropdownMenuItem(value: 'DP', child: Text('DP')),
+                DropdownMenuItem(value: 'ONGKIR', child: Text('Ongkir')),
+              ],
+              onChanged: (v) => setState(() => row.type = v ?? 'DP'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() {
+              _adjustments[i].dispose();
+              _adjustments.removeAt(i);
+            }),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                  color: UColors.danger.withOpacity(0.08),
+                  shape: BoxShape.circle),
+              child: const Icon(Icons.close_rounded,
+                  size: 14, color: UColors.danger),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        TextField(
+          controller: row.amountCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: 'Jumlah (Rp)', isDense: true,
+            filled: true, fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        if (row.type == 'ONGKIR') ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            for (final m in ['BEBAN', 'POTONGAN'])
+              Expanded(child: GestureDetector(
+                onTap: () => setState(() => row.mode = m),
+                child: Container(
+                  margin: EdgeInsets.only(right: m == 'BEBAN' ? 6 : 0),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: row.mode == m ? _colorMid : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _colorMid.withOpacity(0.3)),
+                  ),
+                  child: Center(child: Text(
+                      m == 'BEBAN' ? 'Beban (Pengeluaran)' : 'Potongan Total',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                          color: row.mode == m ? Colors.white : UColors.textMid))),
+                ),
+              )),
+          ]),
+          if (row.mode == 'BEBAN') ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: row.categoryCtrl,
+              decoration: InputDecoration(
+                labelText: 'Kategori (opsional, mis. BBM/Transportasi)',
+                isDense: true, filled: true, fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ],
+      ]),
+    );
   }
 
   // ── Build ──────────────────────────────────────
@@ -1036,15 +1770,22 @@ class _InvoicePageState extends State<InvoicePage>
     return Scaffold(
       backgroundColor: UColors.surface,
       appBar: UAppBar(
-        title: 'Nota Transaksi',
+        title: _isEditMode ? 'Edit Nota $_editInvoiceNo' : 'Nota Transaksi',
         actions: [
-          IconButton(
-            icon: const Icon(Icons.history_rounded, color: Colors.white),
-            tooltip: 'Riwayat Nota',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const NotaHistoryPage(),
-            )),
-          ),
+          if (!_isEditMode) ...[
+            IconButton(
+              icon: const Icon(Icons.folder_shared_rounded, color: Colors.white),
+              tooltip: 'Draft Bersama',
+              onPressed: _openSharedDrafts,
+            ),
+            IconButton(
+              icon: const Icon(Icons.history_rounded, color: Colors.white),
+              tooltip: 'Riwayat Nota',
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const NotaHistoryPage(),
+              )),
+            ),
+          ],
         ],
       ),
       body: ListView(
@@ -1158,13 +1899,13 @@ class _InvoicePageState extends State<InvoicePage>
                         borderRadius: BorderRadius.circular(12)),
                     child: Row(children: [
                       _ModeTab(
-                        label: '← JUAL',
+                        label: 'JUAL',
                         icon: Icons.sell_rounded,
                         active: !_isBeli,
                         onTap: () => _switchMode(false),
                       ),
                       _ModeTab(
-                        label: 'BELI →',
+                        label: 'BELI',
                         icon: Icons.add_shopping_cart_rounded,
                         active: _isBeli,
                         onTap: () => _switchMode(true),
@@ -1194,9 +1935,47 @@ class _InvoicePageState extends State<InvoicePage>
               title: _isBeli ? 'Info Supplier' : 'Info Customer'),
           const SizedBox(height: 12),
           _InvCard(children: [
+            if (_partyBalances.isNotEmpty) Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  _isBeli
+                      ? '💰 Ada DP ke Pemasok Ini — klik nama utk pilih otomatis:'
+                      : '💰 Ada Titipan DP dari Orang Ini — klik nama utk pilih otomatis:',
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700,
+                      color: UColors.textMid),
+                ),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: _partyBalances.map((p) {
+                  final name = '${p['party_name'] ?? ''}';
+                  final remaining = (p['remaining'] as num?)?.toDouble() ?? 0;
+                  final selected = _nameCtrl.text.trim().toLowerCase() == name.trim().toLowerCase();
+                  return GestureDetector(
+                    onTap: () => _pickPartyBalance(name),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: selected ? _colorMid : _colorMid.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _colorMid.withOpacity(0.3)),
+                      ),
+                      child: Text('$name · ${_rp(remaining)}', style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          color: selected ? Colors.white : _colorMid)),
+                    ),
+                  );
+                }).toList()),
+              ]),
+            ),
+            if (_loadingBalances) const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: SizedBox(width: 14, height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
             Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
               Expanded(child: UField(
                 controller: _nameCtrl,
+                focusNode: _nameFocus,
                 label: _isBeli
                     ? 'Nama Supplier (opsional)'
                     : 'Nama Customer *',
@@ -1222,6 +2001,20 @@ class _InvoicePageState extends State<InvoicePage>
                         : Icons.person_add_rounded,
                     color: _colorMid, size: 22,
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _pickFromPartyHistory,
+                child: Container(
+                  height: 52, width: 52,
+                  decoration: BoxDecoration(
+                    color: _colorMid.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _colorMid.withOpacity(0.2)),
+                  ),
+                  child: Icon(Icons.history_rounded, color: _colorMid, size: 22),
                 ),
               ),
             ]),
@@ -1279,6 +2072,121 @@ class _InvoicePageState extends State<InvoicePage>
                 ),
               ),
             ]),
+
+            // ── Saldo hutang/piutang pihak — bisa dipakai sbg DP ──
+            // (disembunyikan saat edit -- kredit tidak bisa diubah lewat edit)
+            if (!_isEditMode && _creditChecking) Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(children: [
+                const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text('Cek saldo…', style: TextStyle(
+                    fontSize: 11, color: UColors.textLight)),
+              ]),
+            ),
+            if (!_isEditMode && !_creditChecking && _creditAvailable > 0) Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Icon(Icons.savings_rounded, color: Color(0xFF059669), size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(
+                        'Saldo tersedia ${_isBeli ? 'kita di' : ''} ${_creditPartyName ?? ''}'
+                        '${_isBeli ? '' : ' ke kita'}: ${_rp(_creditAvailable)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                            color: Color(0xFF047857)))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: TextField(
+                      controller: _creditCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Pakai berapa? (maks ${_rp(_creditAvailable)})',
+                        isDense: true,
+                        filled: true, fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: const Color(0xFF10B981).withOpacity(0.3))),
+                      ),
+                    )),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => setState(() => _creditCtrl.text =
+                          _creditAvailable.clamp(0, _rawTotal).toStringAsFixed(0)),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        decoration: BoxDecoration(color: const Color(0xFF059669),
+                            borderRadius: BorderRadius.circular(10)),
+                        child: const Text('Pakai Semua', style: TextStyle(
+                            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+
+            // ── Tanggal nota (tidak bisa diubah lewat edit) ──
+            if (!_isEditMode) ...[
+            const SizedBox(height: 14),
+            Text('Tanggal Nota', style: const TextStyle(fontSize: 13,
+                fontWeight: FontWeight.w600, color: UColors.textMid)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: GestureDetector(
+                onTap: () => setState(() { _autoDate = true; _manualDate = null; }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _autoDate ? _colorMid : UColors.inputBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(child: Text('Otomatis (Hari Ini)', style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700,
+                      color: _autoDate ? Colors.white : UColors.textMid))),
+                ),
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _manualDate ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() { _autoDate = false; _manualDate = picked; });
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: !_autoDate ? _colorMid : UColors.inputBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(child: Text(
+                      !_autoDate && _manualDate != null
+                          ? _fmtDatePretty(_manualDate!)
+                          : 'Atur Manual',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700,
+                          color: !_autoDate ? Colors.white : UColors.textMid))),
+                ),
+              )),
+            ]),
+            ],
 
             // Metode pembayaran — HANYA untuk JUAL
             if (!_isBeli) ...[
@@ -1503,6 +2411,13 @@ class _InvoicePageState extends State<InvoicePage>
               keyboard: TextInputType.number,
             ),
             const SizedBox(height: 12),
+            UField(
+              controller: _itemNoteCtrl,
+              label: 'Catatan barang (opsional)',
+              hint: 'Contoh: barang kotor, sisa lot kemarin',
+              prefixIcon: Icons.note_alt_outlined,
+            ),
+            const SizedBox(height: 12),
 
             Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Expanded(child: Column(
@@ -1680,6 +2595,11 @@ class _InvoicePageState extends State<InvoicePage>
                                 style: const TextStyle(fontSize: 11,
                                     color: UColors.textMid),
                               ),
+                              if ((item.note ?? '').isNotEmpty)
+                                Text('📝 ${item.note}',
+                                    style: const TextStyle(fontSize: 10,
+                                        fontStyle: FontStyle.italic,
+                                        color: UColors.textLight)),
                             ])),
                         Text(
                             (item.isReturn ? '− ' : '') + _rp(item.subtotal),
@@ -1754,6 +2674,35 @@ class _InvoicePageState extends State<InvoicePage>
           const SizedBox(height: 20),
 
           // ══════════════════════════════════════
+          //  POTONGAN & BIAYA — DP, Ongkir, dll (kedua mode)
+          // ══════════════════════════════════════
+          USectionHeader(title: 'Potongan & Biaya (DP, Ongkir, dll)'),
+          const SizedBox(height: 12),
+          _InvCard(children: [
+            if (_adjustments.isEmpty)
+              Text('Belum ada potongan/biaya tambahan.', style: TextStyle(
+                  fontSize: 12, color: UColors.textLight)),
+            for (int i = 0; i < _adjustments.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              _buildAdjRow(i),
+            ],
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () => setState(() => _adjustments.add(_AdjRow())),
+              child: Row(children: [
+                Icon(Icons.add_circle_outline_rounded,
+                    color: _colorMid, size: 16),
+                const SizedBox(width: 6),
+                Text('Tambah Baris Potongan/Biaya', style: TextStyle(
+                    fontSize: 12, color: _colorMid,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 20),
+
+          // ══════════════════════════════════════
           //  RINGKASAN — hanya untuk JUAL
           // ══════════════════════════════════════
           if (!_isBeli) ...[
@@ -1810,6 +2759,20 @@ class _InvoicePageState extends State<InvoicePage>
                     const SizedBox(height: 8),
                     _SumRow('Diskon', '− ${_rp(_disc)}',
                         color: UColors.danger),
+                  ],
+                  if (_adjDpTotal > 0) ...[
+                    const SizedBox(height: 8),
+                    _SumRow('DP', '− ${_rp(_adjDpTotal)}', color: UColors.danger),
+                  ],
+                  if (_adjOngkirPotongan > 0) ...[
+                    const SizedBox(height: 8),
+                    _SumRow('Ongkir (Potongan)', '− ${_rp(_adjOngkirPotongan)}',
+                        color: UColors.danger),
+                  ],
+                  if (_creditApplied > 0) ...[
+                    const SizedBox(height: 8),
+                    _SumRow('Pakai Saldo', '− ${_rp(_creditApplied)}',
+                        color: const Color(0xFF059669)),
                   ],
                   Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1893,6 +2856,16 @@ class _InvoicePageState extends State<InvoicePage>
                               style: const TextStyle(fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFFC2410C))),
+                          if (_adjDpTotal + _adjOngkirPotongan > 0) Text(
+                              'DP/Potongan − ${_rp(_adjDpTotal + _adjOngkirPotongan)}',
+                              style: const TextStyle(fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: UColors.danger)),
+                          if (_creditApplied > 0) Text(
+                              'Pakai saldo − ${_rp(_creditApplied)}',
+                              style: const TextStyle(fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF059669))),
                         ]),
                     const Spacer(),
                     Column(crossAxisAlignment: CrossAxisAlignment.end,
@@ -1915,9 +2888,45 @@ class _InvoicePageState extends State<InvoicePage>
           ],
 
           // ══════════════════════════════════════
-          //  TOMBOL SUBMIT
+          //  TOMBOL PREVIEW & SIMPAN DRAFT
           // ══════════════════════════════════════
           const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: _showPreview,
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: _colorMid.withOpacity(0.4)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                icon: Icon(Icons.visibility_rounded, color: _colorMid, size: 18),
+                label: Text('Preview', style: TextStyle(
+                    color: _colorMid, fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
+            )),
+            if (!_isEditMode) ...[
+            const SizedBox(width: 10),
+            Expanded(child: SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: _saveSharedDraft,
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: _colorMid.withOpacity(0.4)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                icon: Icon(Icons.save_rounded, color: _colorMid, size: 18),
+                label: Text('Simpan Draft', style: TextStyle(
+                    color: _colorMid, fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
+            )),
+            ],
+          ]),
+
+          // ══════════════════════════════════════
+          //  TOMBOL SUBMIT
+          // ══════════════════════════════════════
+          const SizedBox(height: 10),
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             decoration: BoxDecoration(
@@ -1936,7 +2945,9 @@ class _InvoicePageState extends State<InvoicePage>
                 borderRadius: BorderRadius.circular(16),
                 onTap: _submitting
                     ? null
-                    : (_isBeli ? _submitBeli : _submitJual),
+                    : (_isEditMode
+                        ? _submitEdit
+                        : (_isBeli ? _submitBeli : _submitJual)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Center(
@@ -1948,16 +2959,20 @@ class _InvoicePageState extends State<InvoicePage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _isBeli
-                              ? Icons.add_shopping_cart_rounded
-                              : Icons.print_rounded,
+                          _isEditMode
+                              ? Icons.save_rounded
+                              : (_isBeli
+                                  ? Icons.add_shopping_cart_rounded
+                                  : Icons.print_rounded),
                           color: Colors.white, size: 20,
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          _isBeli
-                              ? 'Catat Pembelian & Tambah Stok'
-                              : 'Buat & Cetak Nota',
+                          _isEditMode
+                              ? 'Simpan Perubahan'
+                              : (_isBeli
+                                  ? 'Catat Pembelian & Tambah Stok'
+                                  : 'Buat & Cetak Nota'),
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -2142,8 +3157,10 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
   final _nameCtrl  = TextEditingController();
   final _addrCtrl  = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  String? _logoPath;
-  bool    _saving  = false;
+  Uint8List? _logoBytes;   // logo tersimpan (dari server) atau baru dipilih
+  String?    _logoMime;
+  bool       _loadingProfile = true;
+  bool       _saving  = false;
 
   static const _kColor = Color(0xFF1565C0);
 
@@ -2156,18 +3173,27 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
     super.dispose();
   }
 
+  // Profil umum (bukan per akun) — sumber tunggal dipakai bareng web.
   Future<void> _loadCurrentSettings() async {
-    final name  = await readNotaSetting(kNotaName);
-    final addr  = await readNotaSetting(kNotaAddr);
-    final phone = await readNotaSetting(kNotaPhone);
-    final logo  = await readNotaSetting(kNotaLogo);
-    if (!mounted) return;
-    setState(() {
-      _nameCtrl.text  = name;
-      _addrCtrl.text  = addr;
-      _phoneCtrl.text = phone;
-      _logoPath = logo.isEmpty ? null : logo;
-    });
+    try {
+      final p = await ApiService.getCompanyProfile();
+      if (!mounted) return;
+      setState(() {
+        _nameCtrl.text  = (p['company_name'] ?? '').toString();
+        _addrCtrl.text  = (p['address'] ?? '').toString();
+        _phoneCtrl.text = (p['phone'] ?? '').toString();
+        final uri = (p['logo_data_uri'] ?? '').toString();
+        if (uri.startsWith('data:') && uri.contains('base64,')) {
+          try { _logoBytes = base64Decode(uri.split('base64,').last); } catch (_) {}
+        }
+        _loadingProfile = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingProfile = false);
+        uSnack(context, 'Gagal muat profil: $e', isError: true);
+      }
+    }
   }
 
   Future<void> _pickLogo() async {
@@ -2175,7 +3201,11 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
       final xfile = await ImagePicker().pickImage(
           source: ImageSource.gallery, imageQuality: 80, maxWidth: 400);
       if (xfile == null || !mounted) return;
-      setState(() => _logoPath = xfile.path);
+      final bytes = await xfile.readAsBytes();
+      setState(() {
+        _logoBytes = bytes;
+        _logoMime  = xfile.mimeType ?? 'image/png';
+      });
     } catch (e) {
       if (mounted) uSnack(context, 'Gagal pilih gambar: $e', isError: true);
     }
@@ -2184,16 +3214,22 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await saveNotaSetting(kNotaName,  _nameCtrl.text.trim());
-      await saveNotaSetting(kNotaAddr,  _addrCtrl.text.trim());
-      await saveNotaSetting(kNotaPhone, _phoneCtrl.text.trim());
-      await saveNotaSetting(kNotaLogo,  _logoPath ?? '');
+      await ApiService.updateCompanyProfile(
+        name:      _nameCtrl.text.trim(),
+        address:   _addrCtrl.text.trim(),
+        phone:     _phoneCtrl.text.trim(),
+        logoBytes: _logoBytes,
+        logoMime:  _logoMime,
+      );
       if (mounted) {
         Navigator.pop(context);
-        uSnack(context, 'Pengaturan nota disimpan ✓');
+        uSnack(context, 'Pengaturan nota disimpan (berlaku utk semua akun) ✓');
       }
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        uSnack(context, 'Gagal simpan: $e', isError: true);
+      }
     }
   }
 
@@ -2225,7 +3261,7 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Pengaturan Nota', style: TextStyle(
                   fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('Tersimpan di perangkat ini', style: TextStyle(
+              Text('Umum — berlaku di semua akun & perangkat', style: TextStyle(
                   fontSize: 11, color: Color(0xFF90A4AE))),
             ])),
           ]),
@@ -2244,10 +3280,13 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _kColor.withOpacity(0.2))),
               child: ClipRRect(borderRadius: BorderRadius.circular(13),
-                  child: _logoPath != null && File(_logoPath!).existsSync()
-                      ? Image.file(File(_logoPath!), fit: BoxFit.contain)
-                      : const Icon(Icons.image_outlined,
-                      color: Color(0xFF90A4AE), size: 32)),
+                  child: _loadingProfile
+                      ? const Center(child: SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2)))
+                      : (_logoBytes != null
+                          ? Image.memory(_logoBytes!, fit: BoxFit.contain)
+                          : const Icon(Icons.image_outlined,
+                              color: Color(0xFF90A4AE), size: 32))),
             ),
             const SizedBox(width: 14),
             Expanded(child: Column(
@@ -2273,10 +3312,10 @@ class _NotaSettingsSheetState extends State<_NotaSettingsSheet> {
                       ]),
                 ),
               ),
-              if (_logoPath != null) ...[
+              if (_logoBytes != null) ...[
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: () => setState(() => _logoPath = null),
+                  onTap: () => setState(() => _logoBytes = null),
                   child: const Row(mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.delete_outline_rounded,

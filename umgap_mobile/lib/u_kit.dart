@@ -465,6 +465,7 @@ class UField extends StatelessWidget {
   final void Function(String)? onChanged;
   final void Function(String)? onSubmitted;
   final bool readOnly;
+  final FocusNode? focusNode;
 
   const UField({
     super.key,
@@ -479,6 +480,7 @@ class UField extends StatelessWidget {
     this.onChanged,
     this.onSubmitted,
     this.readOnly = false,
+    this.focusNode,
   });
 
   @override
@@ -488,6 +490,7 @@ class UField extends StatelessWidget {
       const SizedBox(height: USpace.xs + 2),
       TextField(
         controller:    controller,
+        focusNode:     focusNode,
         obscureText:   obscure,
         maxLines:      obscure ? 1 : maxLines,
         keyboardType:  keyboard,
@@ -904,4 +907,111 @@ String uInitials(String name) {
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts[0][0].toUpperCase();
   return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+}
+
+// ════════════════════════════════════════════
+//  LOV — picker nama (karyawan/kasir/dll), mirror
+//  pola _showMaterialPicker() di invoice_page.dart:
+//  search box + list, tanpa panggilan API (filter
+//  dari daftar nama yg sudah ada di memori).
+// ════════════════════════════════════════════
+Future<String?> uShowNamePicker(
+  BuildContext context, {
+  required String title,
+  required List<String> names,
+  String allLabel = 'Semua',
+}) async {
+  final uniqueNames = names.toSet().toList()..sort();
+  String query = '';
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) {
+      return StatefulBuilder(builder: (sheetCtx, setModalState) {
+        final filtered = uniqueNames.where((n) =>
+            query.trim().isEmpty ||
+            n.toLowerCase().contains(query.trim().toLowerCase())).toList();
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65, minChildSize: 0.35, maxChildSize: 0.9,
+          expand: false,
+          builder: (ctx, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 6),
+                child: Container(width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4))),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(title, style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w800,
+                    color: UColors.textDark)),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Cari nama…',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    filled: true,
+                    fillColor: UColors.inputBg,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                  ),
+                  onChanged: (v) => setModalState(() => query = v),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  children: [
+                    if (query.trim().isEmpty)
+                      ListTile(
+                        leading: const Icon(Icons.people_alt_rounded,
+                            color: UColors.primary),
+                        title: Text(allLabel, style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                        onTap: () => Navigator.pop(sheetCtx, ''),
+                      ),
+                    if (filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Center(child: Text('Nama tidak ditemukan',
+                            style: TextStyle(color: UColors.textLight))),
+                      )
+                    else
+                      ...filtered.map((n) => ListTile(
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: UColors.primary.withOpacity(0.1),
+                          child: Text(uInitials(n), style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w800,
+                              color: UColors.primary)),
+                        ),
+                        title: Text(n, style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                        onTap: () => Navigator.pop(sheetCtx, n),
+                      )),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        );
+      });
+    },
+  );
 }

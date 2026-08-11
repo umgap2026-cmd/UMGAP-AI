@@ -14,6 +14,7 @@ class _SalesMonitorPageState extends State<SalesMonitorPage> with SingleTickerPr
   bool loading = true;
   Map<String, dynamic> data = {};
   late TabController _tab;
+  String? _filterName;
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); load(); }
@@ -34,8 +35,14 @@ class _SalesMonitorPageState extends State<SalesMonitorPage> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    final summary = List<dynamic>.from(data['summary'] ?? []);
-    final rows    = List<dynamic>.from(data['rows'] ?? []);
+    final allSummary = List<dynamic>.from(data['summary'] ?? []);
+    final allRows    = List<dynamic>.from(data['rows'] ?? []);
+    final summary = _filterName == null
+        ? allSummary
+        : allSummary.where((r) => '${r['employee_name']}' == _filterName).toList();
+    final rows = _filterName == null
+        ? allRows
+        : allRows.where((r) => '${r['employee_name']}' == _filterName).toList();
 
     return Scaffold(
       backgroundColor: UColors.surface,
@@ -50,7 +57,22 @@ class _SalesMonitorPageState extends State<SalesMonitorPage> with SingleTickerPr
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(children: [
                 IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20), onPressed: () => Navigator.pop(context)),
-                const Text('Monitor Sales', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+                const Expanded(child: Text('Monitor Sales', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18))),
+                IconButton(
+                  icon: Icon(_filterName != null ? Icons.filter_alt_rounded : Icons.filter_alt_outlined,
+                      color: Colors.white, size: 20),
+                  tooltip: 'Filter Karyawan',
+                  onPressed: () async {
+                    final names = allRows.map((r) => '${r['employee_name'] ?? ''}')
+                        .where((n) => n.isNotEmpty).toList();
+                    final picked = await uShowNamePicker(context,
+                        title: 'Filter Monitor Sales', names: names,
+                        allLabel: 'Semua Karyawan');
+                    if (picked != null) {
+                      setState(() => _filterName = picked.isEmpty ? null : picked);
+                    }
+                  },
+                ),
               ]),
             ),
             TabBar(
@@ -65,7 +87,30 @@ class _SalesMonitorPageState extends State<SalesMonitorPage> with SingleTickerPr
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator(color: UColors.primary))
-          : TabBarView(controller: _tab, children: [
+          : Column(children: [
+        if (_filterName != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(children: [
+              Expanded(child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: UColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Row(children: [
+                  const Icon(Icons.person_rounded, size: 14, color: UColors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(_filterName!, style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: UColors.primary),
+                      overflow: TextOverflow.ellipsis)),
+                  GestureDetector(
+                    onTap: () => setState(() => _filterName = null),
+                    child: const Icon(Icons.close_rounded, size: 16, color: UColors.primary),
+                  ),
+                ]),
+              )),
+            ]),
+          ),
+        Expanded(child: TabBarView(controller: _tab, children: [
         // Ringkasan
         RefreshIndicator(color: UColors.primary, onRefresh: load,
           child: summary.isEmpty
@@ -131,6 +176,7 @@ class _SalesMonitorPageState extends State<SalesMonitorPage> with SingleTickerPr
             },
           ),
         ),
+      ])),
       ]),
     );
   }

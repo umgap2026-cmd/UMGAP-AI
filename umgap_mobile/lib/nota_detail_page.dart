@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
+import 'invoice_page.dart';
 
 // ════════════════════════════════════════════
 //  DETAIL NOTA — dipanggil dari Riwayat Nota
@@ -44,6 +45,16 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() { _loading = false; _error = '$e'; });
+    }
+  }
+
+  Future<void> _editNota() async {
+    final updated = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => InvoicePage(editTxnId: widget.txnId),
+    ));
+    if (updated == true) {
+      _changed = true;
+      _load();
     }
   }
 
@@ -163,6 +174,12 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
           title: _invoice?['invoice_no'] ?? 'Detail Nota',
           onBack: () => Navigator.pop(context, _changed),
           actions: [
+            if (_invoice != null && _invoice!['cancelled_at'] == null)
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, color: Colors.white),
+                tooltip: 'Edit Nota',
+                onPressed: _editNota,
+              ),
             if (_invoice != null)
               IconButton(
                 icon: const Icon(Icons.share_rounded, color: Colors.white),

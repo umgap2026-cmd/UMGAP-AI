@@ -171,12 +171,28 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
                 hintText: 'No. nota / nama customer / kasir…',
                 hintStyle: const TextStyle(color: UColors.textLight, fontSize: 13),
                 prefixIcon: const Icon(Icons.search_rounded, color: UColors.primary, size: 20),
-                suffixIcon: _searchCtrl.text.isNotEmpty
-                    ? IconButton(
-                  icon: const Icon(Icons.close_rounded, color: UColors.textLight, size: 18),
-                  onPressed: () { _searchCtrl.clear(); setState(() {}); },
-                )
-                    : null,
+                suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    icon: const Icon(Icons.list_alt_rounded, color: UColors.primary, size: 20),
+                    tooltip: 'Pilih kasir',
+                    onPressed: () async {
+                      final names = _invoices
+                          .map((e) => '${(e as Map)['created_by_name'] ?? ''}')
+                          .where((n) => n.isNotEmpty).toList();
+                      final picked = await uShowNamePicker(context,
+                          title: 'Pilih Kasir', names: names,
+                          allLabel: 'Semua Kasir');
+                      if (picked != null) {
+                        setState(() => _searchCtrl.text = picked);
+                      }
+                    },
+                  ),
+                  if (_searchCtrl.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: UColors.textLight, size: 18),
+                      onPressed: () { _searchCtrl.clear(); setState(() {}); },
+                    ),
+                ]),
                 filled: true,
                 fillColor: UColors.inputBg,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
