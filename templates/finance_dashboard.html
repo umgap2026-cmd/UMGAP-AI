@@ -611,7 +611,14 @@
             <div class="sec-title" style="color: var(--bad)">🔴 Hutang ke Pemasok</div>
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }} &bull; {{ debts.hutang|length }} transaksi belum lunas</div>
           </div>
-          <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
+          <div style="display:flex; gap:8px;">
+            <form method="post" action="/finance/debts/merge-duplicates"
+                  onsubmit="return confirm('Gabungkan semua hutang dengan nama pihak yang sama jadi satu baris?');">
+              <input type="hidden" name="type" value="HUTANG" />
+              <button type="submit" class="pill-btn">🔗 Gabung Duplikat</button>
+            </form>
+            <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
+          </div>
         </div>
         <textarea id="shareHutangText" style="display: none">🔴 *Ringkasan Hutang ke Pemasok*
 
@@ -744,7 +751,14 @@
             <div class="sec-title" style="color: var(--good)">🟢 Piutang Pelanggan</div>
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }} &bull; {{ debts.piutang|length }} transaksi belum dibayar</div>
           </div>
-          <button type="button" class="pill-btn wa" id="btnSharePiutang">💬 Share ke WA</button>
+          <div style="display:flex; gap:8px;">
+            <form method="post" action="/finance/debts/merge-duplicates"
+                  onsubmit="return confirm('Gabungkan semua piutang dengan nama pihak yang sama jadi satu baris?');">
+              <input type="hidden" name="type" value="PIUTANG" />
+              <button type="submit" class="pill-btn">🔗 Gabung Duplikat</button>
+            </form>
+            <button type="button" class="pill-btn wa" id="btnSharePiutang">💬 Share ke WA</button>
+          </div>
         </div>
         <textarea id="sharePiutangText" style="display: none">🟢 *Ringkasan Piutang Pelanggan*
 

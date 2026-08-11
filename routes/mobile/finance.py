@@ -783,6 +783,76 @@ def pay_debt(debt_id):
         return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
+@mobile_finance_bp.route("/finance/debts/add", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def add_debt():
+    """Catat hutang/piutang manual (bukan tertaut nota) -- mirror /finance/debts/add web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import create_fin_debt_entry
+    try:
+        result = create_fin_debt_entry(
+            debt_type=data.get("type"),
+            party_name=data.get("party_name"),
+            amount=data.get("amount"),
+            note=data.get("note"),
+            entry_date=data.get("date"),
+            reason=data.get("reason"),
+        )
+        return mobile_api_response(ok=True, message="Berhasil dicatat.", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+@mobile_finance_bp.route("/finance/debts/<int:debt_id>/edit", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def edit_debt(debt_id):
+    """Ubah nama/jumlah/catatan hutang-piutang -- mirror /finance/debts/<id>/edit web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import edit_fin_debt
+    try:
+        result = edit_fin_debt(
+            debt_id,
+            party_name=data.get("party_name"),
+            amount=data.get("amount"),
+            note=data.get("note"),
+        )
+        return mobile_api_response(ok=True, message="Berhasil diubah.", data=_clean(result))
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
+
+
+@mobile_finance_bp.route("/finance/debts/<int:debt_id>/delete", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def delete_debt(debt_id):
+    """Hapus 1 baris hutang/piutang -- mirror /finance/debts/<id>/delete web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import delete_fin_debt
+    try:
+        party_name = delete_fin_debt(debt_id)
+        return mobile_api_response(ok=True, message="Berhasil dihapus.", data={"party_name": party_name})
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
+
+
 # ════════════════════════════════════════════════════════════════
 #  STOK — History per material
 # ════════════════════════════════════════════════════════════════

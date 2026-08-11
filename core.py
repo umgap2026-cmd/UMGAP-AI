@@ -5043,6 +5043,84 @@ def delete_fin_debt(debt_id):
         conn.close()
 
 
+def merge_all_duplicate_fin_debts(debt_type):
+    """
+    Gabungkan SEMUA kelompok hutang/piutang TERBUKA (belum lunas) yang nama
+    pihaknya sama (case/whitespace-insensitive, ada >1 baris) jadi SATU
+    baris per pihak -- mis. kalau "Bpk Budi" punya 3 entri terpisah dari
+    3 nota berbeda, digabung jadi 1 baris dgn amount/paid_amount/remaining
+    dijumlah. Baris hasil gabungan `transaction_id`-nya di-NULL-kan (tidak
+    ditautkan ke satu nota manapun) supaya tidak ikut kehapus kalau salah
+    satu nota asalnya nanti dihapus permanen (purge_fin_transaction).
+    Return dict {merged_parties, merged_rows}.
+    """
+    debt_type = (debt_type or "").strip().upper()
+    if debt_type not in ("HUTANG", "PIUTANG"):
+        raise ValueError("Jenis tidak valid.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_debts_reason_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT LOWER(TRIM(party_name)) AS norm_name, COUNT(*) AS cnt
+            FROM fin_debts
+            WHERE type = %s AND is_settled = FALSE
+              AND party_name IS NOT NULL AND TRIM(party_name) <> ''
+            GROUP BY LOWER(TRIM(party_name))
+            HAVING COUNT(*) > 1;
+        """, (debt_type,))
+        groups = cur.fetchall()
+
+        merged_parties = 0
+        merged_rows = 0
+        for g in groups:
+            cur.execute("""
+                SELECT id, amount, paid_amount, remaining, note, reason
+                FROM fin_debts
+                WHERE type = %s AND is_settled = FALSE AND LOWER(TRIM(party_name)) = %s
+                ORDER BY created_at ASC
+                FOR UPDATE;
+            """, (debt_type, g["norm_name"]))
+            rows = cur.fetchall()
+            if len(rows) <= 1:
+                continue
+
+            total_amount = sum(float(r["amount"] or 0) for r in rows)
+            total_paid = sum(float(r["paid_amount"] or 0) for r in rows)
+            total_remaining = sum(float(r["remaining"] or 0) for r in rows)
+            keep = rows[0]
+            reasons = {r["reason"] for r in rows if r["reason"]}
+            reason = reasons.pop() if len(reasons) == 1 else None
+            seen_notes = dict.fromkeys(
+                (r["note"] or "").strip() for r in rows if (r["note"] or "").strip())
+            notes = "; ".join(seen_notes)
+
+            cur.execute("""
+                UPDATE fin_debts
+                SET amount = %s, paid_amount = %s, remaining = %s, note = %s,
+                    reason = %s, transaction_id = NULL,
+                    is_settled = %s
+                WHERE id = %s;
+            """, (total_amount, total_paid, total_remaining, notes or None, reason,
+                  total_remaining <= 0.01, keep["id"]))
+
+            other_ids = [r["id"] for r in rows[1:]]
+            cur.execute("DELETE FROM fin_debts WHERE id = ANY(%s);", (other_ids,))
+            merged_parties += 1
+            merged_rows += len(rows) - 1
+
+        conn.commit()
+        return {"merged_parties": merged_parties, "merged_rows": merged_rows}
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menggabungkan: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_fin_stock_history(material_id):
     """Riwayat pergerakan stok 1 material + ringkasan stok saat ini."""
     from routes.mobile.finance import _clean

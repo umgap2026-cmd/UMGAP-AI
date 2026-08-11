@@ -111,39 +111,113 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
     return (v < 0 ? '-Rp ' : 'Rp ') + s;
   }
 
+  // Sinkron dgn REASON_TEMPLATES di routes/web/nota.py
+  static const _deleteReasons = {
+    'SALAH_INPUT': 'Salah input data',
+    'DUPLIKAT': 'Nota duplikat',
+    'BATAL_PELANGGAN': 'Dibatalkan pelanggan',
+    'BATAL_PEMASOK': 'Dibatalkan pemasok',
+    'SALAH_JUMLAH_HARGA': 'Kesalahan jumlah/harga barang',
+    'UJI_COBA': 'Nota uji coba',
+    'LAINNYA': 'Lainnya…',
+  };
+
   Future<void> _cancelNota() async {
+    String mode = 'REVERSE';
+    String reasonTemplate = 'SALAH_INPUT';
+    final reasonOtherCtrl = TextEditingController();
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Batalkan Nota?'),
-        content: const Text(
-            'Stok & HPP gudang akan dikembalikan ke kondisi sebelum nota ini, '
-            'dan hutang/piutang terkait dihapus. Aksi ini tidak bisa dibatalkan lagi.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: UColors.danger),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Ya, Batalkan', style: TextStyle(color: Colors.white)),
+      builder: (_) => StatefulBuilder(builder: (dialogCtx, setD) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Hapus Nota'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Bagaimana stok & keuangan diperlakukan?',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: UColors.textMid)),
+              const SizedBox(height: 8),
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: 'REVERSE',
+                groupValue: mode,
+                onChanged: (v) => setD(() => mode = v!),
+                title: const Text('Kembalikan stok & keuangan', style: TextStyle(fontSize: 13)),
+                subtitle: const Text('Stok, HPP, dan hutang/piutang terkait dikembalikan',
+                    style: TextStyle(fontSize: 11, color: UColors.textLight)),
+              ),
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: 'KEEP',
+                groupValue: mode,
+                onChanged: (v) => setD(() => mode = v!),
+                title: const Text('Hapus dari riwayat saja', style: TextStyle(fontSize: 13)),
+                subtitle: const Text('Stok & keuangan TIDAK disentuh',
+                    style: TextStyle(fontSize: 11, color: UColors.textLight)),
+              ),
+              const SizedBox(height: 12),
+              const Text('Alasan penghapusan',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: UColors.textMid)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: reasonTemplate,
+                isExpanded: true,
+                decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                items: _deleteReasons.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                    .toList(),
+                onChanged: (v) => setD(() => reasonTemplate = v!),
+              ),
+              if (reasonTemplate == 'LAINNYA') ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonOtherCtrl,
+                  decoration: const InputDecoration(
+                      hintText: 'Tulis alasan…', isDense: true, border: OutlineInputBorder()),
+                ),
+              ],
+            ]),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: UColors.danger),
+              onPressed: () {
+                if (reasonTemplate == 'LAINNYA' && reasonOtherCtrl.text.trim().isEmpty) {
+                  _snack('Alasan wajib diisi', isError: true);
+                  return;
+                }
+                Navigator.pop(dialogCtx, true);
+              },
+              child: const Text('Ya, Hapus', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      }),
     );
     if (ok != true) return;
 
     setState(() => _cancelling = true);
     try {
-      await ApiService.invoiceCancel(widget.txnId);
+      await ApiService.invoiceDelete(
+        txnId: widget.txnId,
+        mode: mode,
+        reasonTemplate: reasonTemplate,
+        reasonOther: reasonOtherCtrl.text.trim(),
+      );
       if (!mounted) return;
-      _snack('✓ Nota dibatalkan, stok & HPP sudah dikembalikan');
+      _snack(mode == 'REVERSE'
+          ? '✓ Nota dihapus, stok & keuangan sudah dikembalikan'
+          : '✓ Nota dihapus dari riwayat');
       _changed = true;
-      await _load();
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      _snack('Gagal membatalkan: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _cancelling = false);
+      _snack('Gagal menghapus: $e', isError: true);
+      setState(() => _cancelling = false);
     }
   }
 
@@ -371,8 +445,8 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
                 onPressed: _cancelling ? null : _cancelNota,
                 icon: _cancelling
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: UColors.danger))
-                    : const Icon(Icons.cancel_outlined, color: UColors.danger),
-                label: Text(_cancelling ? 'Membatalkan…' : 'Batalkan Nota',
+                    : const Icon(Icons.delete_outline_rounded, color: UColors.danger),
+                label: Text(_cancelling ? 'Menghapus…' : 'Hapus Nota',
                     style: const TextStyle(color: UColors.danger, fontWeight: FontWeight.w700)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),

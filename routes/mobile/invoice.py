@@ -475,3 +475,52 @@ def mobile_invoice_edit(txn_id):
         return mobile_api_response(ok=True, message="Nota berhasil diperbarui.", data=_clean(result))
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+# ── Alasan hapus nota (sinkron dgn REASON_TEMPLATES di routes/web/nota.py) ──
+NOTA_DELETE_REASONS = {
+    "SALAH_INPUT": "Salah input data",
+    "DUPLIKAT": "Nota duplikat",
+    "BATAL_PELANGGAN": "Dibatalkan pelanggan",
+    "BATAL_PEMASOK": "Dibatalkan pemasok",
+    "SALAH_JUMLAH_HARGA": "Kesalahan jumlah/harga barang",
+    "UJI_COBA": "Nota uji coba",
+}
+
+
+@mobile_invoice_bp.route("/invoice/<int:txn_id>/delete", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_invoice_delete(txn_id):
+    """
+    Hapus nota dari Riwayat Nota -- versi mobile dari /nota/<id>/delete web,
+    pakai fungsi core yg SAMA (delete_nota_transaction) supaya perilakunya
+    identik. Body JSON:
+    {
+        "mode": "REVERSE" | "KEEP",   // REVERSE = kembalikan stok & hutang/piutang,
+                                       // KEEP = cuma hilang dari riwayat, stok/keuangan TIDAK disentuh
+        "reason_template": "SALAH_INPUT" | ... | "LAINNYA",
+        "reason_other": "..."         // wajib diisi kalau reason_template == "LAINNYA"
+    }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    role = (request.mobile_user.get("role") or "").strip().lower()
+    if role not in ("admin", "owner"):
+        return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
+
+    data            = request.get_json(silent=True) or {}
+    mode            = (data.get("mode") or "KEEP").strip().upper()
+    reason_template = (data.get("reason_template") or "").strip().upper()
+    if reason_template == "LAINNYA":
+        reason = (data.get("reason_other") or "").strip()
+    else:
+        reason = NOTA_DELETE_REASONS.get(reason_template, reason_template)
+
+    from core import delete_nota_transaction
+    try:
+        delete_nota_transaction(txn_id, mode, reason, request.mobile_user.get("id"))
+        message = ("Nota dihapus, stok & keuangan sudah dikembalikan."
+                   if mode == "REVERSE" else "Nota dihapus dari riwayat.")
+        return mobile_api_response(ok=True, message=message, data={"id": txn_id})
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)

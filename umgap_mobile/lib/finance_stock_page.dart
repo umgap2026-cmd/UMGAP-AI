@@ -39,9 +39,23 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
   bool          _loading = true;
   List<dynamic> _materials = [];
   int           _totalValue = 0;
+  final _searchCtrl = TextEditingController();
+  String        _query = '';
+
+  List<dynamic> get _filteredMaterials {
+    if (_query.trim().isEmpty) return _materials;
+    final q = _query.trim().toLowerCase();
+    return _materials.where((m) {
+      final name = '${(m as Map)['name'] ?? m['material_name'] ?? ''}'.toLowerCase();
+      return name.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     // Tampilkan cache dulu (instant)
@@ -334,6 +348,30 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
             UHeaderIconBtn(icon: Icons.refresh_rounded, onTap: _load),
           ]),
         )),
+        if (!_loading && _materials.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.fromLTRB(USpace.base, USpace.base, USpace.base, 0),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v),
+              style: TextStyle(fontSize: _rfs(context, 14), color: UColors.textDark),
+              decoration: InputDecoration(
+                hintText: 'Cari nama barang…',
+                hintStyle: TextStyle(color: UColors.textLight, fontSize: _rfs(context, 13)),
+                prefixIcon: const Icon(Icons.search_rounded, color: UColors.primary, size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded, color: UColors.textLight, size: 18),
+                        onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
+                      )
+                    : null,
+                filled: true, fillColor: UColors.inputBg,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ),
         if (_loading)
           const Expanded(child: Center(child: CircularProgressIndicator(color: UColors.primary)))
         else if (_materials.isEmpty)
@@ -346,6 +384,13 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
             Text('Tap "＋ Barang Baru" untuk menambahkan', style: TextStyle(
                 fontSize: _rfs(context, 12), color: UColors.textLight)),
           ])))
+        else if (_filteredMaterials.isEmpty)
+          Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.search_off_rounded, size: _rfs(context, 52), color: UColors.textLight),
+            SizedBox(height: _rfs(context, 10)),
+            Text('Barang tidak ditemukan', style: TextStyle(
+                fontSize: _rfs(context, 14), color: UColors.textLight, fontWeight: FontWeight.w600)),
+          ])))
         else
           Expanded(child: RefreshIndicator(
             color: UColors.primary, onRefresh: _load,
@@ -353,9 +398,9 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
               physics: const BouncingScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                   USpace.base, USpace.base, USpace.base, _rfs(context, 100)),
-              itemCount: _materials.length,
+              itemCount: _filteredMaterials.length,
               itemBuilder: (ctx, i) {
-                final m     = _materials[i] as Map<String, dynamic>;
+                final m     = _filteredMaterials[i] as Map<String, dynamic>;
                 double toD(dynamic v) => v == null ? 0.0 : double.tryParse('$v') ?? 0.0;
                 int toI(dynamic v)    => v == null ? 0 : (double.tryParse('$v') ?? 0).toInt();
                 final qty   = toD(m['qty_kg']);

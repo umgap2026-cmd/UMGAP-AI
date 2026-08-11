@@ -1081,6 +1081,53 @@ class ApiService {
     return _asMap(res.data['data']);
   }
 
+  // ── Finance: Tambah hutang/piutang manual ──
+  static Future<Map<String, dynamic>> financeAddDebt({
+    required String type, // 'HUTANG' | 'PIUTANG'
+    required String partyName,
+    required double amount,
+    String note = '',
+    String? date,
+    String reason = 'HUTANG_BARANG', // 'HUTANG_BARANG' | 'TITIP_DANA'
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/debts/add",
+      data: {
+        "type": type, "party_name": partyName, "amount": amount,
+        "note": note, "date": date, "reason": reason,
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal mencatat");
+    return _asMap(res.data['data']);
+  }
+
+  // ── Finance: Ubah hutang/piutang ──
+  static Future<Map<String, dynamic>> financeEditDebt({
+    required int debtId,
+    required String partyName,
+    required double amount,
+    String note = '',
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/debts/$debtId/edit",
+      data: {"party_name": partyName, "amount": amount, "note": note},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal mengubah data");
+    return _asMap(res.data['data']);
+  }
+
+  // ── Finance: Hapus hutang/piutang ──
+  static Future<void> financeDeleteDebt(int debtId) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/finance/debts/$debtId/delete",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal menghapus");
+  }
+
 
   // ── Nota: Riwayat (list) ───────────────────
   static Future<Map<String, dynamic>> invoiceHistory({
@@ -1145,6 +1192,26 @@ class ApiService {
       options: Options(headers: headers),
     );
     _ensureOk(res, "Gagal membatalkan nota");
+  }
+
+  // ── Nota: Hapus dgn pilihan mode (kembalikan stok/hanya hapus) + alasan ──
+  static Future<void> invoiceDelete({
+    required int txnId,
+    required String mode, // 'REVERSE' | 'KEEP'
+    required String reasonTemplate,
+    String reasonOther = '',
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/invoice/$txnId/delete",
+      data: {
+        "mode": mode,
+        "reason_template": reasonTemplate,
+        "reason_other": reasonOther,
+      },
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menghapus nota");
   }
 
   // ── Finance: Buat Invoice dari stok gudang ──
