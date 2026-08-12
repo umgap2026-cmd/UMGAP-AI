@@ -190,24 +190,40 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
 
-    // ── Cek versi sebelum lanjut ──────────────────────
-    final shouldBlock = await _checkVersion();
-    if (shouldBlock) return; // berhenti di sini, dialog sudah tampil
+    try {
+      // ── Cek versi sebelum lanjut ──────────────────────
+      final shouldBlock = await _checkVersion();
+      if (shouldBlock) return; // berhenti di sini, dialog sudah tampil
 
-    final token = await _storage.read(key: 'token');
-    final role  = await _storage.read(key: 'role');
-    final name  = await _storage.read(key: 'name');
+      String? token, role, name;
+      try {
+        token = await _storage.read(key: 'token');
+        role  = await _storage.read(key: 'role');
+        name  = await _storage.read(key: 'name');
+      } catch (e) {
+        // Baca secure storage bisa gagal di sebagian device/OS (mis. error
+        // Keystore) -- jangan sampai splash macet selamanya, anggap saja
+        // belum login & lanjut ke LoginPage.
+        debugPrint('SECURE STORAGE READ ERROR: $e');
+      }
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      uRoute(
-        (token != null && token.isNotEmpty)
-            ? HomePage(role: role ?? '', name: name ?? '')
-            : const LoginPage(),
-      ),
-    );
+      Navigator.pushReplacement(
+        context,
+        uRoute(
+          (token != null && token.isNotEmpty)
+              ? HomePage(role: role ?? '', name: name ?? '')
+              : const LoginPage(),
+        ),
+      );
+    } catch (e) {
+      // Jaga-jaga terakhir: apapun yg gagal di atas, jangan biarkan splash
+      // macet tanpa jalan keluar -- selalu berlabuh ke LoginPage.
+      debugPrint('CHECK LOGIN ERROR: $e');
+      if (!mounted) return;
+      Navigator.pushReplacement(context, uRoute(const LoginPage()));
+    }
   }
 
   // ── Cek versi ke server ────────────────────────────
