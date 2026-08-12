@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
+import 'update_service.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -520,6 +521,12 @@ class _DetailSheet extends StatelessWidget {
   final Map<String, dynamic> item;
   const _DetailSheet({required this.item});
 
+  // Deteksi pengumuman soal update aplikasi (dibuat via app_version() /
+  // fitur Pengumuman admin dgn judul "Update Aplikasi ...") supaya bisa
+  // ditawarkan tombol update yg beneran jalan, bukan cuma teks.
+  bool get _isUpdateAnnouncement =>
+      '${item['title'] ?? ''}'.toLowerCase().contains('update aplikasi');
+
   @override
   Widget build(BuildContext context) => Container(
     constraints: BoxConstraints(
@@ -598,7 +605,8 @@ class _DetailSheet extends StatelessWidget {
         const SizedBox(height: 4),
         Flexible(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            padding: EdgeInsets.fromLTRB(
+                20, 12, 20, _isUpdateAnnouncement ? 12 : 28),
             child: Text(
               '${item['message'] ?? item['body'] ?? ''}',
               style: const TextStyle(
@@ -609,6 +617,27 @@ class _DetailSheet extends StatelessWidget {
             ),
           ),
         ),
+        if (_isUpdateAnnouncement)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () => UpdateService.checkAndPrompt(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: UColors.primary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.system_update_rounded,
+                    color: Colors.white, size: 20),
+                label: const Text('Update Sekarang',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
       ],
     ),
   );
