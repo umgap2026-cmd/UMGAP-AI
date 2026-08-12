@@ -328,21 +328,30 @@ def auto_checkout_midnight():
 
 @app.route("/api/mobile/version")
 def app_version():
-    # PENTING: force_update sengaja FALSE dulu -- APK v1.2.0 belum di-build/
-    # di-upload. Nyalakan True + betulkan update_url/sha256 di bawah HANYA
-    # setelah APK rilis benar-benar sudah tersedia untuk diunduh di update_url,
-    # supaya user yang masih pakai versi lama tidak terjebak di dialog force-
-    # update yang linknya belum ada filenya (app jadi tidak bisa dipakai sama
-    # sekali). Sebelumnya flag ini True tapi tidak pernah kepakai gara-gara
-    # versi hardcode di app juga ikut di-set sama biar cocok -- sekarang app
-    # baca versi asli dari PackageInfo, jadi perbandingan ini sudah nyata.
+    # ── Cara rilis versi baru (TANPA upload manual ke Drive lagi) ──────
+    # 1. Build APK release:
+    #      cd umgap_mobile && flutter build apk --release
+    # 2. Upload APK ke VPS, TIMPA file di URL TETAP ini (nama file & folder
+    #    jangan pernah diubah -- update_url di bawah sengaja fix supaya
+    #    tidak perlu diedit tiap rilis):
+    #      scp umgap_mobile/build/app/outputs/flutter-apk/app-release.apk \
+    #          root@185.227.134.212:/root/umgap/static/downloads/umgap-latest.apk
+    # 3. Update HANYA "latest_version" (& "message", "force_update" kalau
+    #    perlu) di bawah ini, commit, push -- webhook auto-deploy jalan
+    #    seperti biasa (atau `bash /root/deploy.sh` manual kalau perlu).
+    # 4. Selesai. User lama otomatis dapat popup update saat buka app
+    #    (splash), tombol "Update Sekarang" download+install LANGSUNG di
+    #    dalam app -- tidak perlu kirim link Drive/WA manual lagi.
+    #
+    # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
+    #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.2.0",      # ← update tiap rilis baru
+        "latest_version": "1.2.5",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
-        "update_url":     "https://github.com/umgap2026-cmd/UMGAP-AI/releases/download/mobile-v1.2.0/umgap-v1.2.0.apk",
-        "sha256":         "",           # isi ulang sha256 APK yang sebenarnya diupload
-        "message":        "Versi baru v1.2.0 tersedia!\n• Hapus fitur fingerprint (biofinger)\n• Reset password via WhatsApp/Email\n• Bug fix overflow & lainnya"
+        "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
+        "sha256":         "",           # opsional, belum divalidasi di app
+        "message":        "Versi baru v1.2.5 tersedia!\n• Fitur tambah stok saat qty melebihi stok di nota\n• Update aplikasi langsung dari dalam app (tidak perlu Drive lagi)\n• Perbaikan tampilan hutang-piutang & cetak thermal"
     })
 
 @app.route("/ping")

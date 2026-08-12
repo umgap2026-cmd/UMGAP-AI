@@ -21,3 +21,7 @@ cache/
 
 # Runtime uploads (user-generated, not source)
 static/uploads/
+
+# APK rilis mobile -- diupload manual ke VPS via scp (lihat app.py
+# app_version()), JANGAN dicommit ke git (binary besar, bukan source code)
+static/downloads/

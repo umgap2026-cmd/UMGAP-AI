@@ -20,6 +20,9 @@
     <!-- kontak hp -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
 
+    <!-- Wajib utk buka installer APK hasil download update di dalam app -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     <application
         android:label="UMGAP Mobile"
         android:name="${applicationName}"

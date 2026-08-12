@@ -906,6 +906,16 @@ class _InvoicePageState extends State<InvoicePage>
   int    get _manualPrice => int.tryParse(
       _priceCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   double get _previewQty  => double.tryParse(_qtyCtrl.text.trim()) ?? 0;
+  // Stok barang yg sedang dipilih (di list materials, disinkronkan tiap
+  // kali _addStockForSelected() berhasil, tanpa perlu reload seluruh list).
+  double get _selStock => double.tryParse(
+      '${_selMat?['qty_kg'] ?? _selMat?['stock'] ?? 0}') ?? 0.0;
+  // Arah stok berkurang: JUAL normal, atau BELI yg ditandai "barang balik"
+  // (kita jual balik ke pemasok) -- sama seperti aturan warna stok di
+  // picker (baris ~867-869).
+  bool get _isStockDecreasing => _isBeli == _addAsReturn;
+  bool get _showStockWarning  =>
+      _selMat != null && _isStockDecreasing && _previewQty > _selStock;
   double get _previewSub  => _manualPrice * _previewQty;
   double get _subtotal    =>
       _cart.where((c) => !c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
@@ -1177,6 +1187,146 @@ class _InvoicePageState extends State<InvoicePage>
                       const Icon(Icons.save_rounded, color: Colors.white, size: 18),
                       const SizedBox(width: 8),
                       Text('Simpan & Pilih Barang', style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w800,
+                          fontSize: _rfs(ctx, 14))),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Tambah Stok barang yang sedang dipilih (qty > stok tersedia) ──
+  Future<void> _addStockForSelected() async {
+    final mat = _selMat;
+    if (mat == null) return;
+    final materialId = int.tryParse('${mat['id']}') ?? 0;
+    final matName = '${mat['name'] ?? mat['material_name'] ?? 'Barang'}';
+    final avgCost = double.tryParse('${mat['avg_cost_per_kg'] ?? 0}') ?? 0.0;
+
+    final qtyCtrl = TextEditingController();
+    final priceCtrl = TextEditingController(
+        text: avgCost > 0 ? avgCost.toStringAsFixed(0) : '');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          bool saving = false;
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+                bottom: bottom + 24, left: 20, right: 20, top: 6),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 18),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFC2410C).withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.inventory_2_rounded,
+                        color: Color(0xFFC2410C), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Tambah Stok $matName', style: TextStyle(
+                        fontSize: _rfs(ctx, 16), fontWeight: FontWeight.w800)),
+                    Text('Qty melebihi stok yang tersedia', style: TextStyle(
+                        fontSize: _rfs(ctx, 11),
+                        color: const Color(0xFF90A4AE))),
+                  ])),
+                ]),
+                const SizedBox(height: 20),
+
+                Row(children: [
+                  Expanded(child: _NewMatField(controller: qtyCtrl,
+                      label: 'Jumlah Tambahan *', hint: '0',
+                      icon: Icons.add_circle_rounded, color: _colorMid,
+                      keyboard: const TextInputType.numberWithOptions(decimal: true))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _NewMatField(controller: priceCtrl,
+                      label: 'Harga/Biaya per kg *', hint: '0',
+                      icon: Icons.price_check_rounded, color: _colorMid,
+                      keyboard: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly])),
+                ]),
+                const SizedBox(height: 22),
+
+                SizedBox(
+                  width: double.infinity, height: 50,
+                  child: ElevatedButton(
+                    onPressed: saving ? null : () async {
+                      final qty   = double.tryParse(qtyCtrl.text.trim()) ?? 0;
+                      final price = int.tryParse(priceCtrl.text.trim()) ?? 0;
+                      if (qty <= 0) {
+                        uSnack(context, 'Jumlah tambahan harus lebih dari 0',
+                            isError: true);
+                        return;
+                      }
+                      if (price <= 0) {
+                        uSnack(context, 'Harga/biaya per kg wajib diisi',
+                            isError: true);
+                        return;
+                      }
+                      setS(() => saving = true);
+                      try {
+                        final result = await ApiService.financeAddMaterialStock(
+                          materialId: materialId, qty: qty, price: price,
+                          note: 'Tambah stok saat buat nota',
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          setState(() {
+                            final idx = _materials.indexWhere((m) =>
+                                (int.tryParse('${m['id']}') ?? -1) == materialId);
+                            if (idx >= 0) {
+                              _materials[idx] = {
+                                ..._materials[idx],
+                                'qty_kg': result['qty_kg'],
+                                'avg_cost_per_kg': result['avg_cost_per_kg'],
+                              };
+                            }
+                          });
+                          uSnack(context, '✓ Stok "$matName" berhasil ditambah');
+                        }
+                      } catch (e) {
+                        if (mounted) uSnack(context, e.toString(), isError: true);
+                        setS(() => saving = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC2410C),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        elevation: 0),
+                    child: saving
+                        ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
+                        : Row(
+                        mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.save_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Tambah Stok Sekarang', style: TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w800,
                           fontSize: _rfs(ctx, 14))),
                     ]),
@@ -2497,6 +2647,42 @@ class _InvoicePageState extends State<InvoicePage>
                 ),
               ),
             ]),
+            if (_showStockWarning) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFCC80)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Color(0xFFC2410C), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                      'Qty melebihi stok tersedia (${_selStock.toStringAsFixed(1)} kg)',
+                      style: const TextStyle(fontSize: 12,
+                          color: Color(0xFFC2410C),
+                          fontWeight: FontWeight.w700))),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _addStockForSelected,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC2410C),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('+ Tambah Stok', style: TextStyle(
+                          color: Colors.white, fontSize: 11,
+                          fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ]),
+              ),
+            ],
           ]),
           const SizedBox(height: 20),
 
