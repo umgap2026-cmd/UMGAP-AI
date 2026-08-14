@@ -312,6 +312,7 @@ def nota_history():
     status_f = (request.args.get("status") or "").strip().upper()
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
+    edited_f = (request.args.get("edited") or "").strip().upper()
     try:
         page = max(1, int(request.args.get("page", 1)))
     except (TypeError, ValueError):
@@ -320,7 +321,7 @@ def nota_history():
 
     invoices, total = get_invoice_history(
         q=q, type_f=type_f, status_f=status_f,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, edited_f=edited_f,
         limit=page_size, offset=(page - 1) * page_size,
     )
 
@@ -329,7 +330,7 @@ def nota_history():
         invoices=invoices,
         total=total,
         q=q, type_f=type_f, status_f=status_f,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, edited_f=edited_f,
         notif_count=get_notif_count(),
         page=page,
         has_prev=page > 1,

@@ -340,6 +340,14 @@
             <label>Sampai Tanggal</label>
             <input type="date" name="date_to" value="{{ date_to }}" />
           </div>
+          <div class="field">
+            <label>Status Edit</label>
+            <select name="edited">
+              <option value="" {{ "selected" if not edited_f }}>Semua</option>
+              <option value="EDITED" {{ "selected" if edited_f == "EDITED" }}>✏️ Baru Diedit</option>
+              <option value="NEW" {{ "selected" if edited_f == "NEW" }}>Belum Pernah Diedit</option>
+            </select>
+          </div>
           <div class="field" style="grid-column: 1 / -1; margin-bottom: 0">
             <button type="submit" class="btn-submit">Cari</button>
           </div>
@@ -371,9 +379,14 @@ Total {{ total }} nota ditemukan (semua halaman).</textarea>
         <div class="item-row fade-up {{ 'unpaid' if not inv.is_paid }}" style="animation-delay: {{ (loop.index0 * 0.03) | round(2) }}s">
           <div class="item-top">
             <div>
-              <div class="item-name">{{ inv.invoice_no }}</div>
+              <div class="item-name">{{ inv.invoice_no }}
+                {% if inv.is_edited %}<span class="badge" style="color:#b45309; border-color:#b45309">✏️ Diedit</span>{% endif %}
+              </div>
               <div class="item-meta">{{ inv.created_at_wib or "-" }} &bull; {{ inv.customer_name or "-" }}</div>
               <div class="item-meta">Kasir {{ inv.created_by_name or "-" }} &bull; {{ inv.payment_method }}</div>
+              {% if inv.is_edited %}
+              <div class="item-meta">✏️ Diedit oleh {{ inv.edited_by_name or "-" }} &bull; {{ inv.updated_at_wib or "-" }}</div>
+              {% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(inv.grand_total | round | int).replace(",", ".") }}</div>
           </div>
@@ -408,7 +421,10 @@ Total {{ total }} nota ditemukan (semua halaman).</textarea>
           <tbody>
             {% for inv in invoices %}
             <tr>
-              <td><strong>{{ inv.invoice_no }}</strong></td>
+              <td>
+                <strong>{{ inv.invoice_no }}</strong>
+                {% if inv.is_edited %}<br/><span class="badge" style="color:#b45309; border-color:#b45309" title="Diedit oleh {{ inv.edited_by_name or '-' }} pada {{ inv.updated_at_wib or '-' }}">✏️ Diedit</span>{% endif %}
+              </td>
               <td class="muted">{{ inv.created_at_wib or "-" }}</td>
               <td>{{ inv.customer_name or "-" }}</td>
               <td class="muted">{{ inv.created_by_name or "-" }}</td>
@@ -437,7 +453,7 @@ Total {{ total }} nota ditemukan (semua halaman).</textarea>
         {% endif %}
 
         {% if has_prev or has_next %}
-        {% set qs = "q=" ~ q|urlencode ~ "&type=" ~ type_f|urlencode ~ "&status=" ~ status_f|urlencode ~ "&date_from=" ~ date_from|urlencode ~ "&date_to=" ~ date_to|urlencode %}
+        {% set qs = "q=" ~ q|urlencode ~ "&type=" ~ type_f|urlencode ~ "&status=" ~ status_f|urlencode ~ "&date_from=" ~ date_from|urlencode ~ "&date_to=" ~ date_to|urlencode ~ "&edited=" ~ edited_f|urlencode %}
         <div class="pgn-row">
           {% if has_prev %}
           <a class="pgn-btn" href="/nota?{{ qs }}&page={{ page - 1 }}">← Sebelumnya</a>

@@ -349,6 +349,7 @@ def mobile_invoice_history():
       - status     : LUNAS | BELUM | (kosong = semua)
       - date_from  : YYYY-MM-DD
       - date_to    : YYYY-MM-DD
+      - edited     : EDITED (baru diedit) | NEW (belum pernah diedit) | (kosong = semua)
       - limit      : default 100
       - offset     : default 0
     """
@@ -360,6 +361,7 @@ def mobile_invoice_history():
     status_f  = (request.args.get("status")    or "").strip().upper()
     date_from = (request.args.get("date_from") or "").strip()
     date_to   = (request.args.get("date_to")   or "").strip()
+    edited_f  = (request.args.get("edited")    or "").strip().upper()
     limit     = min(int(request.args.get("limit",  100)), 500)
     offset    = int(request.args.get("offset", 0))
 
@@ -367,7 +369,7 @@ def mobile_invoice_history():
     try:
         invoices, total = get_invoice_history(
             q=q, type_f=type_f, status_f=status_f,
-            date_from=date_from, date_to=date_to,
+            date_from=date_from, date_to=date_to, edited_f=edited_f,
             limit=limit, offset=offset,
         )
         for inv in invoices:

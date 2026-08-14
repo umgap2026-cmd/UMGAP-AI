@@ -343,7 +343,9 @@ def _ensure_transaction_cancel_columns(cur):
             ADD COLUMN IF NOT EXISTS delete_reason TEXT NULL,
             ADD COLUMN IF NOT EXISTS delete_mode VARCHAR(20) NULL,
             ADD COLUMN IF NOT EXISTS related_transaction_id INTEGER NULL,
-            ADD COLUMN IF NOT EXISTS credit_applied NUMERIC(14,2) NULL;
+            ADD COLUMN IF NOT EXISTS credit_applied NUMERIC(14,2) NULL,
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS edited_by INTEGER NULL;
     """)
 
 
@@ -3256,9 +3258,11 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         cur.execute("""
             UPDATE fin_transactions
             SET party_name = %s, note = %s, is_debt = %s, total_amount = %s,
-                dp_amount = %s, ongkir_potongan_amount = %s
+                dp_amount = %s, ongkir_potongan_amount = %s,
+                updated_at = NOW(), edited_by = %s
             WHERE id = %s;
-        """, (customer_name, new_note, is_debt, grand_total, total_dp, ongkir_potongan, txn_id))
+        """, (customer_name, new_note, is_debt, grand_total, total_dp,
+              ongkir_potongan, edited_by, txn_id))
 
         cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
         if is_debt and customer_name:
@@ -3459,11 +3463,15 @@ def _parse_nota_note(note):
 
 
 def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
-                         limit=100, offset=0):
+                         edited_f="", limit=100, offset=0):
     """
     Ambil riwayat nota dari fin_transactions (JUAL_INVOICE/BELI_GUDANG).
     Diextract dari routes/mobile/invoice.py:mobile_invoice_history() agar
     web & mobile berbagi 1 sumber kebenaran. Return (invoices, total).
+
+    edited_f: '' (semua) / 'EDITED' (baru diubah/diedit -- updated_at
+    terisi, diurutkan berdasar waktu edit terbaru) / 'NEW' (baru diinput,
+    belum pernah diedit sama sekali -- updated_at masih kosong).
     """
     limit = min(int(limit or 100), 500)
     offset = int(offset or 0)
@@ -3490,6 +3498,11 @@ def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
     elif status_f == "BELUM":
         conditions.append("t.is_debt = TRUE")
 
+    if edited_f == "EDITED":
+        conditions.append("t.updated_at IS NOT NULL")
+    elif edited_f == "NEW":
+        conditions.append("t.updated_at IS NULL")
+
     if date_from:
         conditions.append("t.created_at >= %s::date")
         params.append(date_from)
@@ -3498,6 +3511,9 @@ def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
         params.append(date_to)
 
     where = "WHERE " + " AND ".join(conditions)
+    # "Baru diedit" -> urut dari yg PALING BARU diedit; selain itu tetap
+    # dari yg PALING BARU dibuat (perilaku default, tidak berubah).
+    order_by = "t.updated_at DESC" if edited_f == "EDITED" else "t.created_at DESC"
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3517,12 +3533,16 @@ def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
             SELECT
                 t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
                 t.total_amount, t.created_at, u.name AS created_by_name,
+                t.updated_at, eu.name AS edited_by_name,
                 TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                TO_CHAR(t.updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
+                        'YYYY-MM-DD HH24:MI:SS') AS updated_at_wib
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
+            LEFT JOIN users eu ON eu.id = t.edited_by
             {where}
-            ORDER BY t.created_at DESC
+            ORDER BY {order_by}
             LIMIT %s OFFSET %s;
         """, params + [limit, offset])
         rows = cur.fetchall()
@@ -3542,6 +3562,9 @@ def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
                 "created_at": r.get("created_at"),
                 "created_at_wib": r.get("created_at_wib"),
                 "created_by_name": r.get("created_by_name"),
+                "is_edited": r.get("updated_at") is not None,
+                "updated_at_wib": r.get("updated_at_wib"),
+                "edited_by_name": r.get("edited_by_name"),
             })
 
         items_map = defaultdict(list)

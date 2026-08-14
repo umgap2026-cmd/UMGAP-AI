@@ -21,6 +21,7 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
   final _searchCtrl = TextEditingController();
   String _typeFilter = 'SEMUA';   // SEMUA | JUAL | BELI
   String _statusFilter = 'SEMUA'; // SEMUA | LUNAS | BELUM
+  String _editedFilter = 'SEMUA'; // SEMUA | EDITED | NEW
 
   final _typeChips = const [
     {'value': 'SEMUA', 'label': 'Semua'},
@@ -31,6 +32,11 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
     {'value': 'SEMUA', 'label': 'Semua'},
     {'value': 'LUNAS', 'label': '✅ Lunas'},
     {'value': 'BELUM', 'label': '⏳ Belum'},
+  ];
+  final _editedChips = const [
+    {'value': 'SEMUA',  'label': 'Semua'},
+    {'value': 'EDITED', 'label': '✏️ Baru Diedit'},
+    {'value': 'NEW',    'label': 'Belum Diedit'},
   ];
 
   @override
@@ -83,6 +89,7 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
       final kasir   = '${inv['created_by_name'] ?? ''}';
       final isPaid  = inv['is_paid'] == true;
       final type    = _notaType(no);
+      final isEdited = inv['is_edited'] == true;
 
       final matchQ = q.isEmpty ||
           no.toLowerCase().contains(q) ||
@@ -92,7 +99,10 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
       final matchStatus = _statusFilter == 'SEMUA' ||
           (_statusFilter == 'LUNAS' && isPaid) ||
           (_statusFilter == 'BELUM' && !isPaid);
-      return matchQ && matchType && matchStatus;
+      final matchEdited = _editedFilter == 'SEMUA' ||
+          (_editedFilter == 'EDITED' && isEdited) ||
+          (_editedFilter == 'NEW' && !isEdited);
+      return matchQ && matchType && matchStatus && matchEdited;
     }).toList();
   }
 
@@ -217,6 +227,14 @@ class _NotaHistoryPageState extends State<NotaHistoryPage> {
                 onSelect: (v) => setState(() => _statusFilter = v),
               )),
             ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _ChipRow(
+                items: _editedChips,
+                selected: _editedFilter,
+                onSelect: (v) => setState(() => _editedFilter = v),
+              )),
+            ]),
           ]),
         ),
 
@@ -320,6 +338,7 @@ class _NotaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPaid = inv['is_paid'] == true;
     final grand  = (inv['grand_total'] as num?)?.toDouble() ?? 0;
+    final isEdited = inv['is_edited'] == true;
     final typeColor = notaType == 'BELI' ? const Color(0xFF00796B) : UColors.primary;
     final statusColor = isPaid ? UColors.success : UColors.warning;
 
@@ -360,6 +379,14 @@ class _NotaCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text('Kasir ${inv['created_by_name'] ?? '-'} • ${inv['payment_method'] ?? '-'}',
                       style: const TextStyle(fontSize: 11, color: UColors.textLight)),
+                  if (isEdited) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                        '✏️ Diedit oleh ${inv['edited_by_name'] ?? '-'} • ${inv['updated_at_wib'] ?? '-'}',
+                        style: const TextStyle(fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFB45309))),
+                  ],
                   const SizedBox(height: 8),
                   Row(children: [
                     Container(
