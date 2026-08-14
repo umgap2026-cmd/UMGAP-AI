@@ -914,6 +914,11 @@ class _InvoicePageState extends State<InvoicePage>
   // (kita jual balik ke pemasok) -- sama seperti aturan warna stok di
   // picker (baris ~867-869).
   bool get _isStockDecreasing => _isBeli == _addAsReturn;
+  // Label barang arah-kebalik dinilai dari arah EKONOMI sebenarnya (spt di
+  // hasil cetak nota) -- di nota Jual, barang arah-kebalik itu kita BELI
+  // dari customer; di nota Beli, itu kita JUAL ke pemasok. Beda dari
+  // "barang balik" (kotoran/susutan), jangan dipakai istilah yg sama.
+  String get _reverseLabel => _isBeli ? 'Jual' : 'Beli';
   bool get _showStockWarning  =>
       _selMat != null && _isStockDecreasing && _previewQty > _selStock;
   double get _previewSub  => _manualPrice * _previewQty;
@@ -1765,14 +1770,12 @@ class _InvoicePageState extends State<InvoicePage>
                   ..._cart.map((c) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(children: [
-                      if (c.isReturn) const Padding(
-                        padding: EdgeInsets.only(right: 4),
-                        child: Text('🔁', style: TextStyle(fontSize: 12)),
-                      ),
                       Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(c.productName, style: const TextStyle(
+                            Text(c.productName +
+                                (c.isReturn ? ' ($_reverseLabel)' : ''),
+                                style: const TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.w700)),
                             Text('${_fmtQty(c.qty)} kg × ${_rp(c.price)}'
                                 '${(c.note ?? '').isNotEmpty ? ' — ${c.note}' : ''}',
@@ -1787,7 +1790,7 @@ class _InvoicePageState extends State<InvoicePage>
                   const Divider(height: 24),
                   _RingkasanRow('Subtotal', _rp(_subtotal)),
                   if (_revSubtotal > 0)
-                    _RingkasanRow('🔁 Barang balik', '− ${_rp(_revSubtotal)}'),
+                    _RingkasanRow('🔁 Barang $_reverseLabel', '− ${_rp(_revSubtotal)}'),
                   if (!_isBeli && _disc > 0)
                     _RingkasanRow('Diskon', '− ${_rp(_disc)}'),
                   for (final a in _adjustments.where((a) => a.amount > 0))
@@ -2554,8 +2557,8 @@ class _InvoicePageState extends State<InvoicePage>
             UField(
               controller: _priceCtrl,
               label: _isBeli
-                  ? (_addAsReturn ? 'Harga Jual Balik / kg *' : 'Harga Beli / kg *')
-                  : (_addAsReturn ? 'Harga Beli Balik / kg *' : 'Harga Jual / kg *'),
+                  ? (_addAsReturn ? 'Harga Jual / kg *' : 'Harga Beli / kg *')
+                  : (_addAsReturn ? 'Harga Beli / kg *' : 'Harga Jual / kg *'),
               hint: 'Contoh: 150000',
               prefixIcon: _isBeli
                   ? Icons.price_check_rounded
@@ -2766,8 +2769,8 @@ class _InvoicePageState extends State<InvoicePage>
                                   decoration: BoxDecoration(
                                       color: const Color(0xFFFFEDD5),
                                       borderRadius: BorderRadius.circular(5)),
-                                  child: const Text('🔁 balik',
-                                      style: TextStyle(fontSize: 9,
+                                  child: Text('🔁 $_reverseLabel',
+                                      style: const TextStyle(fontSize: 9,
                                           fontWeight: FontWeight.w800,
                                           color: Color(0xFFC2410C))),
                                 ),
@@ -2850,7 +2853,7 @@ class _InvoicePageState extends State<InvoicePage>
                     if (_revSubtotal > 0) Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                          '🔁 Arah kebalik  − ${_rp(_revSubtotal)}',
+                          '🔁 Barang $_reverseLabel  − ${_rp(_revSubtotal)}',
                           style: const TextStyle(fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFFC2410C))),
@@ -2940,7 +2943,7 @@ class _InvoicePageState extends State<InvoicePage>
                   _SumRow('Subtotal', _rp(_subtotal)),
                   if (_revSubtotal > 0) ...[
                     const SizedBox(height: 8),
-                    _SumRow('🔁 Arah Kebalik', '− ${_rp(_revSubtotal)}',
+                    _SumRow('🔁 Barang $_reverseLabel', '− ${_rp(_revSubtotal)}',
                         color: const Color(0xFFC2410C)),
                   ],
                   if (_disc > 0) ...[
@@ -3040,7 +3043,7 @@ class _InvoicePageState extends State<InvoicePage>
                                   fontWeight: FontWeight.w900,
                                   color: _cBeliDark)),
                           if (_revSubtotal > 0) Text(
-                              '🔁 Jual balik − ${_rp(_revSubtotal)}',
+                              '🔁 Barang $_reverseLabel − ${_rp(_revSubtotal)}',
                               style: const TextStyle(fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFFC2410C))),

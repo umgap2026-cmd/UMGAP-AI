@@ -452,7 +452,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                       children: [
                         _td('${i + 1}', color: _pdfTextLt),
                         _td(item.productName +
-                            (item.isReturn ? ' (balik)' : ''), bold: true),
+                            (item.isReturn ? ' ($_reverseLabel)' : ''), bold: true),
                         _td('${_fmtQ(item.qty)} kg',
                             align: pw.TextAlign.center),
                         _td(_rp(item.price),
@@ -505,7 +505,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                       _totalRow('Subtotal', _rp(widget.subtotal)),
                       if (widget.reverseSubtotal > 0) ...[
                         pw.Divider(color: _pdfBorder, height: 8),
-                        _totalRowColor('Barang Balik',
+                        _totalRowColor('Barang $_reverseLabel',
                             '− ${_rp(widget.reverseSubtotal)}', _pdfOrange),
                       ],
                       if (widget.discount > 0) ...[
@@ -713,7 +713,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(item.productName +
-                      (item.isReturn ? ' (balik)' : ''),
+                      (item.isReturn ? ' ($_reverseLabel)' : ''),
                       style: pw.TextStyle(fontSize: 9,
                           fontWeight: pw.FontWeight.bold)),
                   pw.Row(
@@ -742,7 +742,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
             pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Barang Balik',
+                  pw.Text('Barang $_reverseLabel',
                       style: pw.TextStyle(fontSize: 8)),
                   pw.Text('- ${_rp(widget.reverseSubtotal)}',
                       style: pw.TextStyle(fontSize: 8)),
@@ -906,7 +906,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
 
     // ── ITEMS ────────────────────────────────
     for (final item in widget.items) {
-      final rawName = item.productName + (item.isReturn ? ' (balik)' : '');
+      final rawName = item.productName + (item.isReturn ? ' ($_reverseLabel)' : '');
       final nameStr = rawName.length > W
           ? '${rawName.substring(0, W - 2)}..'
           : rawName;
@@ -921,7 +921,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     // ── SUBTOTAL ─────────────────────────────
     bytes += generator.text(lr('Subtotal', _rp(widget.subtotal)));
     if (widget.reverseSubtotal > 0) {
-      bytes += generator.text(lr('Barang Balik', '- ${_rp(widget.reverseSubtotal)}'));
+      bytes += generator.text(lr('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}'));
     }
     if (widget.discount > 0) {
       bytes += generator.text(lr('Diskon', '- ${_rp(widget.discount)}'));
@@ -1027,6 +1027,13 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       _snack('Gagal cetak: $e', isError: true);
     }
   }
+
+  // ── Label barang arah-kebalik: dinilai dari arah EKONOMI sebenarnya,
+  //  bukan generik "balik" -- di nota Jual, barang arah-kebalik itu kita
+  //  BELI dari customer; di nota Beli, barang arah-kebalik itu kita JUAL
+  //  ke pemasok. "Barang balik" (kotoran/susutan) itu konsep BEDA, jangan
+  //  disamakan penamaannya di sini.
+  String get _reverseLabel => widget.isBeli ? 'Jual' : 'Beli';
 
   // ── Warna tema: Beli = teal, Jual = biru ─────
   Color get _themeColor => widget.isBeli
@@ -1183,7 +1190,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
         _ThermalLine('No. Nota : ${widget.invoiceNo}'),
       _ThermalLine(dash('-')),
       ...widget.items.expand((item) {
-        final rawName = item.productName + (item.isReturn ? ' (balik)' : '');
+        final rawName = item.productName + (item.isReturn ? ' ($_reverseLabel)' : '');
         final n = rawName.length > charW
             ? '${rawName.substring(0, charW - 2)}..'
             : rawName;
@@ -1197,7 +1204,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       _ThermalLine(dash('-')),
       _ThermalLine(lr('Subtotal', _rp(widget.subtotal))),
       if (widget.reverseSubtotal > 0)
-        _ThermalLine(lr('Barang Balik', '- ${_rp(widget.reverseSubtotal)}')),
+        _ThermalLine(lr('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}')),
       if (widget.discount > 0)
         _ThermalLine(lr('Diskon', '- ${_rp(widget.discount)}')),
       _ThermalLine(dash('=')),

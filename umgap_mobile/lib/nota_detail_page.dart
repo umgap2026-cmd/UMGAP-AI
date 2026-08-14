@@ -236,14 +236,15 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
       final qty = (item['qty'] as num?)?.toDouble() ?? 0;
       final price = (item['price'] as num?)?.toDouble() ?? 0;
       final sub = (item['subtotal'] as num?)?.toDouble() ?? 0;
-      buf.writeln('${isReturn ? "🔁 " : ""}${item['product_name'] ?? '-'}');
+      buf.writeln('${item['product_name'] ?? '-'}'
+          '${isReturn ? (isBeli ? " (Jual)" : " (Beli)") : ""}');
       buf.writeln('  ${_fmtQty(qty)} ${item['unit'] ?? ''} x ${_rp(price)} = '
           '${isReturn ? "-" : ""}${_rp(sub)}');
     }
     buf.writeln('');
     buf.writeln('Subtotal : ${_rp((inv['subtotal'] as num?)?.toDouble() ?? 0)}');
     final revSub = (inv['reverse_subtotal'] as num?)?.toDouble() ?? 0;
-    if (revSub > 0) buf.writeln('Barang Balik : -${_rp(revSub)}');
+    if (revSub > 0) buf.writeln('Barang ${isBeli ? "Jual" : "Beli"} : -${_rp(revSub)}');
     final disc = (inv['discount'] as num?)?.toDouble() ?? 0;
     if (disc > 0) buf.writeln('Diskon : -${_rp(disc)}');
     buf.writeln('*TOTAL : ${_rp((inv['grand_total'] as num?)?.toDouble() ?? 0)}*');
@@ -403,7 +404,7 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
               const SizedBox(height: 6),
               ...forwardItems.map((e) => _ItemRow(item: e as Map<String, dynamic>, rp: _rp)),
               const SizedBox(height: 12),
-              Text(isBeli ? '📥 Barang Dijual Balik' : '📥 Barang Dibeli Balik',
+              Text(isBeli ? '📥 Barang Dijual' : '📥 Barang Dibeli',
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFC2410C))),
               const SizedBox(height: 6),
               ...reverseItems.map((e) => _ItemRow(item: e as Map<String, dynamic>, rp: _rp)),
@@ -419,7 +420,7 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
             _SumRow('Subtotal', _rp((inv['subtotal'] as num?)?.toDouble() ?? 0)),
             if ((inv['reverse_subtotal'] as num?)?.toDouble() != null && ((inv['reverse_subtotal'] as num).toDouble()) > 0) ...[
               const SizedBox(height: 6),
-              _SumRow('🔁 Barang Balik', '− ${_rp((inv['reverse_subtotal'] as num).toDouble())}', color: const Color(0xFFC2410C)),
+              _SumRow(isBeli ? '🔁 Barang Jual' : '🔁 Barang Beli', '− ${_rp((inv['reverse_subtotal'] as num).toDouble())}', color: const Color(0xFFC2410C)),
             ],
             for (final d in List<Map<String, dynamic>>.from(inv['discount_breakdown'] ?? [])) ...[
               const SizedBox(height: 6),
