@@ -346,12 +346,16 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.2.6",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.2.7",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
-        "force_update":   False,        # True = wajib update, False = opsional
+        # PENTING: JANGAN True dulu di rilis ini -- versi lama tombol
+        # "Update Sekarang" masih ada bug (macet, tidak merespon), jadi
+        # kalau force_update=True user versi lama bisa TERJEBAK (tombol
+        # "Nanti" hilang, tombol "Update Sekarang" tidak berfungsi).
+        "force_update":   False,
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.2.6 tersedia!\n• Mode Perjalanan: Susut Barang, edit/hapus item, untung-rugi lebih akurat\n• Label barang arah-kebalik di nota kini Jual/Beli (bukan generik Balik)"
+        "message":        "Versi baru v1.2.7 tersedia!\n• PERBAIKAN: tombol Update Sekarang sempat macet/tidak merespon, sekarang normal\n• Mode Perjalanan: Susut Barang, edit/hapus item, untung-rugi lebih akurat\n• Label barang arah-kebalik di nota kini Jual/Beli"
     })
 
 @app.route("/ping")

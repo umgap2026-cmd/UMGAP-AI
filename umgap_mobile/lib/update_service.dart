@@ -51,121 +51,147 @@ class UpdateService {
     return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) {
-          bool downloading = false;
-          double? progress;
-          String? error;
+      builder: (_) => _UpdateDialog(
+        message: message, updateUrl: updateUrl, force: force,
+      ),
+    );
+  }
+}
 
-          Future<void> doUpdate() async {
-            if (updateUrl.isEmpty) {
-              setDialogState(() => error = 'Link update belum tersedia.');
-              return;
-            }
-            setDialogState(() { downloading = true; error = null; progress = null; });
-            try {
-              final dir = await getTemporaryDirectory();
-              final savePath = '${dir.path}/umgap-update.apk';
-              await Dio().download(
-                updateUrl,
-                savePath,
-                onReceiveProgress: (recv, total) {
-                  if (total > 0) {
-                    setDialogState(() => progress = recv / total);
-                  }
-                },
-              );
-              final result = await OpenFile.open(savePath);
-              if (result.type != ResultType.done) {
-                throw result.message.isNotEmpty
-                    ? result.message
-                    : 'Gagal membuka installer.';
-              }
-              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-            } catch (e) {
-              setDialogState(() { downloading = false; error = '$e'; });
-            }
+// StatefulWidget SUNGGUHAN (bukan StatefulBuilder dgn var lokal di dalam
+// builder) -- var lokal di dalam builder StatefulBuilder ke-RESET tiap
+// kali setState dipanggil (builder-nya dieksekusi ulang dari awal), jadi
+// tombol "Update Sekarang" kelihatan tidak merespon sama sekali walau
+// proses download-nya sbnrnya jalan di background. State di sini pakai
+// field State yg beneran persisten antar rebuild.
+class _UpdateDialog extends StatefulWidget {
+  final String message;
+  final String updateUrl;
+  final bool force;
+
+  const _UpdateDialog({
+    required this.message,
+    required this.updateUrl,
+    required this.force,
+  });
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> {
+  bool _downloading = false;
+  double? _progress;
+  String? _error;
+
+  Future<void> _doUpdate() async {
+    if (widget.updateUrl.isEmpty) {
+      setState(() => _error = 'Link update belum tersedia.');
+      return;
+    }
+    setState(() { _downloading = true; _error = null; _progress = null; });
+    try {
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/umgap-update.apk';
+      await Dio().download(
+        widget.updateUrl,
+        savePath,
+        onReceiveProgress: (recv, total) {
+          if (total > 0 && mounted) {
+            setState(() => _progress = recv / total);
           }
-
-          return PopScope(
-            canPop: !force,
-            child: AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1565C0).withOpacity(0.10),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.system_update_rounded,
-                        color: Color(0xFF1565C0), size: 40),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(force ? 'Update Diperlukan' : 'Update Tersedia',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  Text(message,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF4A5568))),
-                  if (downloading) ...[
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                          value: progress, minHeight: 8),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      progress != null
-                          ? 'Mengunduh... ${(progress! * 100).toStringAsFixed(0)}%'
-                          : 'Mengunduh...',
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF90A4AE)),
-                    ),
-                  ],
-                  if (error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFFC62828))),
-                  ],
-                ],
-              ),
-              actionsAlignment: MainAxisAlignment.center,
-              actions: [
-                if (!force && !downloading)
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogCtx),
-                    child: const Text('Nanti'),
-                  ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1565C0),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 12),
-                  ),
-                  onPressed: downloading ? null : doUpdate,
-                  child: downloading
-                      ? const SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.5))
-                      : const Text('Update Sekarang',
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ),
-          );
         },
+      );
+      final result = await OpenFile.open(savePath);
+      if (result.type != ResultType.done) {
+        throw result.message.isNotEmpty
+            ? result.message
+            : 'Gagal membuka installer.';
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) setState(() { _downloading = false; _error = '$e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !widget.force,
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1565C0).withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.system_update_rounded,
+                  color: Color(0xFF1565C0), size: 40),
+            ),
+            const SizedBox(height: 16),
+            Text(widget.force ? 'Update Diperlukan' : 'Update Tersedia',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(widget.message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFF4A5568))),
+            if (_downloading) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                    value: _progress, minHeight: 8),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _progress != null
+                    ? 'Mengunduh... ${(_progress! * 100).toStringAsFixed(0)}%'
+                    : 'Mengunduh...',
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF90A4AE)),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12, color: Color(0xFFC62828))),
+            ],
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          if (!widget.force && !_downloading)
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Nanti'),
+            ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1565C0),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 32, vertical: 12),
+            ),
+            onPressed: _downloading ? null : _doUpdate,
+            child: _downloading
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2.5))
+                : const Text('Update Sekarang',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
   }
