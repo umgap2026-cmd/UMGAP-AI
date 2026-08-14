@@ -63,7 +63,12 @@
 
   .action-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
-  .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
+  .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; position: relative; z-index: 1; }
+  /* .fade-up punya animation aktif yg (per spec) bikin tiap .main-card jadi
+     stacking context sendiri -- z-index .lov-panel jadi kejebak lokal &
+     ketutup card lain di bawahnya waktu dibuka. Naikkan sementara pas ada
+     .lov yg terbuka di dalamnya (lihat initLov openPanel/closePanel). */
+  .main-card.lov-boost { z-index: 999; }
   .inner { border-radius: 20px; background: #f3f5f9; box-shadow: var(--shadow-in); padding: 18px 14px 16px; }
   .sec-title { font-size: 16px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
   .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
@@ -594,13 +599,22 @@
     var newSubmit = wrap.querySelector(".lov-new-submit"), newCancel = wrap.querySelector(".lov-new-cancel");
     var stockMode = "empty";
     var activeCat = "";
-    function closeOthers() { document.querySelectorAll(".lov.open").forEach(function (o) { if (o !== wrap) o.classList.remove("open"); }); }
+    function closeOthers() {
+      document.querySelectorAll(".lov.open").forEach(function (o) { if (o !== wrap) o.classList.remove("open"); });
+      document.querySelectorAll(".main-card.lov-boost").forEach(function (c) { c.classList.remove("lov-boost"); });
+    }
     function openPanel() {
       closeOthers(); wrap.classList.add("open"); search.value = ""; activeCat = "";
+      var card = wrap.closest(".main-card");
+      if (card) card.classList.add("lov-boost");
       catChips.forEach(function (c) { c.classList.toggle("active", c.getAttribute("data-cat") === ""); });
       filter(""); resetAddForm(); setTimeout(function () { search.focus(); }, 0);
     }
-    function closePanel() { wrap.classList.remove("open"); resetAddForm(); }
+    function closePanel() {
+      wrap.classList.remove("open"); resetAddForm();
+      var card = wrap.closest(".main-card");
+      if (card) card.classList.remove("lov-boost");
+    }
     function filter(q) {
       q = q.trim().toLowerCase();
       var any = false, list = wrap.querySelector(".lov-list"), groupHeader = null, groupHasMatch = false;
@@ -698,7 +712,13 @@
     }
   }
   document.addEventListener("click", function (e) {
-    document.querySelectorAll(".lov.open").forEach(function (w) { if (!w.contains(e.target)) w.classList.remove("open"); });
+    document.querySelectorAll(".lov.open").forEach(function (w) {
+      if (!w.contains(e.target)) {
+        w.classList.remove("open");
+        var card = w.closest(".main-card");
+        if (card) card.classList.remove("lov-boost");
+      }
+    });
   });
 
   // ── Simpan semua baris cart sequential ke endpoint yg sudah ada
