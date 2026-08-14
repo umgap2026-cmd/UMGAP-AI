@@ -118,6 +118,45 @@
   tbody td { padding: 12px 14px; font-size: 13px; border-top: 1px solid rgba(125, 138, 166, 0.14); vertical-align: middle; }
   tbody tr:hover { background: #f7f9ff; }
   td .muted { color: var(--muted); }
+
+  /* ── Form entri Jual/Beli/Beban (cart), pola sama persis dgn
+     pembuat nota (templates/invoice_form.html) -- search+kategori
+     picker barang, banyak baris sekaligus, satu tombol simpan. ── */
+  .tf-row { background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 12px; margin-bottom: 10px; position: relative; }
+  .tf-top { display: grid; grid-template-columns: 1fr 40px; gap: 8px; align-items: start; margin-bottom: 8px; }
+  .tf-del { width: 40px; height: 40px; border: none; border-radius: 12px; background: rgba(185,28,28,0.09); color: var(--bad); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: all 0.15s; }
+  .tf-del:hover { background: rgba(185,28,28,0.18); transform: scale(1.05); }
+  .tf-bot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tf-sub { grid-column: 1 / -1; background: #eef2ff; color: var(--blue); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 900; text-align: center; margin-top: 8px; }
+  .tf-note { width: 100%; margin-top: 8px; border: none; border-radius: 10px; background: #eef1f7; padding: 8px 10px; font-size: 12px; font-family: inherit; color: #33415c; }
+  .tf-note::placeholder { color: var(--muted); }
+  .tf-add-btn { width: 100%; height: 44px; border: 2px dashed rgba(37,99,235,0.3); border-radius: 14px; background: rgba(37,99,235,0.06); color: var(--blue); font-weight: 900; font-size: 13px; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; margin-top: 2px; }
+  .tf-add-btn:hover { background: rgba(37,99,235,0.12); }
+  .tf-row.beli .tf-sub { background: #eef6ff; color: #1d4ed8; }
+  .tf-row.expense { padding-bottom: 14px; }
+
+  /* list-of-value: searchable item picker (copy dari invoice_form.html) */
+  .lov { position: relative; }
+  .lov-btn { width: 100%; border: none; outline: none; border-radius: 13px; background: #f2f5fb; box-shadow: var(--soft-in); padding: 13px 14px; font-size: 13px; color: var(--text); font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+  .lov-btn.placeholder { color: var(--muted); }
+  .lov-btn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .lov-btn .care { font-size: 10px; color: var(--muted); flex: 0 0 auto; transition: transform 0.15s; }
+  .lov.open .lov-btn .care { transform: rotate(180deg); }
+  .lov-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: #fff; border-radius: 14px; box-shadow: var(--shadow-out); border: 1px solid rgba(37, 99, 235, 0.08); overflow: hidden; }
+  .lov.open .lov-panel { display: block; }
+  .lov-search-wrap { padding: 8px; border-bottom: 1px solid rgba(125, 138, 166, 0.14); }
+  .lov-search { width: 100%; border: none; outline: none; border-radius: 10px; background: #f2f5fb; padding: 9px 12px; font-size: 13px; color: var(--text); font-family: inherit; }
+  .lov-cat-chips { display: flex; gap: 6px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; scrollbar-width: none; }
+  .lov-cat-chips::-webkit-scrollbar { display: none; }
+  .lov-cat-chip { flex: 0 0 auto; border: none; border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; background: #f2f5fb; color: var(--muted); cursor: pointer; font-family: inherit; white-space: nowrap; transition: all 0.15s; }
+  .lov-cat-chip.active { background: var(--blue); color: #fff; }
+  .lov-list { max-height: 280px; overflow-y: auto; }
+  .lov-group-header { position: sticky; top: 0; z-index: 1; padding: 7px 14px; font-size: 10.5px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; background: #64748b; }
+  .lov-item { padding: 11px 14px; font-size: 13px; color: var(--text); cursor: pointer; transition: background 0.12s; border-bottom: 1px solid rgba(125, 138, 166, 0.1); }
+  .lov-item:last-child { border-bottom: none; }
+  .lov-item:hover { background: #eef2ff; }
+  .lov-item .stk { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
+  .lov-empty { padding: 16px 14px; text-align: center; font-size: 12px; color: var(--muted); }
 </style>
 
 <div class="screen">
@@ -196,47 +235,83 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title" style="color: var(--good)">🟢 Jual</div>
-        <div class="sec-desc">Jual barang gudang ke lapak/pembeli di perjalanan ini -- stok otomatis berkurang</div>
+        <div class="sec-desc">Jual barang gudang ke lapak/pembeli -- stok otomatis berkurang. Tambah beberapa barang dulu, baru simpan sekaligus (seperti buat nota).</div>
         <div class="divider"></div>
-        <form method="post" action="/finance/trips/{{ trip.id }}/sell">
-          <div class="row2">
-            <div class="field">
-              <label>Barang *</label>
-              <select name="material_id" required>
-                <option value="">— Pilih Barang —</option>
-                {% for m in materials %}
-                <option value="{{ m.id }}">{{ m.name }} (stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }})</option>
-                {% endfor %}
-              </select>
+
+        <div id="sellList">
+          <div class="tf-row">
+            <div class="tf-top">
+              <div style="min-width:0">
+                <label style="margin-bottom:5px">Barang</label>
+                <div class="lov item-material" data-value="" data-stock="0" data-unit="" data-avg-cost="0">
+                  <button type="button" class="lov-btn placeholder">
+                    <span class="lov-btn-text">— Pilih Barang —</span>
+                    <span class="care">▾</span>
+                  </button>
+                  <div class="lov-panel">
+                    <div class="lov-search-wrap">
+                      <input type="text" class="lov-search" placeholder="Cari nama barang…" autocomplete="off" />
+                      <div class="lov-cat-chips">
+                        <button type="button" class="lov-cat-chip active" data-cat="">Semua</button>
+                        {% for cat, group in materials|groupby('category') %}
+                        <button type="button" class="lov-cat-chip" data-cat="{{ cat }}">{{ cat }}</button>
+                        {% endfor %}
+                      </div>
+                    </div>
+                    <div class="lov-list">
+                      {% for cat, group in materials|groupby('category') %}
+                      <div class="lov-group-header" data-cat="{{ cat }}">🏷️ {{ cat }}</div>
+                      {% for m in group %}
+                      <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}" data-category="{{ cat }}"
+                           data-unit="{{ m.unit }}" data-avg-cost="{{ m.avg_cost_per_kg }}" data-search="{{ m.name|lower }}">
+                        {{ m.name }}
+                        <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }} &middot; HPP Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</span>
+                      </div>
+                      {% endfor %}
+                      {% endfor %}
+                      <div class="lov-empty" style="display:none">Barang tidak ditemukan</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="tf-del">✕</button>
             </div>
-            <div class="field">
-              <label>Lapak</label>
-              {% if trip.parties %}
-              <select name="party_id" onchange="document.getElementById('sellPartyName_{{ trip.id }}').style.display = this.value ? 'none' : 'block';">
-                <option value="">— Pilih / isi nama baru di bawah —</option>
-                {% for p in trip.parties %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-                {% endfor %}
-              </select>
-              {% endif %}
+            <div class="tf-bot">
+              <div><label style="margin-bottom:5px">Qty (kg)</label><input type="text" class="tf-qty" inputmode="decimal" placeholder="0" /></div>
+              <div><label style="margin-bottom:5px">Harga/kg</label><input type="text" class="tf-price" inputmode="numeric" placeholder="0" /></div>
+              <div class="tf-sub">Rp 0</div>
             </div>
+            <div class="row2" style="margin-top:10px">
+              <div class="field" style="margin-bottom:0">
+                <label>Lapak</label>
+                {% if trip.parties %}
+                <select class="tf-party-id">
+                  <option value="">— Pilih / isi nama baru —</option>
+                  {% for p in trip.parties %}
+                  <option value="{{ p.id }}">{{ p.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+                <input type="text" class="tf-party" placeholder="Atau nama lapak baru (opsional)" style="margin-top:6px" />
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label>Metode Bayar</label>
+                <select class="tf-payment">
+                  <option value="CASH">Cash</option>
+                  <option value="TRANSFER">Transfer</option>
+                  <option value="HUTANG">Hutang (piutang)</option>
+                </select>
+              </div>
+            </div>
+            <input type="text" class="tf-note" placeholder="Catatan (opsional)" />
           </div>
-          <div class="field" id="sellPartyName_{{ trip.id }}"><label>Atau Nama Lapak Baru</label><input type="text" name="party_name" placeholder="opsional" /></div>
-          <div class="row3">
-            <div class="field"><label>Qty (kg) *</label><input type="number" step="0.01" name="qty_kg" min="0.01" placeholder="0" required /></div>
-            <div class="field"><label>Harga/kg (Rp) *</label><input type="number" name="price_per_kg" min="1" placeholder="0" required /></div>
-            <div class="field">
-              <label>Metode Bayar</label>
-              <select name="payment_type">
-                <option value="CASH">Cash</option>
-                <option value="TRANSFER">Transfer</option>
-                <option value="HUTANG">Hutang (piutang)</option>
-              </select>
-            </div>
-          </div>
-          <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
-          <button type="submit" class="btn-submit">Catat Penjualan</button>
-        </form>
+        </div>
+        <button type="button" class="tf-add-btn" id="btnAddSell">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          Tambah Barang
+        </button>
+        <div class="divider"></div>
+        <button type="button" class="btn-submit" id="btnSaveSell">💾 Simpan Semua Penjualan</button>
       </div>
     </div>
 
@@ -244,27 +319,61 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title" style="color: var(--blue)">🔵 Beli</div>
-        <div class="sec-desc">Beli barang selama perjalanan -- stok otomatis bertambah (HPP disesuaikan AVCO)</div>
+        <div class="sec-desc">Beli barang selama perjalanan -- stok otomatis bertambah (HPP disesuaikan AVCO). Tambah beberapa barang dulu, baru simpan sekaligus.</div>
         <div class="divider"></div>
-        <form method="post" action="/finance/trips/{{ trip.id }}/buy">
-          <div class="row2">
-            <div class="field">
-              <label>Barang *</label>
-              <select name="material_id" required>
-                <option value="">— Pilih Barang —</option>
-                {% for m in materials %}
-                <option value="{{ m.id }}">{{ m.name }}</option>
-                {% endfor %}
-              </select>
+
+        <div id="buyList">
+          <div class="tf-row beli">
+            <div class="tf-top">
+              <div style="min-width:0">
+                <label style="margin-bottom:5px">Barang</label>
+                <div class="lov item-material" data-value="" data-stock="0" data-unit="" data-avg-cost="0">
+                  <button type="button" class="lov-btn placeholder">
+                    <span class="lov-btn-text">— Pilih Barang —</span>
+                    <span class="care">▾</span>
+                  </button>
+                  <div class="lov-panel">
+                    <div class="lov-search-wrap">
+                      <input type="text" class="lov-search" placeholder="Cari nama barang…" autocomplete="off" />
+                      <div class="lov-cat-chips">
+                        <button type="button" class="lov-cat-chip active" data-cat="">Semua</button>
+                        {% for cat, group in materials|groupby('category') %}
+                        <button type="button" class="lov-cat-chip" data-cat="{{ cat }}">{{ cat }}</button>
+                        {% endfor %}
+                      </div>
+                    </div>
+                    <div class="lov-list">
+                      {% for cat, group in materials|groupby('category') %}
+                      <div class="lov-group-header" data-cat="{{ cat }}">🏷️ {{ cat }}</div>
+                      {% for m in group %}
+                      <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}" data-category="{{ cat }}"
+                           data-unit="{{ m.unit }}" data-avg-cost="{{ m.avg_cost_per_kg }}" data-search="{{ m.name|lower }}">
+                        {{ m.name }}
+                        <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }} &middot; HPP Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</span>
+                      </div>
+                      {% endfor %}
+                      {% endfor %}
+                      <div class="lov-empty" style="display:none">Barang tidak ditemukan</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="tf-del">✕</button>
             </div>
-            <div class="field"><label>Qty (kg) *</label><input type="number" step="0.01" name="qty_kg" min="0.01" placeholder="0" required /></div>
+            <div class="tf-bot">
+              <div><label style="margin-bottom:5px">Qty (kg)</label><input type="text" class="tf-qty" inputmode="decimal" placeholder="0" /></div>
+              <div><label style="margin-bottom:5px">Harga/kg</label><input type="text" class="tf-price" inputmode="numeric" placeholder="0" /></div>
+              <div class="tf-sub">Rp 0</div>
+            </div>
+            <input type="text" class="tf-note" placeholder="Catatan (opsional)" />
           </div>
-          <div class="row2">
-            <div class="field"><label>Harga/kg (Rp) *</label><input type="number" name="price_per_kg" min="1" placeholder="0" required /></div>
-            <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
-          </div>
-          <button type="submit" class="btn-submit">Catat Pembelian</button>
-        </form>
+        </div>
+        <button type="button" class="tf-add-btn" id="btnAddBuy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          Tambah Barang
+        </button>
+        <div class="divider"></div>
+        <button type="button" class="btn-submit" id="btnSaveBuy">💾 Simpan Semua Pembelian</button>
       </div>
     </div>
 
@@ -272,15 +381,26 @@
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title" style="color: var(--bad)">🔴 Beban</div>
-        <div class="sec-desc">BBM, makan, gaji sopir, dan biaya lain selama perjalanan ini</div>
+        <div class="sec-desc">BBM, makan, gaji sopir, dan biaya lain selama perjalanan ini. Tambah beberapa beban dulu, baru simpan sekaligus.</div>
         <div class="divider"></div>
-        <form method="post" action="/finance/trips/{{ trip.id }}/expense">
-          <div class="row2">
-            <div class="field"><label>Nama Beban *</label><input type="text" name="expense_name" placeholder="mis. BBM, Makan, Gaji Sopir" required /></div>
-            <div class="field"><label>Jumlah (Rp) *</label><input type="number" name="subtotal" min="1" placeholder="0" required /></div>
+
+        <div id="expenseList">
+          <div class="tf-row expense">
+            <div class="row2">
+              <div class="field" style="margin-bottom:0"><label>Nama Beban</label><input type="text" class="tf-exp-name" placeholder="mis. BBM, Makan, Gaji Sopir" /></div>
+              <div class="field" style="margin-bottom:0"><label>Jumlah (Rp)</label><input type="text" class="tf-exp-amount" inputmode="numeric" placeholder="0" /></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:8px">
+              <button type="button" class="tf-del">✕</button>
+            </div>
           </div>
-          <button type="submit" class="btn-submit">Catat Beban</button>
-        </form>
+        </div>
+        <button type="button" class="tf-add-btn" id="btnAddExpense">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          Tambah Beban
+        </button>
+        <div class="divider"></div>
+        <button type="button" class="btn-submit" id="btnSaveExpense">💾 Simpan Semua Beban</button>
       </div>
     </div>
     {% endif %}
@@ -339,6 +459,233 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  function rp(n) { return "Rp " + Math.round(n || 0).toLocaleString("id-ID"); }
+  function qtyNum(v) {
+    var raw = String(v || "").replace(/\s+/g, "").replace(/,/g, ".").replace(/[^0-9.]/g, "");
+    var firstDot = raw.indexOf(".");
+    if (firstDot !== -1) raw = raw.slice(0, firstDot + 1) + raw.slice(firstDot + 1).replace(/\./g, "");
+    return parseFloat(raw || "0") || 0;
+  }
+  function fmtQty(n) { return (Math.round(n * 100) / 100).toString().replace(".", ","); }
+
+  // ── LOV (searchable picker barang) -- pola sama persis dgn invoice_form.html ──
+  function lovLabel(name, stock, unit, avgCost) {
+    var label = name + " · stok " + parseFloat(stock || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " " + unit;
+    var cost = parseFloat(avgCost || 0);
+    if (cost > 0) label += " · HPP " + rp(cost);
+    return label;
+  }
+  function selectLovItem(wrap, it) {
+    var btn = wrap.querySelector(".lov-btn"), btnText = wrap.querySelector(".lov-btn-text");
+    var id = it.getAttribute("data-id"), stock = it.getAttribute("data-stock") || "0",
+        unit = it.getAttribute("data-unit") || "", avgCost = it.getAttribute("data-avg-cost") || "0",
+        name = it.childNodes[0] ? it.childNodes[0].textContent.trim() : it.textContent.trim();
+    wrap.setAttribute("data-value", id);
+    wrap.setAttribute("data-stock", stock);
+    wrap.setAttribute("data-unit", unit);
+    wrap.setAttribute("data-avg-cost", avgCost);
+    wrap.setAttribute("data-name", name);
+    btnText.textContent = lovLabel(name, stock, unit, avgCost);
+    btn.classList.remove("placeholder");
+    wrap.classList.remove("open");
+  }
+  function resetLov(wrap) {
+    wrap.setAttribute("data-value", ""); wrap.setAttribute("data-stock", "0");
+    wrap.setAttribute("data-unit", ""); wrap.setAttribute("data-avg-cost", "0");
+    wrap.classList.remove("open");
+    wrap.querySelector(".lov-btn-text").textContent = "— Pilih Barang —";
+    wrap.querySelector(".lov-btn").classList.add("placeholder");
+    wrap.querySelector(".lov-search").value = "";
+    wrap.querySelectorAll(".lov-item").forEach(function (it) { it.style.display = ""; });
+    wrap.querySelectorAll(".lov-group-header").forEach(function (h) { h.style.display = ""; });
+    wrap.querySelectorAll(".lov-cat-chip").forEach(function (c) { c.classList.toggle("active", c.getAttribute("data-cat") === ""); });
+    var empty = wrap.querySelector(".lov-empty");
+    if (empty) empty.style.display = "none";
+  }
+  function initLov(wrap) {
+    var btn = wrap.querySelector(".lov-btn"), search = wrap.querySelector(".lov-search"),
+        empty = wrap.querySelector(".lov-empty"), catChips = wrap.querySelectorAll(".lov-cat-chip");
+    var activeCat = "";
+    function closeOthers() { document.querySelectorAll(".lov.open").forEach(function (o) { if (o !== wrap) o.classList.remove("open"); }); }
+    function openPanel() {
+      closeOthers(); wrap.classList.add("open"); search.value = ""; activeCat = "";
+      catChips.forEach(function (c) { c.classList.toggle("active", c.getAttribute("data-cat") === ""); });
+      filter(""); setTimeout(function () { search.focus(); }, 0);
+    }
+    function closePanel() { wrap.classList.remove("open"); }
+    function filter(q) {
+      q = q.trim().toLowerCase();
+      var any = false, list = wrap.querySelector(".lov-list"), groupHeader = null, groupHasMatch = false;
+      Array.prototype.forEach.call(list.children, function (el) {
+        if (el.classList.contains("lov-group-header")) {
+          if (groupHeader) groupHeader.style.display = (!activeCat && groupHasMatch) ? "" : "none";
+          groupHeader = el; groupHasMatch = false; return;
+        }
+        if (!el.classList.contains("lov-item")) return;
+        var matchCat = !activeCat || el.getAttribute("data-category") === activeCat;
+        var matchQ = !q || (el.getAttribute("data-search") || "").indexOf(q) !== -1;
+        var match = matchCat && matchQ;
+        el.style.display = match ? "" : "none";
+        if (match) { any = true; groupHasMatch = true; }
+      });
+      if (groupHeader) groupHeader.style.display = (!activeCat && groupHasMatch) ? "" : "none";
+      if (empty) empty.style.display = any ? "none" : "block";
+    }
+    btn.addEventListener("click", function (e) { e.stopPropagation(); if (wrap.classList.contains("open")) closePanel(); else openPanel(); });
+    search.addEventListener("input", function () { filter(search.value); });
+    search.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); if (e.key === "Escape") closePanel(); });
+    catChips.forEach(function (chip) {
+      chip.addEventListener("click", function (e) {
+        e.stopPropagation(); activeCat = chip.getAttribute("data-cat") || "";
+        catChips.forEach(function (c) { c.classList.toggle("active", c === chip); });
+        filter(search.value);
+      });
+    });
+    wrap.querySelectorAll(".lov-item").forEach(function (it) { it.addEventListener("click", function () { selectLovItem(wrap, it); }); });
+  }
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll(".lov.open").forEach(function (w) { if (!w.contains(e.target)) w.classList.remove("open"); });
+  });
+
+  // ── Simpan semua baris cart sequential ke endpoint yg sudah ada
+  //    (satu request per baris, spy tidak perlu ubah skema backend) ──
+  async function saveAllRows(url, rows, btn, btnLabel) {
+    if (!rows.length) { alert("Tambah minimal 1 baris yang lengkap dulu sebelum menyimpan."); return; }
+    btn.disabled = true;
+    for (var i = 0; i < rows.length; i++) {
+      btn.textContent = "Menyimpan " + (i + 1) + "/" + rows.length + "...";
+      try {
+        var res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "fetch" },
+          body: new URLSearchParams(rows[i]),
+        });
+        var data = await res.json();
+        if (!data.ok) {
+          alert("Baris " + (i + 1) + " gagal: " + data.message);
+          btn.disabled = false; btn.textContent = btnLabel;
+          return;
+        }
+      } catch (e) {
+        alert("Baris " + (i + 1) + " gagal: " + e);
+        btn.disabled = false; btn.textContent = btnLabel;
+        return;
+      }
+    }
+    location.reload();
+  }
+
+  // ── JUAL ── (elemen cuma ada kalau trip.status == OPEN)
+  var sellList = document.getElementById("sellList");
+  if (sellList) {
+    var sellTemplate = sellList.querySelector(".tf-row").cloneNode(true);
+    var bindSellRow = function (r) {
+      var mat = r.querySelector(".item-material"), q = r.querySelector(".tf-qty"), p = r.querySelector(".tf-price"),
+          o = r.querySelector(".tf-sub"), d = r.querySelector(".tf-del");
+      initLov(mat);
+      function c() { o.textContent = rp(qtyNum(q.value) * qtyNum(p.value)); }
+      q.addEventListener("input", c); p.addEventListener("input", c);
+      q.addEventListener("blur", function () { var n = qtyNum(q.value); q.value = n > 0 ? fmtQty(n) : ""; c(); });
+      d.addEventListener("click", function () { if (sellList.querySelectorAll(".tf-row").length > 1) r.remove(); });
+    };
+    sellList.querySelectorAll(".tf-row").forEach(bindSellRow);
+    document.getElementById("btnAddSell").addEventListener("click", function () {
+      var c = sellTemplate.cloneNode(true);
+      resetLov(c.querySelector(".item-material"));
+      c.querySelector(".tf-qty").value = ""; c.querySelector(".tf-price").value = "";
+      c.querySelector(".tf-sub").textContent = "Rp 0";
+      var cPartyId = c.querySelector(".tf-party-id"); if (cPartyId) cPartyId.value = "";
+      c.querySelector(".tf-party").value = ""; c.querySelector(".tf-note").value = "";
+      sellList.appendChild(c);
+      bindSellRow(c);
+    });
+    document.getElementById("btnSaveSell").addEventListener("click", function () {
+      var btn = this, payloads = [];
+      sellList.querySelectorAll(".tf-row").forEach(function (r) {
+        var mat = r.querySelector(".item-material");
+        var materialId = mat.getAttribute("data-value");
+        var qty = qtyNum(r.querySelector(".tf-qty").value), price = qtyNum(r.querySelector(".tf-price").value);
+        if (!materialId || qty <= 0 || price <= 0) return;
+        var partyIdEl = r.querySelector(".tf-party-id");
+        var partyId = partyIdEl ? partyIdEl.value : "";
+        payloads.push({
+          material_id: materialId, qty_kg: qty, price_per_kg: price,
+          party_id: partyId,
+          party_name: partyId ? "" : r.querySelector(".tf-party").value.trim(),
+          payment_type: r.querySelector(".tf-payment").value,
+          note: r.querySelector(".tf-note").value.trim(),
+        });
+      });
+      saveAllRows("/finance/trips/{{ trip.id }}/sell", payloads, btn, "💾 Simpan Semua Penjualan");
+    });
+  }
+
+  // ── BELI ── (elemen cuma ada kalau trip.status == OPEN)
+  var buyList = document.getElementById("buyList");
+  if (buyList) {
+    var buyTemplate = buyList.querySelector(".tf-row").cloneNode(true);
+    var bindBuyRow = function (r) {
+      var mat = r.querySelector(".item-material"), q = r.querySelector(".tf-qty"), p = r.querySelector(".tf-price"),
+          o = r.querySelector(".tf-sub"), d = r.querySelector(".tf-del");
+      initLov(mat);
+      function c() { o.textContent = rp(qtyNum(q.value) * qtyNum(p.value)); }
+      q.addEventListener("input", c); p.addEventListener("input", c);
+      q.addEventListener("blur", function () { var n = qtyNum(q.value); q.value = n > 0 ? fmtQty(n) : ""; c(); });
+      d.addEventListener("click", function () { if (buyList.querySelectorAll(".tf-row").length > 1) r.remove(); });
+    };
+    buyList.querySelectorAll(".tf-row").forEach(bindBuyRow);
+    document.getElementById("btnAddBuy").addEventListener("click", function () {
+      var c = buyTemplate.cloneNode(true);
+      resetLov(c.querySelector(".item-material"));
+      c.querySelector(".tf-qty").value = ""; c.querySelector(".tf-price").value = "";
+      c.querySelector(".tf-sub").textContent = "Rp 0"; c.querySelector(".tf-note").value = "";
+      buyList.appendChild(c);
+      bindBuyRow(c);
+    });
+    document.getElementById("btnSaveBuy").addEventListener("click", function () {
+      var btn = this, payloads = [];
+      buyList.querySelectorAll(".tf-row").forEach(function (r) {
+        var mat = r.querySelector(".item-material");
+        var materialId = mat.getAttribute("data-value");
+        var qty = qtyNum(r.querySelector(".tf-qty").value), price = qtyNum(r.querySelector(".tf-price").value);
+        if (!materialId || qty <= 0 || price <= 0) return;
+        payloads.push({ material_id: materialId, qty_kg: qty, price_per_kg: price, note: r.querySelector(".tf-note").value.trim() });
+      });
+      saveAllRows("/finance/trips/{{ trip.id }}/buy", payloads, btn, "💾 Simpan Semua Pembelian");
+    });
+  }
+
+  // ── BEBAN ──
+  var expenseList = document.getElementById("expenseList");
+  if (expenseList) {
+    var expenseTemplate = expenseList.querySelector(".tf-row").cloneNode(true);
+    function bindExpenseRow(r) {
+      var d = r.querySelector(".tf-del");
+      d.addEventListener("click", function () { if (expenseList.querySelectorAll(".tf-row").length > 1) r.remove(); });
+    }
+    expenseList.querySelectorAll(".tf-row").forEach(bindExpenseRow);
+    document.getElementById("btnAddExpense").addEventListener("click", function () {
+      var c = expenseTemplate.cloneNode(true);
+      c.querySelector(".tf-exp-name").value = ""; c.querySelector(".tf-exp-amount").value = "";
+      expenseList.appendChild(c);
+      bindExpenseRow(c);
+    });
+    document.getElementById("btnSaveExpense").addEventListener("click", function () {
+      var btn = this, payloads = [];
+      expenseList.querySelectorAll(".tf-row").forEach(function (r) {
+        var name = r.querySelector(".tf-exp-name").value.trim();
+        var amount = qtyNum(r.querySelector(".tf-exp-amount").value);
+        if (!name || amount <= 0) return;
+        payloads.push({ expense_name: name, subtotal: amount });
+      });
+      saveAllRows("/finance/trips/{{ trip.id }}/expense", payloads, btn, "💾 Simpan Semua Beban");
+    });
+  }
+})();
+</script>
 {% endblock %}
 
 {% block bottom_nav %}

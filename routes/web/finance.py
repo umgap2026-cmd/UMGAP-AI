@@ -1,6 +1,6 @@
 from datetime import date
 
-from flask import Blueprint, render_template, request, redirect, session, flash
+from flask import Blueprint, render_template, request, redirect, session, flash, jsonify
 
 from core import (
     owner_or_admin_required, owner_required, get_notif_count,
@@ -326,6 +326,17 @@ def finance_expenses_delete(expense_id):
 # ada & dipakai fitur mobile "Perjalanan Jakarta" (routes/mobile/finance.py)
 # -- BUKAN skema baru. Beli/Jual/Beban di sini tercatat sbg fin_trip_items,
 # terpisah dari Nota gudang biasa (fin_transactions).
+
+def _trip_ajax_response(trip_id, ok, message):
+    """Sell/buy/expense dipanggil berkali-kali dari cart JS (spt pembuat
+    nota -- tambah beberapa baris, baru simpan sekaligus) via fetch(), jadi
+    butuh JSON supaya error per-baris (mis. stok tidak cukup) bisa dideteksi
+    -- redirect+flash lama tidak bisa dibaca fetch() krn ikut di-follow jadi
+    200 apapun hasilnya. Form-post biasa (non-JS) tetap redirect spt semula."""
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify({"ok": ok, "message": message})
+    flash(message, "success" if ok else "danger")
+    return redirect(f"/finance/trips/{trip_id}")
 @finance_bp.route("/finance/trips")
 def finance_trips():
     deny = owner_or_admin_required()
@@ -416,10 +427,9 @@ def finance_trip_sell(trip_id):
             note=request.form.get("note"),
             created_by=session.get("user_id"),
         )
-        flash("Penjualan dicatat.", "success")
+        return _trip_ajax_response(trip_id, True, "Penjualan dicatat.")
     except ValueError as e:
-        flash(str(e), "danger")
-    return redirect(f"/finance/trips/{trip_id}")
+        return _trip_ajax_response(trip_id, False, str(e))
 
 
 @finance_bp.route("/finance/trips/<int:trip_id>/buy", methods=["POST"])
@@ -436,10 +446,9 @@ def finance_trip_buy(trip_id):
             price_per_kg=request.form.get("price_per_kg"),
             note=request.form.get("note"),
         )
-        flash("Pembelian dicatat.", "success")
+        return _trip_ajax_response(trip_id, True, "Pembelian dicatat.")
     except ValueError as e:
-        flash(str(e), "danger")
-    return redirect(f"/finance/trips/{trip_id}")
+        return _trip_ajax_response(trip_id, False, str(e))
 
 
 @finance_bp.route("/finance/trips/<int:trip_id>/expense", methods=["POST"])
@@ -454,10 +463,9 @@ def finance_trip_add_expense(trip_id):
             expense_name=request.form.get("expense_name"),
             subtotal=request.form.get("subtotal"),
         )
-        flash("Beban perjalanan dicatat.", "success")
+        return _trip_ajax_response(trip_id, True, "Beban perjalanan dicatat.")
     except ValueError as e:
-        flash(str(e), "danger")
-    return redirect(f"/finance/trips/{trip_id}")
+        return _trip_ajax_response(trip_id, False, str(e))
 
 
 @finance_bp.route("/finance/trips/<int:trip_id>/close", methods=["POST"])
