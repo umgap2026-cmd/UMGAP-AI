@@ -764,6 +764,9 @@ def list_fin_trips_web():
                 COALESCE(SUM(CASE WHEN i.type='JUAL'    THEN i.subtotal ELSE 0 END), 0) AS total_jual,
                 COALESCE(SUM(CASE WHEN i.type='BELI'    THEN i.subtotal ELSE 0 END), 0) AS total_beli,
                 COALESCE(SUM(CASE WHEN i.type='EXPENSE' THEN i.subtotal ELSE 0 END), 0) AS total_beban,
+                COALESCE(SUM(CASE WHEN i.type='SUSUT'   THEN i.subtotal ELSE 0 END), 0) AS total_susut,
+                COALESCE(SUM(CASE WHEN i.type='JUAL'
+                    THEN i.subtotal - i.qty_kg * COALESCE(i.cost_per_kg, 0) ELSE 0 END), 0) AS gross_margin,
                 COUNT(DISTINCT i.id) AS total_items
             FROM fin_trips t
             LEFT JOIN fin_trip_items i ON i.trip_id = t.id
@@ -773,7 +776,15 @@ def list_fin_trips_web():
         """)
         rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
-            r["profit"] = float(r["total_jual"] or 0) - float(r["total_beli"] or 0) - float(r["total_beban"] or 0)
+            # Untung/rugi dihitung dari MARGIN penjualan (harga jual - HPP saat
+            # dijual), BUKAN "total_jual - total_beli" -- krn barang yg dijual
+            # di 1 Perjalanan sering bukan barang yg dibeli di perjalanan yg
+            # sama (mis. bawa stok gudang lama), jadi total_beli trip ybs bisa
+            # 0 padahal ybs sedang jual barang yg tetap ada HPP-nya. Susut
+            # (barang hilang/susut berat) & beban (BBM dll) sama2 pengurang.
+            r["profit"] = (float(r["gross_margin"] or 0)
+                           - float(r["total_beban"] or 0)
+                           - float(r["total_susut"] or 0))
         return rows
     finally:
         cur.close()
@@ -805,7 +816,7 @@ def get_fin_trip_web_detail(trip_id):
         cur.execute("""
             SELECT i.id, i.type, i.material_id, i.qty_kg, i.price_per_kg, i.subtotal,
                    i.payment_type, i.is_debt, i.expense_name, i.note, i.party_id,
-                   i.return_to_stock,
+                   i.return_to_stock, i.cost_per_kg,
                    TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
                            'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
                    m.name AS material_name, m.unit AS material_unit,
@@ -821,6 +832,13 @@ def get_fin_trip_web_detail(trip_id):
         total_jual = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "JUAL")
         total_beli = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "BELI")
         total_beban = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "EXPENSE")
+        total_susut = sum(float(i["subtotal"] or 0) for i in items if i["type"] == "SUSUT")
+        # Margin penjualan = harga jual - HPP saat dijual (cost_per_kg), BUKAN
+        # "total_jual - total_beli" -- lihat catatan sama di list_fin_trips_web.
+        gross_margin = sum(
+            float(i["subtotal"] or 0) - float(i["qty_kg"] or 0) * float(i["cost_per_kg"] or 0)
+            for i in items if i["type"] == "JUAL"
+        )
 
         # NOTE: key sengaja bukan "items" -- dict.items via akses titik di
         # Jinja resolve ke method built-in dict.items(), bukan key ini,
@@ -830,7 +848,9 @@ def get_fin_trip_web_detail(trip_id):
         trip["total_jual"] = total_jual
         trip["total_beli"] = total_beli
         trip["total_beban"] = total_beban
-        trip["profit"] = total_jual - total_beli - total_beban
+        trip["total_susut"] = total_susut
+        trip["gross_margin"] = gross_margin
+        trip["profit"] = gross_margin - total_beban - total_susut
         return trip
     except ValueError:
         raise
@@ -1064,6 +1084,253 @@ def record_fin_trip_expense(trip_id, expense_name, subtotal):
         conn.close()
 
 
+def record_fin_trip_susut(trip_id, material_id, qty_kg, note, created_by):
+    """Catat susut (penyusutan berat) barang selama Perjalanan -- mis. bawa
+    2001.5kg tapi yg terjual+kembali cuma 1947.5kg, selisihnya dicatat di
+    sini. Dinilai sebesar HPP barang saat ini (cost_per_kg), jadi pengurang
+    keuntungan SEPERTI Beban tapi kategori terpisah, SEKALIGUS mengurangi
+    stok gudang (barangnya memang hilang secara fisik, beda dari Beban yg
+    tidak menyentuh stok)."""
+    from routes.mobile.finance import _update_stock_avco
+
+    try:
+        material_id = int(material_id)
+        qty_kg = float(qty_kg)
+    except (TypeError, ValueError):
+        raise ValueError("Barang dan qty susut wajib diisi dengan benar.")
+    if qty_kg <= 0:
+        raise ValueError("Qty susut harus lebih dari 0.")
+    note = (note or "").strip()
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_trip_items_cost_column(conn, cur)
+        _fin_trip_require_open(cur, trip_id)
+
+        cur.execute(
+            "SELECT id, name FROM fin_materials WHERE id=%s AND is_active=TRUE;",
+            (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+
+        cur.execute("""
+            SELECT COALESCE(qty_kg,0) AS qty, COALESCE(avg_cost_per_kg,0) AS avg
+            FROM fin_stock_summary WHERE material_id = %s;
+        """, (material_id,))
+        stock = cur.fetchone()
+        current_qty = float(stock["qty"]) if stock else 0.0
+        avg = float(stock["avg"]) if stock else 0.0
+        if qty_kg > current_qty:
+            raise ValueError(f"Stok {mat['name']} tidak cukup utk dicatat susut. Tersedia: {current_qty:.1f} kg.")
+
+        subtotal = qty_kg * avg
+        cur.execute("""
+            INSERT INTO fin_trip_items
+                (trip_id, type, material_id, qty_kg, price_per_kg, subtotal, note, cost_per_kg)
+            VALUES (%s, 'SUSUT', %s, %s, %s, %s, %s, %s);
+        """, (trip_id, material_id, qty_kg, avg, subtotal, note or None, avg))
+
+        _update_stock_avco(cur, material_id, qty_kg, avg, 'OUT', None,
+                            note=f"Susut perjalanan trip#{trip_id}")
+
+        conn.commit()
+        return {"subtotal": subtotal}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mencatat susut: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_trip_item(item_id):
+    """Hapus 1 item Perjalanan (jual/beli/susut/beban) & balikkan efek stok
+    kalau ada -- JUAL/SUSUT: stok balik masuk (pakai cost_per_kg saat
+    transaksi itu terjadi); BELI: stok balik keluar. Beban tidak menyentuh
+    stok. Trip harus masih OPEN."""
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT i.*, t.status AS trip_status
+            FROM fin_trip_items i JOIN fin_trips t ON t.id = i.trip_id
+            WHERE i.id = %s;
+        """, (item_id,))
+        item = cur.fetchone()
+        if not item:
+            raise ValueError("Item tidak ditemukan.")
+        if item["trip_status"] != "OPEN":
+            raise ValueError("Perjalanan sudah ditutup/dibatalkan, tidak bisa hapus item.")
+
+        if item["type"] in ("JUAL", "SUSUT") and item["material_id"]:
+            cost = float(item["cost_per_kg"] or 0)
+            if cost <= 0:
+                cur.execute("SELECT COALESCE(avg_cost_per_kg,0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                            (item["material_id"],))
+                r = cur.fetchone()
+                cost = float(r["avg"]) if r else 0.0
+            _update_stock_avco(cur, item["material_id"], float(item["qty_kg"] or 0), cost, 'IN', None,
+                                note=f"Batal {item['type'].lower()} trip#{item['trip_id']} (hapus item)")
+        elif item["type"] == "BELI" and item["material_id"]:
+            _update_stock_avco(cur, item["material_id"], float(item["qty_kg"] or 0),
+                                float(item["price_per_kg"] or 0), 'OUT', None,
+                                note=f"Batal beli trip#{item['trip_id']} (hapus item)")
+
+        if item["type"] == "JUAL" and item["is_debt"] and item["party_id"]:
+            # Best-effort: hapus piutang terkait KALAU belum ada pembayaran
+            # sama sekali (remaining == amount) -- kalau sudah ada histori
+            # bayar, biarkan piutangnya supaya catatan pembayaran tidak hilang.
+            cur.execute("""
+                DELETE FROM fin_debts
+                WHERE type='PIUTANG' AND note = %s AND remaining = amount;
+            """, (f"Jual perjalanan trip#{item['trip_id']}",))
+
+        cur.execute("DELETE FROM fin_trip_items WHERE id = %s;", (item_id,))
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menghapus item: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def edit_fin_trip_item(item_id, qty_kg=None, price_per_kg=None, subtotal=None,
+                        expense_name=None, note=None):
+    """Edit 1 item Perjalanan. Utk JUAL/BELI: qty_kg & price_per_kg wajib,
+    stok dikoreksi (batalkan efek lama, terapkan efek baru dgn nilai baru).
+    Utk SUSUT: cuma qty_kg yg diedit (nilai selalu dihitung ulang dari HPP
+    saat ini). Utk EXPENSE: expense_name & subtotal yg diedit, tidak
+    menyentuh stok. Trip harus masih OPEN."""
+    from routes.mobile.finance import _update_stock_avco
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_trip_items_cost_column(conn, cur)
+        cur.execute("""
+            SELECT i.*, t.status AS trip_status
+            FROM fin_trip_items i JOIN fin_trips t ON t.id = i.trip_id
+            WHERE i.id = %s;
+        """, (item_id,))
+        item = cur.fetchone()
+        if not item:
+            raise ValueError("Item tidak ditemukan.")
+        if item["trip_status"] != "OPEN":
+            raise ValueError("Perjalanan sudah ditutup/dibatalkan, tidak bisa edit item.")
+
+        new_note = note.strip() if note is not None else (item["note"] or "")
+        new_note = new_note or None
+
+        if item["type"] == "EXPENSE":
+            name = (expense_name if expense_name is not None else item["expense_name"] or "").strip()
+            try:
+                new_subtotal = float(subtotal)
+            except (TypeError, ValueError):
+                new_subtotal = float(item["subtotal"] or 0)
+            if not name:
+                raise ValueError("Nama beban wajib diisi.")
+            if new_subtotal <= 0:
+                raise ValueError("Jumlah harus lebih dari 0.")
+            cur.execute("""
+                UPDATE fin_trip_items SET expense_name=%s, subtotal=%s, note=%s
+                WHERE id=%s;
+            """, (name, new_subtotal, new_note, item_id))
+            conn.commit()
+            return {"subtotal": new_subtotal}
+
+        try:
+            new_qty = float(qty_kg)
+        except (TypeError, ValueError):
+            raise ValueError("Qty wajib diisi dengan benar.")
+        if new_qty <= 0:
+            raise ValueError("Qty harus lebih dari 0.")
+
+        if item["type"] == "BELI":
+            try:
+                new_price = float(price_per_kg)
+            except (TypeError, ValueError):
+                raise ValueError("Harga wajib diisi dengan benar.")
+            if new_price <= 0:
+                raise ValueError("Harga harus lebih dari 0.")
+            # Balikkan efek beli lama (stok keluar sebesar qty lama), lalu
+            # terapkan efek baru (stok masuk sebesar qty & harga baru).
+            _update_stock_avco(cur, item["material_id"], float(item["qty_kg"] or 0),
+                                float(item["price_per_kg"] or 0), 'OUT', None,
+                                note=f"Koreksi edit beli trip#{item['trip_id']}")
+            new_subtotal = new_qty * new_price
+            _update_stock_avco(cur, item["material_id"], new_qty, new_price, 'IN', None,
+                                note=f"Koreksi edit beli trip#{item['trip_id']}")
+            cur.execute("""
+                UPDATE fin_trip_items SET qty_kg=%s, price_per_kg=%s, subtotal=%s, note=%s
+                WHERE id=%s;
+            """, (new_qty, new_price, new_subtotal, new_note, item_id))
+
+        else:  # JUAL / SUSUT
+            old_cost = float(item["cost_per_kg"] or 0)
+            if old_cost <= 0:
+                cur.execute("SELECT COALESCE(avg_cost_per_kg,0) AS avg FROM fin_stock_summary WHERE material_id=%s;",
+                            (item["material_id"],))
+                r = cur.fetchone()
+                old_cost = float(r["avg"]) if r else 0.0
+            # Balikkan efek lama (stok masuk lagi sebesar qty lama).
+            _update_stock_avco(cur, item["material_id"], float(item["qty_kg"] or 0), old_cost, 'IN', None,
+                                note=f"Koreksi edit {item['type'].lower()} trip#{item['trip_id']}")
+
+            cur.execute("""
+                SELECT COALESCE(qty_kg,0) AS qty, COALESCE(avg_cost_per_kg,0) AS avg
+                FROM fin_stock_summary WHERE material_id = %s;
+            """, (item["material_id"],))
+            stock = cur.fetchone()
+            cur_qty = float(stock["qty"]) if stock else 0.0
+            cur_avg = float(stock["avg"]) if stock else 0.0
+            if new_qty > cur_qty:
+                raise ValueError(f"Stok tidak cukup utk qty baru. Tersedia: {cur_qty:.1f} kg.")
+
+            if item["type"] == "JUAL":
+                try:
+                    new_price = float(price_per_kg)
+                except (TypeError, ValueError):
+                    raise ValueError("Harga wajib diisi dengan benar.")
+                if new_price <= 0:
+                    raise ValueError("Harga harus lebih dari 0.")
+                new_subtotal = new_qty * new_price
+            else:  # SUSUT -- dinilai dari HPP saat ini, tidak ada input harga
+                new_price = cur_avg
+                new_subtotal = new_qty * cur_avg
+
+            _update_stock_avco(cur, item["material_id"], new_qty, cur_avg, 'OUT', None,
+                                note=f"Koreksi edit {item['type'].lower()} trip#{item['trip_id']}")
+
+            cur.execute("""
+                UPDATE fin_trip_items
+                SET qty_kg=%s, price_per_kg=%s, subtotal=%s, cost_per_kg=%s, note=%s
+                WHERE id=%s;
+            """, (new_qty, new_price, new_subtotal, cur_avg, new_note, item_id))
+
+        conn.commit()
+        return {"id": item_id}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal mengedit item: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def close_fin_trip_web(trip_id):
     """Tutup Perjalanan -- hitung & simpan total jual/beli+beban/untung-rugi."""
     conn = get_conn()
@@ -1080,21 +1347,28 @@ def close_fin_trip_web(trip_id):
             SELECT
                 COALESCE(SUM(CASE WHEN type='JUAL'    THEN subtotal ELSE 0 END), 0) AS jual,
                 COALESCE(SUM(CASE WHEN type='BELI'    THEN subtotal ELSE 0 END), 0) AS beli,
-                COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS expense
+                COALESCE(SUM(CASE WHEN type='EXPENSE' THEN subtotal ELSE 0 END), 0) AS expense,
+                COALESCE(SUM(CASE WHEN type='SUSUT'   THEN subtotal ELSE 0 END), 0) AS susut,
+                COALESCE(SUM(CASE WHEN type='JUAL'
+                    THEN subtotal - qty_kg * COALESCE(cost_per_kg, 0) ELSE 0 END), 0) AS margin
             FROM fin_trip_items WHERE trip_id = %s;
         """, (trip_id,))
         totals = cur.fetchone()
         total_jual = float(totals["jual"] or 0)
         total_beli = float(totals["beli"] or 0)
         total_expense = float(totals["expense"] or 0)
-        net = total_jual - total_beli - total_expense
+        total_susut = float(totals["susut"] or 0)
+        gross_margin = float(totals["margin"] or 0)
+        # Untung/rugi final = margin penjualan (bkn cash-flow jual-beli) dikurangi
+        # beban & susut -- lihat catatan sama di list_fin_trips_web/get_fin_trip_web_detail.
+        net = gross_margin - total_expense - total_susut
 
         cur.execute("""
             UPDATE fin_trips
             SET status = 'CLOSED', total_income = %s, total_expense = %s,
                 net_result = %s, closed_at = NOW()
             WHERE id = %s;
-        """, (total_jual, total_beli + total_expense, net, trip_id))
+        """, (total_jual, total_beli + total_expense + total_susut, net, trip_id))
         conn.commit()
         return {"net_result": net}
     except ValueError:

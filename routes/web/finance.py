@@ -14,7 +14,9 @@ from core import (
     edit_fin_expense_entry, delete_fin_expense_entry,
     create_fin_trip_web, list_fin_trips_web, get_fin_trip_web_detail,
     add_fin_trip_party, record_fin_trip_sell, record_fin_trip_buy,
-    record_fin_trip_expense, close_fin_trip_web, cancel_fin_trip_web,
+    record_fin_trip_expense, record_fin_trip_susut,
+    edit_fin_trip_item, delete_fin_trip_item,
+    close_fin_trip_web, cancel_fin_trip_web,
     delete_fin_trip_web, get_materials_with_stock,
     get_owner_finance_report, get_owner_phone,
 )
@@ -464,6 +466,58 @@ def finance_trip_add_expense(trip_id):
             subtotal=request.form.get("subtotal"),
         )
         return _trip_ajax_response(trip_id, True, "Beban perjalanan dicatat.")
+    except ValueError as e:
+        return _trip_ajax_response(trip_id, False, str(e))
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>/susut", methods=["POST"])
+def finance_trip_add_susut(trip_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        record_fin_trip_susut(
+            trip_id,
+            material_id=request.form.get("material_id"),
+            qty_kg=request.form.get("qty_kg"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+        )
+        return _trip_ajax_response(trip_id, True, "Susut barang dicatat.")
+    except ValueError as e:
+        return _trip_ajax_response(trip_id, False, str(e))
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>/items/<int:item_id>/edit", methods=["POST"])
+def finance_trip_item_edit(trip_id, item_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        edit_fin_trip_item(
+            item_id,
+            qty_kg=request.form.get("qty_kg"),
+            price_per_kg=request.form.get("price_per_kg"),
+            subtotal=request.form.get("subtotal"),
+            expense_name=request.form.get("expense_name"),
+            note=request.form.get("note"),
+        )
+        return _trip_ajax_response(trip_id, True, "Item berhasil diperbarui.")
+    except ValueError as e:
+        return _trip_ajax_response(trip_id, False, str(e))
+
+
+@finance_bp.route("/finance/trips/<int:trip_id>/items/<int:item_id>/delete", methods=["POST"])
+def finance_trip_item_delete(trip_id, item_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        delete_fin_trip_item(item_id)
+        return _trip_ajax_response(trip_id, True, "Item berhasil dihapus.")
     except ValueError as e:
         return _trip_ajax_response(trip_id, False, str(e))
 

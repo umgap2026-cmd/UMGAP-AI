@@ -1370,12 +1370,13 @@ def trip_sell(trip_id):
 
     is_debt = payment_type == "HUTANG"
 
-    from core import _ensure_fin_debts_reason_schema
+    from core import _ensure_fin_debts_reason_schema, _ensure_fin_trip_items_cost_column
 
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_trip_items_cost_column(conn, cur)
         # Pastikan trip masih OPEN
         cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
         t = cur.fetchone()
@@ -1410,10 +1411,10 @@ def trip_sell(trip_id):
                 INSERT INTO fin_trip_items
                     (trip_id, party_id, type, material_id,
                      qty_kg, price_per_kg, subtotal,
-                     payment_type, is_debt, note)
-                VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s);
+                     payment_type, is_debt, note, cost_per_kg)
+                VALUES (%s, %s, 'JUAL', %s, %s, %s, %s, %s, %s, %s, %s);
             """, (trip_id, party_id, mat_id, qty, price, subtotal,
-                  payment_type, is_debt, note or None))
+                  payment_type, is_debt, note or None, avg))
 
             # Update stok — stok keluar saat dijual
             _update_stock_avco(cur, mat_id, qty, avg, 'OUT', None,

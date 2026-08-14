@@ -54,7 +54,8 @@
   }
   .hero-title { font-size: 16px; font-weight: 900; color: #fff; }
   .hero-sub { font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-top: 4px; }
-  .hero-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+  .hero-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 16px; }
+  @media (max-width: 700px) { .hero-stats { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 460px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
   .hero-stat-lbl { font-size: 10px; color: rgba(255, 255, 255, 0.55); font-weight: 900; text-transform: uppercase; letter-spacing: 0.4px; }
   .hero-stat-val { font-size: 15px; font-weight: 1000; color: #fff; margin-top: 3px; }
@@ -112,6 +113,11 @@
   .type-badge.JUAL { background: rgba(21, 128, 61, 0.1); color: var(--good); }
   .type-badge.BELI { background: rgba(37, 99, 235, 0.1); color: var(--blue); }
   .type-badge.EXPENSE { background: rgba(185, 28, 28, 0.09); color: var(--bad); }
+  .type-badge.SUSUT { background: rgba(217, 119, 6, 0.12); color: #b45309; }
+  .item-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .item-act-btn { border: none; border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; background: #f2f5fb; color: var(--muted); }
+  .item-act-btn.edit { background: rgba(37,99,235,0.1); color: var(--blue); }
+  .item-act-btn.del { background: rgba(185,28,28,0.09); color: var(--bad); }
   .empty-hint { text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px; }
   .closed-hint { text-align: center; padding: 14px; color: var(--muted); font-size: 12.5px; background: #f2f5fb; border-radius: 14px; }
 
@@ -176,6 +182,15 @@
   .lov-new-actions { display: flex; gap: 8px; }
   .lov-new-cancel { flex: 1; border: none; border-radius: 10px; padding: 10px; font-size: 12px; font-weight: 800; background: #f2f5fb; color: var(--muted); cursor: pointer; font-family: inherit; }
   .lov-new-submit { flex: 2; border: none; border-radius: 10px; padding: 10px; font-size: 12px; font-weight: 900; background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; cursor: pointer; font-family: inherit; }
+
+  /* modal edit item riwayat */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 500; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 20px; box-shadow: var(--shadow-out); padding: 18px; max-width: 380px; width: 100%; max-height: 85vh; overflow-y: auto; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+  .modal-title { font-size: 15px; font-weight: 1000; color: #1e3252; }
+  .modal-close { width: 32px; height: 32px; flex: 0 0 32px; border: none; border-radius: 10px; background: #f2f5fb; color: var(--muted); font-size: 14px; cursor: pointer; font-family: inherit; }
+  .modal-box .field { margin-top: 10px; margin-bottom: 0; }
 </style>
 
 <div class="screen">
@@ -203,6 +218,7 @@
         <div><div class="hero-stat-lbl">Jual</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_jual | round | int).replace(",", ".") }}</div></div>
         <div><div class="hero-stat-lbl">Beli</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_beli | round | int).replace(",", ".") }}</div></div>
         <div><div class="hero-stat-lbl">Beban</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_beban | round | int).replace(",", ".") }}</div></div>
+        <div><div class="hero-stat-lbl">Susut</div><div class="hero-stat-val">Rp {{ "{:,}".format(trip.total_susut | round | int).replace(",", ".") }}</div></div>
         <div><div class="hero-stat-lbl">Untung/Rugi</div><div class="hero-stat-val {{ 'profit-pos' if trip.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(trip.profit | round | int).replace(",", ".") }}</div></div>
       </div>
     </div>
@@ -216,7 +232,7 @@
         <button type="submit" class="pill-btn ghost">Batalkan</button>
       </form>
       {% endif %}
-      <form method="post" action="/finance/trips/{{ trip.id }}/delete" onsubmit="return confirm('Hapus perjalanan ini beserta semua catatan jual/beli/beban di dalamnya? Tidak bisa dibatalkan.');">
+      <form method="post" action="/finance/trips/{{ trip.id }}/delete" onsubmit="return confirm('Hapus perjalanan ini beserta semua catatan jual/beli/beban/susut di dalamnya? Tidak bisa dibatalkan.');">
         <button type="submit" class="pill-btn danger">Hapus Perjalanan</button>
       </form>
     </div>
@@ -464,17 +480,83 @@
         <button type="button" class="btn-submit" id="btnSaveExpense">💾 Simpan Semua Beban</button>
       </div>
     </div>
+
+    <!-- SUSUT -->
+    <div class="main-card fade-up">
+      <div class="inner">
+        <div class="sec-title" style="color: var(--bad)">📉 Susut Barang</div>
+        <div class="sec-desc">Selisih berat barang yg dibawa vs yg terjual/kembali (susut timbangan, penguapan, dll) -- dinilai sebesar HPP saat ini, jadi pengurang keuntungan terpisah dari Beban, dan otomatis mengurangi stok gudang.</div>
+        <div class="divider"></div>
+
+        <div id="susutList">
+          <div class="tf-row expense">
+            <div style="min-width:0; margin-bottom:10px">
+              <label style="margin-bottom:5px">Barang</label>
+              <div class="lov item-material" data-value="" data-stock="0" data-unit="" data-avg-cost="0">
+                <button type="button" class="lov-btn placeholder">
+                  <span class="lov-btn-text">— Pilih Barang —</span>
+                  <span class="care">▾</span>
+                </button>
+                <div class="lov-panel">
+                  <div class="lov-search-wrap">
+                    <input type="text" class="lov-search" placeholder="Cari nama barang…" autocomplete="off" />
+                    <div class="lov-cat-chips">
+                      <button type="button" class="lov-cat-chip active" data-cat="">Semua</button>
+                      {% for cat, group in materials|groupby('category') %}
+                      <button type="button" class="lov-cat-chip" data-cat="{{ cat }}">{{ cat }}</button>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  <div class="lov-list">
+                    {% for cat, group in materials|groupby('category') %}
+                    <div class="lov-group-header" data-cat="{{ cat }}">🏷️ {{ cat }}</div>
+                    {% for m in group %}
+                    <div class="lov-item" data-id="{{ m.id }}" data-stock="{{ m.qty_kg }}" data-category="{{ cat }}"
+                         data-unit="{{ m.unit }}" data-avg-cost="{{ m.avg_cost_per_kg }}" data-search="{{ m.name|lower }}">
+                      {{ m.name }}
+                      <span class="stk">stok {{ "%.1f"|format(m.qty_kg) }} {{ m.unit }} &middot; HPP Rp {{ "{:,}".format(m.avg_cost_per_kg | round | int).replace(",", ".") }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endfor %}
+                    <div class="lov-empty" style="display:none">Barang tidak ditemukan</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field" style="margin-bottom:0"><label>Qty Susut (kg)</label><input type="text" class="tf-qty" inputmode="decimal" placeholder="0" /></div>
+              <div class="field" style="margin-bottom:0"><label>Nilai Susut</label><div class="tf-sub" style="margin-top:0">Rp 0</div></div>
+            </div>
+            <input type="text" class="tf-note" placeholder="Catatan (opsional)" />
+            <div style="display:flex; justify-content:flex-end; margin-top:8px">
+              <button type="button" class="tf-del">✕</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="tf-add-btn" id="btnAddSusut">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          Tambah Susut
+        </button>
+        <div class="divider"></div>
+        <button type="button" class="btn-submit" id="btnSaveSusut">💾 Simpan Semua Susut</button>
+      </div>
+    </div>
     {% endif %}
 
     <!-- RIWAYAT ITEM -->
     <div class="main-card fade-up">
       <div class="inner">
         <div class="sec-title">📜 Riwayat</div>
-        <div class="sec-desc">{{ trip.entries|length }} catatan jual/beli/beban di perjalanan ini</div>
+        <div class="sec-desc">{{ trip.entries|length }} catatan jual/beli/beban/susut di perjalanan ini</div>
       </div>
       <div class="item-list mobile-only">
         {% for i in trip.entries %}
-        <div class="item-row {{ 'green' if i.type == 'JUAL' else ('red' if i.type in ('EXPENSE','RETURN') else '') }}">
+        <div class="item-row {{ 'green' if i.type == 'JUAL' else ('red' if i.type in ('EXPENSE','SUSUT','RETURN') else '') }}"
+             data-item-id="{{ i.id }}" data-item-type="{{ i.type }}"
+             data-material-id="{{ i.material_id or '' }}" data-qty="{{ i.qty_kg or '' }}"
+             data-price="{{ i.price_per_kg or '' }}" data-subtotal="{{ i.subtotal or 0 }}"
+             data-expense-name="{{ i.expense_name or '' }}" data-note="{{ i.note or '' }}"
+             data-material-name="{{ i.material_name or '' }}" data-unit="{{ i.material_unit or 'kg' }}">
           <div class="item-top">
             <div>
               <div class="item-name">
@@ -482,7 +564,7 @@
                 {{ i.expense_name or i.material_name or '-' }}
               </div>
               <div class="item-meta">
-                {% if i.type in ('JUAL','BELI') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }} &times; Rp {{ "{:,}".format(i.price_per_kg | round | int).replace(",", ".") }}{% endif %}
+                {% if i.type in ('JUAL','BELI','SUSUT') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }}{% if i.type != 'SUSUT' %} &times; Rp {{ "{:,}".format(i.price_per_kg | round | int).replace(",", ".") }}{% endif %}{% endif %}
                 {% if i.party_name %} &bull; {{ i.party_name }}{% endif %}
                 &bull; {{ i.created_at_wib }}
               </div>
@@ -490,6 +572,12 @@
             </div>
             <div class="item-val">Rp {{ "{:,}".format(i.subtotal | round | int).replace(",", ".") }}</div>
           </div>
+          {% if trip.status == 'OPEN' %}
+          <div class="item-actions">
+            <button type="button" class="item-act-btn edit" data-act="edit">✏️ Edit</button>
+            <button type="button" class="item-act-btn del" data-act="delete">🗑 Hapus</button>
+          </div>
+          {% endif %}
         </div>
         {% else %}
         <p class="empty-hint">Belum ada catatan di perjalanan ini.</p>
@@ -498,17 +586,29 @@
       <div class="table-wrap desktop-only">
         {% if trip.entries %}
         <table>
-          <thead><tr><th>Jenis</th><th>Barang/Nama</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Lapak</th><th>Tanggal</th></tr></thead>
+          <thead><tr><th>Jenis</th><th>Barang/Nama</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Lapak</th><th>Tanggal</th><th>Aksi</th></tr></thead>
           <tbody>
             {% for i in trip.entries %}
-            <tr>
+            <tr data-item-id="{{ i.id }}" data-item-type="{{ i.type }}"
+                data-material-id="{{ i.material_id or '' }}" data-qty="{{ i.qty_kg or '' }}"
+                data-price="{{ i.price_per_kg or '' }}" data-subtotal="{{ i.subtotal or 0 }}"
+                data-expense-name="{{ i.expense_name or '' }}" data-note="{{ i.note or '' }}"
+                data-material-name="{{ i.material_name or '' }}" data-unit="{{ i.material_unit or 'kg' }}">
               <td><span class="type-badge {{ i.type }}">{{ i.type }}</span></td>
               <td>{{ i.expense_name or i.material_name or '-' }}</td>
-              <td class="muted">{% if i.type in ('JUAL','BELI') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }}{% else %}-{% endif %}</td>
+              <td class="muted">{% if i.type in ('JUAL','BELI','SUSUT') %}{{ "%.1f"|format(i.qty_kg or 0) }} {{ i.material_unit or 'kg' }}{% else %}-{% endif %}</td>
               <td class="muted">{% if i.type in ('JUAL','BELI') %}Rp {{ "{:,}".format(i.price_per_kg | round | int).replace(",", ".") }}{% else %}-{% endif %}</td>
               <td><strong>Rp {{ "{:,}".format(i.subtotal | round | int).replace(",", ".") }}</strong></td>
               <td class="muted">{{ i.party_name or "-" }}</td>
               <td class="muted">{{ i.created_at_wib }}</td>
+              <td>
+                {% if trip.status == 'OPEN' %}
+                <div class="item-actions" style="margin-top:0">
+                  <button type="button" class="item-act-btn edit" data-act="edit">✏️</button>
+                  <button type="button" class="item-act-btn del" data-act="delete">🗑</button>
+                </div>
+                {% else %}-{% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -518,6 +618,26 @@
         {% endif %}
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT ITEM -->
+<div class="modal-overlay" id="editItemModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="editItemTitle">Edit Item</div>
+      <button type="button" class="modal-close" id="editItemClose">✕</button>
+    </div>
+    <div id="editItemQtyPriceFields">
+      <div class="field"><label>Qty (kg)</label><input type="text" id="editItemQty" inputmode="decimal" /></div>
+      <div class="field" id="editItemPriceWrap"><label>Harga/kg</label><input type="text" id="editItemPrice" inputmode="numeric" /></div>
+    </div>
+    <div id="editItemExpenseFields" style="display:none">
+      <div class="field"><label>Nama Beban</label><input type="text" id="editItemExpenseName" /></div>
+      <div class="field"><label>Jumlah (Rp)</label><input type="text" id="editItemAmount" inputmode="numeric" /></div>
+    </div>
+    <div class="field"><label>Catatan</label><input type="text" id="editItemNote" placeholder="opsional" /></div>
+    <button type="button" class="btn-submit" id="editItemSave">💾 Simpan Perubahan</button>
   </div>
 </div>
 
@@ -853,6 +973,148 @@
         payloads.push({ expense_name: name, subtotal: amount });
       });
       saveAllRows("/finance/trips/{{ trip.id }}/expense", payloads, btn, "💾 Simpan Semua Beban");
+    });
+  }
+
+  // ── SUSUT ── (elemen cuma ada kalau trip.status == OPEN)
+  var susutList = document.getElementById("susutList");
+  if (susutList) {
+    var susutTemplate = susutList.querySelector(".tf-row").cloneNode(true);
+    var bindSusutRow = function (r) {
+      var mat = r.querySelector(".item-material"), q = r.querySelector(".tf-qty"), o = r.querySelector(".tf-sub"), d = r.querySelector(".tf-del");
+      initLov(mat);
+      function c() { o.textContent = rp(qtyNum(q.value) * parseFloat(mat.getAttribute("data-avg-cost") || "0")); }
+      mat.addEventListener("lovchange", c);
+      q.addEventListener("input", c);
+      q.addEventListener("blur", function () { var n = qtyNum(q.value); q.value = n > 0 ? fmtQty(n) : ""; c(); });
+      d.addEventListener("click", function () { if (susutList.querySelectorAll(".tf-row").length > 1) r.remove(); });
+    };
+    susutList.querySelectorAll(".tf-row").forEach(bindSusutRow);
+    document.getElementById("btnAddSusut").addEventListener("click", function () {
+      var c = susutTemplate.cloneNode(true);
+      resetLov(c.querySelector(".item-material"));
+      c.querySelector(".tf-qty").value = ""; c.querySelector(".tf-sub").textContent = "Rp 0";
+      c.querySelector(".tf-note").value = "";
+      susutList.appendChild(c);
+      bindSusutRow(c);
+    });
+    document.getElementById("btnSaveSusut").addEventListener("click", function () {
+      var btn = this, payloads = [];
+      susutList.querySelectorAll(".tf-row").forEach(function (r) {
+        var mat = r.querySelector(".item-material");
+        var materialId = mat.getAttribute("data-value");
+        var qty = qtyNum(r.querySelector(".tf-qty").value);
+        if (!materialId || qty <= 0) return;
+        payloads.push({ material_id: materialId, qty_kg: qty, note: r.querySelector(".tf-note").value.trim() });
+      });
+      saveAllRows("/finance/trips/{{ trip.id }}/susut", payloads, btn, "💾 Simpan Semua Susut");
+    });
+  }
+
+  // ── EDIT / HAPUS item Riwayat ──
+  var editOverlay = document.getElementById("editItemModalOverlay");
+  if (editOverlay) {
+    var editTitle = document.getElementById("editItemTitle");
+    var editQtyPriceFields = document.getElementById("editItemQtyPriceFields");
+    var editPriceWrap = document.getElementById("editItemPriceWrap");
+    var editExpenseFields = document.getElementById("editItemExpenseFields");
+    var editQty = document.getElementById("editItemQty");
+    var editPrice = document.getElementById("editItemPrice");
+    var editExpenseName = document.getElementById("editItemExpenseName");
+    var editAmount = document.getElementById("editItemAmount");
+    var editNote = document.getElementById("editItemNote");
+    var editSaveBtn = document.getElementById("editItemSave");
+    var editingRow = null;
+
+    function closeEditModal() { editOverlay.classList.remove("open"); editingRow = null; }
+    document.getElementById("editItemClose").addEventListener("click", closeEditModal);
+    editOverlay.addEventListener("click", function (e) { if (e.target === editOverlay) closeEditModal(); });
+
+    function openEditModal(row) {
+      editingRow = row;
+      var type = row.getAttribute("data-item-type");
+      var label = row.getAttribute("data-expense-name") || row.getAttribute("data-material-name") || "Item";
+      editTitle.textContent = "Edit " + type + " — " + label;
+      editNote.value = row.getAttribute("data-note") || "";
+
+      if (type === "EXPENSE") {
+        editQtyPriceFields.style.display = "none";
+        editExpenseFields.style.display = "block";
+        editExpenseName.value = row.getAttribute("data-expense-name") || "";
+        editAmount.value = row.getAttribute("data-subtotal") || "";
+      } else {
+        editQtyPriceFields.style.display = "block";
+        editExpenseFields.style.display = "none";
+        editQty.value = row.getAttribute("data-qty") || "";
+        if (type === "SUSUT") {
+          editPriceWrap.style.display = "none";
+        } else {
+          editPriceWrap.style.display = "block";
+          editPrice.value = row.getAttribute("data-price") || "";
+        }
+      }
+      editOverlay.classList.add("open");
+    }
+
+    document.querySelectorAll("[data-item-id]").forEach(function (row) {
+      row.querySelectorAll('[data-act="edit"]').forEach(function (btn) {
+        btn.addEventListener("click", function (e) { e.stopPropagation(); openEditModal(row); });
+      });
+      row.querySelectorAll('[data-act="delete"]').forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (!confirm("Hapus item ini? Efek ke stok/piutang akan otomatis dibalikkan.")) return;
+          btn.disabled = true;
+          fetch("/finance/trips/{{ trip.id }}/items/" + row.getAttribute("data-item-id") + "/delete", {
+            method: "POST",
+            headers: { "X-Requested-With": "fetch" },
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (!data.ok) { alert(data.message); btn.disabled = false; return; }
+              location.reload();
+            })
+            .catch(function (e) { alert("Gagal menghapus: " + e); btn.disabled = false; });
+        });
+      });
+    });
+
+    editSaveBtn.addEventListener("click", function () {
+      if (!editingRow) return;
+      var type = editingRow.getAttribute("data-item-type");
+      var itemId = editingRow.getAttribute("data-item-id");
+      var payload = { note: editNote.value.trim() };
+
+      if (type === "EXPENSE") {
+        var name = editExpenseName.value.trim();
+        var amount = qtyNum(editAmount.value);
+        if (!name) { alert("Nama beban wajib diisi."); return; }
+        if (amount <= 0) { alert("Jumlah harus lebih dari 0."); return; }
+        payload.expense_name = name; payload.subtotal = amount;
+      } else {
+        var qty = qtyNum(editQty.value);
+        if (qty <= 0) { alert("Qty harus lebih dari 0."); return; }
+        payload.qty_kg = qty;
+        if (type !== "SUSUT") {
+          var price = qtyNum(editPrice.value);
+          if (price <= 0) { alert("Harga harus lebih dari 0."); return; }
+          payload.price_per_kg = price;
+        }
+      }
+
+      editSaveBtn.disabled = true;
+      fetch("/finance/trips/{{ trip.id }}/items/" + itemId + "/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "fetch" },
+        body: new URLSearchParams(payload),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          editSaveBtn.disabled = false;
+          if (!data.ok) { alert(data.message); return; }
+          location.reload();
+        })
+        .catch(function (e) { editSaveBtn.disabled = false; alert("Gagal menyimpan: " + e); });
     });
   }
 })();

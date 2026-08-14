@@ -186,6 +186,7 @@
             <span>Jual<b>Rp {{ "{:,}".format(t.total_jual | round | int).replace(",", ".") }}</b></span>
             <span>Beli<b>Rp {{ "{:,}".format(t.total_beli | round | int).replace(",", ".") }}</b></span>
             <span>Beban<b>Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</b></span>
+            <span>Susut<b>Rp {{ "{:,}".format(t.total_susut | round | int).replace(",", ".") }}</b></span>
             <span>Untung/Rugi<b class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</b></span>
           </div>
         </a>
@@ -199,7 +200,7 @@
         {% if trips %}
         <table>
           <thead>
-            <tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Item</th><th>Jual</th><th>Beli</th><th>Beban</th><th>Untung/Rugi</th><th></th></tr>
+            <tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Item</th><th>Jual</th><th>Beli</th><th>Beban</th><th>Susut</th><th>Untung/Rugi</th><th></th></tr>
           </thead>
           <tbody>
             {% for t in trips %}
@@ -211,6 +212,7 @@
               <td class="muted">Rp {{ "{:,}".format(t.total_jual | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(t.total_beli | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(t.total_beban | round | int).replace(",", ".") }}</td>
+              <td class="muted">Rp {{ "{:,}".format(t.total_susut | round | int).replace(",", ".") }}</td>
               <td><strong class="{{ 'profit-pos' if t.profit >= 0 else 'profit-neg' }}">Rp {{ "{:,}".format(t.profit | round | int).replace(",", ".") }}</strong></td>
               <td><a href="/finance/trips/{{ t.id }}" class="pill-btn primary">Detail</a></td>
             </tr>
