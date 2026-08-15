@@ -76,6 +76,7 @@ class InvoicePrintPage extends StatefulWidget {
   final double        reverseSubtotal;
   final double        grandTotal;
   final double        dpExcess;
+  final bool          dpExcessAsCash;
   final List<CartItem> items;
   final bool          isPaid;
   final bool          isBeli;
@@ -94,6 +95,7 @@ class InvoicePrintPage extends StatefulWidget {
     required this.items,
     this.reverseSubtotal = 0,
     this.dpExcess    = 0,
+    this.dpExcessAsCash = false,
     this.isPaid      = true,
     this.isBeli      = false,
   });
@@ -110,6 +112,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   bool    _sharingImage = false;
   bool    _btPrinting = false;
   String? _connectedBt;
+  late bool _dpExcessAsCash;
+  bool    _dpExcessSaving = false;
 
   // Company info
   String     _companyName  = '';
@@ -124,7 +128,28 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    _dpExcessAsCash = widget.dpExcessAsCash;
     _loadSettings();
+  }
+
+  // ── Sisa DP: toggle "Sisa Saldo" (masuk piutang/hutang) vs "Kembalian"
+  //  (dikembalikan tunai, tidak ada tanggungan) -- langsung update ke
+  //  server supaya konsisten dgn riwayat nota & print berikutnya. ──
+  Future<void> _setDpExcessMode(bool asCash) async {
+    if (_dpExcessSaving || asCash == _dpExcessAsCash) return;
+    setState(() => _dpExcessSaving = true);
+    try {
+      await ApiService.invoiceSetDpExcessMode(widget.invoiceId, asCash);
+      if (!mounted) return;
+      setState(() {
+        _dpExcessAsCash = asCash;
+        _dpExcessSaving = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dpExcessSaving = false);
+      _snack('$e', isError: true);
+    }
   }
 
   // ── Logo & nama perusahaan — profil umum (bukan per akun/HP),
@@ -522,9 +547,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                                 padding: pw.EdgeInsets.only(
                                     top: widget.notes.isNotEmpty ? 6 : 0),
                                 child: pw.Text(
-                                  'Sisa DP ${_rp(widget.dpExcess)} — bisa jadi Kembalian '
-                                  '(dikembalikan tunai) atau Sisa Saldo (dipotong '
-                                  'otomatis di nota berikutnya).',
+                                  'Sisa DP ${_rp(widget.dpExcess)} — berstatus ' +
+                                  (_dpExcessAsCash
+                                      ? 'Kembalian (sudah dikembalikan tunai).'
+                                      : 'Sisa Saldo (dipotong otomatis di nota berikutnya).'),
                                   style: pw.TextStyle(
                                       fontSize: 10, color: _pdfTextMid),
                                 ),
@@ -573,10 +599,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                       ),
                       if (widget.dpExcess > 0) ...[
                         pw.SizedBox(height: 6),
-                        _totalRowColor('💵 Kembalian',
-                            _rp(widget.dpExcess), _pdfSuccess),
-                        _totalRowColor('💳 Sisa Saldo',
-                            _rp(widget.dpExcess), _pdfOrange),
+                        _totalRowColor(
+                            _dpExcessAsCash ? '💵 Kembalian' : '💳 Sisa Saldo',
+                            _rp(widget.dpExcess),
+                            _dpExcessAsCash ? _pdfSuccess : _pdfOrange),
                       ],
                     ]),
                   ),
@@ -743,7 +769,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
           pw.Divider(),
           if (widget.customerName.isNotEmpty)
             pw.Text('Kepada  : ${widget.customerName}',
-                style: pw.TextStyle(fontSize: 10)),
+                style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
           if (widget.customerPhone.isNotEmpty)
             pw.Text('HP      : ${widget.customerPhone}',
                 style: pw.TextStyle(fontSize: 9)),
@@ -757,8 +783,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 children: [
                   pw.Text(item.productName +
                       (item.isReturn ? ' ($_reverseLabel)' : ''),
-                      style: pw.TextStyle(fontSize: 10,
-                          fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 10)),
                   if ((item.note ?? '').isNotEmpty)
                     pw.Text(item.note!,
                         style: pw.TextStyle(fontSize: 8, color: _pdfTextLt)),
@@ -770,8 +795,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                             '${_fmtQ(item.qty)} kg x ${_rp(item.price)}',
                             style: pw.TextStyle(fontSize: 9.5)),
                         pw.Text((item.isReturn ? '- ' : '') + _rp(item.subtotal),
-                            style: pw.TextStyle(fontSize: 9.5,
-                                fontWeight: pw.FontWeight.bold)),
+                            style: pw.TextStyle(fontSize: 9.5)),
                       ]),
                 ]),
           )),
@@ -813,28 +837,17 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                     style: pw.TextStyle(fontSize: 13,
                         fontWeight: pw.FontWeight.bold)),
               ]),
-          if (widget.dpExcess > 0) ...[
+          if (widget.dpExcess > 0)
             pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Kembalian',
+                  pw.Text(_dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo',
                       style: pw.TextStyle(fontSize: 10.5,
-                          fontWeight: pw.FontWeight.bold, color: _pdfSuccess)),
+                          color: _dpExcessAsCash ? _pdfSuccess : _pdfOrange)),
                   pw.Text(_rp(widget.dpExcess),
                       style: pw.TextStyle(fontSize: 10.5,
-                          fontWeight: pw.FontWeight.bold, color: _pdfSuccess)),
+                          color: _dpExcessAsCash ? _pdfSuccess : _pdfOrange)),
                 ]),
-            pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Sisa Saldo',
-                      style: pw.TextStyle(fontSize: 10.5,
-                          fontWeight: pw.FontWeight.bold, color: _pdfOrange)),
-                  pw.Text(_rp(widget.dpExcess),
-                      style: pw.TextStyle(fontSize: 10.5,
-                          fontWeight: pw.FontWeight.bold, color: _pdfOrange)),
-                ]),
-          ],
           pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -851,7 +864,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                   textAlign: pw.TextAlign.center)),
             if (widget.dpExcess > 0)
               pw.Center(child: pw.Text(
-                  'Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo',
+                  'Sisa DP ${_rp(widget.dpExcess)}: ' +
+                  (_dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo'),
                   style: pw.TextStyle(fontSize: 9),
                   textAlign: pw.TextAlign.center)),
           ],
@@ -963,11 +977,16 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     bytes += generator.text(dash('-'));
 
     // ── CUSTOMER ─────────────────────────────
+    // Nama supplier/customer sengaja ditebalkan -- ini & TOTAL adalah
+    // satu-satunya yg dibold di nota (sisanya cukup diperbesar TANPA
+    // bold spy tidak kesan "berat"/susah dibaca).
     if (widget.customerName.isNotEmpty) {
       bytes += generator.text(
         widget.isBeli
             ? 'Supplier : ${widget.customerName}'
             : 'Kepada   : ${widget.customerName}',
+        styles: const PosStyles(bold: true,
+            height: PosTextSize.size2, width: PosTextSize.size1),
       );
     }
     if (widget.customerPhone.isNotEmpty) {
@@ -987,13 +1006,15 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       // height:size2 + width:size1 = tulisan lebih TINGGI/besar tanpa
       // nambah lebar per karakter -- jumlah karakter per baris (W) tetap
       // sama, jadi tidak akan kepotong/kepanjangan dari lebar kertas.
+      // Sengaja TIDAK bold -- bold cuma dipakai di nama supplier & TOTAL
+      // spy nota tidak kesan "berat"/tebal semua.
       bytes += generator.text(nameStr,
-          styles: const PosStyles(bold: true,
+          styles: const PosStyles(
               height: PosTextSize.size2, width: PosTextSize.size1));
       final left  = '  ${_fmtQ(item.qty)}kg x ${_rpNoPrefix(item.price)}';
       final right = (item.isReturn ? '-' : '') + _rpNoPrefix(item.subtotal);
       bytes += generator.text(lr(left, right),
-          styles: const PosStyles(bold: true,
+          styles: const PosStyles(
               height: PosTextSize.size2, width: PosTextSize.size1));
       if ((item.note ?? '').isNotEmpty) {
         for (final l in wrap('  ${item.note}')) {
@@ -1003,7 +1024,12 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     }
     bytes += generator.text(dash('-'));
 
-    const sz2h1 = PosStyles(bold: true,
+    // height:size2/width:size1 dipakai luas spy nota gampang dibaca, TAPI
+    // bold sengaja dibatasi cuma di nama supplier & TOTAL (lihat catatan
+    // di atas) -- baris lain pakai versi non-bold ini.
+    const sz2h1 = PosStyles(
+        height: PosTextSize.size2, width: PosTextSize.size1);
+    const sz2h1Bold = PosStyles(bold: true,
         height: PosTextSize.size2, width: PosTextSize.size1);
 
     // ── SUBTOTAL ─────────────────────────────
@@ -1029,11 +1055,12 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
     final totalPad = W - totalStr.length;
     bytes += generator.text(
         totalPad > 0 ? ' ' * totalPad + totalStr : totalStr,
-        styles: sz2h1);
+        styles: sz2h1Bold);
 
     if (widget.dpExcess > 0) {
-      bytes += generator.text(lr('Kembalian', _rpNoPrefix(widget.dpExcess)), styles: sz2h1);
-      bytes += generator.text(lr('Sisa Saldo', _rpNoPrefix(widget.dpExcess)), styles: sz2h1);
+      bytes += generator.text(
+          lr(_dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo', _rpNoPrefix(widget.dpExcess)),
+          styles: sz2h1);
     }
 
     bytes += generator.text(dash('-'));
@@ -1050,7 +1077,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       }
       if (widget.dpExcess > 0) {
         for (final l in wrap(
-            'Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo')) {
+            'Sisa DP ${_rp(widget.dpExcess)}: ' +
+            (_dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo'))) {
           bytes += generator.text(l,
               styles: const PosStyles(align: PosAlign.center));
         }
@@ -1288,6 +1316,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
           widget.isBeli
               ? 'Supplier : ${widget.customerName}'
               : 'Kepada   : ${widget.customerName}',
+          bold: true,
         ),
       if (widget.customerPhone.isNotEmpty)
         _ThermalLine('HP       : ${widget.customerPhone}'),
@@ -1302,35 +1331,36 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
         final left  = '  ${_fmtQ(item.qty)}kg x ${_rpNoPrefix(item.price)}';
         final right = (item.isReturn ? '-' : '') + _rpNoPrefix(item.subtotal);
         return [
-          _ThermalLine(n, bold: true),
-          _ThermalLine(lr(left, right)),
+          _ThermalLine(n),
+          _ThermalLine.row(left, right),
           if ((item.note ?? '').isNotEmpty)
             ...wrap('  ${item.note}').map((l) => _ThermalLine(l, small: true)),
         ];
       }),
       _ThermalLine(dash('-')),
-      _ThermalLine(lr('Subtotal', _rp(widget.subtotal))),
+      _ThermalLine.row('Subtotal', _rp(widget.subtotal)),
       if (widget.reverseSubtotal > 0)
-        _ThermalLine(lr('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}')),
+        _ThermalLine.row('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}'),
       if (widget.discount > 0)
-        _ThermalLine(lr('Diskon', '- ${_rp(widget.discount)}')),
+        _ThermalLine.row('Diskon', '- ${_rp(widget.discount)}'),
       _ThermalLine(dash('=')),
       // TOTAL baris sendiri
       _ThermalLine('TOTAL', bold: true, size: 2, isCenter: false),
       _ThermalLine(_rp(widget.grandTotal), bold: true, size: 2, isRight: true),
-      if (widget.dpExcess > 0) ...[
-        _ThermalLine(lr('Kembalian', _rpNoPrefix(widget.dpExcess)), bold: true),
-        _ThermalLine(lr('Sisa Saldo', _rpNoPrefix(widget.dpExcess)), bold: true),
-      ],
+      if (widget.dpExcess > 0)
+        _ThermalLine.row(
+            _dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo',
+            _rpNoPrefix(widget.dpExcess)),
       _ThermalLine(dash('-')),
-      _ThermalLine(lr('Bayar', widget.paymentMethod)),
+      _ThermalLine.row('Bayar', widget.paymentMethod),
       if (widget.notes.isNotEmpty || widget.dpExcess > 0) ...[
         _ThermalLine(dash('-')),
         if (widget.notes.isNotEmpty)
           ...wrap(widget.notes).map((l) =>
               _ThermalLine(l, isCenter: true)),
         if (widget.dpExcess > 0)
-          ...wrap('Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo')
+          ...wrap('Sisa DP ${_rp(widget.dpExcess)}: ' +
+                  (_dpExcessAsCash ? 'Kembalian' : 'Sisa Saldo'))
               .map((l) => _ThermalLine(l, isCenter: true)),
       ],
       _ThermalLine(dash('=')),
@@ -1389,6 +1419,33 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                   final fs = line.small
                       ? fSz - 1.5
                       : (line.size == 2 ? fSz + 3.5 : fSz);
+                  final txtStyle = TextStyle(
+                    fontFamily: 'Courier',
+                    fontSize: fs,
+                    height: line.size == 2 ? 2.0 : 1.5,
+                    color: Colors.black87,
+                    fontWeight: line.bold
+                        ? FontWeight.bold : FontWeight.normal,
+                  );
+
+                  // Baris 2-kolom (mis. nama barang & harga, subtotal &
+                  // nilainya) -- pakai Row asli spy nilai kanan SELALU
+                  // nempel ke tepi kanan box, tidak ada space kosong
+                  // sisa dari estimasi padding monospace.
+                  if (line.left != null) {
+                    return SizedBox(
+                      width: cardW - 20,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(child: Text(line.left!, style: txtStyle)),
+                          const SizedBox(width: 6),
+                          Text(line.right!, style: txtStyle),
+                        ],
+                      ),
+                    );
+                  }
+
                   TextAlign align = TextAlign.left;
                   if (line.isCenter) align = TextAlign.center;
                   if (line.isRight)  align = TextAlign.right;
@@ -1404,14 +1461,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                           : TextOverflow.clip,
                       softWrap: line.isCenter || line.size == 2,
                       textAlign: align,
-                      style: TextStyle(
-                        fontFamily: 'Courier',
-                        fontSize: fs,
-                        height: line.size == 2 ? 2.0 : 1.5,
-                        color: Colors.black87,
-                        fontWeight: line.bold
-                            ? FontWeight.bold : FontWeight.normal,
-                      ),
+                      style: txtStyle,
                     ),
                   );
                 }),
@@ -1555,6 +1605,52 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                         setState(() => _paperWidth = 80)),
               ]),
             ),
+            if (widget.dpExcess > 0)
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Row(children: [
+                  const Icon(Icons.account_balance_wallet_rounded,
+                      color: _kPrimary, size: 18),
+                  const SizedBox(width: 8),
+                  const Text('Sisa DP',
+                      style: TextStyle(fontWeight: FontWeight.w700,
+                          color: _kTextDark, fontSize: 14)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _dpExcessSaving ? null : () => _setDpExcessMode(false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !_dpExcessAsCash ? const Color(0xFFB45309) : const Color(0xFFF0F4FF),
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                        border: Border.all(
+                            color: !_dpExcessAsCash ? const Color(0xFFB45309) : const Color(0x33B45309)),
+                      ),
+                      child: Text('Sisa Saldo', style: TextStyle(
+                          color: !_dpExcessAsCash ? Colors.white : const Color(0xFFB45309),
+                          fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _dpExcessSaving ? null : () => _setDpExcessMode(true),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _dpExcessAsCash ? const Color(0xFF15803D) : const Color(0xFFF0F4FF),
+                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                        border: Border.all(
+                            color: _dpExcessAsCash ? const Color(0xFF15803D) : const Color(0x3315803D)),
+                      ),
+                      child: Text('Kembalian', style: TextStyle(
+                          color: _dpExcessAsCash ? Colors.white : const Color(0xFF15803D),
+                          fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    ),
+                  ),
+                ]),
+              ),
             Expanded(child: Container(
               color: const Color(0xFFDDDDDD),
               child: SingleChildScrollView(
@@ -1631,19 +1727,32 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
 //  BLUETOOTH BOTTOM SHEET
 // ════════════════════════════════════════════
 class _ThermalLine {
-  final String text;
-  final bool   bold;
-  final bool   isCenter;
-  final bool   isRight;
-  final bool   small;
-  final int    size;
+  final String  text;
+  final String? left;
+  final String? right;
+  final bool    bold;
+  final bool    isCenter;
+  final bool    isRight;
+  final bool    small;
+  final int     size;
   const _ThermalLine(this.text, {
     this.bold     = false,
     this.isCenter = false,
     this.isRight  = false,
     this.small    = false,
     this.size     = 1,
-  });
+  }) : left = null, right = null;
+
+  // Baris 2-kolom (label kiri, nilai kanan) -- dirender pakai Row nyata
+  // (bukan string dipadding manual pakai spasi monospace) supaya nilai
+  // kanan SELALU nempel di tepi kanan box preview, tidak ada "space
+  // kosong" kalau lebar font Courier di layar tidak pas 1:1 dgn asumsi
+  // charW (yg dihitung utk lebar kertas fisik, bukan lebar box preview).
+  const _ThermalLine.row(this.left, this.right, {
+    this.bold  = false,
+    this.small = false,
+    this.size  = 1,
+  }) : text = '', isCenter = false, isRight = false;
 }
 
 class _BtSheet extends StatefulWidget {

@@ -504,6 +504,18 @@ def _ensure_fin_debts_reason_schema(cur):
         cur.execute("UPDATE fin_debts SET reason = 'HUTANG_BARANG' WHERE reason IS NULL;")
 
 
+def _ensure_fin_debts_kembalian_schema(cur):
+    """Lazy-migration: tandai baris TITIP_DANA (sisa DP) yang sengaja
+    DIKEMBALIKAN TUNAI (bukan disimpan jadi saldo/piutang terbuka) --
+    dipilih admin/kasir lewat toggle "Sisa Saldo" vs "Kembalian" di
+    invoice_print.html (web) / invoice_print_page.dart (mobile)."""
+    if not _col_exists(cur, "fin_debts", "returned_as_cash"):
+        cur.execute("""
+            ALTER TABLE fin_debts
+                ADD COLUMN IF NOT EXISTS returned_as_cash BOOLEAN NOT NULL DEFAULT FALSE;
+        """)
+
+
 def _ensure_fin_transaction_item_direction_schema(cur):
     """Lazy-migration: arah per baris barang ('IN'/'OUT', vokabuler sama
     dgn movement_type di _update_stock_avco) -- dipakai utk nota campuran
@@ -3334,6 +3346,7 @@ def get_fin_invoice_detail(txn_id):
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_debts_kembalian_schema(cur)
         conn.commit()
 
         cur.execute("""
@@ -3413,23 +3426,33 @@ def get_fin_invoice_detail(txn_id):
         """, (txn_id,))
         related_expenses = [dict(r) for r in cur.fetchall()]
 
-        # Sisa DP (dp_excess) nota ini yang masih terbuka, kalau ada -- 1
-        # baris fin_debts reason='TITIP_DANA' yang dibuat bareng nota ini
-        # (lihat create_fin_invoice/create_fin_purchase_invoice). Angka ini
-        # sama artinya baik ditampilkan sbg "Sisa Saldo" (tersimpan, bisa
-        # dipotong otomatis nota berikutnya) MAUPUN "Kembalian" (kalau
-        # kasir memilih langsung mengembalikan tunai) -- sistem tidak
-        # memutuskan salah satu, cukup tampilkan dua-duanya di nota supaya
-        # kasir bebas pilih di lapangan (lihat invoice_print.html).
+        # Sisa DP (dp_excess) nota ini, kalau ada -- 1 baris fin_debts
+        # reason='TITIP_DANA' yang dibuat bareng nota ini (lihat
+        # create_fin_invoice/create_fin_purchase_invoice). Defaultnya
+        # "Sisa Saldo" (tersimpan sbg piutang/hutang terbuka, ikut
+        # dipotong otomatis di nota berikutnya) -- admin/kasir bisa ubah
+        # jadi "Kembalian" (dikembalikan tunai, TIDAK ada tanggungan
+        # piutang) lewat toggle di invoice_print.html / mobile print
+        # (lihat set_dp_excess_mode). Hanya SATU state yang aktif & yang
+        # ditampilkan, bukan dua-duanya.
         cur.execute("""
-            SELECT remaining
+            SELECT amount, remaining, returned_as_cash
             FROM fin_debts
             WHERE transaction_id = %s AND reason = 'TITIP_DANA'
             ORDER BY id ASC LIMIT 1;
         """, (txn_id,))
         dp_excess_row = cur.fetchone()
-        dp_excess_remaining = float(dp_excess_row["remaining"] or 0) if dp_excess_row else 0.0
-        dp_excess = dp_excess_remaining if dp_excess_remaining > 0.01 else None
+        dp_excess = None
+        dp_excess_as_cash = False
+        if dp_excess_row:
+            if dp_excess_row["returned_as_cash"]:
+                dp_excess = float(dp_excess_row["amount"] or 0)
+                dp_excess_as_cash = True
+            else:
+                remaining = float(dp_excess_row["remaining"] or 0)
+                if remaining > 0.01:
+                    dp_excess = remaining
+                    dp_excess_as_cash = False
 
         invoice = {
             "id": row["id"],
@@ -3447,6 +3470,7 @@ def get_fin_invoice_detail(txn_id):
             "dp_amount": dp_amount,
             "ongkir_potongan_amount": ongkir_potongan_amount,
             "dp_excess": dp_excess,
+            "dp_excess_as_cash": dp_excess_as_cash,
             "related_expenses": related_expenses,
             "grand_total": grand_total,
             "notes": extra_notes,
@@ -5160,6 +5184,73 @@ def pay_fin_debt(debt_id, pay_amount):
         """, (new_paid, new_remaining, is_settled, debt_id))
         conn.commit()
         return {"paid": new_paid, "remaining": new_remaining, "is_settled": is_settled}
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def set_dp_excess_mode(txn_id, as_cash):
+    """Ubah sisa DP (dp_excess) 1 nota antara 'Sisa Saldo' (default,
+    tersimpan sbg fin_debts TITIP_DANA terbuka -- masuk piutang/hutang,
+    bisa dipotongkan otomatis di transaksi berikutnya) dan 'Kembalian'
+    (dikembalikan tunai sekarang, TIDAK ada tanggungan piutang/hutang).
+    Dipanggil dari toggle di invoice_print.html (web) & mobile print.
+
+    as_cash=True  -> tutup baris TITIP_DANA (remaining=0, is_settled,
+                      returned_as_cash=True) -- piutang/hutangnya hilang.
+    as_cash=False -> buka lagi jadi saldo terbuka (revert), CUMA valid
+                      kalau statusnya sedang returned_as_cash & belum
+                      terpakai sama sekali di transaksi lain.
+    Return dict {debt_id, amount, as_cash}."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_debts_kembalian_schema(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT id, amount, paid_amount, remaining, is_settled, returned_as_cash
+            FROM fin_debts
+            WHERE transaction_id = %s AND reason = 'TITIP_DANA'
+            ORDER BY id ASC LIMIT 1
+            FOR UPDATE;
+        """, (txn_id,))
+        debt = cur.fetchone()
+        if not debt:
+            raise ValueError("Nota ini tidak punya sisa DP.")
+
+        amount = float(debt["amount"] or 0)
+        remaining = float(debt["remaining"] or 0)
+        if as_cash:
+            if debt["returned_as_cash"]:
+                raise ValueError("Sisa DP ini sudah berstatus kembalian.")
+            if remaining < amount - 0.01:
+                raise ValueError(
+                    "Sisa DP ini sudah sebagian terpakai sbg saldo di transaksi lain, "
+                    "tidak bisa diubah jadi kembalian lagi."
+                )
+            cur.execute("""
+                UPDATE fin_debts
+                SET paid_amount = %s, remaining = 0, is_settled = TRUE, returned_as_cash = TRUE
+                WHERE id = %s;
+            """, (amount, debt["id"]))
+        else:
+            if not debt["returned_as_cash"]:
+                raise ValueError("Status sisa DP ini bukan kembalian.")
+            cur.execute("""
+                UPDATE fin_debts
+                SET paid_amount = 0, remaining = %s, is_settled = FALSE, returned_as_cash = FALSE
+                WHERE id = %s;
+            """, (amount, debt["id"]))
+
+        conn.commit()
+        return {"debt_id": debt["id"], "amount": amount, "as_cash": bool(as_cash)}
     except ValueError:
         conn.rollback()
         raise

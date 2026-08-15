@@ -131,6 +131,17 @@
   }
   .modal-overlay.open { display: flex; }
 
+  /* ── SISA DP: SALDO vs KEMBALIAN ── */
+  .dpx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dpx-btn {
+    border: 1.5px solid rgba(37, 99, 235, 0.18); border-radius: 14px; padding: 12px 10px;
+    background: #f2f5fb; color: var(--muted); font-weight: 900; font-size: 12.5px;
+    cursor: pointer; font-family: inherit; text-align: center; transition: all 0.15s;
+  }
+  .dpx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .dpx-btn.active.saldo { background: linear-gradient(135deg, #b45309, #f59e0b); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(180,83,9,0.24); }
+  .dpx-btn.active.cash { background: linear-gradient(135deg, #15803d, #22c55e); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(21,128,61,0.24); }
+
   /* ── ZOOM PREVIEW FAKTUR (ketuk gambar kecil di HP utk perbesar) ── */
   .zoom-overlay {
     position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88); z-index: 300;
@@ -412,6 +423,22 @@
         </div>
         {% endif %}
 
+        {% if invoice.dp_excess %}
+        <div class="main-card">
+          <div class="inner">
+            <div class="sec-title">💰 Sisa DP</div>
+            <div class="sec-desc" id="dpxDesc">
+              Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }} — pilih diperlakukan sbg Sisa Saldo (masuk piutang/hutang) atau Kembalian (dikembalikan tunai, tidak ada tanggungan).
+            </div>
+            <div class="divider"></div>
+            <div class="dpx-grid">
+              <button type="button" class="dpx-btn{{ ' active saldo' if not invoice.dp_excess_as_cash else '' }}" id="dpxSaldoBtn" onclick="setDpExcessMode(false)">💳 Sisa Saldo</button>
+              <button type="button" class="dpx-btn{{ ' active cash' if invoice.dp_excess_as_cash else '' }}" id="dpxCashBtn" onclick="setDpExcessMode(true)">💵 Kembalian</button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <div class="main-card">
           <div class="inner">
             <div class="sec-title">🖨️ Cetak &amp; Bagikan</div>
@@ -570,13 +597,9 @@
                     <td colspan="2" class="grand">Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}</td>
                   </tr>
                   {% if invoice.dp_excess %}
-                  <tr>
-                    <td colspan="3" class="lbl" style="color:#15803d">💵 Kembalian</td>
-                    <td colspan="2" style="color:#15803d; font-weight:700">Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }}</td>
-                  </tr>
-                  <tr>
-                    <td colspan="3" class="lbl" style="color:#b45309">💳 Sisa Saldo</td>
-                    <td colspan="2" style="color:#b45309; font-weight:700">Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }}</td>
+                  <tr id="dpxRow">
+                    <td colspan="3" class="lbl" id="dpxLbl" style="color:{{ '#15803d' if invoice.dp_excess_as_cash else '#b45309' }}">{{ '💵 Kembalian' if invoice.dp_excess_as_cash else '💳 Sisa Saldo' }}</td>
+                    <td colspan="2" id="dpxVal" style="color:{{ '#15803d' if invoice.dp_excess_as_cash else '#b45309' }}; font-weight:700">Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }}</td>
                   </tr>
                   {% endif %}
                 </tfoot>
@@ -596,8 +619,8 @@
                 <div class="fk-notes-lbl">📝 Catatan</div>
                 {% if invoice.notes %}<div class="fk-notes-txt">{{ invoice.notes }}</div>{% endif %}
                 {% if invoice.dp_excess %}
-                <div class="fk-notes-txt"{{ ' style="margin-top:6px"' | safe if invoice.notes else '' }}>
-                  💰 Sisa DP Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }} — bisa jadi <strong>Kembalian</strong> (dikembalikan tunai sekarang) atau <strong>Sisa Saldo</strong> (dipotong otomatis di nota berikutnya).
+                <div class="fk-notes-txt" id="dpxNoteTxt"{{ ' style="margin-top:6px"' | safe if invoice.notes else '' }}>
+                  💰 Sisa DP Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }} — berstatus <strong id="dpxNoteState">{{ 'Kembalian (sudah dikembalikan tunai)' if invoice.dp_excess_as_cash else 'Sisa Saldo (tersimpan, dipotong otomatis di nota berikutnya)' }}</strong>.
                 </div>
                 {% endif %}
               </div>
@@ -720,6 +743,35 @@
       })
       .catch(function (e) { setSt("err", e.message); });
   }
+
+  window.setDpExcessMode = function (asCash) {
+    var saldoBtn = document.getElementById("dpxSaldoBtn");
+    var cashBtn  = document.getElementById("dpxCashBtn");
+    if (saldoBtn) saldoBtn.disabled = true;
+    if (cashBtn) cashBtn.disabled = true;
+    setSt("ld", "Menyimpan status sisa DP…");
+    fetch(BASE + "/dp-excess", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ as_cash: asCash }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          setSt("ok", "✓ Sisa DP diubah jadi " + (asCash ? "Kembalian" : "Sisa Saldo"));
+          window.location.reload();
+        } else {
+          setSt("err", d.error || "Gagal");
+          if (saldoBtn) saldoBtn.disabled = false;
+          if (cashBtn) cashBtn.disabled = false;
+        }
+      })
+      .catch(function (e) {
+        setSt("err", e.message);
+        if (saldoBtn) saldoBtn.disabled = false;
+        if (cashBtn) cashBtn.disabled = false;
+      });
+  };
 
   // ── WhatsApp: susun teks langsung dari data yang sudah ada, tanpa panggil server ──
   document.getElementById("btnWa").addEventListener("click", function (e) {

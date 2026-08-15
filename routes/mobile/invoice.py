@@ -329,6 +329,28 @@ def mobile_invoice_mark_paid(invoice_id):
 
 
 
+@mobile_invoice_bp.route("/invoice/<int:txn_id>/dp-excess", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def mobile_invoice_dp_excess_mode(txn_id):
+    """Toggle sisa DP nota ini antara 'Sisa Saldo' (default, masuk
+    piutang/hutang) vs 'Kembalian' (dikembalikan tunai, tidak ada
+    tanggungan piutang) -- endpoint yg sama dipanggil dari toggle di
+    invoice_print_page.dart & web invoice_print.html
+    (lihat core.set_dp_excess_mode)."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data={}, status_code=200)
+
+    data = request.get_json(silent=True) or {}
+    as_cash = bool(data.get("as_cash"))
+
+    from core import set_dp_excess_mode
+    try:
+        result = set_dp_excess_mode(txn_id, as_cash)
+        return mobile_api_response(ok=True, message="OK", data=result, status_code=200)
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
 @mobile_invoice_bp.route("/invoice/history", methods=["GET", "OPTIONS"])
 @mobile_api_login_required
 def mobile_invoice_history():

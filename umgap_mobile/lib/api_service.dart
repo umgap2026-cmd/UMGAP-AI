@@ -1168,6 +1168,17 @@ class ApiService {
     return _asMap(_asMap(res.data)['data']);
   }
 
+  // ── Nota: Sisa DP -- toggle jadi Sisa Saldo (as_cash=false) / Kembalian (as_cash=true) ──
+  static Future<void> invoiceSetDpExcessMode(int txnId, bool asCash) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/invoice/$txnId/dp-excess",
+      data: {"as_cash": asCash},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal mengubah status sisa DP");
+  }
+
   // ── Nota: Edit nota Jual/Beli yang sudah tersimpan ──
   static Future<Map<String, dynamic>> editNotaInvoice({
     required int txnId,

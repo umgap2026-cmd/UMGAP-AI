@@ -20,6 +20,7 @@ from core import (
     get_invoice_history,
     get_fin_invoice_detail,
     settle_fin_debt_for_transaction,
+    set_dp_excess_mode,
     cancel_fin_transaction,
     delete_nota_transaction,
     list_deleted_nota,
@@ -455,6 +456,23 @@ def nota_mark_paid(txn_id):
         conn.close()
 
     return jsonify({"ok": True, "invoice_id": txn_id, "is_paid": is_paid})
+
+
+# ---------- SISA DP: SALDO vs KEMBALIAN ----------
+@nota_bp.route("/nota/<int:txn_id>/dp-excess", methods=["POST"])
+def nota_dp_excess_mode(txn_id):
+    if not is_logged_in():
+        return jsonify({"ok": False}), 401
+
+    data = request.get_json(silent=True) or {}
+    as_cash = bool(data.get("as_cash"))
+
+    try:
+        result = set_dp_excess_mode(txn_id, as_cash)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    return jsonify({"ok": True, **result})
 
 
 # ---------- BATALKAN NOTA ----------

@@ -79,6 +79,7 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
         reverseSubtotal: (inv['reverse_subtotal'] as num?)?.toDouble() ?? 0,
         grandTotal:      (inv['grand_total'] as num?)?.toDouble() ?? 0,
         dpExcess:        (inv['dp_excess'] as num?)?.toDouble() ?? 0,
+        dpExcessAsCash:  inv['dp_excess_as_cash'] == true,
         items:           cartItems,
         isPaid:          inv['is_paid'] == true,
         isBeli:          isBeli,
@@ -393,8 +394,9 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
             if (inv['notes']?.toString().isNotEmpty == true)
               _InfoRow('Catatan', inv['notes']),
             if ((inv['dp_excess'] as num?) != null && (inv['dp_excess'] as num).toDouble() > 0)
-              _InfoRow('Sisa DP',
-                  '${_rp((inv['dp_excess'] as num).toDouble())} -- bisa jadi Kembalian atau Sisa Saldo'),
+              _InfoRow(inv['dp_excess_as_cash'] == true ? 'Kembalian' : 'Sisa DP',
+                  '${_rp((inv['dp_excess'] as num).toDouble())}'
+                  '${inv['dp_excess_as_cash'] == true ? " (sudah dikembalikan tunai)" : " (Sisa Saldo)"}'),
           ]),
           const SizedBox(height: 14),
 
@@ -442,9 +444,12 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
             ]),
             if ((inv['dp_excess'] as num?) != null && (inv['dp_excess'] as num).toDouble() > 0) ...[
               const SizedBox(height: 8),
-              _SumRow('💵 Kembalian', _rp((inv['dp_excess'] as num).toDouble()), color: const Color(0xFF15803D)),
-              const SizedBox(height: 6),
-              _SumRow('💳 Sisa Saldo', _rp((inv['dp_excess'] as num).toDouble()), color: const Color(0xFFB45309)),
+              _SumRow(
+                inv['dp_excess_as_cash'] == true ? '💵 Kembalian' : '💳 Sisa Saldo',
+                _rp((inv['dp_excess'] as num).toDouble()),
+                color: inv['dp_excess_as_cash'] == true
+                    ? const Color(0xFF15803D) : const Color(0xFFB45309),
+              ),
             ],
           ]),
 

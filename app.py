@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.3.1",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.3.2",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.3.1 tersedia!\n• BARU: nota dgn sisa DP kini tampilkan Kembalian & Sisa Saldo di bawah TOTAL + catatan\n• PERBAIKAN: catatan per barang sekarang muncul di print thermal\n• PERBAIKAN: tulisan nota thermal diperbesar (tanpa melebihi lebar kertas)"
+        "message":        "Versi baru v1.3.2 tersedia!\n• BARU: sisa DP kini bisa dipilih jadi Kembalian (tunai, tanpa piutang) atau Sisa Saldo (piutang/hutang) -- pilihan tunggal di bawah TOTAL\n• PERBAIKAN: bold nota thermal dikurangi, cuma nama supplier & TOTAL yg tebal\n• PERBAIKAN: harga barang di preview thermal digeser rapat ke kanan (hilangkan spasi kosong)"
     })
 
 @app.route("/ping")
