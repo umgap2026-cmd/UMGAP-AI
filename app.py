@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.2.9",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.3.0",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.2.9 tersedia!\n• Perbaikan format desimal qty di cetak nota (0.5, bukan 0.50)"
+        "message":        "Versi baru v1.3.0 tersedia!\n• PERBAIKAN: update sekarang otomatis minta izin \"Install dari sumber ini\" kalau belum aktif, jadi tidak gagal diam-diam"
     })
 
 @app.route("/ping")

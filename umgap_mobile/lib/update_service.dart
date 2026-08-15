@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
 
@@ -89,6 +91,31 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       setState(() => _error = 'Link update belum tersedia.');
       return;
     }
+
+    // Install APK dari dalam app butuh izin khusus Android "Izinkan dari
+    // sumber ini" -- kalau belum aktif, OpenFile.open() nanti gagal diam2
+    // dgn error permission_denied. Minta izinnya DULU (buka halaman
+    // Pengaturan otomatis); baru lanjut download setelah user kembali &
+    // izinnya aktif.
+    if (Platform.isAndroid) {
+      var installStatus = await Permission.requestInstallPackages.status;
+      if (!installStatus.isGranted) {
+        setState(() {
+          _error = 'Mengarahkan ke Pengaturan -- aktifkan "Izinkan dari '
+              'sumber ini" utk lanjut update.';
+        });
+        installStatus = await Permission.requestInstallPackages.request();
+        if (!mounted) return;
+        if (!installStatus.isGranted) {
+          setState(() {
+            _error = 'Izin install APK belum diaktifkan. Tap "Update '
+                'Sekarang" lagi setelah mengizinkannya.';
+          });
+          return;
+        }
+      }
+    }
+
     setState(() { _downloading = true; _error = null; _progress = null; });
     try {
       final dir = await getTemporaryDirectory();
