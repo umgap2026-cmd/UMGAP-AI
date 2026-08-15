@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_required
+from core import admin_required, _ensure_admin_treated_as_employee_schema
 
 points_bp = Blueprint("points", __name__)
 
@@ -24,11 +24,15 @@ def admin_points():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    _ensure_admin_treated_as_employee_schema(cur)
+    conn.commit()
+
     cur.execute("""
         SELECT id, name, email,
         COALESCE(points,0) AS points,
         COALESCE(points_admin,0) AS points_admin
-        FROM users WHERE role='employee'
+        FROM users
+        WHERE (role='employee' OR (role='admin' AND treated_as_employee=TRUE))
         ORDER BY name ASC;
     """)
     employees = cur.fetchall()

@@ -23,7 +23,7 @@ def attendance_page():
     if not is_logged_in():
         return redirect("/login")
 
-    if is_admin():
+    if is_admin() and not session.get("treated_as_employee"):
         return redirect("/admin")
 
     try:

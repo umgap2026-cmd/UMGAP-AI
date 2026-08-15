@@ -2,7 +2,7 @@ from flask import Blueprint, request
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import mobile_api_response, mobile_api_login_required
+from core import mobile_api_response, mobile_api_login_required, _ensure_admin_treated_as_employee_schema
 
 mobile_points_bp = Blueprint("mobile_points", __name__)
 
@@ -19,11 +19,15 @@ def mobile_points():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
+
         cur.execute("""
             SELECT id, name, email,
             COALESCE(points,0) AS points,
             COALESCE(points_admin,0) AS points_admin
-            FROM users WHERE role='employee'
+            FROM users
+            WHERE (role='employee' OR (role='admin' AND treated_as_employee=TRUE))
             ORDER BY name ASC;
         """)
         employees = [dict(r) for r in cur.fetchall()]

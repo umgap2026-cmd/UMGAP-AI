@@ -9,7 +9,7 @@ from openpyxl.utils import get_column_letter
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_required, ensure_hr_v2_schema, _parse_date, get_payroll_report
+from core import admin_required, ensure_hr_v2_schema, _parse_date, get_payroll_report, _ensure_admin_treated_as_employee_schema
 
 export_bp = Blueprint("export", __name__)
 
@@ -121,6 +121,9 @@ def export_range():
         # Ambil user employee (atau cuma yg dipilih kalau user_ids diisi --
         # sengaja bisa lebih dari 1, mis. buat pisahin yg tidak digaji tapi
         # tetap perlu direkap absensinya sendiri)
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
+
         cur.execute("""
             SELECT
                 u.id,
@@ -129,7 +132,7 @@ def export_range():
                 COALESCE(p.monthly_salary, 0) AS monthly_salary
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
-            WHERE u.role = 'employee'
+            WHERE (u.role = 'employee' OR (u.role = 'admin' AND u.treated_as_employee = TRUE))
               AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
             ORDER BY u.name ASC;
         """, (user_ids, user_ids))

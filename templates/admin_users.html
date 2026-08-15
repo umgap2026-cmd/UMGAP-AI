@@ -206,6 +206,10 @@
     background: linear-gradient(135deg,#6d28d9,#7c3aed);
     box-shadow:0 8px 18px rgba(109,40,217,.28);
   }
+  .role-opt input[type="checkbox"]:checked + label {
+    background: linear-gradient(135deg,#059669,#047857);
+    color:#fff; box-shadow:0 8px 18px rgba(5,150,105,.28);
+  }
 
   .btn-submit {
     display:flex; align-items:center; justify-content:center; gap:8px;
@@ -502,15 +506,28 @@
               <label>Role</label>
               <div class="role-toggle">
                 <div class="role-opt">
-                  <input type="radio" name="role" id="add-emp" value="employee" checked />
+                  <input type="radio" name="role" id="add-emp" value="employee" checked onchange="toggleTreatedSection()" />
                   <label for="add-emp">🧑‍💼 Karyawan</label>
                 </div>
                 <div class="role-opt">
-                  <input type="radio" name="role" id="add-adm" value="admin" />
+                  <input type="radio" name="role" id="add-adm" value="admin" onchange="toggleTreatedSection()" />
                   <label for="add-adm">⭐ Admin</label>
                 </div>
               </div>
             </div>
+
+            {% if session.get('role') == 'owner' %}
+            <div class="field" id="add-treated-wrap" style="display:none;">
+              <label>Perlakuan Poin &amp; Gaji</label>
+              <div class="role-toggle" style="gap:8px;">
+                <div class="role-opt">
+                  <input type="checkbox" name="treated_as_employee" id="add-treated" value="1" style="position:absolute;opacity:0;width:0;height:0;" />
+                  <label for="add-treated">🧑‍💼 Perlakukan seperti Karyawan</label>
+                </div>
+              </div>
+              <div class="field-hint">Admin ini bisa dikasih poin &amp; masuk laporan Gaji, sama seperti karyawan.</div>
+            </div>
+            {% endif %}
 
             <div class="divider"></div>
             <button class="btn-submit" type="submit">
@@ -564,7 +581,8 @@
                         data-name="{{ u.name | e }}"
                         data-email="{{ u.email | e }}"
                         data-role="{{ u.role }}"
-                        data-salary="{{ u.daily_salary }}">
+                        data-salary="{{ u.daily_salary }}"
+                        data-treated="{{ 'true' if u.treated_as_employee else 'false' }}">
                   <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   Edit Data
                 </button>
@@ -624,7 +642,8 @@
                               data-name="{{ u.name | e }}"
                               data-email="{{ u.email | e }}"
                               data-role="{{ u.role }}"
-                              data-salary="{{ u.daily_salary }}">
+                              data-salary="{{ u.daily_salary }}"
+                              data-treated="{{ 'true' if u.treated_as_employee else 'false' }}">
                         <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         Edit
                       </button>
@@ -690,11 +709,11 @@
           <label>Role</label>
           <div class="role-toggle">
             <div class="role-opt">
-              <input type="radio" name="role" id="ef-emp" value="employee" />
+              <input type="radio" name="role" id="ef-emp" value="employee" onchange="toggleTreatedSection()" />
               <label for="ef-emp">🧑‍💼 Karyawan</label>
             </div>
             <div class="role-opt">
-              <input type="radio" name="role" id="ef-adm" value="admin" />
+              <input type="radio" name="role" id="ef-adm" value="admin" onchange="toggleTreatedSection()" />
               <label for="ef-adm">⭐ Admin</label>
             </div>
           </div>
@@ -704,6 +723,19 @@
           <input id="ef-salary" name="daily_salary" type="number" min="0" />
         </div>
       </div>
+
+      {% if session.get('role') == 'owner' %}
+      <div class="ssec" id="ef-treated-wrap" style="display:none;">
+        <div class="ssec-lbl">Perlakuan Poin &amp; Gaji</div>
+        <div class="role-toggle" style="gap:8px;">
+          <div class="role-opt">
+            <input type="checkbox" name="treated_as_employee" id="ef-treated" value="1" style="position:absolute;opacity:0;width:0;height:0;" />
+            <label for="ef-treated">🧑‍💼 Perlakukan seperti Karyawan</label>
+          </div>
+        </div>
+        <div class="field-hint" style="margin-bottom:0;">Admin ini bisa dikasih poin &amp; masuk laporan Gaji, sama seperti karyawan.</div>
+      </div>
+      {% endif %}
 
       <div class="ssec">
         <div class="ssec-lbl">Ganti Password (Opsional)</div>
@@ -783,6 +815,10 @@
     document.getElementById("ef-emp").checked = (role !== "admin");
     document.getElementById("ef-adm").checked = (role === "admin");
 
+    var efTreated = document.getElementById("ef-treated");
+    if (efTreated) efTreated.checked = (btn.dataset.treated === "true");
+    toggleTreatedSection();
+
     selfNote.style.display = (parseInt(uid, 10) === myId) ? "block" : "none";
 
     overlay.classList.add("open");
@@ -826,6 +862,19 @@
 
   applyFilters();
 })();
+
+function toggleTreatedSection() {
+  var addWrap = document.getElementById("add-treated-wrap");
+  if (addWrap) {
+    var addAdm = document.getElementById("add-adm");
+    addWrap.style.display = (addAdm && addAdm.checked) ? "block" : "none";
+  }
+  var efWrap = document.getElementById("ef-treated-wrap");
+  if (efWrap) {
+    var efAdm = document.getElementById("ef-adm");
+    efWrap.style.display = (efAdm && efAdm.checked) ? "block" : "none";
+  }
+}
 </script>
 
 {% endblock %}
@@ -866,7 +915,7 @@
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
 
-    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') }}">
+    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') if session.get('role') == 'admin' else url_for('owner.owner_dashboard') }}">
       <span class="nav-ico">
         <svg viewBox="0 0 24 24">
           <rect class="fill" x="3"  y="3"  width="8" height="8" rx="1.6"></rect>

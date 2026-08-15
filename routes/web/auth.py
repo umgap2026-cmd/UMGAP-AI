@@ -13,7 +13,7 @@ from db import get_conn
 from core import (
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, oauth, ensure_password_reset_schema,
     send_email, send_wa, _otp_hash, _public_ip, _otp_verify_rate_limited,
-    find_user_by_identifier,
+    find_user_by_identifier, _ensure_admin_treated_as_employee_schema,
 )
 
 
@@ -81,8 +81,10 @@ def login():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
         cur.execute("""
-            SELECT id, name, email, password_hash, role
+            SELECT id, name, email, password_hash, role, treated_as_employee
             FROM users
             WHERE lower(email)=%s
             LIMIT 1;
@@ -98,6 +100,7 @@ def login():
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
     session["role"] = user.get("role", "employee")
+    session["treated_as_employee"] = bool(user.get("treated_as_employee", False))
 
     if session["role"] == "admin":
         return redirect("/admin/dashboard")
@@ -139,8 +142,10 @@ def google_callback():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
         cur.execute("""
-            SELECT id, name, role
+            SELECT id, name, role, treated_as_employee
             FROM users
             WHERE lower(email)=%s
             LIMIT 1;
@@ -162,7 +167,7 @@ def google_callback():
             cur.execute("""
                 INSERT INTO users (name, email, password_hash, role)
                 VALUES (%s, %s, %s, 'employee')
-                RETURNING id, name, role;
+                RETURNING id, name, role, treated_as_employee;
             """, (name, email, pw_hash))
             u = cur.fetchone()
 
@@ -176,6 +181,7 @@ def google_callback():
     session["user_id"] = u["id"]
     session["user_name"] = u["name"]
     session["role"] = u["role"]
+    session["treated_as_employee"] = bool(u.get("treated_as_employee", False))
 
     if u["role"] == "admin":
         return redirect("/admin/dashboard")

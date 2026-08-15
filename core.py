@@ -95,6 +95,12 @@ def admin_required():
         return redirect(url_for("dashboard.dashboard"))
     return None
 
+
+def _ensure_admin_treated_as_employee_schema(cur):
+    cur.execute("""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS treated_as_employee BOOLEAN NOT NULL DEFAULT FALSE;
+    """)
+
 # =========================
 # FILE / DIR HELPERS
 # =========================
@@ -2004,6 +2010,7 @@ def get_payroll_report(start_date, end_date, user_ids=None):
         _ensure_payroll_adjustments_schema(cur)
         _ensure_payroll_payments_schema(cur)
         _ensure_attendance_halfday_column(cur)
+        _ensure_admin_treated_as_employee_schema(cur)
         conn.commit()
 
         cur.execute("""
@@ -2012,7 +2019,7 @@ def get_payroll_report(start_date, end_date, user_ids=None):
                 COALESCE(p.monthly_salary, 0) AS monthly_salary
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id = u.id
-            WHERE u.role = 'employee'
+            WHERE (u.role = 'employee' OR (u.role = 'admin' AND u.treated_as_employee = TRUE))
               AND (%s::int[] IS NULL OR u.id = ANY(%s::int[]))
             ORDER BY u.name ASC;
         """, (user_ids, user_ids))

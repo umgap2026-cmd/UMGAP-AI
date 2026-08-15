@@ -3,7 +3,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import date, timedelta
 
 from db import get_conn
-from core import mobile_api_response, mobile_api_login_required
+from core import mobile_api_response, mobile_api_login_required, _ensure_admin_treated_as_employee_schema
 
 mobile_payroll_bp = Blueprint("mobile_payroll", __name__)
 
@@ -68,6 +68,9 @@ def mobile_payroll():
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
+
         cur.execute("""
             SELECT
                 u.id,
@@ -82,7 +85,7 @@ def mobile_payroll():
             LEFT JOIN payroll_settings p ON p.user_id = u.id
             LEFT JOIN attendance a ON a.user_id = u.id
                 AND a.work_date >= %s AND a.work_date < %s
-            WHERE u.role = 'employee'
+            WHERE (u.role = 'employee' OR (u.role = 'admin' AND u.treated_as_employee = TRUE))
             GROUP BY u.id, u.name
             ORDER BY u.name ASC;
         """, (start_date, end_date))

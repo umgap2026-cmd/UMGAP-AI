@@ -7,7 +7,8 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash
 
 from db import get_conn
-from core import admin_guard, admin_required
+from core import admin_guard, admin_required, owner_or_admin_required
+from core import _ensure_admin_treated_as_employee_schema
 from core import ensure_points_schema
 from datetime import date
 from core import _now_wib_naive_from_form
@@ -84,14 +85,17 @@ def admin_dashboard():
 
 @admin_bp.route("/admin/users")
 def admin_users():
-    deny = admin_guard()
+    deny = owner_or_admin_required()
     if deny:
         return deny
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
         cur.execute("""
-            SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary
+            SELECT u.id, u.name, u.email, u.role, COALESCE(p.daily_salary, 0) AS daily_salary,
+                   u.treated_as_employee
             FROM users u
             LEFT JOIN payroll_settings p ON p.user_id=u.id
             ORDER BY u.id DESC;
@@ -105,7 +109,7 @@ def admin_users():
 
 @admin_bp.route("/admin/users/create", methods=["POST"])
 def admin_users_create():
-    deny = admin_guard()
+    deny = owner_or_admin_required()
     if deny:
         return deny
     name = (request.form.get("name") or "").strip()
@@ -119,14 +123,30 @@ def admin_users_create():
 
     pw_hash = generate_password_hash(password)
 
+    # Toggle "perlakukan seperti karyawan" hanya boleh diisi owner -- kalau
+    # admin yg nambah user, field ini memang tidak dikirim form-nya
+    # (disembunyikan di template), jadi biarkan DEFAULT FALSE dari skema.
+    is_owner = session.get("role") == "owner"
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("""
-            INSERT INTO users (name, email, password_hash, role)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id;
-        """, (name, email, pw_hash, role))
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
+
+        if is_owner:
+            treated_as_employee = request.form.get("treated_as_employee") == "1"
+            cur.execute("""
+                INSERT INTO users (name, email, password_hash, role, treated_as_employee)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id;
+            """, (name, email, pw_hash, role, treated_as_employee))
+        else:
+            cur.execute("""
+                INSERT INTO users (name, email, password_hash, role)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+            """, (name, email, pw_hash, role))
         row = cur.fetchone() or {}
         uid = row.get("id")
 
@@ -147,7 +167,7 @@ def admin_users_create():
 
 @admin_bp.route("/admin/users/update/<int:uid>", methods=["POST"])
 def admin_users_update(uid):
-    deny = admin_guard()
+    deny = owner_or_admin_required()
     if deny:
         return deny
     name = (request.form.get("name") or "").strip()
@@ -156,22 +176,45 @@ def admin_users_update(uid):
     daily_salary = int(request.form.get("daily_salary") or "0")
     new_password = (request.form.get("new_password") or "").strip()
 
+    # Sama seperti create -- cuma owner yg boleh ubah toggle "perlakukan
+    # seperti karyawan".
+    is_owner = session.get("role") == "owner"
+
     conn = get_conn()
     cur = conn.cursor()
     try:
-        if new_password:
-            pw_hash = generate_password_hash(new_password)
-            cur.execute("""
-                UPDATE users
-                SET name=%s, email=%s, role=%s, password_hash=%s
-                WHERE id=%s;
-            """, (name, email, role, pw_hash, uid))
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
+
+        if is_owner:
+            treated_as_employee = request.form.get("treated_as_employee") == "1"
+            if new_password:
+                pw_hash = generate_password_hash(new_password)
+                cur.execute("""
+                    UPDATE users
+                    SET name=%s, email=%s, role=%s, password_hash=%s, treated_as_employee=%s
+                    WHERE id=%s;
+                """, (name, email, role, pw_hash, treated_as_employee, uid))
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET name=%s, email=%s, role=%s, treated_as_employee=%s
+                    WHERE id=%s;
+                """, (name, email, role, treated_as_employee, uid))
         else:
-            cur.execute("""
-                UPDATE users
-                SET name=%s, email=%s, role=%s
-                WHERE id=%s;
-            """, (name, email, role, uid))
+            if new_password:
+                pw_hash = generate_password_hash(new_password)
+                cur.execute("""
+                    UPDATE users
+                    SET name=%s, email=%s, role=%s, password_hash=%s
+                    WHERE id=%s;
+                """, (name, email, role, pw_hash, uid))
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET name=%s, email=%s, role=%s
+                    WHERE id=%s;
+                """, (name, email, role, uid))
 
         cur.execute("""
             INSERT INTO payroll_settings (user_id, daily_salary)
@@ -189,7 +232,7 @@ def admin_users_update(uid):
 
 @admin_bp.route("/admin/users/delete/<int:uid>", methods=["POST"])
 def admin_users_delete(uid):
-    deny = admin_guard()
+    deny = owner_or_admin_required()
     if deny:
         return deny
 
@@ -412,10 +455,12 @@ def admin_attendance_approval():
         """)
         pendings = cur.fetchall()
 
+        _ensure_admin_treated_as_employee_schema(cur)
+        conn.commit()
         cur.execute("""
             SELECT id, name, email
             FROM users
-            WHERE role='employee'
+            WHERE (role='employee' OR (role='admin' AND treated_as_employee=TRUE))
             ORDER BY name ASC;
         """)
         employees = cur.fetchall()
@@ -571,8 +616,13 @@ def admin_attendance():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     _ensure_attendance_schema(cur)
     _ensure_attendance_checkout_column(cur)
+    _ensure_admin_treated_as_employee_schema(cur)
     conn.commit()
-    cur.execute("SELECT id, name, email FROM users WHERE role='employee' ORDER BY name ASC;")
+    cur.execute("""
+        SELECT id, name, email FROM users
+        WHERE (role='employee' OR (role='admin' AND treated_as_employee=TRUE))
+        ORDER BY name ASC;
+    """)
     employees = cur.fetchall()
 
     # Karyawan yg BOLEH di-checkout admin: sudah absen masuk sendiri hari
@@ -582,7 +632,7 @@ def admin_attendance():
         SELECT u.id, u.name, u.email
         FROM users u
         JOIN attendance a ON a.user_id = u.id AND a.work_date = CURRENT_DATE
-        WHERE u.role = 'employee'
+        WHERE (u.role = 'employee' OR (u.role = 'admin' AND u.treated_as_employee = TRUE))
           AND a.checkin_at IS NOT NULL
           AND a.checkout_at IS NULL
         ORDER BY u.name ASC;
@@ -612,7 +662,7 @@ def admin_attendance():
                TO_CHAR(a.checkout_at, 'HH24:MI') AS checkout_hm
         FROM users u
         LEFT JOIN attendance a ON a.user_id = u.id AND a.work_date = CURRENT_DATE
-        WHERE u.role = 'employee'
+        WHERE (u.role = 'employee' OR (u.role = 'admin' AND u.treated_as_employee = TRUE))
         ORDER BY u.name ASC;
     """)
     today_recap = cur.fetchall()

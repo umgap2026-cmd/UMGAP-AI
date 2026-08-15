@@ -1197,6 +1197,24 @@
 
             <!-- MORE section -->
             <div class="hidden-features" id="moreSection">
+              {% if session.get('treated_as_employee') %}
+              <div class="divider"></div>
+              <div class="cat-label">Milik Saya</div>
+              <div class="feat-grid">
+                <a class="feature fc-poin" href="/dashboard">
+                  <div class="feat-icon">🏅</div>
+                  <div class="feat-label">Poin Saya</div>
+                </a>
+                <a class="feature fc-link" href="/payslip">
+                  <div class="feat-icon">💰</div>
+                  <div class="feat-label">Slip Gaji</div>
+                </a>
+                <a class="feature fc-absen" href="/attendance">
+                  <div class="feat-icon">👆</div>
+                  <div class="feat-label">Absensi Saya</div>
+                </a>
+              </div>
+              {% endif %}
               <div class="divider"></div>
               <div class="cat-label">Menu Lainnya</div>
               <div class="feat-grid">
