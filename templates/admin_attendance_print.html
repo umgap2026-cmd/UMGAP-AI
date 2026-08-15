@@ -31,31 +31,36 @@
 
   /* ── FAKTUR-STYLE PREVIEW (kertas continuous form) ── */
   .pv-body { display: flex; justify-content: center; padding: 6px 0; overflow-x: auto; }
-  .faktur { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #fff; width: 9.5in; max-width: 100%; padding: 0.4in 0.5in; box-shadow: var(--shadow-out); }
-  .fk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 10px; border-bottom: 2px solid #111; margin-bottom: 12px; }
-  .fk-logos img { height: 44px; object-fit: contain; }
-  .fk-biz { font-size: 21px; font-weight: 900; margin-top: 6px; }
-  .fk-type { font-size: 11px; color: #666; font-weight: 600; margin-top: 2px; }
+  .faktur { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #fff; width: 9.5in; max-width: 100%; padding: 0.3in 0.4in 0.1in; box-shadow: var(--shadow-out); }
+  .fk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 6px; border-bottom: 2px solid #111; margin-bottom: 8px; }
+  .fk-logos img { height: 40px; object-fit: contain; }
+  .fk-biz { font-size: 19px; font-weight: 900; margin-top: 4px; }
+  .fk-type { font-size: 10px; color: #666; font-weight: 600; margin-top: 2px; }
   .fk-right { text-align: right; }
-  .fk-date { font-size: 11px; color: #666; }
+  .fk-date { font-size: 10px; color: #666; }
 
-  .fk-tbl { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  .fk-section-row td { background: #f2f5fb !important; font-size: 13px !important; font-weight: 900 !important; color: #223 !important; padding: 6px 10px !important; text-transform: uppercase; letter-spacing: 0.3px; }
+  /* Hemat kertas: 2 karyawan berdampingan (kiri-kanan) pakai CSS columns
+     -- browser otomatis mengalir tabel ke kolom kanan begitu kolom kiri
+     penuh, jadi tinggi kertas continuous form bisa hampir separuhnya
+     drpd 1 karyawan per baris penuh. */
+  .fk-cols { column-count: 2; column-gap: 0.3in; }
+  .fk-tbl { width: 100%; border-collapse: collapse; margin-bottom: 6px; break-inside: avoid; }
+  .fk-section-row td { background: #f2f5fb !important; font-size: 11.5px !important; font-weight: 900 !important; color: #223 !important; padding: 3px 6px !important; text-transform: uppercase; letter-spacing: 0.2px; }
   .fk-tbl thead tr.hdr { background: #111; color: #fff; }
-  .fk-tbl thead th { padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
+  .fk-tbl thead th { padding: 2.5px 6px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2px; text-align: left; }
   .fk-tbl thead th.r { text-align: right; }
   .fk-tbl tbody tr { border-bottom: 1px solid #eee; }
   .fk-tbl tbody tr:nth-child(even) { background: #fafafa; }
-  .fk-tbl tbody td { padding: 3px 10px; font-size: 12px; }
+  .fk-tbl tbody td { padding: 1.5px 6px; font-size: 10.5px; line-height: 1.25; }
   .fk-tbl tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
-  .fk-tbl tfoot td { padding: 4px 10px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  .fk-tbl tfoot td { padding: 2px 6px; font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums; }
   .fk-tbl tfoot .lbl { text-align: left; color: #888; font-weight: 700; }
-  .fk-tbl tfoot .grand { font-size: 14px; font-weight: 900; padding-top: 6px; border-top: 2px solid #111; }
-  .fk-tbl tfoot .grand-lbl { font-size: 13px; font-weight: 900; text-align: left; padding-top: 6px; border-top: 2px solid #111; }
+  .fk-tbl tfoot .grand { font-size: 12px; font-weight: 900; padding-top: 3px; border-top: 2px solid #111; }
+  .fk-tbl tfoot .grand-lbl { font-size: 11px; font-weight: 900; text-align: left; padding-top: 3px; border-top: 2px solid #111; }
 
-  .fk-total-qty { background: #eef2ff; border-radius: 6px; padding: 10px 14px; margin: 6px 0 12px; font-size: 14px; font-weight: 900; color: #2563eb; text-align: center; }
-  .fk-footer { margin-top: 16px; padding-top: 10px; border-top: 1px dashed #ccc; }
-  .fk-thanks { font-size: 11px; color: #888; }
+  .fk-total-qty { background: #eef2ff; border-radius: 6px; padding: 6px 12px; margin: 4px 0 6px; font-size: 12px; font-weight: 900; color: #2563eb; text-align: center; }
+  .fk-footer { margin-top: 6px; padding-top: 5px; border-top: 1px dashed #ccc; }
+  .fk-thanks { font-size: 9.5px; color: #888; line-height: 1.3; }
 
   @media print {
     @page { size: portrait; margin: 0; }
@@ -64,9 +69,10 @@
     .footer-note, .pv-only .sec-title, .pv-only .sec-desc, .pv-only .divider { display: none !important; }
     .pv-only.main-card, .pv-only .inner { background: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
     .screen, .wrap, .pv-body { display: block; padding: 0; margin: 0; max-width: none; min-height: 0; height: auto; overflow: visible; }
-    .faktur { box-shadow: none; width: 100%; padding: 0.25in 0.4in; }
+    .faktur { box-shadow: none; width: 100%; padding: 0.15in 0.3in 0.05in; }
     .fk-tbl { break-inside: avoid; page-break-inside: avoid; }
     .fk-tbl tr { break-inside: avoid; page-break-inside: avoid; }
+    .fk-cols { column-fill: auto; }
     /* Dot-matrix monokrom -- paksa hitam pekat & tebal spt di nota,
        ganti fill warna jadi garis tepi biasa. */
     .faktur, .faktur * { color: #000 !important; }
@@ -117,6 +123,7 @@
               </div>
             </div>
 
+            <div class="fk-cols">
             {% for emp in employees %}
             <table class="fk-tbl">
               <thead>
@@ -124,8 +131,8 @@
                 <tr class="hdr">
                   <th>Hari</th>
                   <th>Tanggal</th>
-                  <th class="r">Jam Masuk</th>
-                  <th class="r">Jam Keluar</th>
+                  <th class="r">Masuk</th>
+                  <th class="r">Keluar</th>
                   <th class="r">Status</th>
                 </tr>
               </thead>
@@ -165,6 +172,7 @@
             {% else %}
             <p>Tidak ada karyawan yang cocok.</p>
             {% endfor %}
+            </div>
 
             {% if employees|length > 1 %}
             <div class="fk-total-qty">💰 GRAND TOTAL GAJI SEMUA KARYAWAN: Rp {{ "{:,}".format(grand_total_salary).replace(",",".") }}</div>
