@@ -3333,6 +3333,7 @@ def get_fin_invoice_detail(txn_id):
         _ensure_fin_discount_breakdown_schema(cur)
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
         conn.commit()
 
         cur.execute("""
@@ -3412,6 +3413,24 @@ def get_fin_invoice_detail(txn_id):
         """, (txn_id,))
         related_expenses = [dict(r) for r in cur.fetchall()]
 
+        # Sisa DP (dp_excess) nota ini yang masih terbuka, kalau ada -- 1
+        # baris fin_debts reason='TITIP_DANA' yang dibuat bareng nota ini
+        # (lihat create_fin_invoice/create_fin_purchase_invoice). Angka ini
+        # sama artinya baik ditampilkan sbg "Sisa Saldo" (tersimpan, bisa
+        # dipotong otomatis nota berikutnya) MAUPUN "Kembalian" (kalau
+        # kasir memilih langsung mengembalikan tunai) -- sistem tidak
+        # memutuskan salah satu, cukup tampilkan dua-duanya di nota supaya
+        # kasir bebas pilih di lapangan (lihat invoice_print.html).
+        cur.execute("""
+            SELECT remaining
+            FROM fin_debts
+            WHERE transaction_id = %s AND reason = 'TITIP_DANA'
+            ORDER BY id ASC LIMIT 1;
+        """, (txn_id,))
+        dp_excess_row = cur.fetchone()
+        dp_excess_remaining = float(dp_excess_row["remaining"] or 0) if dp_excess_row else 0.0
+        dp_excess = dp_excess_remaining if dp_excess_remaining > 0.01 else None
+
         invoice = {
             "id": row["id"],
             "nota_type": nota_type,
@@ -3427,6 +3446,7 @@ def get_fin_invoice_detail(txn_id):
             "reverse_subtotal": reverse_subtotal,
             "dp_amount": dp_amount,
             "ongkir_potongan_amount": ongkir_potongan_amount,
+            "dp_excess": dp_excess,
             "related_expenses": related_expenses,
             "grand_total": grand_total,
             "notes": extra_notes,

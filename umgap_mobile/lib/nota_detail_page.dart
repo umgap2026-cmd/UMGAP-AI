@@ -78,6 +78,7 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
         subtotal:        (inv['subtotal'] as num?)?.toDouble() ?? 0,
         reverseSubtotal: (inv['reverse_subtotal'] as num?)?.toDouble() ?? 0,
         grandTotal:      (inv['grand_total'] as num?)?.toDouble() ?? 0,
+        dpExcess:        (inv['dp_excess'] as num?)?.toDouble() ?? 0,
         items:           cartItems,
         isPaid:          inv['is_paid'] == true,
         isBeli:          isBeli,
@@ -391,6 +392,9 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
             _InfoRow('Pembayaran', inv['payment_method'] ?? '-'),
             if (inv['notes']?.toString().isNotEmpty == true)
               _InfoRow('Catatan', inv['notes']),
+            if ((inv['dp_excess'] as num?) != null && (inv['dp_excess'] as num).toDouble() > 0)
+              _InfoRow('Sisa DP',
+                  '${_rp((inv['dp_excess'] as num).toDouble())} -- bisa jadi Kembalian atau Sisa Saldo'),
           ]),
           const SizedBox(height: 14),
 
@@ -436,6 +440,12 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
               Text(_rp((inv['grand_total'] as num?)?.toDouble() ?? 0),
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: typeColor)),
             ]),
+            if ((inv['dp_excess'] as num?) != null && (inv['dp_excess'] as num).toDouble() > 0) ...[
+              const SizedBox(height: 8),
+              _SumRow('💵 Kembalian', _rp((inv['dp_excess'] as num).toDouble()), color: const Color(0xFF15803D)),
+              const SizedBox(height: 6),
+              _SumRow('💳 Sisa Saldo', _rp((inv['dp_excess'] as num).toDouble()), color: const Color(0xFFB45309)),
+            ],
           ]),
 
           if (!isCancelled) ...[

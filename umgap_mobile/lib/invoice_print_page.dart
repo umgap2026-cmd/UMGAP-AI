@@ -75,6 +75,7 @@ class InvoicePrintPage extends StatefulWidget {
   final double        subtotal;
   final double        reverseSubtotal;
   final double        grandTotal;
+  final double        dpExcess;
   final List<CartItem> items;
   final bool          isPaid;
   final bool          isBeli;
@@ -92,6 +93,7 @@ class InvoicePrintPage extends StatefulWidget {
     required this.grandTotal,
     required this.items,
     this.reverseSubtotal = 0,
+    this.dpExcess    = 0,
     this.isPaid      = true,
     this.isBeli      = false,
   });
@@ -456,8 +458,24 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                               : (isEven ? _pdfWhite : _pdfGrey)),
                       children: [
                         _td('${i + 1}', color: _pdfTextLt),
-                        _td(item.productName +
-                            (item.isReturn ? ' ($_reverseLabel)' : ''), bold: true),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 7),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(item.productName +
+                                  (item.isReturn ? ' ($_reverseLabel)' : ''),
+                                  style: pw.TextStyle(fontSize: 9,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: _pdfBlueDk)),
+                              if ((item.note ?? '').isNotEmpty)
+                                pw.Text(item.note!,
+                                    style: pw.TextStyle(fontSize: 7.5,
+                                        color: _pdfTextLt)),
+                            ],
+                          ),
+                        ),
                         _td('${_fmtQ(item.qty)} kg',
                             align: pw.TextAlign.center),
                         _td(_rp(item.price),
@@ -478,7 +496,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                 children: [
                   // Catatan
                   pw.Expanded(
-                    child: widget.notes.isNotEmpty
+                    child: (widget.notes.isNotEmpty || widget.dpExcess > 0)
                         ? pw.Container(
                       padding: const pw.EdgeInsets.all(12),
                       decoration: pw.BoxDecoration(
@@ -494,10 +512,23 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                                     fontWeight: pw.FontWeight.bold,
                                     color: _pdfTextLt, letterSpacing: 1)),
                             pw.SizedBox(height: 6),
-                            pw.Text(widget.notes,
-                                style: pw.TextStyle(
-                                    fontSize: 10,
-                                    color: _pdfTextMid)),
+                            if (widget.notes.isNotEmpty)
+                              pw.Text(widget.notes,
+                                  style: pw.TextStyle(
+                                      fontSize: 10,
+                                      color: _pdfTextMid)),
+                            if (widget.dpExcess > 0)
+                              pw.Padding(
+                                padding: pw.EdgeInsets.only(
+                                    top: widget.notes.isNotEmpty ? 6 : 0),
+                                child: pw.Text(
+                                  'Sisa DP ${_rp(widget.dpExcess)} — bisa jadi Kembalian '
+                                  '(dikembalikan tunai) atau Sisa Saldo (dipotong '
+                                  'otomatis di nota berikutnya).',
+                                  style: pw.TextStyle(
+                                      fontSize: 10, color: _pdfTextMid),
+                                ),
+                              ),
                           ]),
                     )
                         : pw.SizedBox(),
@@ -540,6 +571,13 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
                           ],
                         ),
                       ),
+                      if (widget.dpExcess > 0) ...[
+                        pw.SizedBox(height: 6),
+                        _totalRowColor('💵 Kembalian',
+                            _rp(widget.dpExcess), _pdfSuccess),
+                        _totalRowColor('💳 Sisa Saldo',
+                            _rp(widget.dpExcess), _pdfOrange),
+                      ],
                     ]),
                   ),
                 ],
@@ -688,48 +726,51 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
           )),
           if (_companyAddr.isNotEmpty)
             pw.Center(child: pw.Text(_companyAddr,
-                style: pw.TextStyle(fontSize: 8),
+                style: pw.TextStyle(fontSize: 9),
                 textAlign: pw.TextAlign.center)),
           if (_companyPhone.isNotEmpty)
             pw.Center(child: pw.Text('Telp: $_companyPhone',
-                style: pw.TextStyle(fontSize: 8),
+                style: pw.TextStyle(fontSize: 9),
                 textAlign: pw.TextAlign.center)),
           pw.Divider(),
           pw.Center(child: pw.Text('NOTA TRANSAKSI',
-              style: pw.TextStyle(fontSize: 10,
+              style: pw.TextStyle(fontSize: 11,
                   fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.center)),
           pw.Center(child: pw.Text(_dateStr,
-              style: pw.TextStyle(fontSize: 8),
+              style: pw.TextStyle(fontSize: 9),
               textAlign: pw.TextAlign.center)),
           pw.Divider(),
           if (widget.customerName.isNotEmpty)
             pw.Text('Kepada  : ${widget.customerName}',
-                style: pw.TextStyle(fontSize: 9)),
+                style: pw.TextStyle(fontSize: 10)),
           if (widget.customerPhone.isNotEmpty)
             pw.Text('HP      : ${widget.customerPhone}',
-                style: pw.TextStyle(fontSize: 8)),
+                style: pw.TextStyle(fontSize: 9)),
           pw.Text('No. Nota: ${widget.invoiceNo}',
-              style: pw.TextStyle(fontSize: 8)),
+              style: pw.TextStyle(fontSize: 9)),
           pw.Divider(),
           ...widget.items.map((item) => pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            padding: const pw.EdgeInsets.symmetric(vertical: 3),
             child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(item.productName +
                       (item.isReturn ? ' ($_reverseLabel)' : ''),
-                      style: pw.TextStyle(fontSize: 9,
+                      style: pw.TextStyle(fontSize: 10,
                           fontWeight: pw.FontWeight.bold)),
+                  if ((item.note ?? '').isNotEmpty)
+                    pw.Text(item.note!,
+                        style: pw.TextStyle(fontSize: 8, color: _pdfTextLt)),
                   pw.Row(
                       mainAxisAlignment:
                       pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(
                             '${_fmtQ(item.qty)} kg x ${_rp(item.price)}',
-                            style: pw.TextStyle(fontSize: 8)),
+                            style: pw.TextStyle(fontSize: 9.5)),
                         pw.Text((item.isReturn ? '- ' : '') + _rp(item.subtotal),
-                            style: pw.TextStyle(fontSize: 8,
+                            style: pw.TextStyle(fontSize: 9.5,
                                 fontWeight: pw.FontWeight.bold)),
                       ]),
                 ]),
@@ -739,65 +780,93 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text('Subtotal',
-                    style: pw.TextStyle(fontSize: 8)),
+                    style: pw.TextStyle(fontSize: 9.5)),
                 pw.Text(_rp(widget.subtotal),
-                    style: pw.TextStyle(fontSize: 8)),
+                    style: pw.TextStyle(fontSize: 9.5)),
               ]),
           if (widget.reverseSubtotal > 0)
             pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('Barang $_reverseLabel',
-                      style: pw.TextStyle(fontSize: 8)),
+                      style: pw.TextStyle(fontSize: 9.5)),
                   pw.Text('- ${_rp(widget.reverseSubtotal)}',
-                      style: pw.TextStyle(fontSize: 8)),
+                      style: pw.TextStyle(fontSize: 9.5)),
                 ]),
           if (widget.discount > 0)
             pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('Diskon',
-                      style: pw.TextStyle(fontSize: 8)),
+                      style: pw.TextStyle(fontSize: 9.5)),
                   pw.Text('- ${_rp(widget.discount)}',
-                      style: pw.TextStyle(fontSize: 8)),
+                      style: pw.TextStyle(fontSize: 9.5)),
                 ]),
           pw.Divider(thickness: 1.5),
           pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text('TOTAL',
-                    style: pw.TextStyle(fontSize: 11,
+                    style: pw.TextStyle(fontSize: 13,
                         fontWeight: pw.FontWeight.bold)),
                 pw.Text(_rp(widget.grandTotal),
-                    style: pw.TextStyle(fontSize: 11,
+                    style: pw.TextStyle(fontSize: 13,
                         fontWeight: pw.FontWeight.bold)),
               ]),
+          if (widget.dpExcess > 0) ...[
+            pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Kembalian',
+                      style: pw.TextStyle(fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold, color: _pdfSuccess)),
+                  pw.Text(_rp(widget.dpExcess),
+                      style: pw.TextStyle(fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold, color: _pdfSuccess)),
+                ]),
+            pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Sisa Saldo',
+                      style: pw.TextStyle(fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold, color: _pdfOrange)),
+                  pw.Text(_rp(widget.dpExcess),
+                      style: pw.TextStyle(fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold, color: _pdfOrange)),
+                ]),
+          ],
           pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text('Bayar',
-                    style: pw.TextStyle(fontSize: 8)),
+                    style: pw.TextStyle(fontSize: 9.5)),
                 pw.Text(widget.paymentMethod,
-                    style: pw.TextStyle(fontSize: 8)),
+                    style: pw.TextStyle(fontSize: 9.5)),
               ]),
-          if (widget.notes.isNotEmpty) ...[
+          if (widget.notes.isNotEmpty || widget.dpExcess > 0) ...[
             pw.Divider(),
-            pw.Center(child: pw.Text(widget.notes,
-                style: pw.TextStyle(fontSize: 8),
-                textAlign: pw.TextAlign.center)),
+            if (widget.notes.isNotEmpty)
+              pw.Center(child: pw.Text(widget.notes,
+                  style: pw.TextStyle(fontSize: 9),
+                  textAlign: pw.TextAlign.center)),
+            if (widget.dpExcess > 0)
+              pw.Center(child: pw.Text(
+                  'Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo',
+                  style: pw.TextStyle(fontSize: 9),
+                  textAlign: pw.TextAlign.center)),
           ],
           pw.SizedBox(height: 6),
           pw.Center(
             child: pw.Text(
               widget.isPaid ? '*** LUNAS ***' : '[ BELUM LUNAS ]',
-              style: pw.TextStyle(fontSize: 10,
+              style: pw.TextStyle(fontSize: 12,
                   fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.center,
             ),
           ),
           pw.SizedBox(height: 6),
           pw.Center(child: pw.Text('-- Terima Kasih --',
-              style: pw.TextStyle(fontSize: 9,
+              style: pw.TextStyle(fontSize: 10,
                   fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.center)),
           pw.SizedBox(height: 4),
@@ -915,21 +984,36 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       final nameStr = rawName.length > W
           ? '${rawName.substring(0, W - 2)}..'
           : rawName;
+      // height:size2 + width:size1 = tulisan lebih TINGGI/besar tanpa
+      // nambah lebar per karakter -- jumlah karakter per baris (W) tetap
+      // sama, jadi tidak akan kepotong/kepanjangan dari lebar kertas.
       bytes += generator.text(nameStr,
-          styles: const PosStyles(bold: true));
+          styles: const PosStyles(bold: true,
+              height: PosTextSize.size2, width: PosTextSize.size1));
       final left  = '  ${_fmtQ(item.qty)}kg x ${_rpNoPrefix(item.price)}';
       final right = (item.isReturn ? '-' : '') + _rpNoPrefix(item.subtotal);
-      bytes += generator.text(lr(left, right));
+      bytes += generator.text(lr(left, right),
+          styles: const PosStyles(bold: true,
+              height: PosTextSize.size2, width: PosTextSize.size1));
+      if ((item.note ?? '').isNotEmpty) {
+        for (final l in wrap('  ${item.note}')) {
+          bytes += generator.text(l);
+        }
+      }
     }
     bytes += generator.text(dash('-'));
 
+    const sz2h1 = PosStyles(bold: true,
+        height: PosTextSize.size2, width: PosTextSize.size1);
+
     // ── SUBTOTAL ─────────────────────────────
-    bytes += generator.text(lr('Subtotal', _rp(widget.subtotal)));
+    bytes += generator.text(lr('Subtotal', _rp(widget.subtotal)), styles: sz2h1);
     if (widget.reverseSubtotal > 0) {
-      bytes += generator.text(lr('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}'));
+      bytes += generator.text(
+          lr('Barang $_reverseLabel', '- ${_rp(widget.reverseSubtotal)}'), styles: sz2h1);
     }
     if (widget.discount > 0) {
-      bytes += generator.text(lr('Diskon', '- ${_rp(widget.discount)}'));
+      bytes += generator.text(lr('Diskon', '- ${_rp(widget.discount)}'), styles: sz2h1);
     }
     bytes += generator.text(dash('='));
 
@@ -938,22 +1022,38 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
         styles: const PosStyles(
             align: PosAlign.left, bold: true,
             height: PosTextSize.size2, width: PosTextSize.size2));
-    // Total amount di baris berikut, rata kanan
+    // Total amount di baris berikut, rata kanan -- padding dihitung pakai
+    // W (lebar normal) krn width msh size1, cuma height yg size2, jadi
+    // jumlah karakter per baris tidak berubah.
     final totalStr = _rp(widget.grandTotal);
     final totalPad = W - totalStr.length;
     bytes += generator.text(
         totalPad > 0 ? ' ' * totalPad + totalStr : totalStr,
-        styles: const PosStyles(bold: true));
+        styles: sz2h1);
+
+    if (widget.dpExcess > 0) {
+      bytes += generator.text(lr('Kembalian', _rpNoPrefix(widget.dpExcess)), styles: sz2h1);
+      bytes += generator.text(lr('Sisa Saldo', _rpNoPrefix(widget.dpExcess)), styles: sz2h1);
+    }
 
     bytes += generator.text(dash('-'));
     bytes += generator.text(lr('Bayar', widget.paymentMethod));
 
     // ── CATATAN ──────────────────────────────
-    if (widget.notes.isNotEmpty) {
+    if (widget.notes.isNotEmpty || widget.dpExcess > 0) {
       bytes += generator.text(dash('-'));
-      for (final l in wrap(widget.notes)) {
-        bytes += generator.text(l,
-            styles: const PosStyles(align: PosAlign.center));
+      if (widget.notes.isNotEmpty) {
+        for (final l in wrap(widget.notes)) {
+          bytes += generator.text(l,
+              styles: const PosStyles(align: PosAlign.center));
+        }
+      }
+      if (widget.dpExcess > 0) {
+        for (final l in wrap(
+            'Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo')) {
+          bytes += generator.text(l,
+              styles: const PosStyles(align: PosAlign.center));
+        }
       }
     }
 
@@ -1204,6 +1304,8 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
         return [
           _ThermalLine(n, bold: true),
           _ThermalLine(lr(left, right)),
+          if ((item.note ?? '').isNotEmpty)
+            ...wrap('  ${item.note}').map((l) => _ThermalLine(l, small: true)),
         ];
       }),
       _ThermalLine(dash('-')),
@@ -1216,12 +1318,20 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
       // TOTAL baris sendiri
       _ThermalLine('TOTAL', bold: true, size: 2, isCenter: false),
       _ThermalLine(_rp(widget.grandTotal), bold: true, size: 2, isRight: true),
+      if (widget.dpExcess > 0) ...[
+        _ThermalLine(lr('Kembalian', _rpNoPrefix(widget.dpExcess)), bold: true),
+        _ThermalLine(lr('Sisa Saldo', _rpNoPrefix(widget.dpExcess)), bold: true),
+      ],
       _ThermalLine(dash('-')),
       _ThermalLine(lr('Bayar', widget.paymentMethod)),
-      if (widget.notes.isNotEmpty) ...[
+      if (widget.notes.isNotEmpty || widget.dpExcess > 0) ...[
         _ThermalLine(dash('-')),
-        ...wrap(widget.notes).map((l) =>
-            _ThermalLine(l, isCenter: true)),
+        if (widget.notes.isNotEmpty)
+          ...wrap(widget.notes).map((l) =>
+              _ThermalLine(l, isCenter: true)),
+        if (widget.dpExcess > 0)
+          ...wrap('Sisa DP ${_rp(widget.dpExcess)}: Kembalian atau Sisa Saldo')
+              .map((l) => _ThermalLine(l, isCenter: true)),
       ],
       _ThermalLine(dash('=')),
       _ThermalLine(

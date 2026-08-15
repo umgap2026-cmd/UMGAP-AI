@@ -492,6 +492,20 @@
               Rp {{ "{:,}".format(invoice.grand_total).replace(",",".") }}
             </td>
           </tr>
+          {% if invoice.dp_excess %}
+          <tr>
+            <td colspan="3" class="lbl" style="color:#15803d">💵 Kembalian</td>
+            <td colspan="2" style="color:#15803d; font-weight:700">
+              Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }}
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3" class="lbl" style="color:#b45309">💳 Sisa Saldo</td>
+            <td colspan="2" style="color:#b45309; font-weight:700">
+              Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }}
+            </td>
+          </tr>
+          {% endif %}
         </tfoot>
       </table>
 
@@ -504,10 +518,15 @@
       </div>
       {% endif %}
 
-      {% if invoice.notes %}
+      {% if invoice.notes or invoice.dp_excess %}
       <div class="notes-box">
         <div class="notes-lbl">📝 Catatan</div>
-        <div class="notes-txt">{{ invoice.notes }}</div>
+        {% if invoice.notes %}<div class="notes-txt">{{ invoice.notes }}</div>{% endif %}
+        {% if invoice.dp_excess %}
+        <div class="notes-txt"{{ ' style="margin-top:6px"' | safe if invoice.notes else '' }}>
+          💰 Sisa DP Rp {{ "{:,}".format(invoice.dp_excess|round|int).replace(",",".") }} — bisa jadi <strong>Kembalian</strong> (dikembalikan tunai sekarang) atau <strong>Sisa Saldo</strong> (dipotong otomatis di nota berikutnya).
+        </div>
+        {% endif %}
       </div>
       {% endif %}
 
