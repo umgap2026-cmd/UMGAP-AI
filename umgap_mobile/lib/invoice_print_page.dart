@@ -19,8 +19,13 @@ import 'invoice_page.dart';
 //  TOP-LEVEL HELPERS
 // ════════════════════════════════════════════
 
-String _fmtQ(double q) =>
-    q == q.truncateToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
+String _fmtQ(double q) {
+  if (q == q.truncateToDouble()) return q.toInt().toString();
+  // Buang nol berlebih di belakang koma (0.50 -> 0.5, bukan tetap 0.50).
+  return q.toStringAsFixed(2)
+      .replaceAll(RegExp(r'0+$'), '')
+      .replaceAll(RegExp(r'\.$'), '');
+}
 
 String _rp(num v) =>
     'Rp ${v.toStringAsFixed(0).replaceAllMapped(
