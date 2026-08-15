@@ -7,7 +7,6 @@ from db import get_conn
 from core import (
     admin_required, is_logged_in, _parse_date,
     get_payroll_report, add_payroll_adjustment, delete_payroll_adjustment,
-    record_payroll_payment,
 )
 
 
@@ -37,53 +36,32 @@ def admin_payroll():
     if deny:
         return deny
 
-    mode = (request.args.get("mode") or "month").strip().lower()
-    if mode not in ("month", "week"):
-        mode = "month"
+    # Payroll web SELALU mingguan (Senin-Sabtu) -- mode bulanan sengaja
+    # dihapus, supaya potongan/bonus per hari selalu jelas termasuk di
+    # minggu yang mana, tidak ambigu spt saat masih ada mode bulanan.
+    week_start, week_end = _week_range(request.args.get("week", ""))
+    start_date = week_start
+    end_date = week_end  # inklusif, Senin..Sabtu
 
-    month = request.args.get("month")
-    if not month:
-        today = date.today()
-        month = f"{today.year:04d}-{today.month:02d}"
+    # Minggu berjalan (belum selesai) -> hari kerja cuma sampai hari ini
+    # yg ditampilkan di stat pill, sama spt /payslip -- ini murni
+    # tampilan, tidak mengubah rumus gaji (selalu /26 utk gaji bulanan).
+    WORKDAYS_DISPLAY = 6
+    today = date.today()
+    if week_end > today:
+        WORKDAYS_DISPLAY = max(min((today - week_start).days + 1, 6), 0)
 
-    if mode == "week":
-        week_start, week_end = _week_range(request.args.get("week", ""))
-        start_date = week_start
-        end_date = week_end  # inklusif, Senin..Sabtu
-
-        # Minggu berjalan (belum selesai) -> hari kerja cuma sampai hari ini
-        # yg ditampilkan di stat pill, sama spt /payslip -- ini murni
-        # tampilan, tidak mengubah rumus gaji (mode week selalu /26).
-        WORKDAYS_DISPLAY = 6
-        today = date.today()
-        if week_end > today:
-            WORKDAYS_DISPLAY = max(min((today - week_start).days + 1, 6), 0)
-
-        period_label = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
-    else:
-        year = int(month.split("-")[0])
-        mon = int(month.split("-")[1])
-
-        start_date = date(year, mon, 1)
-        end_date_exclusive = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
-        end_date = end_date_exclusive - timedelta(days=1)  # inklusif
-
-        WORKDAYS_DISPLAY = None  # dihitung dari get_payroll_report di bawah
-        week_start = week_end = None
-        period_label = month
+    period_label = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
 
     result, workdays = get_payroll_report(start_date, end_date)
-    if WORKDAYS_DISPLAY is not None:
-        workdays = WORKDAYS_DISPLAY
+    workdays = WORKDAYS_DISPLAY
 
     return render_template(
         "admin_payroll.html",
-        mode=mode,
-        month=month,
         week_start=week_start,
         week_end=week_end,
-        prev_week=(week_start - timedelta(days=7)).isoformat() if week_start else "",
-        next_week=(week_start + timedelta(days=7)).isoformat() if week_start else "",
+        prev_week=(week_start - timedelta(days=7)).isoformat(),
+        next_week=(week_start + timedelta(days=7)).isoformat(),
         period_label=period_label,
         start_date=start_date,
         end_date=end_date,
@@ -93,15 +71,11 @@ def admin_payroll():
 
 
 def _payroll_redirect_url():
-    """Balik ke halaman Gaji Karyawan dgn periode (mode/month/week) yg lagi
-    dibuka -- dikirim form sbg hidden field spy admin tidak ke-reset ke
-    periode default habis nambah penyesuaian / bayar gaji."""
-    mode = (request.form.get("mode") or "month").strip().lower()
-    if mode == "week":
-        week = (request.form.get("week") or "").strip()
-        return f"/admin/payroll?mode=week&week={week}"
-    month = (request.form.get("month") or "").strip()
-    return f"/admin/payroll?mode=month&month={month}"
+    """Balik ke halaman Gaji Karyawan dgn minggu yg lagi dibuka -- dikirim
+    form sbg hidden field spy admin tidak ke-reset ke minggu berjalan
+    habis nambah/hapus penyesuaian."""
+    week = (request.form.get("week") or "").strip()
+    return f"/admin/payroll?week={week}"
 
 
 @payroll_bp.route("/admin/payroll/adjustments/add", methods=["POST"])
@@ -154,36 +128,6 @@ def admin_payroll_adjustment_delete(adjustment_id):
         flash(str(e), "danger")
 
     return redirect(_payroll_redirect_url())
-
-
-@payroll_bp.route("/admin/payroll/pay", methods=["POST"])
-def admin_payroll_pay():
-    deny = admin_required()
-    if deny:
-        return deny
-
-    try:
-        user_id = int(request.form.get("user_id"))
-        employee_name = request.form.get("employee_name") or "-"
-        period_start = _parse_date(request.form.get("period_start"))
-        period_end = _parse_date(request.form.get("period_end"))
-        amount = float(request.form.get("amount") or 0)
-    except (TypeError, ValueError):
-        flash("Data pembayaran tidak valid.", "danger")
-        return redirect(_payroll_redirect_url())
-
-    try:
-        record_payroll_payment(
-            user_id=user_id, employee_name=employee_name,
-            period_start=period_start, period_end=period_end,
-            amount=amount, created_by=session.get("user_id"),
-        )
-        flash(f"Gaji {employee_name} dicatat sbg Beban di Finance.", "success")
-    except ValueError as e:
-        flash(str(e), "danger")
-
-    return redirect(_payroll_redirect_url())
-
 
 
 @payroll_bp.route("/payslip")

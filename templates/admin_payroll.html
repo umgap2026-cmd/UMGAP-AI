@@ -210,7 +210,7 @@
     color: var(--muted);
     font-weight: 800;
   }
-  input[type="month"] {
+  input[type="date"] {
     width: 100%;
     border: none;
     outline: none;
@@ -238,30 +238,6 @@
     margin-top: 10px;
   }
 
-  /* ── mode toggle: Bulanan / Mingguan ── */
-  .mode-toggle {
-    display: flex;
-    gap: 8px;
-  }
-  .mode-toggle-btn {
-    flex: 1;
-    border: none;
-    border-radius: 12px;
-    padding: 11px 8px;
-    font-size: 13px;
-    font-weight: 900;
-    background: #f2f5fb;
-    box-shadow: var(--soft-in);
-    color: var(--muted);
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .mode-toggle-btn.active {
-    background: linear-gradient(180deg, var(--blue) 0%, #1d4ed8 100%);
-    color: #fff;
-    box-shadow: 0 8px 16px rgba(41, 83, 126, 0.22);
-  }
   .week-nav {
     display: flex;
     gap: 8px;
@@ -423,13 +399,6 @@
     line-height: 1.3;
   }
   .padj-hint { font-size: 10.5px; color: var(--blue); font-weight: 800; margin-top: 2px; }
-  .ppaid-status {
-    font-size: 10px;
-    font-weight: 900;
-    margin-top: 4px;
-    color: #d97706;
-  }
-  .ppaid-status.paid { color: #15803d; }
   .pstats {
     margin-top: 10px;
     display: flex;
@@ -565,30 +534,6 @@
   .psum-row.total { font-size: 15px; font-weight: 1000; color: var(--text); border-top: 1px dashed rgba(125,138,166,0.3); margin-top: 6px; padding-top: 8px; }
   .psum-row .neg { color: #dc2626; }
   .psum-row .pos { color: #15803d; }
-
-  .pay-box {
-    margin-top: 12px;
-    background: rgba(21,128,61,0.08);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 12px;
-    font-weight: 800;
-    color: #15803d;
-  }
-  .btn-pay {
-    width: 100%;
-    margin-top: 12px;
-    border: none;
-    border-radius: 12px;
-    padding: 13px;
-    font-weight: 900;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: inherit;
-    background: linear-gradient(180deg, #16a34a 0%, #14532d 100%);
-    color: #fff;
-    box-shadow: 0 10px 20px rgba(22,163,74,0.24);
-  }
 </style>
 
 <div class="screen">
@@ -635,10 +580,14 @@
     <!-- INTRO -->
     <div class="main-card">
       <div class="inner">
-        <h2 class="title">Payroll</h2>
+        <h2 class="title">Payroll Mingguan</h2>
         <p class="desc">
-          Hitung gaji berdasarkan <b>gaji harian × jumlah hadir</b>.
+          Hitung gaji berdasarkan <b>gaji harian × jumlah hadir</b>, per minggu (Senin–Sabtu).
         </p>
+        <a class="btn-primary" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px"
+           href="/admin/data/range_print?start_date={{ start_date.isoformat() }}&end_date={{ end_date.isoformat() }}">
+          🖨️ Print Rekap Minggu Ini
+        </a>
       </div>
     </div>
 
@@ -649,7 +598,7 @@
     <div class="stat-row">
       <div class="stat-pill">
         <div class="s-num">{{ period_label }}</div>
-        <div class="s-lbl">{{ 'Minggu' if mode == 'week' else 'Bulan' }}</div>
+        <div class="s-lbl">Minggu</div>
       </div>
       <div class="stat-pill blue">
         <div class="s-num">{{ workdays }}</div>
@@ -663,7 +612,7 @@
         <div class="s-num">
           Rp {{ "{:,}".format(ns.total).replace(",",".") }}
         </div>
-        <div class="s-lbl">Total Dibayar</div>
+        <div class="s-lbl">Total Gaji</div>
       </div>
     </div>
 
@@ -672,50 +621,22 @@
       <!-- Filter -->
       <div class="main-card">
         <div class="inner">
-          <h2 class="title">Filter Periode</h2>
-          <p class="desc">Pilih bulanan atau mingguan untuk melihat data payroll.</p>
+          <h2 class="title">Pilih Minggu</h2>
+          <p class="desc">Payroll dihitung per minggu (Senin–Sabtu).</p>
           <div class="divider"></div>
 
-          <div class="mode-toggle">
-            <button
-              type="button"
-              class="mode-toggle-btn{{ ' active' if mode != 'week' else '' }}"
-              onclick="setPayrollMode('month')"
-            >
-              📅 Bulanan
-            </button>
-            <button
-              type="button"
-              class="mode-toggle-btn{{ ' active' if mode == 'week' else '' }}"
-              onclick="setPayrollMode('week')"
-            >
-              🗓️ Mingguan
-            </button>
-          </div>
-
           <form method="GET" action="/admin/payroll" id="payrollFilterForm">
-            <input type="hidden" name="mode" id="payrollModeInput" value="{{ mode }}" />
-
-            <div id="monthFilterGroup" style="display: {{ 'none' if mode == 'week' else 'block' }}">
-              <label>Pilih Bulan</label>
-              <input type="month" name="month" value="{{ month }}" {{ '' if mode == 'week' else 'required' }} />
-            </div>
-
-            <div id="weekFilterGroup" style="display: {{ 'block' if mode == 'week' else 'none' }}">
-              <label>Pilih Tanggal di Minggu Itu</label>
-              <input
-                type="date"
-                name="week"
-                value="{{ week_start.isoformat() if week_start else '' }}"
-                {{ 'required' if mode == 'week' else '' }}
-              />
-              {% if mode == 'week' %}
-              <div class="week-nav">
-                <a class="week-nav-btn" href="/admin/payroll?mode=week&week={{ prev_week }}">←</a>
-                <div class="week-label">{{ period_label }}</div>
-                <a class="week-nav-btn" href="/admin/payroll?mode=week&week={{ next_week }}">→</a>
-              </div>
-              {% endif %}
+            <label>Pilih Tanggal di Minggu Itu</label>
+            <input
+              type="date"
+              name="week"
+              value="{{ week_start.isoformat() if week_start else '' }}"
+              required
+            />
+            <div class="week-nav">
+              <a class="week-nav-btn" href="/admin/payroll?week={{ prev_week }}">←</a>
+              <div class="week-label">{{ period_label }}</div>
+              <a class="week-nav-btn" href="/admin/payroll?week={{ next_week }}">→</a>
             </div>
 
             <button class="btn-primary" type="submit">Tampilkan</button>
@@ -726,28 +647,13 @@
         </div>
       </div>
 
-      <script>
-        function setPayrollMode(mode) {
-          document.getElementById("payrollModeInput").value = mode;
-          document.getElementById("monthFilterGroup").style.display = mode === "week" ? "none" : "block";
-          document.getElementById("weekFilterGroup").style.display = mode === "week" ? "block" : "none";
-          document.querySelectorAll(".mode-toggle-btn").forEach(function (b) {
-            b.classList.toggle("active", b.textContent.trim().includes(mode === "week" ? "Mingguan" : "Bulanan"));
-          });
-          var monthInp = document.querySelector('input[name="month"]');
-          var weekInp = document.querySelector('input[name="week"]');
-          if (monthInp) monthInp.required = mode !== "week";
-          if (weekInp) weekInp.required = mode === "week";
-        }
-      </script>
-
       <!-- Data -->
       <div class="main-card">
         <div class="inner">
           <h2 class="title">Daftar Payroll</h2>
           <p class="desc">
-            {{ 'Rekap gaji karyawan minggu ' ~ period_label ~ '.' if mode == 'week' else 'Rekap gaji karyawan bulan ' ~ month ~ '.' }}
-            Ketuk nama utk lihat rincian absen jam masuk/keluar, tambah potongan/bonus, & catat pembayaran.
+            Rekap gaji karyawan minggu {{ period_label }}.
+            Ketuk nama utk lihat rincian absen jam masuk/keluar & tambah potongan/bonus per hari.
           </p>
           <div class="divider"></div>
 
@@ -771,11 +677,6 @@
                       {{ 'Bonus' if r.adjustments_total > 0 else 'Potongan' }}
                       Rp {{ "{:,}".format(r.adjustments_total|abs|round|int).replace(",",".") }}
                     </div>
-                    {% endif %}
-                    {% if r.payment %}
-                    <div class="ppaid-status paid">✅ Dibayar</div>
-                    {% else %}
-                    <div class="ppaid-status">⏳ Belum dibayar</div>
                     {% endif %}
                   </div>
                 </div>
@@ -821,8 +722,6 @@
                     {{ '+' if a.amount > 0 else '-' }}Rp {{ "{:,}".format(a.amount|abs|round|int).replace(",",".") }}
                   </div>
                   <form method="POST" action="/admin/payroll/adjustments/{{ a.id }}/delete" onsubmit="return confirm('Hapus penyesuaian ini?');">
-                    <input type="hidden" name="mode" value="{{ mode }}" />
-                    <input type="hidden" name="month" value="{{ month }}" />
                     <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
                     <button type="submit" class="padj-del" title="Hapus">✕</button>
                   </form>
@@ -837,8 +736,6 @@
                     <span>▾</span>
                   </summary>
                   <form method="POST" action="/admin/payroll/adjustments/add" class="add-form">
-                    <input type="hidden" name="mode" value="{{ mode }}" />
-                    <input type="hidden" name="month" value="{{ month }}" />
                     <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
                     <input type="hidden" name="user_id" value="{{ r.id }}" />
 
@@ -867,24 +764,6 @@
                   {% endif %}
                   <div class="psum-row total"><span>TOTAL</span><span>Rp {{ "{:,}".format(r.final_total|round|int).replace(",",".") }}</span></div>
                 </div>
-
-                {% if r.payment %}
-                <div class="pay-box">
-                  ✅ Sudah dibayar Rp {{ "{:,}".format(r.payment.amount|round|int).replace(",",".") }} pada {{ r.payment.paid_at_wib }} — tercatat sbg Beban "Gaji Karyawan" di Finance.
-                </div>
-                {% elif r.final_total > 0 %}
-                <form method="POST" action="/admin/payroll/pay" onsubmit="return confirm('Catat gaji {{ r.name }} sebesar Rp {{ "{:,}".format(r.final_total|round|int).replace(",",".") }} sbg Beban di Finance?');">
-                  <input type="hidden" name="mode" value="{{ mode }}" />
-                  <input type="hidden" name="month" value="{{ month }}" />
-                  <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
-                  <input type="hidden" name="user_id" value="{{ r.id }}" />
-                  <input type="hidden" name="employee_name" value="{{ r.name }}" />
-                  <input type="hidden" name="period_start" value="{{ start_date.isoformat() }}" />
-                  <input type="hidden" name="period_end" value="{{ end_date.isoformat() }}" />
-                  <input type="hidden" name="amount" value="{{ r.final_total }}" />
-                  <button type="submit" class="btn-pay">💰 Bayar &amp; Catat ke Beban</button>
-                </form>
-                {% endif %}
               </div>
             </details>
             {% else %}

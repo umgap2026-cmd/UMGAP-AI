@@ -160,11 +160,6 @@
                   <td colspan="4" class="grand-lbl">TOTAL GAJI</td>
                   <td class="grand r">Rp {{ "{:,}".format(emp.final_total|round|int).replace(",",".") }}</td>
                 </tr>
-                <tr>
-                  <td colspan="5" class="lbl">
-                    {% if emp.payment %}✅ Sudah dibayar ({{ emp.payment.paid_at_wib }}){% else %}⏳ Belum dibayar{% endif %}
-                  </td>
-                </tr>
               </tfoot>
             </table>
             {% else %}
