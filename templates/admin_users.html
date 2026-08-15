@@ -206,10 +206,6 @@
     background: linear-gradient(135deg,#6d28d9,#7c3aed);
     box-shadow:0 8px 18px rgba(109,40,217,.28);
   }
-  .role-opt input[type="checkbox"]:checked + label {
-    background: linear-gradient(135deg,#059669,#047857);
-    color:#fff; box-shadow:0 8px 18px rgba(5,150,105,.28);
-  }
 
   .btn-submit {
     display:flex; align-items:center; justify-content:center; gap:8px;
@@ -516,23 +512,6 @@
               </div>
             </div>
 
-            {% if session.get('role') == 'owner' %}
-            <div class="ssec" style="margin-bottom:12px;">
-              <div class="ssec-lbl">Akses Fitur (khusus Owner)</div>
-              <div class="role-toggle" style="gap:8px;">
-                <div class="role-opt">
-                  <input type="checkbox" name="can_access_points" id="add-can-points" value="1" checked style="position:absolute;opacity:0;width:0;height:0;" />
-                  <label for="add-can-points">🌟 Akses Poin</label>
-                </div>
-                <div class="role-opt">
-                  <input type="checkbox" name="can_access_payroll" id="add-can-payroll" value="1" checked style="position:absolute;opacity:0;width:0;height:0;" />
-                  <label for="add-can-payroll">💰 Akses Gaji</label>
-                </div>
-              </div>
-              <div class="field-hint">Berlaku kalau role-nya Admin. Default aktif.</div>
-            </div>
-            {% endif %}
-
             <div class="divider"></div>
             <button class="btn-submit" type="submit">
               <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
@@ -585,9 +564,7 @@
                         data-name="{{ u.name | e }}"
                         data-email="{{ u.email | e }}"
                         data-role="{{ u.role }}"
-                        data-salary="{{ u.daily_salary }}"
-                        data-can-points="{{ 'true' if u.can_access_points else 'false' }}"
-                        data-can-payroll="{{ 'true' if u.can_access_payroll else 'false' }}">
+                        data-salary="{{ u.daily_salary }}">
                   <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   Edit Data
                 </button>
@@ -647,9 +624,7 @@
                               data-name="{{ u.name | e }}"
                               data-email="{{ u.email | e }}"
                               data-role="{{ u.role }}"
-                              data-salary="{{ u.daily_salary }}"
-                              data-can-points="{{ 'true' if u.can_access_points else 'false' }}"
-                              data-can-payroll="{{ 'true' if u.can_access_payroll else 'false' }}">
+                              data-salary="{{ u.daily_salary }}">
                         <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         Edit
                       </button>
@@ -730,23 +705,6 @@
         </div>
       </div>
 
-      {% if session.get('role') == 'owner' %}
-      <div class="ssec">
-        <div class="ssec-lbl">Akses Fitur (khusus Owner)</div>
-        <div class="role-toggle" style="gap:8px;">
-          <div class="role-opt">
-            <input type="checkbox" name="can_access_points" id="ef-can-points" value="1" style="position:absolute;opacity:0;width:0;height:0;" />
-            <label for="ef-can-points">🌟 Akses Poin</label>
-          </div>
-          <div class="role-opt">
-            <input type="checkbox" name="can_access_payroll" id="ef-can-payroll" value="1" style="position:absolute;opacity:0;width:0;height:0;" />
-            <label for="ef-can-payroll">💰 Akses Gaji</label>
-          </div>
-        </div>
-        <div class="field-hint" style="margin-bottom:0;">Berlaku kalau role-nya Admin.</div>
-      </div>
-      {% endif %}
-
       <div class="ssec">
         <div class="ssec-lbl">Ganti Password (Opsional)</div>
         <div class="field" style="margin-bottom:0;">
@@ -814,8 +772,6 @@
     var email = btn.dataset.email || "";
     var role = btn.dataset.role || "employee";
     var salary = btn.dataset.salary || "0";
-    var canPoints = btn.dataset.canPoints !== "false";
-    var canPayroll = btn.dataset.canPayroll !== "false";
 
     shTitle.textContent = "Edit · " + name;
     document.getElementById("ef-name").value = name;
@@ -826,11 +782,6 @@
 
     document.getElementById("ef-emp").checked = (role !== "admin");
     document.getElementById("ef-adm").checked = (role === "admin");
-
-    var efCanPoints = document.getElementById("ef-can-points");
-    var efCanPayroll = document.getElementById("ef-can-payroll");
-    if (efCanPoints) efCanPoints.checked = canPoints;
-    if (efCanPayroll) efCanPayroll.checked = canPayroll;
 
     selfNote.style.display = (parseInt(uid, 10) === myId) ? "block" : "none";
 
@@ -915,7 +866,7 @@
 <div class="bottom-nav" data-bottom-nav>
   <div class="nav-bar" role="navigation" aria-label="Bottom navigation">
 
-    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') if session.get('role') == 'admin' else url_for('owner.owner_dashboard') }}">
+    <a class="nav-item" href="{{ url_for('admin.admin_dashboard') }}">
       <span class="nav-ico">
         <svg viewBox="0 0 24 24">
           <rect class="fill" x="3"  y="3"  width="8" height="8" rx="1.6"></rect>

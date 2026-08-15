@@ -52,8 +52,6 @@ def mobile_payroll():
 
     if request.mobile_user.get("role") not in ("admin", "owner"):
         return mobile_api_response(ok=False, message="Akses ditolak.", status_code=403)
-    if request.mobile_user.get("role") == "admin" and not request.mobile_user.get("can_access_payroll", True):
-        return mobile_api_response(ok=False, message="Akses ditolak. Fitur Gaji belum diaktifkan owner utk akun ini.", status_code=403)
 
     month = request.args.get("month")
     if not month:

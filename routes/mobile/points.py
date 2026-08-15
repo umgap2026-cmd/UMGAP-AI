@@ -15,8 +15,6 @@ def mobile_points():
 
     if request.mobile_user.get("role") != "admin":
         return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
-    if not request.mobile_user.get("can_access_points", True):
-        return mobile_api_response(ok=False, message="Akses ditolak. Fitur Poin belum diaktifkan owner utk akun ini.", status_code=403)
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -59,8 +57,6 @@ def mobile_points_add():
     admin = request.mobile_user
     if admin.get("role") != "admin":
         return mobile_api_response(ok=False, message="Akses ditolak. Hanya admin.", status_code=403)
-    if not admin.get("can_access_points", True):
-        return mobile_api_response(ok=False, message="Akses ditolak. Fitur Poin belum diaktifkan owner utk akun ini.", status_code=403)
 
     data = request.get_json(silent=True) or {}
     user_id = int(data.get("user_id"))

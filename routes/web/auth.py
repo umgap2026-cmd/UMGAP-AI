@@ -13,7 +13,7 @@ from db import get_conn
 from core import (
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, oauth, ensure_password_reset_schema,
     send_email, send_wa, _otp_hash, _public_ip, _otp_verify_rate_limited,
-    find_user_by_identifier, _ensure_admin_feature_access_schema,
+    find_user_by_identifier,
 )
 
 
@@ -81,11 +81,8 @@ def login():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_admin_feature_access_schema(cur)
-        conn.commit()
         cur.execute("""
-            SELECT id, name, email, password_hash, role,
-                   can_access_points, can_access_payroll
+            SELECT id, name, email, password_hash, role
             FROM users
             WHERE lower(email)=%s
             LIMIT 1;
@@ -101,8 +98,6 @@ def login():
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
     session["role"] = user.get("role", "employee")
-    session["can_access_points"] = bool(user.get("can_access_points", True))
-    session["can_access_payroll"] = bool(user.get("can_access_payroll", True))
 
     if session["role"] == "admin":
         return redirect("/admin/dashboard")
@@ -144,10 +139,8 @@ def google_callback():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        _ensure_admin_feature_access_schema(cur)
-        conn.commit()
         cur.execute("""
-            SELECT id, name, role, can_access_points, can_access_payroll
+            SELECT id, name, role
             FROM users
             WHERE lower(email)=%s
             LIMIT 1;
@@ -169,7 +162,7 @@ def google_callback():
             cur.execute("""
                 INSERT INTO users (name, email, password_hash, role)
                 VALUES (%s, %s, %s, 'employee')
-                RETURNING id, name, role, can_access_points, can_access_payroll;
+                RETURNING id, name, role;
             """, (name, email, pw_hash))
             u = cur.fetchone()
 
@@ -182,8 +175,6 @@ def google_callback():
     session.clear()
     session["user_id"] = u["id"]
     session["user_name"] = u["name"]
-    session["can_access_points"] = bool(u.get("can_access_points", True))
-    session["can_access_payroll"] = bool(u.get("can_access_payroll", True))
     session["role"] = u["role"]
 
     if u["role"] == "admin":

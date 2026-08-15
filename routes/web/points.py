@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn
-from core import admin_points_required
+from core import admin_required
 
 points_bp = Blueprint("points", __name__)
 
@@ -12,7 +12,7 @@ POINTS_LOG_PAGE_SIZE = 50
 
 @points_bp.route("/admin/points")
 def admin_points():
-    deny = admin_points_required()
+    deny = admin_required()
     if deny:
         return deny
 
@@ -60,7 +60,7 @@ def admin_points():
 
 @points_bp.route("/admin/points/add", methods=["POST"])
 def admin_points_add():
-    deny = admin_points_required()
+    deny = admin_required()
     if deny:
         return deny
 
