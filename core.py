@@ -95,6 +95,33 @@ def admin_required():
         return redirect(url_for("dashboard.dashboard"))
     return None
 
+
+def _ensure_admin_feature_access_schema(cur):
+    cur.execute("""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_points  BOOLEAN NOT NULL DEFAULT TRUE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_payroll BOOLEAN NOT NULL DEFAULT TRUE;
+    """)
+
+
+def admin_points_required():
+    deny = admin_required()
+    if deny:
+        return deny
+    if not session.get("can_access_points", True):
+        flash("Akses ditolak. Fitur Poin belum diaktifkan owner utk akun ini.", "danger")
+        return redirect(url_for("dashboard.dashboard"))
+    return None
+
+
+def admin_payroll_required():
+    deny = admin_required()
+    if deny:
+        return deny
+    if not session.get("can_access_payroll", True):
+        flash("Akses ditolak. Fitur Gaji belum diaktifkan owner utk akun ini.", "danger")
+        return redirect(url_for("dashboard.dashboard"))
+    return None
+
 # =========================
 # FILE / DIR HELPERS
 # =========================
@@ -2281,6 +2308,9 @@ def get_mobile_api_user():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
+        _ensure_admin_feature_access_schema(cur)
+        conn.commit()
+
         cur.execute("""
             SELECT
                 t.id AS token_id,
@@ -2292,7 +2322,9 @@ def get_mobile_api_user():
                 u.email,
                 u.role,
                 COALESCE(u.points, 0) AS points,
-                COALESCE(u.points_admin, 0) AS points_admin
+                COALESCE(u.points_admin, 0) AS points_admin,
+                COALESCE(u.can_access_points, TRUE) AS can_access_points,
+                COALESCE(u.can_access_payroll, TRUE) AS can_access_payroll
             FROM mobile_api_tokens t
             JOIN users u ON u.id = t.user_id
             WHERE t.token=%s

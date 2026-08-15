@@ -5,7 +5,7 @@ from psycopg2.extras import RealDictCursor
 
 from db import get_conn
 from core import (
-    admin_required, is_logged_in, _parse_date,
+    admin_payroll_required, is_logged_in, _parse_date,
     get_payroll_report, add_payroll_adjustment, delete_payroll_adjustment,
     set_attendance_half_day, _ensure_attendance_halfday_column,
 )
@@ -33,7 +33,7 @@ def _week_range(week_start_str):
 
 @payroll_bp.route("/admin/payroll")
 def admin_payroll():
-    deny = admin_required()
+    deny = admin_payroll_required()
     if deny:
         return deny
 
@@ -81,7 +81,7 @@ def _payroll_redirect_url():
 
 @payroll_bp.route("/admin/payroll/adjustments/add", methods=["POST"])
 def admin_payroll_adjustment_add():
-    deny = admin_required()
+    deny = admin_payroll_required()
     if deny:
         return deny
 
@@ -118,7 +118,7 @@ def admin_payroll_adjustment_add():
 
 @payroll_bp.route("/admin/payroll/adjustments/<int:adjustment_id>/delete", methods=["POST"])
 def admin_payroll_adjustment_delete(adjustment_id):
-    deny = admin_required()
+    deny = admin_payroll_required()
     if deny:
         return deny
 
@@ -133,7 +133,7 @@ def admin_payroll_adjustment_delete(adjustment_id):
 
 @payroll_bp.route("/admin/payroll/attendance/<int:attendance_id>/half-day", methods=["POST"])
 def admin_payroll_half_day(attendance_id):
-    deny = admin_required()
+    deny = admin_payroll_required()
     if deny:
         return deny
 
