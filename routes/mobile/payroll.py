@@ -143,6 +143,10 @@ def mobile_my_payslip():
         if not user:
             return mobile_api_response(ok=False, message="User tidak ditemukan", status_code=404)
 
+        from core import _ensure_attendance_halfday_column
+        _ensure_attendance_halfday_column(cur)
+        conn.commit()
+
         # ── Rekap absensi minggu ini ──────────────────────────────────
         cur.execute("""
             SELECT
@@ -150,7 +154,8 @@ def mobile_my_payslip():
                 status,
                 arrival_type,
                 note,
-                checkin_at
+                checkin_at,
+                is_half_day
             FROM attendance
             WHERE user_id  = %s
               AND work_date >= %s
@@ -160,7 +165,9 @@ def mobile_my_payslip():
         att_rows = cur.fetchall()
 
         # ── Hitung statistik ──────────────────────────────────────────
-        present  = sum(1 for r in att_rows if r['status'] == 'PRESENT')
+        # Setengah hari (½) -- hari PRESENT yg ditandai admin cuma
+        # dihitung 0.5 hari, sama spt get_payroll_report() (web).
+        present  = sum((0.5 if r.get('is_half_day') else 1) for r in att_rows if r['status'] == 'PRESENT')
         sick     = sum(1 for r in att_rows if r['status'] == 'SICK')
         leave    = sum(1 for r in att_rows if r['status'] == 'LEAVE')
         absent   = sum(1 for r in att_rows if r['status'] == 'ABSENT')
@@ -201,6 +208,7 @@ def mobile_my_payslip():
                 "arrival_type": att['arrival_type'] if att else "-",
                 "checkin_at":   str(att['checkin_at']) if att and att['checkin_at'] else "-",
                 "note":         att['note']         if att else "",
+                "is_half_day":  bool(att['is_half_day']) if att else False,
             })
 
         return mobile_api_response(

@@ -143,7 +143,7 @@
                   <td>{{ r.date_str }}</td>
                   <td class="r">{{ r.checkin }}</td>
                   <td class="r">{{ r.checkout }}</td>
-                  <td class="r">{{ r.status_label }}</td>
+                  <td class="r">{{ r.status_label }}{{ ' (½)' if r.is_half_day else '' }}</td>
                 </tr>
                 {% else %}
                 <tr><td colspan="5">Tidak ada data absensi di periode ini.</td></tr>
@@ -151,10 +151,10 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="lbl">Hadir {{ emp.present_count }} &bull; Sakit {{ emp.sick_count }} &bull; Izin {{ emp.leave_count }} &bull; Absen {{ emp.absent_count }} &bull; Terlambat {{ emp.late_count }}</td>
+                  <td colspan="5" class="lbl">Hadir {{ "%g"|format(emp.present_count) }} &bull; Sakit {{ emp.sick_count }} &bull; Izin {{ emp.leave_count }} &bull; Absen {{ emp.absent_count }} &bull; Terlambat {{ emp.late_count }}</td>
                 </tr>
                 <tr>
-                  <td colspan="4" class="lbl">Gaji Pokok ({{ emp.present_count }} hari &times; Rp {{ "{:,}".format(emp.daily_salary).replace(",",".") }})</td>
+                  <td colspan="4" class="lbl">Gaji Pokok ({{ "%g"|format(emp.present_count) }} hari &times; Rp {{ "{:,}".format(emp.daily_salary).replace(",",".") }})</td>
                   <td class="r">Rp {{ "{:,}".format(emp.base_salary|round|int).replace(",",".") }}</td>
                 </tr>
                 {% if emp.adjustments_total != 0 %}

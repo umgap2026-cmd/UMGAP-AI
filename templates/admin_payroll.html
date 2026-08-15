@@ -431,9 +431,12 @@
     margin: 14px 0 8px;
   }
   .pdet-tbl-wrap { overflow-x: auto; border-radius: 12px; box-shadow: var(--soft-in); }
-  .pdet-tbl { width: 100%; border-collapse: collapse; min-width: 420px; background: #f9fafc; }
+  .pdet-tbl { width: 100%; border-collapse: collapse; min-width: 460px; background: #f9fafc; }
   .pdet-tbl th, .pdet-tbl td { padding: 8px 10px; font-size: 12px; text-align: left; border-bottom: 1px solid rgba(125,138,166,0.12); }
   .pdet-tbl th { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 900; }
+  .pdet-tbl td.halfday-cell { text-align: center; }
+  .halfday-form { display: inline-flex; align-items: center; justify-content: center; }
+  .halfday-form input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--blue); cursor: pointer; margin: 0; }
 
   .padj-row {
     display: flex;
@@ -681,7 +684,7 @@
                   </div>
                 </div>
                 <div class="pstats">
-                  <div class="pstat hadir">Hadir <b>{{ r.present_count }}</b></div>
+                  <div class="pstat hadir">Hadir <b>{{ "%g"|format(r.present_count) }}</b></div>
                   <div class="pstat sakit">Sakit <b>{{ r.sick_count }}</b></div>
                   <div class="pstat cuti">Izin <b>{{ r.leave_count }}</b></div>
                   <div class="pstat absen">Absen <b>{{ r.absent_count }}</b></div>
@@ -693,7 +696,7 @@
                 <div class="pdet-tbl-wrap">
                   <table class="pdet-tbl">
                     <thead>
-                      <tr><th>Hari</th><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th></tr>
+                      <tr><th>Hari</th><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>½ Hari</th></tr>
                     </thead>
                     <tbody>
                       {% for d in r.day_rows %}
@@ -703,9 +706,21 @@
                         <td>{{ d.checkin }}</td>
                         <td>{{ d.checkout }}</td>
                         <td>{{ d.status_label }}</td>
+                        <td class="halfday-cell">
+                          {% if d.status == 'PRESENT' and d.attendance_id %}
+                          <form class="halfday-form" method="POST" action="/admin/payroll/attendance/{{ d.attendance_id }}/half-day">
+                            <input type="hidden" name="week" value="{{ week_start.isoformat() if week_start else '' }}" />
+                            <input type="checkbox" name="half_day" value="1" title="Tandai setengah hari (gaji hari ini dipotong separuh)"
+                                   {{ 'checked' if d.is_half_day else '' }}
+                                   onchange="this.form.submit();" />
+                          </form>
+                          {% else %}
+                          <span class="mini">-</span>
+                          {% endif %}
+                        </td>
                       </tr>
                       {% else %}
-                      <tr><td colspan="5" class="mini">Belum ada data absensi.</td></tr>
+                      <tr><td colspan="6" class="mini">Belum ada data absensi.</td></tr>
                       {% endfor %}
                     </tbody>
                   </table>

@@ -4,6 +4,10 @@ import 'api_service.dart';
 import 'u_kit.dart';
 import 'cache_service.dart';
 
+// Format jumlah hari yg bisa pecahan (mis. 5.5 krn ada setengah hari) --
+// buang ".0" kalau kebetulan bilangan bulat.
+String _fmtDays(num n) => n % 1 == 0 ? n.toInt().toString() : n.toString();
+
 // ════════════════════════════════════════════
 //  PAYSLIP PAGE — Slip Gaji Mingguan Karyawan
 // ════════════════════════════════════════════
@@ -179,7 +183,10 @@ class _PayslipPageState extends State<PayslipPage> {
   // ── Slip Card Utama ─────────────────────────
   Widget _buildSlipCard() {
     final name        = '${_data['employee_name'] ?? '-'}';
-    final present     = (_data['days_present']  as num?)?.toInt() ?? 0;
+    // days_present bisa pecahan (mis. 5.5) kalau ada hari yg ditandai
+    // admin sbg "setengah hari" -- pakai double, bukan .toInt() (yg
+    // membulatkan ke bawah & menghilangkan tanda ½ dari tampilan).
+    final present     = (_data['days_present']  as num?)?.toDouble() ?? 0;
     final sick        = (_data['days_sick']     as num?)?.toInt() ?? 0;
     final leave       = (_data['days_leave']    as num?)?.toInt() ?? 0;
     final absent      = (_data['days_absent']   as num?)?.toInt() ?? 0;
@@ -253,7 +260,7 @@ class _PayslipPageState extends State<PayslipPage> {
 
           // Stat chips
           Row(children: [
-            _SlipStat('Hadir',  '$present', UColors.success),
+            _SlipStat('Hadir',  _fmtDays(present), UColors.success),
             _SlipStat('Sakit',  '$sick',    UColors.info),
             _SlipStat('Izin',   '$leave',   UColors.purple),
             _SlipStat('Absen',  '$absent',  UColors.danger),
@@ -269,7 +276,7 @@ class _PayslipPageState extends State<PayslipPage> {
                   color: Colors.white.withOpacity(0.55),
                   fontSize: 11, fontWeight: FontWeight.w600)),
               const Spacer(),
-              Text('$present / $workdays hari',
+              Text('${_fmtDays(present)} / $workdays hari',
                   style: const TextStyle(color: Colors.white,
                       fontSize: 11, fontWeight: FontWeight.w700)),
             ]),
@@ -308,7 +315,7 @@ class _PayslipPageState extends State<PayslipPage> {
             ),
             _SlipRow(
               label: 'Hari Dihitung',
-              value: '${present + sick + leave} hari',
+              value: '${_fmtDays(present + sick + leave)} hari',
               isLight: true,
             ),
             const SizedBox(height: USpace.sm),

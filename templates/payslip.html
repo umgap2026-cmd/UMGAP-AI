@@ -23,7 +23,7 @@
 <div class="grid" style="margin-top: 14px">
   <div class="card">
     <h2>✅ Hadir</h2>
-    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ days_present }} hari</p>
+    <p style="font-size: 22px; font-weight: 900; margin: 4px 0">{{ "%g"|format(days_present) }} hari</p>
   </div>
   <div class="card">
     <h2>⏰ Terlambat</h2>
@@ -66,7 +66,7 @@
         <td class="muted">{{ d.date.strftime("%d/%m/%Y") }}</td>
         <td>
           {% if d.status == "PRESENT" %}
-          <span class="badge" style="color: var(--good); border-color: var(--good)">✅ {{ "Terlambat" if d.arrival_type == "LATE" else "Hadir" }}</span>
+          <span class="badge" style="color: var(--good); border-color: var(--good)">✅ {{ "Terlambat" if d.arrival_type == "LATE" else "Hadir" }}{{ " (½)" if d.is_half_day else "" }}</span>
           {% elif d.status == "SICK" %}
           <span class="badge">🤒 Sakit</span>
           {% elif d.status == "LEAVE" %}

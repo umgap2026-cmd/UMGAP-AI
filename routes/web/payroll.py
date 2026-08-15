@@ -7,6 +7,7 @@ from db import get_conn
 from core import (
     admin_required, is_logged_in, _parse_date,
     get_payroll_report, add_payroll_adjustment, delete_payroll_adjustment,
+    set_attendance_half_day, _ensure_attendance_halfday_column,
 )
 
 
@@ -130,6 +131,22 @@ def admin_payroll_adjustment_delete(adjustment_id):
     return redirect(_payroll_redirect_url())
 
 
+@payroll_bp.route("/admin/payroll/attendance/<int:attendance_id>/half-day", methods=["POST"])
+def admin_payroll_half_day(attendance_id):
+    deny = admin_required()
+    if deny:
+        return deny
+
+    is_half_day = (request.form.get("half_day") or "0").strip() == "1"
+
+    try:
+        set_attendance_half_day(attendance_id, is_half_day)
+    except ValueError as e:
+        flash(str(e), "danger")
+
+    return redirect(_payroll_redirect_url())
+
+
 @payroll_bp.route("/payslip")
 def my_payslip():
     if not is_logged_in():
@@ -154,8 +171,11 @@ def my_payslip():
         """, (user_id,))
         user = cur.fetchone()
 
+        _ensure_attendance_halfday_column(cur)
+        conn.commit()
+
         cur.execute("""
-            SELECT work_date, status, arrival_type, note, checkin_at
+            SELECT work_date, status, arrival_type, note, checkin_at, is_half_day
             FROM attendance
             WHERE user_id = %s AND work_date >= %s AND work_date <= %s
             ORDER BY work_date ASC;
@@ -165,7 +185,9 @@ def my_payslip():
         cur.close()
         conn.close()
 
-    present = sum(1 for r in att_rows if r["status"] == "PRESENT")
+    # Setengah hari (½) -- hari PRESENT yg ditandai admin cuma dihitung
+    # 0.5 hari, sama spt get_payroll_report().
+    present = sum((0.5 if r.get("is_half_day") else 1) for r in att_rows if r["status"] == "PRESENT")
     sick    = sum(1 for r in att_rows if r["status"] == "SICK")
     leave   = sum(1 for r in att_rows if r["status"] == "LEAVE")
     absent  = sum(1 for r in att_rows if r["status"] == "ABSENT")
@@ -200,6 +222,7 @@ def my_payslip():
             "arrival_type": att["arrival_type"] if att else "-",
             "checkin_at": att["checkin_at"] if att and att["checkin_at"] else None,
             "note": att["note"] if att else "",
+            "is_half_day": bool(att["is_half_day"]) if att else False,
         })
 
     return render_template(

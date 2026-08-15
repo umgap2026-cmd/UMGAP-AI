@@ -1796,6 +1796,13 @@ def _ensure_attendance_checkout_column(cur):
     cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS checkout_auto BOOLEAN NOT NULL DEFAULT FALSE;")
 
 
+def _ensure_attendance_halfday_column(cur):
+    """Lazy-migration: tandai 1 hari absen (status PRESENT) sbg 'setengah
+    hari' -- dihitung 0.5 hari di present_count & gaji pokok cuma dibayar
+    separuh utk hari itu (lihat get_payroll_report)."""
+    cur.execute("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS is_half_day BOOLEAN NOT NULL DEFAULT FALSE;")
+
+
 # =========================
 # PAYROLL: penyesuaian manual (potongan/bonus) + pembayaran ke Beban
 # =========================
@@ -1996,6 +2003,7 @@ def get_payroll_report(start_date, end_date, user_ids=None):
     try:
         _ensure_payroll_adjustments_schema(cur)
         _ensure_payroll_payments_schema(cur)
+        _ensure_attendance_halfday_column(cur)
         conn.commit()
 
         cur.execute("""
@@ -2011,7 +2019,7 @@ def get_payroll_report(start_date, end_date, user_ids=None):
         employees_raw = cur.fetchall()
 
         cur.execute("""
-            SELECT user_id, work_date, status, arrival_type, checkin_at, checkout_at
+            SELECT id, user_id, work_date, status, arrival_type, checkin_at, checkout_at, is_half_day
             FROM attendance
             WHERE work_date >= %s AND work_date <= %s;
         """, (start_date, end_date))
@@ -2065,8 +2073,15 @@ def get_payroll_report(start_date, end_date, user_ids=None):
             if dt.weekday() == 6 and not row:
                 continue
 
+            # Setengah hari: 1 hari absen PRESENT ditandai admin lewat
+            # checkbox "½" (lihat admin_payroll.html/set_attendance_half_day)
+            # dihitung 0.5 hari, bukan 1 -- gaji pokok (daily_salary *
+            # present_count) otomatis ikut kepotong separuh utk hari itu
+            # krn present_count sendiri yang jadi pecahan (5.5, dst),
+            # BUKAN base_salary dihitung terpisah per hari.
+            is_half_day = bool(row.get("is_half_day")) if row else False
             if status == "PRESENT":
-                present_count += 1
+                present_count += 0.5 if is_half_day else 1
             elif status == "SICK":
                 sick_count += 1
             elif status == "LEAVE":
@@ -2090,11 +2105,14 @@ def get_payroll_report(start_date, end_date, user_ids=None):
                     checkout = str(row["checkout_at"])
 
             day_rows.append({
+                "attendance_id": row["id"] if row else None,
                 "day_name": INDO_DAYS[dt.weekday()],
                 "date_str": dt.strftime("%d/%m/%Y"),
                 "checkin": checkin,
                 "checkout": checkout,
+                "status": status,
                 "status_label": ATTENDANCE_STATUS_LABEL.get(status, "-"),
+                "is_half_day": is_half_day,
             })
 
         base_salary = daily_salary * present_count
@@ -2139,6 +2157,32 @@ def get_payroll_report(start_date, end_date, user_ids=None):
         })
 
     return employees, workdays
+
+
+def set_attendance_half_day(attendance_id, is_half_day):
+    """Tandai/hapus tanda 'setengah hari' utk 1 baris absensi -- dipakai
+    checkbox "½" per hari di admin_payroll.html. Cuma masuk akal utk hari
+    berstatus PRESENT (get_payroll_report yang menghitung efeknya ke
+    present_count/gaji pokok, di sini cukup simpan flag mentahnya)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_attendance_halfday_column(cur)
+        cur.execute("""
+            UPDATE attendance SET is_half_day = %s WHERE id = %s RETURNING id;
+        """, (bool(is_half_day), attendance_id))
+        if not cur.fetchone():
+            raise ValueError("Data absensi tidak ditemukan.")
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(str(e))
+    finally:
+        cur.close()
+        conn.close()
 
 
 def record_checkout(user_id, work_date, checkout_time=None):
