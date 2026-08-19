@@ -7,6 +7,7 @@ from core import (
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     perform_stock_opname, get_fin_shrinkage_report, get_fin_margin_report,
+    get_fin_hpp_orphan_report,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     merge_fin_debts,
     list_fin_party_names,
@@ -238,6 +239,23 @@ def finance_margin_report():
         notif_count=get_notif_count(),
         today_iso=today.isoformat(),
         month_start_iso=today.replace(day=1).isoformat(),
+    )
+
+
+@finance_bp.route("/finance/hpp-diagnostics")
+def finance_hpp_diagnostics():
+    """Diagnostik khusus Owner: cari penjualan yg HPP-nya jatuh ke fallback
+    harga rata-rata SAAT INI krn tidak ada catatan biaya di titik waktu
+    penjualannya -- bisa bikin laporan HPP historis keliru."""
+    deny = owner_required()
+    if deny:
+        return deny
+
+    result = get_fin_hpp_orphan_report()
+    return render_template(
+        "finance_hpp_diagnostics.html",
+        result=result,
+        notif_count=get_notif_count(),
     )
 
 

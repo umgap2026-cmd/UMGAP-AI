@@ -6356,6 +6356,63 @@ def get_fin_margin_report(date_from, date_to):
     return report
 
 
+def get_fin_hpp_orphan_report():
+    """Diagnostik: cari baris fin_transaction_items dari nota JUAL yg TIDAK
+    punya baris fin_stock_ledger (movement_type='OUT') yg cocok -- baris
+    begini jatuh ke fallback avg_cost_per_kg SAAT INI (bukan biaya di titik
+    waktu penjualannya) saat dihitung HPP di laporan mana pun, yg bisa bikin
+    HPP historis keliru kalau harga sudah naik sejak transaksi itu dibuat.
+    Idealnya hasilnya 0 baris -- kalau ada, itu daftar transaksi yg perlu
+    ditelusuri manual."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT COUNT(*) AS n
+            FROM fin_transaction_items i
+            JOIN fin_transactions t ON t.id = i.transaction_id
+            LEFT JOIN fin_stock_ledger l ON l.transaction_id = i.transaction_id
+                AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND i.material_id IS NOT NULL
+              AND t.cancelled_at IS NULL
+              AND l.transaction_id IS NULL;
+        """)
+        total_orphan = int(cur.fetchone()["n"] or 0)
+
+        cur.execute("""
+            SELECT i.id AS item_id, t.id AS transaction_id, t.type, t.party_name,
+                   m.name AS material_name, m.unit, i.qty_kg, i.price_per_kg, i.subtotal,
+                   COALESCE(s.avg_cost_per_kg, 0) AS current_avg_cost,
+                   TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD HH24:MI') AS created_at_wib
+            FROM fin_transaction_items i
+            JOIN fin_transactions t ON t.id = i.transaction_id
+            JOIN fin_materials m ON m.id = i.material_id
+            LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
+            LEFT JOIN fin_stock_ledger l ON l.transaction_id = i.transaction_id
+                AND l.material_id = i.material_id AND l.movement_type = 'OUT'
+            WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND i.material_id IS NOT NULL
+              AND t.cancelled_at IS NULL
+              AND l.transaction_id IS NULL
+            ORDER BY t.created_at DESC
+            LIMIT 200;
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+    for r in rows:
+        r["qty_kg"] = float(r["qty_kg"] or 0)
+        r["price_per_kg"] = float(r["price_per_kg"] or 0)
+        r["subtotal"] = float(r["subtotal"] or 0)
+        r["current_avg_cost"] = float(r["current_avg_cost"] or 0)
+        r["estimated_hpp_now"] = r["qty_kg"] * r["current_avg_cost"]
+
+    return {"total_orphan": total_orphan, "rows": rows, "showing": len(rows)}
+
+
 def get_fin_weekly_report(week_start, week_end):
     """Laporan keuangan mingguan. `week_start`/`week_end` = datetime.date."""
     from routes.mobile.finance import _clean
