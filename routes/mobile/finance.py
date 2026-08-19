@@ -15,7 +15,7 @@ from core import (
     _ensure_transaction_cancel_columns,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock,
-    create_fin_purchase, create_fin_sale_kasir, create_fin_expense,
+    create_fin_expense,
     list_fin_debts, pay_fin_debt, get_fin_stock_history,
     get_fin_daily_report, get_fin_weekly_report,
 )
@@ -535,52 +535,6 @@ def add_material_stock(material_id):
 
 
 # ════════════════════════════════════════════════════════════════
-#  KASIR — BELI DARI ORANG (stok masuk)
-# ════════════════════════════════════════════════════════════════
-
-@mobile_finance_bp.route("/finance/buy", methods=["POST", "OPTIONS"])
-@mobile_api_login_required
-def kasir_beli():
-    """
-    Beli dari orang di gudang.
-    Body JSON:
-    {
-        "party_name": "Pak Budi",
-        "is_debt": false,
-        "note": "...",
-        "discount": 0,
-        "items": [
-            {"material_id": 1, "qty_kg": 50, "price_per_kg": 195000}
-        ]
-    }
-    "discount" adalah nilai potongan/DP dalam Rupiah (sudah dikonversi
-    dari % di sisi klien). total_amount & hutang dicatat sebesar
-    (total - discount), sedangkan stok/HPP tetap memakai harga asli.
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({}))
-
-    deny = _check_access(request.mobile_user)
-    if deny: return deny
-
-    data = request.get_json(silent=True) or {}
-    items = data.get("items", [])
-
-    try:
-        result = create_fin_purchase(
-            party_name=data.get("party_name"),
-            is_debt=data.get("is_debt", False),
-            note=data.get("note"),
-            discount=data.get("discount", 0),
-            items=items,
-            created_by=request.mobile_user.get("id"),
-        )
-        return mobile_api_response(ok=True, message="Transaksi beli berhasil.", data=result)
-    except ValueError as e:
-        return mobile_api_response(ok=False, message=str(e), status_code=400)
-
-
-# ════════════════════════════════════════════════════════════════
 #  BATALKAN NOTA (Jual/Beli) — balikkan stok+HPP & hutang otomatis
 # ════════════════════════════════════════════════════════════════
 @mobile_finance_bp.route("/finance/transactions/<int:txn_id>/cancel",
@@ -606,47 +560,6 @@ def cancel_nota_transaction(txn_id):
             ok=True,
             message="Nota berhasil dibatalkan, stok & HPP gudang sudah dikembalikan.",
             data={"transaction_id": txn_id})
-    except ValueError as e:
-        return mobile_api_response(ok=False, message=str(e), status_code=400)
-
-
-# ════════════════════════════════════════════════════════════════
-#  KASIR — JUAL KE ORANG (stok keluar)
-# ════════════════════════════════════════════════════════════════
-
-@mobile_finance_bp.route("/finance/sell", methods=["POST", "OPTIONS"])
-@mobile_api_login_required
-def kasir_jual():
-    """
-    Jual ke orang di gudang.
-    Body JSON:
-    {
-        "party_name": "Bu Sari",
-        "is_debt": false,
-        "note": "...",
-        "items": [
-            {"material_id": 1, "qty_kg": 30, "price_per_kg": 215000}
-        ]
-    }
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({}))
-
-    deny = _check_access(request.mobile_user)
-    if deny: return deny
-
-    data = request.get_json(silent=True) or {}
-    items = data.get("items", [])
-
-    try:
-        result = create_fin_sale_kasir(
-            party_name=data.get("party_name"),
-            is_debt=data.get("is_debt", False),
-            note=data.get("note"),
-            items=items,
-            created_by=request.mobile_user.get("id"),
-        )
-        return mobile_api_response(ok=True, message="Transaksi jual berhasil.", data=result)
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
 
@@ -941,8 +854,6 @@ def create_invoice():
 # ════════════════════════════════════════════════════════════════
 #  PURCHASE INVOICE — Nota Beli resmi (nomor BELI-..., adjustments,
 #  saldo, tanggal manual) -- simetris dgn create_invoice() di atas.
-#  TERPISAH dari /finance/buy (create_fin_purchase, dipakai fitur
-#  "Kasir Beli" finance_beli_page.dart) -- jangan digabung.
 # ════════════════════════════════════════════════════════════════
 
 @mobile_finance_bp.route("/finance/purchase-invoice", methods=["POST", "OPTIONS"])

@@ -978,50 +978,6 @@ class ApiService {
     return _asMap(_asMap(res.data)['data']);
   }
 
-  // ── Finance: Beli dari orang ───────────────
-  static Future<Map<String, dynamic>> financeBeli({
-    required String partyName,
-    required bool   isDebt,
-    required List<Map<String, dynamic>> items,
-    String? note,
-  }) async {
-    final headers = await _headers();
-    final res = await dio.post(
-      "/api/mobile/finance/buy",
-      data: {
-        "party_name": partyName,
-        "is_debt":    isDebt,
-        "note":       note ?? "",
-        "items":      items,
-      },
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal menyimpan transaksi beli");
-    return _asMap(res.data['data']);
-  }
-
-  // ── Finance: Jual ke orang ─────────────────
-  static Future<Map<String, dynamic>> financeJual({
-    required String partyName,
-    required bool   isDebt,
-    required List<Map<String, dynamic>> items,
-    String? note,
-  }) async {
-    final headers = await _headers();
-    final res = await dio.post(
-      "/api/mobile/finance/sell",
-      data: {
-        "party_name": partyName,
-        "is_debt":    isDebt,
-        "note":       note ?? "",
-        "items":      items,
-      },
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal menyimpan transaksi jual");
-    return _asMap(res.data['data']);
-  }
-
   // ── Finance: Pengeluaran ───────────────────
   static Future<void> financeExpense({
     required List<Map<String, dynamic>> items,

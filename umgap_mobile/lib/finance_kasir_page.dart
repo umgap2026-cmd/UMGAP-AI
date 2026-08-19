@@ -3,8 +3,6 @@ import 'package:flutter/services.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
 import 'cache_service.dart';
-import 'finance_beli_page.dart';
-import 'finance_jual_page.dart';
 import 'finance_expense_page.dart';
 import 'finance_report_page.dart';
 import 'finance_stock_page.dart';
@@ -15,7 +13,8 @@ import 'finance_trip_page.dart';
 //  FINANCE HOME — Menu utama kasir
 // ════════════════════════════════════════════
 class FinanceKasirPage extends StatefulWidget {
-  const FinanceKasirPage({super.key});
+  final String role;
+  const FinanceKasirPage({super.key, required this.role});
   @override
   State<FinanceKasirPage> createState() => _FinanceKasirPageState();
 }
@@ -23,6 +22,8 @@ class FinanceKasirPage extends StatefulWidget {
 class _FinanceKasirPageState extends State<FinanceKasirPage> {
   Map<String, dynamic> _summary = {};
   bool _loading = true;
+
+  bool get isOwner => widget.role == 'owner';
 
   @override
   void initState() { super.initState(); _load(); }
@@ -78,7 +79,7 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
                   : _buildSummaryCard(omzet, keluar, laba, stok),
             ),
 
-            // ── 3 Tombol Utama ─────────────────
+            // ── Tombol Transaksi ────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   USpace.base, USpace.lg, USpace.base, 0),
@@ -88,20 +89,6 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
               padding: const EdgeInsets.fromLTRB(
                   USpace.base, USpace.md, USpace.base, 0),
               child: Row(children: [
-                Expanded(child: _BigActionBtn(
-                  icon:    Icons.arrow_downward_rounded,
-                  label:   'Orang\nJual',
-                  color:   UColors.success,
-                  onTap:   () => _go(const FinanceBeliPage()),
-                )),
-                const SizedBox(width: USpace.md),
-                Expanded(child: _BigActionBtn(
-                  icon:    Icons.arrow_upward_rounded,
-                  label:   'Orang\nBeli',
-                  color:   UColors.primary,
-                  onTap:   () => _go(const FinanceJualPage()),
-                )),
-                const SizedBox(width: USpace.md),
                 Expanded(child: _BigActionBtn(
                   icon:    Icons.remove_circle_outline_rounded,
                   label:   'Keluar\nUang',
@@ -121,14 +108,16 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
               padding: const EdgeInsets.fromLTRB(
                   USpace.base, USpace.md, USpace.base, 40),
               child: Column(children: [
-                _MenuTile(
-                  icon:    Icons.bar_chart_rounded,
-                  color:   UColors.primary,
-                  label:   'Laporan Keuangan',
-                  sub:     'Harian & mingguan',
-                  onTap:   () => _go(const FinanceReportPage()),
-                ),
-                const SizedBox(height: USpace.sm),
+                if (isOwner) ...[
+                  _MenuTile(
+                    icon:    Icons.bar_chart_rounded,
+                    color:   UColors.primary,
+                    label:   'Laporan Keuangan',
+                    sub:     'Harian & mingguan',
+                    onTap:   () => _go(const FinanceReportPage()),
+                  ),
+                  const SizedBox(height: USpace.sm),
+                ],
                 _MenuTile(
                   icon:    Icons.inventory_2_rounded,
                   color:   const Color(0xFF00838F),
@@ -246,23 +235,24 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
               ]))),
         ),
 
-        // Laba hari ini
-        Row(children: [
-          const Icon(Icons.trending_up_rounded,
-              color: Colors.white54, size: 16),
-          const SizedBox(width: 8),
-          const Text('Laba Kotor Hari Ini',
-              style: TextStyle(color: Colors.white60,
-                  fontSize: 12, fontWeight: FontWeight.w500)),
-          const Spacer(),
-          Text(uRupiah(laba), style: TextStyle(
-            color: laba >= 0 ? UColors.success : const Color(0xFFEF9A9A),
-            fontSize: 16, fontWeight: FontWeight.w900,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          )),
-        ]),
-
-        const SizedBox(height: USpace.sm),
+        // Laba hari ini -- khusus Owner
+        if (isOwner) ...[
+          Row(children: [
+            const Icon(Icons.trending_up_rounded,
+                color: Colors.white54, size: 16),
+            const SizedBox(width: 8),
+            const Text('Laba Kotor Hari Ini',
+                style: TextStyle(color: Colors.white60,
+                    fontSize: 12, fontWeight: FontWeight.w500)),
+            const Spacer(),
+            Text(uRupiah(laba), style: TextStyle(
+              color: laba >= 0 ? UColors.success : const Color(0xFFEF9A9A),
+              fontSize: 16, fontWeight: FontWeight.w900,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            )),
+          ]),
+          const SizedBox(height: USpace.sm),
+        ],
 
         // Nilai stok gudang
         Row(children: [

@@ -469,8 +469,8 @@ class _HomePageState extends State<HomePage>
       'Kalender Konten': const ContentCalendarPage(),
       'Profil': const ProfilePage(),
       'Slip Gaji': const PayslipPage(),
-      'Kasir & Keuangan': const FinanceKasirPage(),
-      'Kasir': const FinanceKasirPage(),
+      'Kasir & Keuangan': FinanceKasirPage(role: widget.role),
+      'Kasir': FinanceKasirPage(role: widget.role),
     };
 
     if (title == 'Lainnya') {
