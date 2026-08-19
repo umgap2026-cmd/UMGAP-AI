@@ -15,6 +15,23 @@ import 'u_kit.dart';
 class UpdateService {
   UpdateService._();
 
+  /// Bandingkan 2 versi "major.minor.patch" scr numerik (bukan string
+  /// exact-match) -- exact-match rentan false-positive kalau device
+  /// melaporkan versi dgn format sedikit beda (spasi, jumlah segmen,
+  /// dll), yg bikin popup update muncul terus walau app sudah versi
+  /// terbaru. Return >0 kalau [a] lebih baru dari [b].
+  static int _versionCompare(String a, String b) {
+    final pa = a.trim().split('.').map((s) => int.tryParse(s.trim()) ?? 0).toList();
+    final pb = b.trim().split('.').map((s) => int.tryParse(s.trim()) ?? 0).toList();
+    final len = pa.length > pb.length ? pa.length : pb.length;
+    for (var i = 0; i < len; i++) {
+      final va = i < pa.length ? pa[i] : 0;
+      final vb = i < pb.length ? pb[i] : 0;
+      if (va != vb) return va.compareTo(vb);
+    }
+    return 0;
+  }
+
   /// Return true kalau ada update WAJIB (force_update) yang barusan
   /// ditampilkan -- splash pakai ini utk tahu apa boleh lanjut navigasi.
   static Future<bool> checkAndPrompt(BuildContext context,
@@ -28,7 +45,7 @@ class UpdateService {
       final updateUrl      = data['update_url'] ?? '';
       final message        = data['message'] ?? 'Silakan update aplikasi.';
 
-      if (currentVersion != latestVersion) {
+      if (_versionCompare(latestVersion, currentVersion) > 0) {
         if (!context.mounted) return forceUpdate;
         await showUpdateDialog(context,
             message: message, updateUrl: updateUrl, force: forceUpdate);

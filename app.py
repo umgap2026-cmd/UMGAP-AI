@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.3.3",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.3.4",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.3.3 tersedia!\n• BARU: absensi setengah hari -- hari hadir bisa ditandai admin jadi 0.5 hari, gaji pokok otomatis kepotong separuh\n• PERBAIKAN: slip gaji mobile tampilkan jumlah hari pecahan (mis. 5,5 hari) dgn benar"
+        "message":        "Versi baru v1.3.4 tersedia!\n• PERBAIKAN: notifikasi update tidak muncul terus-terusan walau app sudah versi terbaru"
     })
 
 @app.route("/ping")
