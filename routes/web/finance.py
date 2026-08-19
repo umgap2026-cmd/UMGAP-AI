@@ -6,7 +6,7 @@ from core import (
     owner_or_admin_required, owner_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
-    perform_stock_opname, get_fin_shrinkage_report,
+    perform_stock_opname, get_fin_shrinkage_report, get_fin_margin_report,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     merge_fin_debts,
     list_fin_party_names,
@@ -208,6 +208,30 @@ def finance_shrinkage_report():
     report = get_fin_shrinkage_report(date_from, date_to)
     return render_template(
         "finance_shrinkage_report.html",
+        report=report,
+        date_from=date_from,
+        date_to=date_to,
+        notif_count=get_notif_count(),
+        today_iso=today.isoformat(),
+        month_start_iso=today.replace(day=1).isoformat(),
+    )
+
+
+@finance_bp.route("/finance/margin-report")
+def finance_margin_report():
+    """Laporan Margin: per barang, omzet vs HPP (AVCO) & margin dalam
+    rentang tanggal -- supaya kelihatan barang yg terjual di bawah HPP."""
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    report = get_fin_margin_report(date_from, date_to)
+    return render_template(
+        "finance_margin_report.html",
         report=report,
         date_from=date_from,
         date_to=date_to,

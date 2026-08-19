@@ -6281,6 +6281,81 @@ def get_owner_finance_report(date_from, date_to):
         conn.close()
 
 
+def get_fin_margin_report(date_from, date_to):
+    """Laporan margin per barang: dari total penjualan (nota gudang +
+    Mode Perjalanan) dlm rentang tanggal, berapa omzet vs HPP (AVCO,
+    formula sama persis dgn get_owner_finance_report) per barang --
+    supaya kelihatan barang mana yg margin-nya negatif (terjual di bawah
+    HPP rata-rata), bukan cuma total gabungan semua barang."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_trip_items_cost_column(conn, cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT
+                m.id, m.name, m.unit,
+                COALESCE(SUM(i.qty_kg), 0) AS qty_sold,
+                COALESCE(SUM(i.subtotal), 0) AS omzet,
+                COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp
+            FROM fin_materials m
+            JOIN fin_transaction_items i ON i.material_id = m.id
+            JOIN fin_transactions t ON t.id = i.transaction_id
+            LEFT JOIN (
+                SELECT DISTINCT ON (transaction_id, material_id) transaction_id, material_id, avg_cost_after
+                FROM fin_stock_ledger
+                WHERE movement_type = 'OUT'
+                ORDER BY transaction_id, material_id, created_at DESC
+            ) l ON l.transaction_id = t.id AND l.material_id = i.material_id
+            LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
+            WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
+            GROUP BY m.id, m.name, m.unit;
+        """, (date_from, date_to))
+        rows = {r["id"]: dict(r) for r in cur.fetchall()}
+
+        if _table_exists(cur, "fin_trip_items"):
+            cur.execute("""
+                SELECT
+                    i.material_id AS id, m.name, m.unit,
+                    COALESCE(SUM(i.qty_kg), 0) AS qty_sold,
+                    COALESCE(SUM(i.subtotal), 0) AS omzet,
+                    COALESCE(SUM(i.qty_kg * COALESCE(i.cost_per_kg, s.avg_cost_per_kg)), 0) AS hpp
+                FROM fin_trip_items i
+                JOIN fin_materials m ON m.id = i.material_id
+                LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
+                WHERE i.type = 'JUAL' AND i.created_at::date BETWEEN %s AND %s
+                GROUP BY i.material_id, m.name, m.unit;
+            """, (date_from, date_to))
+            for r in cur.fetchall():
+                mid = r["id"]
+                if mid in rows:
+                    rows[mid]["qty_sold"] = float(rows[mid]["qty_sold"]) + float(r["qty_sold"] or 0)
+                    rows[mid]["omzet"] = float(rows[mid]["omzet"]) + float(r["omzet"] or 0)
+                    rows[mid]["hpp"] = float(rows[mid]["hpp"]) + float(r["hpp"] or 0)
+                else:
+                    rows[mid] = dict(r)
+    finally:
+        cur.close()
+        conn.close()
+
+    report = []
+    for r in rows.values():
+        qty_sold = float(r["qty_sold"] or 0)
+        omzet = float(r["omzet"] or 0)
+        hpp = float(r["hpp"] or 0)
+        margin = omzet - hpp
+        margin_pct = (margin / omzet * 100) if omzet > 0 else 0
+        report.append({
+            "id": r["id"], "name": r["name"], "unit": r["unit"],
+            "qty_sold": qty_sold, "omzet": omzet, "hpp": hpp,
+            "margin": margin, "margin_pct": margin_pct,
+        })
+    report.sort(key=lambda x: x["margin"])
+    return report
+
+
 def get_fin_weekly_report(week_start, week_end):
     """Laporan keuangan mingguan. `week_start`/`week_end` = datetime.date."""
     from routes.mobile.finance import _clean

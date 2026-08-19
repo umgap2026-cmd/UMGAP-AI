@@ -165,6 +165,9 @@
       <div class="hero-lbl">Laba Bersih ({{ report.date_from }} s/d {{ report.date_to }})</div>
       <div class="hero-val {{ 'neg' if report.laba_bersih < 0 else '' }}">Rp {{ "{:,}".format(report.laba_bersih | round | int).replace(",", ".") }}</div>
       <div class="hero-sub">Laba Kotor Rp {{ "{:,}".format(report.laba_kotor | round | int).replace(",", ".") }} &bull; Total Beban Rp {{ "{:,}".format(report.total_beban | round | int).replace(",", ".") }}</div>
+      {% if report.laba_kotor < 0 %}
+      <a href="/finance/margin-report?from={{ report.date_from }}&to={{ report.date_to }}" class="readonly-badge" style="margin-top:10px; color:#fca5a5; background:rgba(255,255,255,.14); text-decoration:none;">📐 Laba Kotor minus — cek barang mana yang rugi di Laporan Margin →</a>
+      {% endif %}
     </div>
 
     <!-- STAT GRID -->
