@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'api_service.dart';
+import 'nota_detail_page.dart';
 import 'u_kit.dart';
 
 class FinanceDebtPage extends StatefulWidget {
@@ -370,6 +371,7 @@ class _DebtCard extends StatelessWidget {
     final paid      = (debt['paid_amount'] as num?)?.toInt() ?? (amount - remaining);
     final pct       = amount > 0 ? 1 - (remaining / amount) : 0.0;
     final dateWib   = '${debt['created_at_wib'] ?? ''}';
+    final txnId     = (debt['transaction_id'] as num?)?.toInt();
     return Container(
       margin: const EdgeInsets.only(bottom: USpace.sm),
       padding: const EdgeInsets.all(USpace.base),
@@ -420,6 +422,23 @@ class _DebtCard extends StatelessWidget {
                       ? const Color(0xFF1D4ED8) : const Color(0xFF92400E)),
             ),
           ),
+          if (txnId != null) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => NotaDetailPage(txnId: txnId))),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: UColors.primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(URadius.full),
+                ),
+                child: const Text('🧾 Lihat Nota',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800,
+                        color: UColors.primary)),
+              ),
+            ),
+          ],
           const Spacer(),
           GestureDetector(
             onTap: onEdit,
