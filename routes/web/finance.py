@@ -6,6 +6,7 @@ from core import (
     owner_or_admin_required, owner_required, get_notif_count,
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
+    perform_stock_opname, get_fin_shrinkage_report,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     merge_fin_debts,
     list_fin_party_names,
@@ -163,6 +164,57 @@ def finance_materials_reduce_stock(material_id):
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")
+
+
+@finance_bp.route("/finance/materials/<int:material_id>/opname", methods=["POST"])
+def finance_materials_opname(material_id):
+    """Opname: bandingkan stok fisik hasil timbang vs stok buku, sistem
+    otomatis catat selisihnya sbg koreksi tambah atau susut."""
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        result = perform_stock_opname(
+            material_id,
+            actual_qty=request.form.get("actual_qty"),
+            note=request.form.get("note"),
+            created_by=session.get("user_id"),
+            price=request.form.get("price"),
+        )
+        if result["type"] == "sesuai":
+            flash(f"Stok '{result['name']}' sudah sesuai, tidak ada penyesuaian.", "success")
+        elif result["type"] == "koreksi_tambah":
+            flash(f"Opname: ditemukan kelebihan {result['diff']:.1f} — stok '{result['name']}' dikoreksi tambah.", "success")
+        else:
+            flash(f"Opname: ditemukan susut {abs(result['diff']):.1f} pada '{result['name']}'.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/shrinkage-report")
+def finance_shrinkage_report():
+    """Laporan Susut: per barang, total masuk/keluar/susut & % susut dalam
+    rentang tanggal."""
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    report = get_fin_shrinkage_report(date_from, date_to)
+    return render_template(
+        "finance_shrinkage_report.html",
+        report=report,
+        date_from=date_from,
+        date_to=date_to,
+        notif_count=get_notif_count(),
+        today_iso=today.isoformat(),
+        month_start_iso=today.replace(day=1).isoformat(),
+    )
 
 
 @finance_bp.route("/finance/materials/<int:material_id>/delete", methods=["POST"])

@@ -4744,6 +4744,105 @@ def reduce_fin_material_stock(material_id, qty, reason, note, created_by):
         conn.close()
 
 
+def perform_stock_opname(material_id, actual_qty, note, created_by, price=None):
+    """Opname: bandingkan stok fisik (hasil timbang) vs stok buku, lalu
+    otomatis catat selisihnya via add_fin_material_stock (koreksi tambah)
+    atau reduce_fin_material_stock (susut) -- reuse penuh AVCO + audit trail
+    yg sudah ada, Opname tidak menyentuh tabel apa pun secara langsung."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT m.name, m.unit, COALESCE(s.qty_kg,0) AS qty, COALESCE(s.avg_cost_per_kg,0) AS avg
+            FROM fin_materials m LEFT JOIN fin_stock_summary s ON s.material_id=m.id
+            WHERE m.id=%s AND m.is_active=TRUE;
+        """, (material_id,))
+        mat = cur.fetchone()
+        if not mat:
+            raise ValueError("Barang tidak ditemukan.")
+    finally:
+        cur.close()
+        conn.close()
+
+    book_qty = float(mat["qty"])
+    try:
+        actual_qty = float(actual_qty or 0)
+    except (TypeError, ValueError):
+        raise ValueError("Stok fisik wajib diisi dengan angka.")
+    diff = actual_qty - book_qty
+    opname_note = f"Opname: stok fisik {actual_qty:g} {mat['unit']}, buku {book_qty:g} {mat['unit']}"
+    if note:
+        opname_note += f" — {note}"
+
+    if abs(diff) < 0.01:
+        return {"type": "sesuai", "name": mat["name"], "diff": 0}
+
+    if diff > 0:
+        try:
+            price = float(price) if price else None
+        except (TypeError, ValueError):
+            price = None
+        use_price = price or (float(mat["avg"]) if mat["avg"] else None)
+        if not use_price:
+            raise ValueError("Stok fisik lebih besar dari buku tapi barang belum punya HPP — isi harga/kg dulu.")
+        result = add_fin_material_stock(material_id, diff, use_price, opname_note, created_by)
+        return {"type": "koreksi_tambah", "diff": diff, **result}
+    else:
+        result = reduce_fin_material_stock(material_id, abs(diff), "Opname", opname_note, created_by)
+        return {"type": "susut", "diff": diff, **result}
+
+
+def get_fin_shrinkage_report(start_date, end_date):
+    """Laporan Susut: per barang aktif, total masuk/keluar/susut & % susut
+    dalam rentang tanggal, dihitung dari fin_stock_ledger. 'Susut' = movement
+    OUT yg berasal dari Penyesuaian Stok (manual kurangi/Opname, lewat
+    fin_transactions.party_name) ATAU susut perjalanan (record_fin_trip_susut,
+    transaction_id NULL, ditandai lewat note "Susut perjalanan..."). Sisanya
+    (penjualan lewat nota/kasir) dihitung sbg keluar biasa, bukan susut."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                m.id, m.name, m.unit,
+                COALESCE(SUM(CASE WHEN l.movement_type='IN' THEN l.qty_kg ELSE 0 END), 0) AS total_in,
+                COALESCE(SUM(CASE WHEN l.movement_type='OUT' THEN ABS(l.qty_kg) ELSE 0 END), 0) AS total_out,
+                COALESCE(SUM(CASE
+                    WHEN l.movement_type='OUT' AND (
+                        t.party_name = 'Penyesuaian Stok'
+                        OR l.note ILIKE 'Susut perjalanan%%'
+                    ) THEN ABS(l.qty_kg) ELSE 0
+                END), 0) AS total_susut
+            FROM fin_materials m
+            LEFT JOIN fin_stock_ledger l
+                ON l.material_id = m.id
+               AND l.created_at::date BETWEEN %s AND %s
+            LEFT JOIN fin_transactions t ON t.id = l.transaction_id
+            WHERE m.is_active = TRUE
+            GROUP BY m.id, m.name, m.unit
+            ORDER BY m.name ASC;
+        """, (start_date, end_date))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    report = []
+    for r in rows:
+        total_out = float(r["total_out"] or 0)
+        total_susut = float(r["total_susut"] or 0)
+        pct = (total_susut / total_out * 100) if total_out > 0 else 0
+        report.append({
+            "id": r["id"], "name": r["name"], "unit": r["unit"],
+            "total_in": float(r["total_in"] or 0),
+            "total_out": total_out,
+            "total_susut": total_susut,
+            "susut_pct": pct,
+        })
+    report.sort(key=lambda x: x["susut_pct"], reverse=True)
+    return report
+
+
 def edit_fin_material(material_id, name, unit, created_by, category=None):
     """Edit nama, satuan & kategori barang gudang. Kategori teks bebas (admin
     bisa isi/ubah sesuka hati, mis. Tembaga, Kuningan) -- kosongkan utk hapus
@@ -5112,7 +5211,8 @@ def list_fin_debts():
         conn.commit()
         cur.execute("""
             SELECT id, type, party_name, amount, paid_amount,
-                   remaining, due_date, is_settled, note, created_at, reason
+                   remaining, due_date, is_settled, note, created_at, reason,
+                   transaction_id
             FROM fin_debts
             WHERE is_settled = FALSE
             ORDER BY type, created_at DESC;

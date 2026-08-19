@@ -271,6 +271,12 @@
   .item-row.red .item-val { color: var(--bad); }
   .item-row.green .item-val { color: var(--good); }
   .item-note { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
+  .nota-link {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+    font-size: 11px; font-weight: 800; color: var(--blue); text-decoration: none;
+    background: rgba(37, 99, 235, 0.08); border-radius: 999px; padding: 4px 10px;
+  }
+  .nota-link:hover { background: rgba(37, 99, 235, 0.16); }
   .reason-badge { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-top: 4px; }
   .reason-badge.titip { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
   .reason-badge.barang { background: rgba(120, 53, 15, 0.10); color: #92400e; }
@@ -505,7 +511,10 @@
             <div class="sec-title">📦 Barang Gudang</div>
             <div class="sec-desc">{{ materials|length }} jenis barang aktif</div>
           </div>
-          <button type="button" class="pill-btn wa" id="btnShareStok">💬 Share ke WA</button>
+          <div style="display:flex; gap:8px;">
+            <a href="/finance/shrinkage-report" class="pill-btn">📉 Laporan Susut</a>
+            <button type="button" class="pill-btn wa" id="btnShareStok">💬 Share ke WA</button>
+          </div>
         </div>
         <textarea id="shareStokText" style="display: none">📦 *Ringkasan Stok Gudang*
 
@@ -698,6 +707,7 @@
               <div class="item-meta">{{ d.created_at_wib }} &bull; Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
               <span class="reason-badge {{ 'titip' if d.reason == 'TITIP_DANA' else 'barang' }}">{{ '💰 Titip Dana' if d.reason == 'TITIP_DANA' else '📦 Hutang Barang' }}</span>
               {% if d.note %}<div class="item-note">{{ d.note }}</div>{% endif %}
+              {% if d.transaction_id %}<a href="/nota/{{ d.transaction_id }}" class="nota-link">🧾 Lihat Nota</a>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
           </div>
@@ -735,7 +745,7 @@
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
               <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
               <td><span class="reason-badge {{ 'titip' if d.reason == 'TITIP_DANA' else 'barang' }}">{{ '💰 Titip Dana' if d.reason == 'TITIP_DANA' else '📦 Hutang Barang' }}</span></td>
-              <td class="muted">{{ d.note or "-" }}</td>
+              <td class="muted">{{ d.note or "-" }} {% if d.transaction_id %}<a href="/nota/{{ d.transaction_id }}" class="nota-link">🧾 Nota</a>{% endif %}</td>
               <td class="muted">{{ d.created_at_wib }}</td>
               <td>
                 <form method="post" action="/finance/debts/{{ d.id }}/pay" class="pay-form-td">
@@ -848,6 +858,7 @@
               <div class="item-meta">{{ d.created_at_wib }} &bull; Total Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }} &bull; Dibayar Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</div>
               <span class="reason-badge {{ 'titip' if d.reason == 'TITIP_DANA' else 'barang' }}">{{ '💰 Titip Dana' if d.reason == 'TITIP_DANA' else '📦 Hutang Barang' }}</span>
               {% if d.note %}<div class="item-note">{{ d.note }}</div>{% endif %}
+              {% if d.transaction_id %}<a href="/nota/{{ d.transaction_id }}" class="nota-link">🧾 Lihat Nota</a>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
           </div>
@@ -885,7 +896,7 @@
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
               <td><strong>Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</strong></td>
               <td><span class="reason-badge {{ 'titip' if d.reason == 'TITIP_DANA' else 'barang' }}">{{ '💰 Titip Dana' if d.reason == 'TITIP_DANA' else '📦 Hutang Barang' }}</span></td>
-              <td class="muted">{{ d.note or "-" }}</td>
+              <td class="muted">{{ d.note or "-" }} {% if d.transaction_id %}<a href="/nota/{{ d.transaction_id }}" class="nota-link">🧾 Nota</a>{% endif %}</td>
               <td class="muted">{{ d.created_at_wib }}</td>
               <td>
                 <form method="post" action="/finance/debts/{{ d.id }}/pay" class="pay-form-td">
@@ -966,7 +977,7 @@
               <div class="item-name">{{ e.category }}</div>
               <div class="item-meta">{{ e.created_at_wib }} &bull; oleh {{ e.created_by_name or "?" }}</div>
               {% if e.note %}<div class="item-note">{{ e.note }}</div>{% endif %}
-              {% if e.related_transaction_id %}<div class="item-note">🔗 tertaut nota #{{ e.related_transaction_id }}</div>{% endif %}
+              {% if e.related_transaction_id %}<a href="/nota/{{ e.related_transaction_id }}" class="nota-link">🧾 Lihat Nota</a>{% endif %}
               {% if e.source == 'TRIP' %}<div class="item-note">🚚 {{ e.trip_note or ("Perjalanan #" ~ e.trip_id) }}</div>{% endif %}
             </div>
             <div class="item-val">Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</div>
@@ -1003,7 +1014,7 @@
                 {% if e.source == 'TRIP' %}<span class="cat-badge" style="background:rgba(37,99,235,0.1)">🚚 {{ e.trip_note or ("Perjalanan #" ~ e.trip_id) }}</span>{% endif %}
               </td>
               <td><strong>Rp {{ "{:,}".format(e.total_amount | round | int).replace(",", ".") }}</strong></td>
-              <td class="muted">{{ e.note or ("Tertaut nota #" ~ e.related_transaction_id if e.related_transaction_id else "-") }}</td>
+              <td class="muted">{{ e.note or "-" }} {% if e.related_transaction_id %}<a href="/nota/{{ e.related_transaction_id }}" class="nota-link">🧾 Nota</a>{% endif %}</td>
               <td class="muted">{{ e.created_at_wib }}</td>
               <td class="muted">{{ e.created_by_name or "?" }}</td>
               <td>
@@ -1087,6 +1098,7 @@
       <button type="button" class="edit-tab-btn active" data-edit-tab="info">Info</button>
       <button type="button" class="edit-tab-btn" data-edit-tab="add">+ Stok</button>
       <button type="button" class="edit-tab-btn" data-edit-tab="reduce">− Stok</button>
+      <button type="button" class="edit-tab-btn" data-edit-tab="opname">📋 Opname</button>
     </div>
 
     <form method="post" id="editInfoForm" class="edit-tab-panel active" data-edit-panel="info">
@@ -1114,6 +1126,14 @@
       <input type="text" name="reason_other" id="editReduceStockReasonOther" placeholder="Tulis alasan…" style="display:none" />
       <input type="text" name="note" placeholder="Catatan (opsional)" />
       <button type="submit" class="pill-btn danger" style="width:100%; padding:12px">Kurangi Stok</button>
+    </form>
+
+    <form method="post" id="editOpnameForm" class="edit-tab-panel" data-edit-panel="opname">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Stok buku saat ini: <b id="editOpnameBookQty"></b></div>
+      <input type="number" name="actual_qty" step="0.01" min="0" id="editOpnameQty" placeholder="Stok fisik hasil timbang" required />
+      <input type="number" name="price" step="1" min="1" id="editOpnamePrice" placeholder="Harga/satuan (Rp, isi kalau HPP belum ada &amp; stok lebih)" />
+      <input type="text" name="note" placeholder="Catatan (opsional)" />
+      <button type="submit" class="pill-btn primary" style="width:100%; padding:12px">Catat Opname</button>
     </form>
   </div>
 </div>
@@ -1281,6 +1301,10 @@
     editReduceStockReason.addEventListener("change", syncEditReduceStockReason);
     syncEditReduceStockReason();
 
+    var editOpnameForm = document.getElementById("editOpnameForm");
+    var editOpnameQty = document.getElementById("editOpnameQty");
+    var editOpnameBookQty = document.getElementById("editOpnameBookQty");
+
     function activateEditTab(tab) {
       document.querySelectorAll(".edit-tab-btn").forEach(function (b) {
         b.classList.toggle("active", b.getAttribute("data-edit-tab") === tab);
@@ -1305,6 +1329,10 @@
       editReduceStockForm.action = "/finance/materials/" + id + "/reduce-stock";
       editReduceStockQty.placeholder = "Jumlah (" + unit + ")";
       editReduceStockQty.max = qty;
+
+      editOpnameForm.action = "/finance/materials/" + id + "/opname";
+      editOpnameQty.placeholder = "Stok fisik (" + unit + ")";
+      editOpnameBookQty.textContent = qty + " " + unit;
 
       editModalName.textContent = name;
       activateEditTab("info");
