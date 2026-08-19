@@ -56,6 +56,20 @@
   .hero-val { font-size: 30px; font-weight: 1000; color: #fff; margin-top: 6px; letter-spacing: -0.5px; }
   .hero-val.neg { color: #fca5a5; }
   .hero-sub { font-size: 11.5px; color: rgba(255, 255, 255, 0.55); margin-top: 6px; }
+  .delta-badge {
+    display: inline-flex; align-items: center; gap: 4px; border-radius: var(--pill);
+    padding: 3px 9px; font-size: 11px; font-weight: 900; margin-left: 8px; vertical-align: middle;
+  }
+  .delta-badge.up { background: rgba(21,128,61,.14); color: #4ade80; }
+  .delta-badge.down { background: rgba(185,28,28,.14); color: #fca5a5; }
+  .delta-badge.na { background: rgba(255,255,255,.14); color: rgba(255,255,255,.6); }
+  .stat-pill .delta-badge.up { background: rgba(21,128,61,.1); color: var(--good); }
+  .stat-pill .delta-badge.down { background: rgba(185,28,28,.1); color: var(--bad); }
+  .stat-pill .delta-badge.na { background: rgba(100,116,139,.1); color: var(--muted); }
+
+  .trend-wrap { margin-top: 12px; }
+  .trend-svg { width: 100%; height: 64px; display: block; }
+  .trend-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
 
   .filter-form { display: flex; gap: 8px; align-items: end; margin-top: 14px; background: #fff; border-radius: 18px; box-shadow: var(--shadow-out); padding: 12px; flex-wrap: wrap; }
   .filter-form .field { flex: 1 1 130px; margin-bottom: 0; }
@@ -163,8 +177,17 @@
     <!-- LABA BERSIH -->
     <div class="hero-strip fade-up">
       <div class="hero-lbl">Laba Bersih ({{ report.date_from }} s/d {{ report.date_to }})</div>
-      <div class="hero-val {{ 'neg' if report.laba_bersih < 0 else '' }}">Rp {{ "{:,}".format(report.laba_bersih | round | int).replace(",", ".") }}</div>
-      <div class="hero-sub">Laba Kotor Rp {{ "{:,}".format(report.laba_kotor | round | int).replace(",", ".") }} &bull; Total Beban Rp {{ "{:,}".format(report.total_beban | round | int).replace(",", ".") }}</div>
+      <div class="hero-val {{ 'neg' if report.laba_bersih < 0 else '' }}">
+        Rp {{ "{:,}".format(report.laba_bersih | round | int).replace(",", ".") }}
+        {% if comparison.laba_delta_pct is none %}
+        <span class="delta-badge na">Baru</span>
+        {% elif comparison.laba_delta_pct >= 0 %}
+        <span class="delta-badge up">▲ {{ "%.1f"|format(comparison.laba_delta_pct) }}%</span>
+        {% else %}
+        <span class="delta-badge down">▼ {{ "%.1f"|format(comparison.laba_delta_pct | abs) }}%</span>
+        {% endif %}
+      </div>
+      <div class="hero-sub">Laba Kotor Rp {{ "{:,}".format(report.laba_kotor | round | int).replace(",", ".") }} &bull; Total Beban Rp {{ "{:,}".format(report.total_beban | round | int).replace(",", ".") }} &bull; vs periode sebelumnya ({{ comparison.prev_from }} s/d {{ comparison.prev_to }})</div>
       {% if report.laba_kotor < 0 %}
       <a href="/finance/margin-report?from={{ report.date_from }}&to={{ report.date_to }}" class="readonly-badge" style="margin-top:10px; color:#fca5a5; background:rgba(255,255,255,.14); text-decoration:none;">📐 Laba Kotor minus — cek barang mana yang rugi di Laporan Margin →</a>
       {% endif %}
@@ -174,7 +197,15 @@
     <div class="stat-row fade-up">
       <div class="stat-pill green">
         <div class="s-num">Rp {{ "{:,}".format(report.omzet_jual | round | int).replace(",", ".") }}</div>
-        <div class="s-lbl">Omzet Jual</div>
+        <div class="s-lbl">Omzet Jual
+          {% if comparison.omzet_delta_pct is none %}
+          <span class="delta-badge na">Baru</span>
+          {% elif comparison.omzet_delta_pct >= 0 %}
+          <span class="delta-badge up">▲ {{ "%.1f"|format(comparison.omzet_delta_pct) }}%</span>
+          {% else %}
+          <span class="delta-badge down">▼ {{ "%.1f"|format(comparison.omzet_delta_pct | abs) }}%</span>
+          {% endif %}
+        </div>
       </div>
       <div class="stat-pill">
         <div class="s-num">Rp {{ "{:,}".format(report.belanja_beli | round | int).replace(",", ".") }}</div>
@@ -204,12 +235,48 @@
         <div class="s-num">Rp {{ "{:,}".format(report.total_piutang | round | int).replace(",", ".") }}</div>
         <div class="s-lbl">Total Piutang (dari pelanggan + saldo titipan ke pemasok)</div>
       </div>
+      <div class="stat-pill {{ 'green' if report.estimasi_kekayaan >= 0 else 'red' }}">
+        <div class="s-num">Rp {{ "{:,}".format(report.estimasi_kekayaan | round | int).replace(",", ".") }}</div>
+        <div class="s-lbl">Estimasi Kekayaan Bersih (Stok + Piutang − Hutang)</div>
+      </div>
       {% if report.trip_jual > 0 or report.trip_beli > 0 or report.trip_beban > 0 %}
       <div class="stat-pill">
         <div class="s-num">Rp {{ "{:,}".format((report.trip_jual - report.trip_beli - report.trip_beban) | round | int).replace(",", ".") }}</div>
         <div class="s-lbl">Untung Mode Perjalanan</div>
       </div>
       {% endif %}
+    </div>
+
+    <!-- TREN ARUS KAS -->
+    <div class="main-card fade-up">
+      <div class="sec-title">📈 Tren Arus Kas (14 Hari Terakhir)</div>
+      <div class="sec-desc">Estimasi Omzet − Belanja − Beban per hari (gudang saja) &bull; bukan saldo kas riil, sistem ini belum mencatat kas fisik</div>
+      {% set trend_vals = cash_trend | map(attribute='net') | list %}
+      {% set trend_max = (trend_vals | max) if trend_vals else 0 %}
+      {% set trend_min = (trend_vals | min) if trend_vals else 0 %}
+      {% set trend_span = (trend_max - trend_min) %}
+      {% set trend_range = trend_span if trend_span != 0 else 1 %}
+      {% set n = trend_vals | length %}
+      <div class="trend-wrap">
+        {% if n > 1 %}
+        {% set ns = namespace(points="") %}
+        {% for v in trend_vals %}
+        {% set x = (loop.index0 / (n - 1) * 100) %}
+        {% set y = 60 - ((v - trend_min) / trend_range * 56) %}
+        {% set ns.points = ns.points ~ (x | round(2) | string) ~ "," ~ (y | round(2) | string) ~ " " %}
+        {% endfor %}
+        {% set zero_y = 60 - ((0 - trend_min) / trend_range * 56) %}
+        <svg class="trend-svg" viewBox="0 0 100 64" preserveAspectRatio="none">
+          {% if trend_min < 0 and trend_max > 0 %}
+          <line x1="0" y1="{{ zero_y | round(2) }}" x2="100" y2="{{ zero_y | round(2) }}" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3,3" vector-effect="non-scaling-stroke" />
+          {% endif %}
+          <polyline points="{{ ns.points }}" fill="none" stroke="var(--blue)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" />
+        </svg>
+        <div class="trend-note">{{ cash_trend[0].date }} &nbsp;→&nbsp; {{ cash_trend[-1].date }}</div>
+        {% else %}
+        <p class="empty-hint">Belum cukup data.</p>
+        {% endif %}
+      </div>
     </div>
 
     <!-- BEBAN PER KATEGORI -->

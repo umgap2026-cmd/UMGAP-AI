@@ -1,0 +1,166 @@
+{% extends "base.html" %}{% block topbar %}{% endblock %}{% block content %}
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f6f8fc; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+    --shadow-out: 0 20px 42px rgba(18, 32, 62, 0.11);
+    --soft-in: inset 6px 6px 12px rgba(20, 40, 80, 0.1), inset -6px -6px 12px rgba(255, 255, 255, 0.94);
+    --radius: 24px; --pill: 999px; --blue: #2563eb; --good: #15803d; --bad: #b91c1c; --nav-h: 92px;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100svh;
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+  .screen { min-height: 100svh; display: flex; justify-content: center; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .wrap { width: 100%; max-width: 480px; }
+  @media (min-width: 600px) { .wrap { max-width: 720px; } }
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { opacity: 0; animation: fadeInUp 0.55s ease-out forwards; }
+  @keyframes barPan { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+  .head-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 12px; position: relative; overflow: hidden; }
+  .head-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+    background-size: 200% 100%; animation: barPan 6s ease-in-out infinite;
+  }
+  .head-top { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 46px; height: 46px; border-radius: 14px; background: #fff; box-shadow: 0 10px 20px rgba(18, 32, 62, 0.13); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: 0 0 auto; }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .head-title h1 { font-size: 16px; font-weight: 1000; color: #1e3252; }
+  .head-title p { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .action-btn {
+    position: relative; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 14px; background: #f3f6fc;
+    box-shadow: 0 10px 22px rgba(28, 55, 90, 0.16), inset 4px 4px 10px rgba(255, 255, 255, 0.92), inset -4px -4px 10px rgba(28, 55, 90, 0.08);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; text-decoration: none;
+  }
+  .action-btn svg { width: 20px; height: 20px; stroke: #7b93c7; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .notif-badge { position: absolute; top: -5px; right: -5px; background: #ffd84d; color: #1f2937; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 999px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18); }
+  .rgb { height: 3px; border-radius: 999px; margin-top: 10px; background: linear-gradient(90deg, #f00 0%, #ff7a00 18%, #ffd500 36%, #00c853 58%, #00b0ff 78%, #8a2be2 100%); }
+
+  .hero-strip {
+    margin-top: 14px; border-radius: var(--radius); padding: 20px 22px; position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);
+    box-shadow: 0 16px 38px rgba(37, 99, 235, 0.26);
+  }
+  .hero-lbl { font-size: 11px; font-weight: 900; color: rgba(255, 255, 255, 0.75); text-transform: uppercase; letter-spacing: 0.6px; }
+  .hero-val { font-size: 26px; font-weight: 1000; color: #fff; margin-top: 6px; letter-spacing: -0.5px; }
+  .hero-sub { font-size: 11.5px; color: rgba(255, 255, 255, 0.75); margin-top: 6px; }
+
+  .main-card { margin-top: 14px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-out); padding: 16px 14px 18px; }
+  .sec-title { font-size: 15px; font-weight: 1000; color: #1e3252; display: flex; align-items: center; gap: 8px; }
+  .sec-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .divider { height: 1px; background: rgba(125, 138, 166, 0.16); margin: 14px 0; }
+
+  .stack-form { display: flex; flex-direction: column; gap: 10px; }
+  .stack-form .field label { display: block; margin: 0 0 5px; font-size: 10.5px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .stack-form input[type="text"], .stack-form input[type="tel"] {
+    width: 100%; border: none; outline: none; border-radius: 12px; background: #f2f5fb; box-shadow: var(--soft-in);
+    padding: 10px 12px; font-size: 13px; color: var(--text); font-family: inherit;
+  }
+  .btn-submit {
+    border: none; border-radius: 14px; padding: 12px; font-weight: 900; font-size: 13.5px; cursor: pointer;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; font-family: inherit;
+  }
+
+  .item-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .item-row { background: #fff; border-radius: 16px; box-shadow: var(--shadow-out); padding: 14px; position: relative; overflow: hidden; }
+  .item-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--good); }
+  .item-row.hutang::before { background: var(--bad); }
+  .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .item-name { font-size: 13px; font-weight: 900; color: var(--text); }
+  .item-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .item-val { font-size: 14px; font-weight: 1000; color: var(--good); text-align: right; white-space: nowrap; }
+  .item-row.hutang .item-val { color: var(--bad); }
+  .empty-hint { text-align: center; padding: 20px 0; color: var(--muted); font-size: 12.5px; }
+  .nota-link {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+    font-size: 11px; font-weight: 800; color: var(--blue); text-decoration: none;
+    background: rgba(37, 99, 235, 0.08); border-radius: 999px; padding: 4px 10px;
+  }
+  .pill-btn {
+    border: none; border-radius: 999px; padding: 10px 16px; font-weight: 800; font-size: 13px; cursor: pointer;
+    background: rgba(21,128,61,.1); color: var(--good); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pill-btn[disabled] { opacity: 0.4; pointer-events: none; }
+  .pill-btn.danger { background: rgba(185,28,28,.1); color: var(--bad); }
+</style>
+
+<div class="screen">
+  <div class="wrap">
+    <!-- HEADER -->
+    <div class="head-card">
+      <div class="head-top">
+        <div class="logo"><img src="{{ url_for('static', filename='UMGAP (1).png') }}" alt="UMGAP" /></div>
+        <div class="head-title">
+          <h1>{{ party.name }}</h1>
+          <p>{{ party.phone or "Belum ada no. HP" }}</p>
+        </div>
+        <div class="hdr-right">
+          <a href="/finance/mitra" class="action-btn" aria-label="Kembali">
+            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+          </a>
+        </div>
+      </div>
+      <div class="rgb"></div>
+    </div>
+
+    <!-- SALDO -->
+    <div class="hero-strip fade-up">
+      <div class="hero-lbl">Saldo Bersih</div>
+      <div class="hero-val">Rp {{ "{:,}".format(party.saldo_net | abs | round | int).replace(",", ".") }}</div>
+      <div class="hero-sub">
+        {% if party.saldo_net > 0 %}Mereka perlu menyelesaikan ke kami
+        {% elif party.saldo_net < 0 %}Kami perlu menyelesaikan ke mereka
+        {% else %}Saldo sudah nol{% endif %}
+        &bull; Piutang Rp {{ "{:,}".format(party.total_piutang | round | int).replace(",", ".") }} &bull; Hutang Rp {{ "{:,}".format(party.total_hutang | round | int).replace(",", ".") }}
+      </div>
+    </div>
+
+    <!-- KIRIM PENGINGAT -->
+    <div class="main-card fade-up">
+      <div class="sec-title">💬 Pengingat WA</div>
+      <div class="sec-desc">Kirim rincian saldo hutang/piutang terbuka ke nomor HP mitra ini.</div>
+      <form method="post" action="/finance/mitra/{{ party.id }}/send-reminder" style="margin-top: 12px">
+        <button type="submit" class="pill-btn" {{ 'disabled' if not party.phone or not party.debts }}>💬 Kirim Pengingat WA</button>
+      </form>
+      {% if not party.phone %}<div class="item-meta" style="margin-top:8px">Isi nomor HP dulu di form Edit Mitra di bawah.</div>{% endif %}
+    </div>
+
+    <!-- RINCIAN HUTANG/PIUTANG -->
+    <div class="main-card fade-up">
+      <div class="sec-title">📋 Rincian Terbuka</div>
+      <div class="item-list">
+        {% for d in party.debts %}
+        <div class="item-row {{ 'hutang' if d.type == 'HUTANG' else '' }}">
+          <div class="item-top">
+            <div>
+              <div class="item-name">{{ d.label }}</div>
+              <div class="item-meta">{{ d.created_at_wib }}{% if d.note %} &bull; {{ d.note }}{% endif %}</div>
+              {% if d.transaction_id %}<a href="/nota/{{ d.transaction_id }}" class="nota-link">🧾 Lihat Nota</a>{% endif %}
+            </div>
+            <div class="item-val">Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}</div>
+          </div>
+        </div>
+        {% else %}
+        <p class="empty-hint">Tidak ada hutang/piutang terbuka.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- EDIT MITRA -->
+    <div class="main-card fade-up">
+      <div class="sec-title">✏️ Edit Mitra</div>
+      <form method="post" action="/finance/mitra/{{ party.id }}/edit" class="stack-form" style="margin-top: 12px">
+        <div class="field"><label>Nama *</label><input type="text" name="name" value="{{ party.name }}" required /></div>
+        <div class="field"><label>No. HP</label><input type="tel" name="phone" value="{{ party.phone or '' }}" placeholder="08xxxxxxxxxx" /></div>
+        <div class="field"><label>Catatan</label><input type="text" name="note" value="{{ party.note or '' }}" /></div>
+        <button type="submit" class="btn-submit">Simpan Perubahan</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

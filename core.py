@@ -5307,6 +5307,224 @@ def list_fin_party_names():
         conn.close()
 
 
+def _ensure_fin_parties_schema(cur):
+    """Lazy-migration: tabel Master Mitra (nama + no HP) -- sebelum ini
+    party_name di fin_debts/fin_transactions cuma teks bebas tanpa nomor
+    HP tersimpan, jadi tidak bisa dipakai kirim pengingat WA. Index unik
+    (case/whitespace-insensitive) konsisten dgn pola pencocokan nama yang
+    sudah dipakai list_fin_party_balances/list_fin_party_names."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fin_parties (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            phone VARCHAR(20),
+            note TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+    """)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS fin_parties_name_lower_idx
+        ON fin_parties (LOWER(TRIM(name)));
+    """)
+
+
+def _debt_label(d):
+    """Label manusiawi utk 1 baris fin_debts, lihat penjelasan lengkap di
+    get_owner_health_insight()/get_owner_finance_report() ttg 4 kombinasi
+    type x party_type."""
+    t, pt = d.get("type"), d.get("party_type")
+    if t == "PIUTANG" and pt == "PELANGGAN":
+        return "Piutang (belum bayar ke kita)"
+    if t == "PIUTANG" and pt == "SUPPLIER":
+        return "Saldo titip dana kita ke supplier"
+    if t == "HUTANG" and pt == "SUPPLIER":
+        return "Hutang (belum kita bayar)"
+    if t == "HUTANG" and pt == "PELANGGAN":
+        return "Saldo titip dana dari pelanggan"
+    return (t or "-").capitalize()
+
+
+def list_fin_parties(search=None):
+    """Daftar Master Mitra + saldo piutang/hutang terbuka teragregasi per
+    nama (match case/whitespace-insensitive spt list_fin_party_balances)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_parties_schema(cur)
+        conn.commit()
+        sql = """
+            SELECT p.id, p.name, p.phone, p.note, p.created_at,
+                   COALESCE(b.total_piutang, 0) AS total_piutang,
+                   COALESCE(b.total_hutang, 0) AS total_hutang
+            FROM fin_parties p
+            LEFT JOIN (
+                SELECT LOWER(TRIM(party_name)) AS key_name,
+                       SUM(CASE WHEN type = 'PIUTANG' THEN remaining ELSE 0 END) AS total_piutang,
+                       SUM(CASE WHEN type = 'HUTANG' THEN remaining ELSE 0 END) AS total_hutang
+                FROM fin_debts
+                WHERE is_settled = FALSE
+                GROUP BY LOWER(TRIM(party_name))
+            ) b ON b.key_name = LOWER(TRIM(p.name))
+        """
+        params = []
+        if search:
+            sql += " WHERE p.name ILIKE %s"
+            params.append(f"%{search}%")
+        sql += " ORDER BY p.name ASC;"
+        cur.execute(sql, params)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["total_piutang"] = float(r["total_piutang"] or 0)
+            r["total_hutang"] = float(r["total_hutang"] or 0)
+            r["saldo_net"] = r["total_piutang"] - r["total_hutang"]
+        return rows
+    finally:
+        cur.close()
+        conn.close()
+
+
+def create_fin_party(name, phone, note=None):
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Nama mitra wajib diisi.")
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_parties_schema(cur)
+        conn.commit()
+        cur.execute("SELECT id FROM fin_parties WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s));", (name,))
+        if cur.fetchone():
+            raise ValueError(f"Mitra dengan nama '{name}' sudah ada.")
+        cur.execute("""
+            INSERT INTO fin_parties (name, phone, note) VALUES (%s, %s, %s) RETURNING id;
+        """, (name, (phone or "").strip() or None, (note or "").strip() or None))
+        new_id = cur.fetchone()["id"]
+        conn.commit()
+        return new_id
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menyimpan mitra: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def update_fin_party(party_id, name, phone, note=None):
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Nama mitra wajib diisi.")
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_parties_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT id FROM fin_parties
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s)) AND id <> %s;
+        """, (name, party_id))
+        if cur.fetchone():
+            raise ValueError(f"Mitra dengan nama '{name}' sudah ada.")
+        cur.execute("""
+            UPDATE fin_parties SET name = %s, phone = %s, note = %s WHERE id = %s;
+        """, (name, (phone or "").strip() or None, (note or "").strip() or None, party_id))
+        if cur.rowcount == 0:
+            raise ValueError("Mitra tidak ditemukan.")
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise ValueError(f"Gagal menyimpan mitra: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_fin_party(party_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM fin_parties WHERE id = %s;", (party_id,))
+        if cur.rowcount == 0:
+            raise ValueError("Mitra tidak ditemukan.")
+        conn.commit()
+    except ValueError:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_party_detail(party_id):
+    """Data 1 mitra + daftar hutang/piutang terbuka miliknya (match by
+    nama, case/whitespace-insensitive) lengkap dgn transaction_id utk
+    link nota (pola .nota-link yang sudah ada di finance_dashboard.html)."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_parties_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
+        conn.commit()
+        cur.execute("SELECT id, name, phone, note FROM fin_parties WHERE id = %s;", (party_id,))
+        party = cur.fetchone()
+        if not party:
+            raise ValueError("Mitra tidak ditemukan.")
+        party = dict(party)
+
+        cur.execute("""
+            SELECT id, type, party_type, reason, amount, paid_amount, remaining,
+                   note, created_at, transaction_id
+            FROM fin_debts
+            WHERE is_settled = FALSE AND LOWER(TRIM(party_name)) = LOWER(TRIM(%s))
+            ORDER BY type, created_at DESC;
+        """, (party["name"],))
+        debts = [dict(r) for r in cur.fetchall()]
+        for d in debts:
+            d["created_at_wib"] = _utc_naive_to_wib_string(d.get("created_at"), fmt="%d/%m/%Y")
+            d.pop("created_at", None)
+            d["remaining"] = float(d["remaining"] or 0)
+            d["label"] = _debt_label(d)
+
+        party["debts"] = debts
+        party["total_piutang"] = sum(d["remaining"] for d in debts if d["type"] == "PIUTANG")
+        party["total_hutang"] = sum(d["remaining"] for d in debts if d["type"] == "HUTANG")
+        party["saldo_net"] = party["total_piutang"] - party["total_hutang"]
+        return party
+    finally:
+        cur.close()
+        conn.close()
+
+
+def send_fin_party_wa_reminder(party_id):
+    """Susun & kirim pesan pengingat WA berisi rincian hutang/piutang
+    terbuka mitra ini, pakai send_wa() yang sudah ada (fire-and-forget)."""
+    party = get_fin_party_detail(party_id)
+    phone = (party.get("phone") or "").strip()
+    if not phone:
+        raise ValueError("Mitra ini belum punya nomor HP tersimpan.")
+    if not party["debts"]:
+        raise ValueError("Mitra ini tidak punya saldo hutang/piutang terbuka.")
+
+    lines = [f"Halo {party['name']}, ini pengingat saldo dari ARV LOGAM:", ""]
+    for d in party["debts"]:
+        lines.append(f"- {d['label']}: Rp {d['remaining']:,.0f}".replace(",", "."))
+    lines.append("")
+    if party["saldo_net"] > 0:
+        lines.append(f"Total yang perlu diselesaikan ke kami: Rp {party['saldo_net']:,.0f}".replace(",", "."))
+    elif party["saldo_net"] < 0:
+        lines.append(f"Total yang perlu kami selesaikan ke Anda: Rp {abs(party['saldo_net']):,.0f}".replace(",", "."))
+    lines.append("Terima kasih.")
+    message = "\n".join(lines)
+
+    send_wa(phone, message)
+    return {"phone": phone, "message": message}
+
+
 def pay_fin_debt(debt_id, pay_amount):
     """Cicil/lunasi hutang atau piutang. Return dict {paid, remaining, is_settled}."""
     pay_amount = float(pay_amount or 0)
@@ -6262,6 +6480,7 @@ def get_owner_finance_report(date_from, date_to):
             "nilai_stok": nilai_stok,
             "total_hutang": total_hutang,
             "total_piutang": total_piutang,
+            "estimasi_kekayaan": nilai_stok + total_piutang - total_hutang,
             "total_piutang_customer": total_piutang_customer,
             "total_piutang_saldo_supplier": total_piutang_saldo_supplier,
             "total_hutang_supplier": total_hutang_supplier,
@@ -6276,6 +6495,82 @@ def get_owner_finance_report(date_from, date_to):
             "trip_beli": trip_beli,
             "trip_beban": trip_beban,
         }
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_fin_period_comparison(date_from, date_to, cur_omzet_jual, cur_laba_bersih):
+    """Bandingkan omzet & laba bersih 1 rentang tanggal vs rentang
+    SEBELUMNYA yang durasinya sama persis (mis. 1-19 Agu dibanding
+    13-31 Jul). Dipakai utk badge naik/turun di owner_finance.html.
+    Angka periode BERJALAN (cur_omzet_jual/cur_laba_bersih) diambil dari
+    get_owner_finance_report yang sudah dipanggil pemanggil (route),
+    supaya tidak query 2x utk rentang yang sama. delta_pct = None kalau
+    nilai pembanding 0 (periode baru/tidak ada data historis) supaya
+    template tampilkan "Baru", bukan div-by-zero."""
+    d_from = date_from if isinstance(date_from, date) else datetime.strptime(str(date_from), "%Y-%m-%d").date()
+    d_to = date_to if isinstance(date_to, date) else datetime.strptime(str(date_to), "%Y-%m-%d").date()
+    span = (d_to - d_from).days
+    prev_to = d_from - timedelta(days=1)
+    prev_from = prev_to - timedelta(days=span)
+
+    prev = get_owner_finance_report(prev_from.isoformat(), prev_to.isoformat())
+
+    def _delta_pct(now, before):
+        if not before:
+            return None
+        return round((now - before) / abs(before) * 100, 1)
+
+    return {
+        "prev_from": prev_from.isoformat(),
+        "prev_to": prev_to.isoformat(),
+        "prev_omzet_jual": prev["omzet_jual"],
+        "prev_laba_bersih": prev["laba_bersih"],
+        "omzet_delta_pct": _delta_pct(cur_omzet_jual, prev["omzet_jual"]),
+        "laba_delta_pct": _delta_pct(cur_laba_bersih, prev["laba_bersih"]),
+    }
+
+
+def get_fin_cash_trend(days=14):
+    """Estimasi arus kas harian N hari terakhir (gudang saja, TANPA Mode
+    Perjalanan) = omzet_jual - belanja_beli - beban per hari. Ini
+    PENDEKATAN, bukan saldo kas riil -- sistem ini tidak mencatat kas
+    fisik sama sekali (lihat catatan di get_owner_finance_report). Dipakai
+    utk sparkline tren di owner_finance.html."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_expense_schema(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT d::date AS day FROM generate_series(
+                (CURRENT_DATE - (%s - 1) * INTERVAL '1 day')::date, CURRENT_DATE, INTERVAL '1 day'
+            ) AS d;
+        """, (days,))
+        all_days = [r["day"] for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT created_at::date AS day,
+                   SUM(CASE WHEN type IN ('JUAL_INVOICE', 'JUAL_GUDANG') THEN total_amount ELSE 0 END) AS omzet,
+                   SUM(CASE WHEN type IN ('BELI_GUDANG', 'BELI') THEN total_amount ELSE 0 END) AS belanja,
+                   SUM(CASE WHEN type = 'PENGELUARAN' THEN total_amount ELSE 0 END) AS beban
+            FROM fin_transactions
+            WHERE created_at::date >= CURRENT_DATE - (%s - 1) * INTERVAL '1 day'
+              AND cancelled_at IS NULL
+            GROUP BY created_at::date;
+        """, (days,))
+        by_day = {r["day"]: r for r in cur.fetchall()}
+
+        trend = []
+        for d in all_days:
+            r = by_day.get(d)
+            omzet = float(r["omzet"] or 0) if r else 0.0
+            belanja = float(r["belanja"] or 0) if r else 0.0
+            beban = float(r["beban"] or 0) if r else 0.0
+            trend.append({"date": d.isoformat(), "net": omzet - belanja - beban})
+        return trend
     finally:
         cur.close()
         conn.close()

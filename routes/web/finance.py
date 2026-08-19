@@ -11,6 +11,8 @@ from core import (
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     merge_fin_debts,
     list_fin_party_names,
+    list_fin_parties, create_fin_party, update_fin_party, delete_fin_party,
+    get_fin_party_detail, send_fin_party_wa_reminder,
     list_fin_categories, list_fin_activity_log,
     create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
     edit_fin_expense_entry, delete_fin_expense_entry,
@@ -21,6 +23,7 @@ from core import (
     close_fin_trip_web, cancel_fin_trip_web,
     delete_fin_trip_web, get_materials_with_stock,
     get_owner_finance_report, get_owner_phone,
+    get_fin_period_comparison, get_fin_cash_trend,
 )
 
 REDUCE_STOCK_REASONS = {
@@ -257,6 +260,105 @@ def finance_hpp_diagnostics():
         result=result,
         notif_count=get_notif_count(),
     )
+
+
+# ---------- SALDO MITRA (Master Mitra + pengingat WA) ----------
+@finance_bp.route("/finance/mitra")
+def finance_mitra():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    parties = list_fin_parties(search=request.args.get("q"))
+    return render_template(
+        "finance_mitra.html",
+        parties=parties,
+        q=request.args.get("q") or "",
+        notif_count=get_notif_count(),
+    )
+
+
+@finance_bp.route("/finance/mitra/add", methods=["POST"])
+def finance_mitra_add():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        create_fin_party(
+            name=request.form.get("name"),
+            phone=request.form.get("phone"),
+            note=request.form.get("note"),
+        )
+        flash("Mitra berhasil ditambahkan.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance/mitra")
+
+
+@finance_bp.route("/finance/mitra/<int:party_id>")
+def finance_mitra_detail(party_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        party = get_fin_party_detail(party_id)
+    except ValueError as e:
+        flash(str(e), "danger")
+        return redirect("/finance/mitra")
+    return render_template(
+        "finance_mitra_detail.html",
+        party=party,
+        notif_count=get_notif_count(),
+    )
+
+
+@finance_bp.route("/finance/mitra/<int:party_id>/edit", methods=["POST"])
+def finance_mitra_edit(party_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        update_fin_party(
+            party_id,
+            name=request.form.get("name"),
+            phone=request.form.get("phone"),
+            note=request.form.get("note"),
+        )
+        flash("Mitra berhasil diperbarui.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(f"/finance/mitra/{party_id}")
+
+
+@finance_bp.route("/finance/mitra/<int:party_id>/delete", methods=["POST"])
+def finance_mitra_delete(party_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        delete_fin_party(party_id)
+        flash("Mitra berhasil dihapus.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance/mitra")
+
+
+@finance_bp.route("/finance/mitra/<int:party_id>/send-reminder", methods=["POST"])
+def finance_mitra_send_reminder(party_id):
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    try:
+        send_fin_party_wa_reminder(party_id)
+        flash("Pengingat WA sedang dikirim.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect(f"/finance/mitra/{party_id}")
 
 
 @finance_bp.route("/finance/materials/<int:material_id>/delete", methods=["POST"])
@@ -671,9 +773,13 @@ def owner_finance_report():
     date_to = request.args.get("to") or today.isoformat()
 
     report = get_owner_finance_report(date_from, date_to)
+    comparison = get_fin_period_comparison(date_from, date_to, report["omzet_jual"], report["laba_bersih"])
+    cash_trend = get_fin_cash_trend(14)
     return render_template(
         "owner_finance.html",
         report=report,
+        comparison=comparison,
+        cash_trend=cash_trend,
         notif_count=get_notif_count(),
         today_iso=today.isoformat(),
         month_start_iso=today.replace(day=1).isoformat(),

@@ -641,6 +641,7 @@
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }} &bull; {{ debts.hutang|length }} transaksi belum lunas</div>
           </div>
           <div style="display:flex; gap:8px;">
+            <a href="/finance/mitra" class="pill-btn">👥 Saldo Mitra</a>
             <button type="button" class="pill-btn btn-toggle-merge" data-type="HUTANG">🔗 Gabung</button>
             <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
           </div>

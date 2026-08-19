@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, jsonify
 from core import (
     owner_required, get_notif_count,
     get_owner_health_insight, get_owner_ai_review,
+    get_owner_finance_report,
 )
 
 owner_bp = Blueprint("owner", __name__)
@@ -24,11 +25,20 @@ def owner_dashboard():
     except Exception:
         insight = None
 
+    today = date.today()
+    try:
+        laba_bersih_bulan_ini = get_owner_finance_report(
+            today.replace(day=1).isoformat(), today.isoformat()
+        )["laba_bersih"]
+    except Exception:
+        laba_bersih_bulan_ini = None
+
     return render_template(
         "owner_dashboard.html",
         insight=insight,
         notif_count=get_notif_count(),
-        today_iso=date.today().isoformat(),
+        today_iso=today.isoformat(),
+        laba_bersih_bulan_ini=laba_bersih_bulan_ini,
     )
 
 
