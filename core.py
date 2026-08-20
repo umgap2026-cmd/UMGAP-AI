@@ -522,6 +522,25 @@ def _ensure_fin_debts_kembalian_schema(cur):
         """)
 
 
+def _ensure_fin_transactions_gross_amount_schema(cur):
+    """Lazy-migration: `gross_amount` = nilai nota SEBELUM DP dipotong
+    (cuma dikurangi diskon asli & ongkir-potongan) -- dipakai KHUSUS oleh
+    laporan keuangan sbg Omzet yang benar. `total_amount` TETAP seperti
+    sebelumnya (dikurangi DP juga) krn dipakai luas: nota cetak, hitung
+    piutang/hutang, share WA, dll -- sengaja TIDAK diubah supaya nol
+    resiko regresi di fitur lain. Lihat create_fin_invoice() utk kenapa
+    DP dulu keliru ikut dihitung sbg diskon yang mengurangi Omzet."""
+    if not _col_exists(cur, "fin_transactions", "gross_amount"):
+        cur.execute("""
+            ALTER TABLE fin_transactions ADD COLUMN IF NOT EXISTS gross_amount NUMERIC(14,2) NULL;
+        """)
+    cur.execute("""
+        UPDATE fin_transactions SET gross_amount = total_amount + COALESCE(dp_amount,0)
+        WHERE gross_amount IS NULL
+          AND type IN ('JUAL_INVOICE','JUAL_GUDANG','BELI_GUDANG','BELI');
+    """)
+
+
 def _ensure_fin_transaction_item_direction_schema(cur):
     """Lazy-migration: arah per baris barang ('IN'/'OUT', vokabuler sama
     dgn movement_type di _update_stock_avco) -- dipakai utk nota campuran
@@ -2717,6 +2736,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -2760,6 +2780,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
+        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Kalau DP/potongan/barang-balik yang diinput di nota ini LEBIH BESAR
         # dari nilai barangnya (raw_total negatif), sisanya bukan hilang --
         # itu uang customer yang belum "terpakai" & harus jadi saldo (HUTANG
@@ -2800,14 +2821,14 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount, created_at, credit_applied)
-            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at, credit_applied, gross_amount)
+            VALUES ('JUAL_INVOICE', %s, 'PELANGGAN', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             customer_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
             is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc,
-            credit_amount if credit_amount > 0 else None
+            credit_amount if credit_amount > 0 else None, gross_amount
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -2939,6 +2960,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
         for item in items:
             mat_id = item.get("material_id")
             if not mat_id:
@@ -2980,6 +3002,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
+        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Kalau DP/barang-balik yang diinput di nota ini LEBIH BESAR dari
         # nilai barang yang didapat (raw_total negatif), sisanya bukan
         # hilang -- itu uang kita yang belum "terpakai" & harus jadi saldo
@@ -3021,14 +3044,14 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         cur.execute("""
             INSERT INTO fin_transactions
                 (type, party_name, party_type, note, is_debt, total_amount, created_by, print_size,
-                 dp_amount, ongkir_potongan_amount, created_at, credit_applied)
-            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 dp_amount, ongkir_potongan_amount, created_at, credit_applied, gross_amount)
+            VALUES ('BELI_GUDANG', %s, 'SUPPLIER', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """, (
             supplier_name,
             f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else ""),
             is_debt, grand_total, created_by, print_size, total_dp, ongkir_potongan, created_at_utc,
-            credit_amount if credit_amount > 0 else None
+            credit_amount if credit_amount > 0 else None, gross_amount
         ))
         txn_id = cur.fetchone()["id"]
 
@@ -3161,6 +3184,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         _ensure_fin_transaction_item_note_schema(cur)
         _ensure_fin_transaction_item_direction_schema(cur)
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
 
         cur.execute("""
             SELECT id, type, note, cancelled_at
@@ -3252,6 +3276,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
+        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Sama seperti create_fin_invoice/create_fin_purchase_invoice: kalau
         # DP/barang-balik hasil edit lebih besar dari nilai barang, sisanya
         # jadi saldo baru (bukan hilang).
@@ -3321,11 +3346,11 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         cur.execute("""
             UPDATE fin_transactions
             SET party_name = %s, note = %s, is_debt = %s, total_amount = %s,
-                dp_amount = %s, ongkir_potongan_amount = %s,
+                dp_amount = %s, ongkir_potongan_amount = %s, gross_amount = %s,
                 updated_at = NOW(), edited_by = %s
             WHERE id = %s;
         """, (customer_name, new_note, is_debt, grand_total, total_dp,
-              ongkir_potongan, edited_by, txn_id))
+              ongkir_potongan, gross_amount, edited_by, txn_id))
 
         cur.execute("DELETE FROM fin_debts WHERE transaction_id = %s;", (txn_id,))
         if is_debt and customer_name:
@@ -5715,10 +5740,11 @@ def get_fin_daily_report(report_date):
     try:
         _ensure_fin_trip_items_cost_column(conn, cur)
         _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
         conn.commit()
         cur.execute("""
             SELECT
-                t.id, t.type, t.party_name, t.total_amount,
+                t.id, t.type, t.party_name, t.total_amount, t.gross_amount,
                 t.is_debt, t.note, t.created_at,
                 json_agg(json_build_object(
                     'material_id',  i.material_id,
@@ -5774,7 +5800,12 @@ def get_fin_daily_report(report_date):
                 "items": [],
             })
 
-        pemasukan = sum(float(t["total_amount"] or 0) for t in transactions
+        def _om(t):
+            # Omzet Jual yang benar = gross_amount (sblm DP dipotong) kalau
+            # ada; fallback ke total_amount utk tipe non-JUAL/data lama.
+            return float(t.get("gross_amount") or t["total_amount"] or 0)
+
+        pemasukan = sum(_om(t) for t in transactions
                         if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "TERIMA_HUTANG"))
         pengeluaran = sum(float(t["total_amount"] or 0) for t in transactions
                           if t["type"] in ("BELI_GUDANG", "PENGELUARAN", "PEMBAYARAN_DP", "BAYAR_HUTANG"))
@@ -5810,7 +5841,7 @@ def get_fin_daily_report(report_date):
         hpp_trip = float((cur.fetchone() or {}).get("hpp_total", 0))
 
         hpp_total = hpp_gudang + hpp_trip
-        omzet_jual = sum(float(t["total_amount"] or 0) for t in transactions
+        omzet_jual = sum(_om(t) for t in transactions
                          if t["type"] in ("JUAL_GUDANG", "JUAL_INVOICE", "JUAL_TRIP"))
         laba_kotor = omzet_jual - hpp_total - trip_expense
 
@@ -5867,14 +5898,16 @@ def get_owner_health_insight():
         quality_score = 0.0
 
         if _table_exists(cur, "fin_transactions"):
+            _ensure_fin_transactions_gross_amount_schema(cur)
+            conn.commit()
             cur.execute("""
                 SELECT
                     COALESCE(SUM(CASE
                         WHEN type IN ('JUAL_GUDANG', 'JUAL_INVOICE', 'TERIMA_HUTANG')
-                        THEN total_amount ELSE 0 END), 0) AS revenue,
+                        THEN COALESCE(gross_amount, total_amount) ELSE 0 END), 0) AS revenue,
                     COALESCE(SUM(CASE
                         WHEN type IN ('BELI_GUDANG')
-                        THEN total_amount ELSE 0 END), 0) AS buying,
+                        THEN COALESCE(gross_amount, total_amount) ELSE 0 END), 0) AS buying,
                     COALESCE(SUM(CASE
                         WHEN type IN ('PENGELUARAN', 'PEMBAYARAN_DP', 'BAYAR_HUTANG')
                         THEN total_amount ELSE 0 END), 0) AS expense
@@ -6126,10 +6159,11 @@ def get_owner_finance_report(date_from, date_to):
         _ensure_transaction_cancel_columns(cur)
         _ensure_fin_expense_schema(cur)
         _ensure_fin_trip_items_cost_column(conn, cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
         conn.commit()
 
         cur.execute("""
-            SELECT COALESCE(SUM(total_amount), 0) AS total
+            SELECT COALESCE(SUM(COALESCE(gross_amount, total_amount)), 0) AS total
             FROM fin_transactions
             WHERE type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND created_at::date BETWEEN %s AND %s AND cancelled_at IS NULL;
@@ -6485,9 +6519,10 @@ def get_fin_weekly_report(week_start, week_end):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_transaction_cancel_columns(cur)
+        _ensure_fin_transactions_gross_amount_schema(cur)
         conn.commit()
         cur.execute("""
-            SELECT type, SUM(total_amount) AS total, COUNT(*) AS count
+            SELECT type, SUM(COALESCE(gross_amount, total_amount)) AS total, COUNT(*) AS count
             FROM fin_transactions
             WHERE created_at::date >= %s AND created_at::date <= %s
               AND cancelled_at IS NULL
@@ -6527,8 +6562,8 @@ def get_fin_weekly_report(week_start, week_end):
         cur.execute("""
             SELECT
                 created_at::date AS hari,
-                SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN total_amount ELSE 0 END) AS jual,
-                SUM(CASE WHEN type = 'BELI_GUDANG'  THEN total_amount ELSE 0 END) AS beli,
+                SUM(CASE WHEN type IN ('JUAL_GUDANG','JUAL_INVOICE') THEN COALESCE(gross_amount, total_amount) ELSE 0 END) AS jual,
+                SUM(CASE WHEN type = 'BELI_GUDANG'  THEN COALESCE(gross_amount, total_amount) ELSE 0 END) AS beli,
                 SUM(CASE WHEN type = 'PENGELUARAN'  THEN total_amount ELSE 0 END) AS biaya
             FROM fin_transactions
             WHERE created_at::date >= %s AND created_at::date <= %s
