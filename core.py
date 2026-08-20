@@ -523,21 +523,34 @@ def _ensure_fin_debts_kembalian_schema(cur):
 
 
 def _ensure_fin_transactions_gross_amount_schema(cur):
-    """Lazy-migration: `gross_amount` = nilai nota SEBELUM DP dipotong
-    (cuma dikurangi diskon asli & ongkir-potongan) -- dipakai KHUSUS oleh
-    laporan keuangan sbg Omzet yang benar. `total_amount` TETAP seperti
-    sebelumnya (dikurangi DP juga) krn dipakai luas: nota cetak, hitung
+    """Lazy-migration: `gross_amount` = nilai nota SEBELUM DP & barang-balik
+    (reverse item, mis. "beli balik" dlm nota Jual campuran) dipotong --
+    cuma dikurangi diskon asli & ongkir-potongan. Dipakai KHUSUS oleh
+    laporan keuangan sbg Omzet yang benar, krn HPP dihitung dari nilai
+    PENUH barang yg terjual (forward items), TIDAK dikurangi DP/barang-
+    balik -- kalau Omzet dikurangi tapi HPP tidak, laporan jadi kelihatan
+    rugi padahal tidak. `total_amount` TETAP seperti sebelumnya (dikurangi
+    DP & barang-balik juga) krn dipakai luas: nota cetak, hitung
     piutang/hutang, share WA, dll -- sengaja TIDAK diubah supaya nol
-    resiko regresi di fitur lain. Lihat create_fin_invoice() utk kenapa
-    DP dulu keliru ikut dihitung sbg diskon yang mengurangi Omzet."""
+    resiko regresi di fitur lain. Lihat create_fin_invoice() utk detail.
+    Backfill dijalankan ULANG setiap kali (bukan cuma sekali) krn formulanya
+    bisa direvisi -- aman & murah utk volume transaksi di aplikasi ini."""
     if not _col_exists(cur, "fin_transactions", "gross_amount"):
         cur.execute("""
             ALTER TABLE fin_transactions ADD COLUMN IF NOT EXISTS gross_amount NUMERIC(14,2) NULL;
         """)
     cur.execute("""
-        UPDATE fin_transactions SET gross_amount = total_amount + COALESCE(dp_amount,0)
-        WHERE gross_amount IS NULL
-          AND type IN ('JUAL_INVOICE','JUAL_GUDANG','BELI_GUDANG','BELI');
+        UPDATE fin_transactions t
+        SET gross_amount = t.total_amount + COALESCE(t.dp_amount,0) + COALESCE(rev.reverse_val,0)
+        FROM (
+            SELECT ft.id AS transaction_id,
+                   COALESCE(SUM(fti.subtotal) FILTER (WHERE fti.direction = 'IN'), 0) AS reverse_val
+            FROM fin_transactions ft
+            LEFT JOIN fin_transaction_items fti ON fti.transaction_id = ft.id
+            WHERE ft.type IN ('JUAL_INVOICE','JUAL_GUDANG','BELI_GUDANG','BELI')
+            GROUP BY ft.id
+        ) rev
+        WHERE t.id = rev.transaction_id;
     """)
 
 
@@ -2780,7 +2793,7 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
-        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
+        gross_amount = max(0.0, raw_total + total_dp + reverse_subtotal)  # nilai asli sblm DP & barang-balik dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Kalau DP/potongan/barang-balik yang diinput di nota ini LEBIH BESAR
         # dari nilai barangnya (raw_total negatif), sisanya bukan hilang --
         # itu uang customer yang belum "terpakai" & harus jadi saldo (HUTANG
@@ -3002,7 +3015,7 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
-        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
+        gross_amount = max(0.0, raw_total + total_dp + reverse_subtotal)  # nilai asli sblm DP & barang-balik dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Kalau DP/barang-balik yang diinput di nota ini LEBIH BESAR dari
         # nilai barang yang didapat (raw_total negatif), sisanya bukan
         # hilang -- itu uang kita yang belum "terpakai" & harus jadi saldo
@@ -3276,7 +3289,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         reverse_subtotal = sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in reverse_items)
         raw_total = subtotal_bruto - discount - ongkir_potongan - reverse_subtotal
         grand_total = max(0.0, raw_total)
-        gross_amount = max(0.0, raw_total + total_dp)  # nilai asli sblm DP dipotong -- dipakai laporan keuangan (bukan cetak nota)
+        gross_amount = max(0.0, raw_total + total_dp + reverse_subtotal)  # nilai asli sblm DP & barang-balik dipotong -- dipakai laporan keuangan (bukan cetak nota)
         # Sama seperti create_fin_invoice/create_fin_purchase_invoice: kalau
         # DP/barang-balik hasil edit lebih besar dari nilai barang, sisanya
         # jadi saldo baru (bukan hilang).
