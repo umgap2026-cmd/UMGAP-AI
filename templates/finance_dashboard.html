@@ -704,7 +704,8 @@
         <div class="item-row red fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" />
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
+                   data-transaction-id="{{ d.transaction_id or '' }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -745,7 +746,8 @@
             {% for d in debts.hutang %}
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" /></td>
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
+                   data-transaction-id="{{ d.transaction_id or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -857,7 +859,8 @@
         <div class="item-row green fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" />
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
+                   data-transaction-id="{{ d.transaction_id or '' }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -898,7 +901,8 @@
             {% for d in debts.piutang %}
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" /></td>
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
+                   data-transaction-id="{{ d.transaction_id or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -1466,8 +1470,8 @@
     });
 
     function composeSelectedShareText(type, checks) {
-      var title = type === "HUTANG" ? "🔴 Hutang ke Pemasok (Terpilih)" : "🟢 Piutang (Terpilih)";
-      var lines = ["*" + title + "*", ""];
+      var title = type === "HUTANG" ? "🔴 Hutang ke Pemasok" : "🟢 Piutang";
+      var lines = ["*" + title + (checks.length > 1 ? " (" + checks.length + " Terpilih)" : "") + "*", ""];
       var total = 0;
       checks.forEach(function (c, i) {
         var name = c.getAttribute("data-name") || "-";
@@ -1478,7 +1482,30 @@
       });
       lines.push("");
       lines.push("*Total: Rp " + total.toLocaleString("id-ID") + "*");
+      // Share 1 baris saja -> lampirkan link bukti nota (kalau baris ini
+      // memang berasal dari nota, bukan hutang/piutang manual).
+      if (checks.length === 1) {
+        var txnId = checks[0].getAttribute("data-transaction-id");
+        if (txnId) {
+          lines.push("");
+          lines.push("🧾 Bukti Nota: " + window.location.origin + "/nota/" + txnId);
+        }
+      }
       return lines.join("\n");
+    }
+    function shareSelectedText(text) {
+      // Jangan langsung buka WhatsApp -- pakai menu Share bawaan
+      // browser/OS supaya admin bisa pilih sendiri aplikasi tujuannya
+      // (WA, Telegram, SMS, dll). Fallback kalau browser tidak dukung.
+      if (navigator.share) {
+        navigator.share({ text: text }).catch(function () {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          alert("Browser ini tidak punya menu Share -- teks sudah disalin ke clipboard, tinggal tempel di aplikasi tujuan.");
+        });
+      } else {
+        window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+      }
     }
     document.querySelectorAll(".btn-share-selected").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1486,8 +1513,7 @@
         var panel = getMergePanel(type);
         var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
         if (checks.length < 1) return;
-        var text = composeSelectedShareText(type, checks);
-        window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+        shareSelectedText(composeSelectedShareText(type, checks));
       });
     });
     document.querySelectorAll(".btn-send-reminder").forEach(function (btn) {
