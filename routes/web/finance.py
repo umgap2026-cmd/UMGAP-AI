@@ -7,12 +7,12 @@ from core import (
     list_fin_materials, add_fin_material, edit_fin_material, delete_fin_material,
     add_fin_material_stock, reduce_fin_material_stock,
     perform_stock_opname, get_fin_shrinkage_report, get_fin_margin_report,
-    get_fin_hpp_orphan_report,
+    get_fin_hpp_orphan_report, get_fin_customer_profitability_report,
     list_fin_debts, pay_fin_debt, create_fin_debt_entry, edit_fin_debt, delete_fin_debt,
     merge_fin_debts,
     list_fin_party_names,
     list_fin_parties, create_fin_party, update_fin_party, delete_fin_party,
-    get_fin_party_detail, send_fin_party_wa_reminder,
+    get_fin_party_detail, send_fin_party_wa_reminder, send_fin_debts_wa_reminder,
     list_fin_categories, list_fin_activity_log,
     create_fin_expense_entry, list_fin_expenses, list_fin_expense_categories,
     edit_fin_expense_entry, delete_fin_expense_entry,
@@ -262,6 +262,30 @@ def finance_hpp_diagnostics():
     )
 
 
+@finance_bp.route("/finance/customer-profitability")
+def finance_customer_profitability():
+    """Daftar pelanggan paling menguntungkan -- khusus Owner (info
+    kompetitif/strategis, bukan dashboard operasional admin)."""
+    deny = owner_required()
+    if deny:
+        return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    report = get_fin_customer_profitability_report(date_from, date_to)
+    return render_template(
+        "finance_customer_profitability.html",
+        report=report,
+        date_from=date_from,
+        date_to=date_to,
+        notif_count=get_notif_count(),
+        today_iso=today.isoformat(),
+        month_start_iso=today.replace(day=1).isoformat(),
+    )
+
+
 # ---------- SALDO MITRA (Master Mitra + pengingat WA) ----------
 @finance_bp.route("/finance/mitra")
 def finance_mitra():
@@ -460,6 +484,25 @@ def finance_debts_merge():
     try:
         result = merge_fin_debts(debt_ids, party_name=party_name, note=note)
         flash(f"{result['merged_count']} baris berhasil digabung jadi 1.", "success")
+    except ValueError as e:
+        flash(str(e), "danger")
+    return redirect("/finance")
+
+
+@finance_bp.route("/finance/debts/send-reminder", methods=["POST"])
+def finance_debts_send_reminder():
+    deny = owner_or_admin_required()
+    if deny:
+        return deny
+
+    debt_ids = [d for d in (request.form.get("debt_ids") or "").split(",") if d.strip()]
+
+    try:
+        result = send_fin_debts_wa_reminder(debt_ids)
+        msg = f"Pengingat WA terkirim ke {len(result['sent'])} pihak."
+        if result["skipped"]:
+            msg += f" {len(result['skipped'])} pihak dilewati (belum ada no. HP di Kelola Mitra): " + ", ".join(result["skipped"])
+        flash(msg, "success" if result["sent"] else "danger")
     except ValueError as e:
         flash(str(e), "danger")
     return redirect("/finance")

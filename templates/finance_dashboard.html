@@ -299,6 +299,10 @@
   .merge-bar .btn-do-merge { background: #fff; color: var(--blue); }
   .merge-bar .btn-do-merge:disabled { opacity: 0.5; cursor: not-allowed; }
   .merge-bar .btn-cancel-merge { background: rgba(255,255,255,0.15); color: #fff; }
+  .merge-bar .btn-share-selected { background: #16a34a; color: #fff; }
+  .merge-bar .btn-share-selected:disabled { opacity: 0.5; cursor: not-allowed; }
+  .merge-bar .btn-send-reminder { background: #f59e0b; color: #fff; }
+  .merge-bar .btn-send-reminder:disabled { opacity: 0.5; cursor: not-allowed; }
   .item-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .item-actions form { display: flex; gap: 6px; align-items: center; flex: 1 1 auto; }
   .item-actions input[type="number"], .item-actions input[type="text"] { padding: 9px 10px; font-size: 12px; }
@@ -700,7 +704,7 @@
         <div class="item-row red fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" />
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -741,7 +745,7 @@
             {% for d in debts.hutang %}
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" /></td>
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -777,6 +781,8 @@
       <span><span class="merge-count">0</span> dipilih</span>
       <div>
         <button type="button" class="btn-cancel-merge" data-type="HUTANG">Batal</button>
+        <button type="button" class="btn-share-selected" data-type="HUTANG" disabled>💬 Share</button>
+        <button type="button" class="btn-send-reminder" data-type="HUTANG" disabled>🔔 Pengingat</button>
         <button type="button" class="btn-do-merge" data-type="HUTANG" disabled>Gabungkan</button>
       </div>
     </div>
@@ -851,7 +857,7 @@
         <div class="item-row green fade-up" style="animation-delay: {{ (loop.index0 * 0.04) | round(2) }}s">
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" />
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -892,7 +898,7 @@
             {% for d in debts.piutang %}
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
-                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" /></td>
+                   data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -928,6 +934,8 @@
       <span><span class="merge-count">0</span> dipilih</span>
       <div>
         <button type="button" class="btn-cancel-merge" data-type="PIUTANG">Batal</button>
+        <button type="button" class="btn-share-selected" data-type="PIUTANG" disabled>💬 Share</button>
+        <button type="button" class="btn-send-reminder" data-type="PIUTANG" disabled>🔔 Pengingat</button>
         <button type="button" class="btn-do-merge" data-type="PIUTANG" disabled>Gabungkan</button>
       </div>
     </div>
@@ -1197,6 +1205,10 @@
   </div>
 </div>
 
+<form method="post" action="/finance/debts/send-reminder" id="reminderForm" style="display:none">
+  <input type="hidden" name="debt_ids" id="reminderDebtIdsInp" />
+</form>
+
 <script>
   // Tanggal Otomatis (Hari Ini) / Atur Manual -- dipakai form Hutang,
   // Piutang & Beban. "auto" = kosongkan input tanggal (backend otomatis
@@ -1389,6 +1401,8 @@
     var mergeDebtNameInp = document.getElementById("mergeDebtNameInp");
     var mergeDebtNoteInp = document.getElementById("mergeDebtNoteInp");
     var mergeDebtCount = document.getElementById("mergeDebtCount");
+    var reminderForm = document.getElementById("reminderForm");
+    var reminderDebtIdsInp = document.getElementById("reminderDebtIdsInp");
 
     function getMergePanel(type) {
       return document.querySelector('.tab-panel[data-tab-panel="' + (type === "HUTANG" ? "hutang" : "piutang") + '"]');
@@ -1401,6 +1415,8 @@
       bar.querySelector(".merge-count").textContent = checks.length;
       bar.classList.toggle("has-selection", checks.length > 0);
       bar.querySelector(".btn-do-merge").disabled = checks.length < 2;
+      bar.querySelector(".btn-share-selected").disabled = checks.length < 1;
+      bar.querySelector(".btn-send-reminder").disabled = checks.length < 1;
     }
     document.querySelectorAll(".btn-toggle-merge").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1446,6 +1462,43 @@
         mergeDebtNoteInp.value = seenNotes.join("; ");
         mergeDebtCount.textContent = checks.length;
         mergeDebtOverlay.classList.add("open");
+      });
+    });
+
+    function composeSelectedShareText(type, checks) {
+      var title = type === "HUTANG" ? "🔴 Hutang ke Pemasok (Terpilih)" : "🟢 Piutang (Terpilih)";
+      var lines = ["*" + title + "*", ""];
+      var total = 0;
+      checks.forEach(function (c, i) {
+        var name = c.getAttribute("data-name") || "-";
+        var amount = parseInt(c.getAttribute("data-amount") || "0", 10) || 0;
+        var note = (c.getAttribute("data-note") || "").trim();
+        total += amount;
+        lines.push((i + 1) + ". " + name + ": Rp " + amount.toLocaleString("id-ID") + (note ? " (" + note + ")" : ""));
+      });
+      lines.push("");
+      lines.push("*Total: Rp " + total.toLocaleString("id-ID") + "*");
+      return lines.join("\n");
+    }
+    document.querySelectorAll(".btn-share-selected").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
+        if (checks.length < 1) return;
+        var text = composeSelectedShareText(type, checks);
+        window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+      });
+    });
+    document.querySelectorAll(".btn-send-reminder").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
+        if (checks.length < 1) return;
+        var ids = checks.map(function (c) { return c.value; });
+        reminderDebtIdsInp.value = ids.join(",");
+        reminderForm.submit();
       });
     });
 

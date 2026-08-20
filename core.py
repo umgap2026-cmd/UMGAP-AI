@@ -5333,6 +5333,73 @@ def send_fin_party_wa_reminder(party_id):
     return {"phone": phone, "message": message}
 
 
+def send_fin_debts_wa_reminder(debt_ids):
+    """Kirim pengingat WA utk sekumpulan baris hutang/piutang TERPILIH
+    (bisa 1 atau banyak, boleh campur beberapa pihak sekaligus) --
+    dikelompokkan per party_name, nomor HP dicari di Master Mitra
+    (fin_parties, pola sama dgn get_fin_party_detail). Beda dari
+    send_fin_party_wa_reminder yg selalu kirim SEMUA saldo terbuka 1
+    mitra -- ini cuma kirim baris yg admin pilih. Pihak tanpa nomor HP
+    DILEWATI (tidak menggagalkan yg lain). Return {sent, skipped}."""
+    debt_ids = [int(d) for d in (debt_ids or []) if str(d).strip().isdigit()]
+    if not debt_ids:
+        raise ValueError("Tidak ada hutang/piutang yang dipilih.")
+
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_parties_schema(cur)
+        _ensure_fin_debts_reason_schema(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT id, type, party_type, reason, party_name, remaining, note, created_at
+            FROM fin_debts
+            WHERE id = ANY(%s) AND is_settled = FALSE
+            ORDER BY type, created_at DESC;
+        """, (debt_ids,))
+        rows = [dict(r) for r in cur.fetchall()]
+        if not rows:
+            raise ValueError("Hutang/piutang yang dipilih tidak ditemukan atau sudah lunas.")
+
+        by_party = {}
+        for r in rows:
+            key = (r["party_name"] or "").strip()
+            if not key:
+                continue
+            by_party.setdefault(key, []).append(r)
+
+        sent, skipped = [], []
+        for party_name, debts in by_party.items():
+            cur.execute("SELECT phone FROM fin_parties WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s));", (party_name,))
+            prow = cur.fetchone()
+            phone = ((prow or {}).get("phone") or "").strip()
+            if not phone:
+                skipped.append(party_name)
+                continue
+
+            lines = [f"Halo {party_name}, ini pengingat saldo dari ARV LOGAM:", ""]
+            saldo_net = 0.0
+            for d in debts:
+                remaining = float(d["remaining"] or 0)
+                saldo_net += remaining if d["type"] == "PIUTANG" else -remaining
+                lines.append(f"- {_debt_label(d)}: Rp {remaining:,.0f}".replace(",", "."))
+            lines.append("")
+            if saldo_net > 0:
+                lines.append(f"Total yang perlu diselesaikan ke kami: Rp {saldo_net:,.0f}".replace(",", "."))
+            elif saldo_net < 0:
+                lines.append(f"Total yang perlu kami selesaikan ke Anda: Rp {abs(saldo_net):,.0f}".replace(",", "."))
+            lines.append("Terima kasih.")
+
+            send_wa(phone, "\n".join(lines))
+            sent.append(party_name)
+
+        return {"sent": sent, "skipped": skipped}
+    finally:
+        cur.close()
+        conn.close()
+
+
 def pay_fin_debt(debt_id, pay_amount):
     """Cicil/lunasi hutang atau piutang. Return dict {paid, remaining, is_settled}."""
     pay_amount = float(pay_amount or 0)
@@ -6469,6 +6536,68 @@ def get_fin_margin_report(date_from, date_to):
         })
     report.sort(key=lambda x: x["margin"])
     return report
+
+
+def get_fin_customer_profitability_report(date_from, date_to):
+    """Daftar pelanggan (nota Jual gudang) diurutkan dari yg paling
+    menguntungkan -- Omzet (gross_amount, sudah termasuk DP & barang-balik
+    ditambah balik) dikurangi HPP per-transaksi (formula & filter arah
+    barang PERSIS sama dgn get_owner_finance_report), supaya totalnya
+    konsisten dgn Laba Kotor gudang di laporan keuangan owner. Khusus role
+    Owner -- info kompetitif/strategis, bukan dashboard operasional."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_transactions_gross_amount_schema(cur)
+        conn.commit()
+
+        cur.execute("""
+            SELECT
+                t.party_name,
+                COUNT(t.id) AS jumlah_transaksi,
+                COALESCE(SUM(COALESCE(t.gross_amount, t.total_amount)), 0) AS omzet,
+                COALESCE(SUM(hpp_sub.hpp), 0) AS hpp
+            FROM fin_transactions t
+            JOIN (
+                SELECT i.transaction_id,
+                       COALESCE(SUM(i.qty_kg * COALESCE(l.avg_cost_after, s.avg_cost_per_kg)), 0) AS hpp
+                FROM fin_transaction_items i
+                LEFT JOIN (
+                    SELECT DISTINCT ON (transaction_id, material_id) transaction_id, material_id, avg_cost_after
+                    FROM fin_stock_ledger
+                    WHERE movement_type = 'OUT'
+                    ORDER BY transaction_id, material_id, created_at DESC
+                ) l ON l.transaction_id = i.transaction_id AND l.material_id = i.material_id
+                LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
+                WHERE i.direction IS DISTINCT FROM 'IN' AND i.material_id IS NOT NULL
+                GROUP BY i.transaction_id
+            ) hpp_sub ON hpp_sub.transaction_id = t.id
+            WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
+              AND t.created_at::date BETWEEN %s AND %s
+              AND t.cancelled_at IS NULL
+              AND t.party_name IS NOT NULL AND TRIM(t.party_name) <> ''
+            GROUP BY t.party_name;
+        """, (date_from, date_to))
+        rows = [dict(r) for r in cur.fetchall()]
+
+        report = []
+        for r in rows:
+            omzet = float(r["omzet"] or 0)
+            hpp = float(r["hpp"] or 0)
+            keuntungan = omzet - hpp
+            report.append({
+                "party_name": r["party_name"],
+                "jumlah_transaksi": int(r["jumlah_transaksi"] or 0),
+                "omzet": omzet,
+                "hpp": hpp,
+                "keuntungan": keuntungan,
+                "keuntungan_pct": round((keuntungan / omzet * 100) if omzet > 0 else 0, 1),
+            })
+        report.sort(key=lambda x: x["keuntungan"], reverse=True)
+        return report
+    finally:
+        cur.close()
+        conn.close()
 
 
 def get_fin_hpp_orphan_report():
