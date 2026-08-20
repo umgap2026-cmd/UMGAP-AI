@@ -296,13 +296,19 @@
   .tab-panel.merge-mode .merge-bar.has-selection { display: flex; }
   .merge-bar button { border: none; border-radius: 10px; padding: 8px 14px; font-weight: 800;
     font-size: 12px; cursor: pointer; }
-  .merge-bar .btn-do-merge { background: #fff; color: var(--blue); }
-  .merge-bar .btn-do-merge:disabled { opacity: 0.5; cursor: not-allowed; }
+  .merge-bar .btn-open-action { background: #fff; color: var(--blue); }
+  .merge-bar .btn-open-action:disabled { opacity: 0.5; cursor: not-allowed; }
   .merge-bar .btn-cancel-merge { background: rgba(255,255,255,0.15); color: #fff; }
-  .merge-bar .btn-share-selected { background: #16a34a; color: #fff; }
-  .merge-bar .btn-share-selected:disabled { opacity: 0.5; cursor: not-allowed; }
-  .merge-bar .btn-send-reminder { background: #f59e0b; color: #fff; }
-  .merge-bar .btn-send-reminder:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-select-all { display: none; }
+  .tab-panel.merge-mode .btn-select-all { display: inline-flex; }
+  .action-modal-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .action-modal-btn { width: 100%; padding: 13px; border-radius: 14px; border: none; font-weight: 900;
+    font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: inherit; }
+  .action-modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .action-modal-btn.share { background: rgba(22,163,74,.12); color: #16a34a; }
+  .action-modal-btn.reminder { background: rgba(245,158,11,.14); color: #b45309; }
+  .action-modal-btn.merge { background: rgba(37,99,235,.12); color: var(--blue); }
   .item-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .item-actions form { display: flex; gap: 6px; align-items: center; flex: 1 1 auto; }
   .item-actions input[type="number"], .item-actions input[type="text"] { padding: 9px 10px; font-size: 12px; }
@@ -646,16 +652,10 @@
           </div>
           <div style="display:flex; gap:8px;">
             <a href="/finance/mitra" class="pill-btn">👥 Saldo Mitra</a>
-            <button type="button" class="pill-btn btn-toggle-merge" data-type="HUTANG">🔗 Gabung</button>
-            <button type="button" class="pill-btn wa" id="btnShareHutang">💬 Share ke WA</button>
+            <button type="button" class="pill-btn btn-toggle-merge" data-type="HUTANG">☑️ Pilih</button>
+            <button type="button" class="pill-btn btn-select-all" data-type="HUTANG">✅ Pilih Semua</button>
           </div>
         </div>
-        <textarea id="shareHutangText" style="display: none">🔴 *Ringkasan Hutang ke Pemasok*
-
-{% for d in debts.hutang -%}
-{{ loop.index }}. {{ d.party_name or "-" }}: Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}
-{% endfor %}
-*Total: Rp {{ "{:,}".format(debts.total_hutang | round | int).replace(",", ".") }}* ({{ debts.hutang|length }} transaksi belum lunas)</textarea>
         <div class="divider"></div>
         <details>
           <summary class="add-toggle">
@@ -783,9 +783,7 @@
       <span><span class="merge-count">0</span> dipilih</span>
       <div>
         <button type="button" class="btn-cancel-merge" data-type="HUTANG">Batal</button>
-        <button type="button" class="btn-share-selected" data-type="HUTANG" disabled>💬 Share</button>
-        <button type="button" class="btn-send-reminder" data-type="HUTANG" disabled>🔔 Pengingat</button>
-        <button type="button" class="btn-do-merge" data-type="HUTANG" disabled>Gabungkan</button>
+        <button type="button" class="btn-open-action" data-type="HUTANG" disabled>Aksi</button>
       </div>
     </div>
     </div>
@@ -801,16 +799,10 @@
             <div class="sec-desc">Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }} &bull; {{ debts.piutang|length }} transaksi belum dibayar</div>
           </div>
           <div style="display:flex; gap:8px;">
-            <button type="button" class="pill-btn btn-toggle-merge" data-type="PIUTANG">🔗 Gabung</button>
-            <button type="button" class="pill-btn wa" id="btnSharePiutang">💬 Share ke WA</button>
+            <button type="button" class="pill-btn btn-toggle-merge" data-type="PIUTANG">☑️ Pilih</button>
+            <button type="button" class="pill-btn btn-select-all" data-type="PIUTANG">✅ Pilih Semua</button>
           </div>
         </div>
-        <textarea id="sharePiutangText" style="display: none">🟢 *Ringkasan Piutang Pelanggan*
-
-{% for d in debts.piutang -%}
-{{ loop.index }}. {{ d.party_name or "-" }}: Rp {{ "{:,}".format(d.remaining | round | int).replace(",", ".") }}
-{% endfor %}
-*Total: Rp {{ "{:,}".format(debts.total_piutang | round | int).replace(",", ".") }}* ({{ debts.piutang|length }} transaksi belum dibayar)</textarea>
         <div class="divider"></div>
         <details>
           <summary class="add-toggle">
@@ -938,9 +930,7 @@
       <span><span class="merge-count">0</span> dipilih</span>
       <div>
         <button type="button" class="btn-cancel-merge" data-type="PIUTANG">Batal</button>
-        <button type="button" class="btn-share-selected" data-type="PIUTANG" disabled>💬 Share</button>
-        <button type="button" class="btn-send-reminder" data-type="PIUTANG" disabled>🔔 Pengingat</button>
-        <button type="button" class="btn-do-merge" data-type="PIUTANG" disabled>Gabungkan</button>
+        <button type="button" class="btn-open-action" data-type="PIUTANG" disabled>Aksi</button>
       </div>
     </div>
     </div>
@@ -1190,6 +1180,20 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="debtActionModalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title"><span id="debtActionCount"></span> Baris Dipilih</div>
+      <button type="button" class="modal-close" onclick="closeDebtActionModal()">✕</button>
+    </div>
+    <div class="action-modal-list">
+      <button type="button" class="action-modal-btn share" id="actionShareBtn">💬 Share</button>
+      <button type="button" class="action-modal-btn reminder" id="actionReminderBtn">🔔 Kirim Pengingat</button>
+      <button type="button" class="action-modal-btn merge" id="actionMergeBtn">🔗 Gabungkan</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="mergeDebtModalOverlay">
   <div class="modal-box">
     <div class="modal-head">
@@ -1258,10 +1262,6 @@
     }
     var stokBtn = document.getElementById("btnShareStok");
     if (stokBtn) stokBtn.addEventListener("click", function () { shareToWa("shareStokText"); });
-    var hutangBtn = document.getElementById("btnShareHutang");
-    if (hutangBtn) hutangBtn.addEventListener("click", function () { shareToWa("shareHutangText"); });
-    var piutangBtn = document.getElementById("btnSharePiutang");
-    if (piutangBtn) piutangBtn.addEventListener("click", function () { shareToWa("sharePiutangText"); });
   })();
   (function () {
     function formatRp(n) {
@@ -1418,9 +1418,7 @@
       var bar = document.getElementById(type === "HUTANG" ? "mergeBarHutang" : "mergeBarPiutang");
       bar.querySelector(".merge-count").textContent = checks.length;
       bar.classList.toggle("has-selection", checks.length > 0);
-      bar.querySelector(".btn-do-merge").disabled = checks.length < 2;
-      bar.querySelector(".btn-share-selected").disabled = checks.length < 1;
-      bar.querySelector(".btn-send-reminder").disabled = checks.length < 1;
+      bar.querySelector(".btn-open-action").disabled = checks.length < 1;
     }
     document.querySelectorAll(".btn-toggle-merge").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1431,6 +1429,14 @@
         if (!entering) {
           panel.querySelectorAll(".debt-merge-check:checked").forEach(function (c) { c.checked = false; });
         }
+        updateMergeBar(type);
+      });
+    });
+    document.querySelectorAll(".btn-select-all").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-type");
+        var panel = getMergePanel(type);
+        panel.querySelectorAll(".debt-merge-check").forEach(function (c) { c.checked = true; });
         updateMergeBar(type);
       });
     });
@@ -1448,25 +1454,62 @@
         updateMergeBar(e.target.getAttribute("data-type"));
       }
     });
-    document.querySelectorAll(".btn-do-merge").forEach(function (btn) {
+
+    // Popup pilihan aksi (Share / Pengingat / Gabungkan) -- muncul stlh
+    // klik "Aksi" di bar seleksi, bukan tombol terpisah di bar sticky.
+    var debtActionOverlay = document.getElementById("debtActionModalOverlay");
+    var debtActionCount = document.getElementById("debtActionCount");
+    var actionShareBtn = document.getElementById("actionShareBtn");
+    var actionReminderBtn = document.getElementById("actionReminderBtn");
+    var actionMergeBtn = document.getElementById("actionMergeBtn");
+    var currentActionType = null;
+    window.closeDebtActionModal = function () { debtActionOverlay.classList.remove("open"); };
+    debtActionOverlay.addEventListener("click", function (e) {
+      if (e.target === debtActionOverlay) closeDebtActionModal();
+    });
+    function currentSelectedChecks() {
+      var panel = getMergePanel(currentActionType);
+      return Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
+    }
+    document.querySelectorAll(".btn-open-action").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var type = btn.getAttribute("data-type");
-        var panel = getMergePanel(type);
-        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
-        if (checks.length < 2) return;
-        var ids = checks.map(function (c) { return c.value; });
-        var names = checks.map(function (c) { return c.getAttribute("data-name") || ""; }).filter(Boolean);
-        var seenNotes = [];
-        checks.forEach(function (c) {
-          var n = (c.getAttribute("data-note") || "").trim();
-          if (n && seenNotes.indexOf(n) === -1) seenNotes.push(n);
-        });
-        mergeDebtIdsInp.value = ids.join(",");
-        mergeDebtNameInp.value = names[0] || "";
-        mergeDebtNoteInp.value = seenNotes.join("; ");
-        mergeDebtCount.textContent = checks.length;
-        mergeDebtOverlay.classList.add("open");
+        currentActionType = btn.getAttribute("data-type");
+        var checks = currentSelectedChecks();
+        if (checks.length < 1) return;
+        debtActionCount.textContent = checks.length;
+        actionMergeBtn.disabled = checks.length < 2;
+        debtActionOverlay.classList.add("open");
       });
+    });
+    actionShareBtn.addEventListener("click", function () {
+      var checks = currentSelectedChecks();
+      if (checks.length < 1) return;
+      shareSelectedText(composeSelectedShareText(currentActionType, checks));
+      closeDebtActionModal();
+    });
+    actionReminderBtn.addEventListener("click", function () {
+      var checks = currentSelectedChecks();
+      if (checks.length < 1) return;
+      var ids = checks.map(function (c) { return c.value; });
+      reminderDebtIdsInp.value = ids.join(",");
+      reminderForm.submit();
+    });
+    actionMergeBtn.addEventListener("click", function () {
+      var checks = currentSelectedChecks();
+      if (checks.length < 2) return;
+      var ids = checks.map(function (c) { return c.value; });
+      var names = checks.map(function (c) { return c.getAttribute("data-name") || ""; }).filter(Boolean);
+      var seenNotes = [];
+      checks.forEach(function (c) {
+        var n = (c.getAttribute("data-note") || "").trim();
+        if (n && seenNotes.indexOf(n) === -1) seenNotes.push(n);
+      });
+      mergeDebtIdsInp.value = ids.join(",");
+      mergeDebtNameInp.value = names[0] || "";
+      mergeDebtNoteInp.value = seenNotes.join("; ");
+      mergeDebtCount.textContent = checks.length;
+      closeDebtActionModal();
+      mergeDebtOverlay.classList.add("open");
     });
 
     function composeSelectedShareText(type, checks) {
@@ -1507,26 +1550,6 @@
         window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
       }
     }
-    document.querySelectorAll(".btn-share-selected").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var type = btn.getAttribute("data-type");
-        var panel = getMergePanel(type);
-        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
-        if (checks.length < 1) return;
-        shareSelectedText(composeSelectedShareText(type, checks));
-      });
-    });
-    document.querySelectorAll(".btn-send-reminder").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var type = btn.getAttribute("data-type");
-        var panel = getMergePanel(type);
-        var checks = Array.prototype.slice.call(panel.querySelectorAll(".debt-merge-check:checked"));
-        if (checks.length < 1) return;
-        var ids = checks.map(function (c) { return c.value; });
-        reminderDebtIdsInp.value = ids.join(",");
-        reminderForm.submit();
-      });
-    });
 
     document.addEventListener("click", function (e) {
       var btn;
