@@ -5828,7 +5828,8 @@ def get_fin_daily_report(report_date):
             WHERE t.created_at::date = %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
               AND t.cancelled_at IS NULL
-              AND i.material_id IS NOT NULL;
+              AND i.material_id IS NOT NULL
+              AND i.direction IS DISTINCT FROM 'IN';
         """, (report_date,))
         hpp_gudang = float((cur.fetchone() or {}).get("hpp_total", 0))
 
@@ -6191,7 +6192,8 @@ def get_owner_finance_report(date_from, date_to):
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
-              AND i.material_id IS NOT NULL;
+              AND i.material_id IS NOT NULL
+              AND i.direction IS DISTINCT FROM 'IN';
         """, (date_from, date_to))
         hpp_gudang = float(cur.fetchone()["total"] or 0)
 
@@ -6410,6 +6412,7 @@ def get_fin_margin_report(date_from, date_to):
             LEFT JOIN fin_stock_summary s ON s.material_id = i.material_id
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND t.created_at::date BETWEEN %s AND %s AND t.cancelled_at IS NULL
+              AND i.direction IS DISTINCT FROM 'IN'
             GROUP BY m.id, m.name, m.unit;
         """, (date_from, date_to))
         rows = {r["id"]: dict(r) for r in cur.fetchall()}
@@ -6475,6 +6478,7 @@ def get_fin_hpp_orphan_report():
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND i.material_id IS NOT NULL
               AND t.cancelled_at IS NULL
+              AND i.direction IS DISTINCT FROM 'IN'
               AND l.transaction_id IS NULL;
         """)
         total_orphan = int(cur.fetchone()["n"] or 0)
@@ -6493,6 +6497,7 @@ def get_fin_hpp_orphan_report():
             WHERE t.type IN ('JUAL_INVOICE', 'JUAL_GUDANG')
               AND i.material_id IS NOT NULL
               AND t.cancelled_at IS NULL
+              AND i.direction IS DISTINCT FROM 'IN'
               AND l.transaction_id IS NULL
             ORDER BY t.created_at DESC
             LIMIT 200;
@@ -6552,7 +6557,8 @@ def get_fin_weekly_report(week_start, week_end):
             WHERE t.created_at::date >= %s AND t.created_at::date <= %s
               AND t.type IN ('JUAL_GUDANG', 'JUAL_INVOICE')
               AND t.cancelled_at IS NULL
-              AND i.material_id IS NOT NULL;
+              AND i.material_id IS NOT NULL
+              AND i.direction IS DISTINCT FROM 'IN';
         """, (week_start, week_end))
         hpp = float((cur.fetchone() or {}).get("hpp", 0))
 
