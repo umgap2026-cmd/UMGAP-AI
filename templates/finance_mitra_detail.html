@@ -122,12 +122,9 @@
 
     <!-- KIRIM PENGINGAT -->
     <div class="main-card fade-up">
-      <div class="sec-title">💬 Pengingat WA</div>
-      <div class="sec-desc">Kirim rincian saldo hutang/piutang terbuka ke nomor HP mitra ini.</div>
-      <form method="post" action="/finance/mitra/{{ party.id }}/send-reminder" style="margin-top: 12px">
-        <button type="submit" class="pill-btn" {{ 'disabled' if not party.phone or not party.debts }}>💬 Kirim Pengingat WA</button>
-      </form>
-      {% if not party.phone %}<div class="item-meta" style="margin-top:8px">Isi nomor HP dulu di form Edit Mitra di bawah.</div>{% endif %}
+      <div class="sec-title">💬 Pengingat</div>
+      <div class="sec-desc">Bagikan rincian saldo hutang/piutang terbuka mitra ini lewat aplikasi pilihan Anda (WA, dll).</div>
+      <button type="button" class="pill-btn" id="btnSendReminder" style="margin-top: 12px" {{ 'disabled' if not party.debts }}>💬 Kirim Pengingat</button>
     </div>
 
     <!-- RINCIAN HUTANG/PIUTANG -->
@@ -163,4 +160,38 @@
     </div>
   </div>
 </div>
+
+<script>
+  var partyReminderData = {
+    name: {{ party.name | tojson }},
+    saldoNet: {{ party.saldo_net | round | int }},
+    debts: {{ party.debts | tojson }}
+  };
+  document.getElementById("btnSendReminder").addEventListener("click", function () {
+    var lines = ["Halo " + partyReminderData.name + ", ini pengingat saldo dari ARV LOGAM:", ""];
+    partyReminderData.debts.forEach(function (d) {
+      var amount = Math.round(d.remaining || 0);
+      lines.push("- " + d.label + ": Rp " + amount.toLocaleString("id-ID"));
+    });
+    lines.push("");
+    if (partyReminderData.saldoNet > 0) {
+      lines.push("*Total yang perlu diselesaikan ke kami: Rp " + partyReminderData.saldoNet.toLocaleString("id-ID") + "*");
+    } else if (partyReminderData.saldoNet < 0) {
+      lines.push("*Total yang perlu kami selesaikan ke Anda: Rp " + Math.abs(partyReminderData.saldoNet).toLocaleString("id-ID") + "*");
+    }
+    lines.push("");
+    lines.push("Mohon konfirmasinya, terima kasih.");
+    var text = lines.join("\n");
+
+    if (navigator.share) {
+      navigator.share({ text: text }).catch(function () {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        alert("Browser ini tidak punya menu Share -- teks sudah disalin ke clipboard, tinggal tempel di aplikasi tujuan.");
+      });
+    } else {
+      window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+    }
+  });
+</script>
 {% endblock %}

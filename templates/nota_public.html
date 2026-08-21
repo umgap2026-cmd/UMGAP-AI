@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ invoice.invoice_no }} · Bukti Nota</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f6f8fc; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+    --shadow: 0 20px 42px rgba(18, 32, 62, 0.11);
+    --radius: 22px; --blue: #2563eb; --good: #15803d; --bad: #b91c1c;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    display: flex; justify-content: center; padding: 20px 12px 40px;
+  }
+  .wrap { width: 100%; max-width: 480px; }
+  .head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .logo { width: 42px; height: 42px; border-radius: 12px; background: #fff; box-shadow: var(--shadow);
+          display: flex; align-items: center; justify-content: center; overflow: hidden; flex: 0 0 auto; }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .co-name { font-weight: 800; font-size: 15px; }
+  .co-sub { font-size: 11px; color: var(--muted); }
+
+  .hero { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #4f8fbf 100%);
+          border-radius: var(--radius); box-shadow: 0 16px 38px rgba(30,58,95,0.26);
+          padding: 18px 20px; color: #fff; margin-bottom: 14px; }
+  .hero-eye { font-size: 10px; font-weight: 900; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .hero-no { font-size: 18px; font-weight: 900; font-family: ui-monospace, monospace; word-break: break-all; }
+  .hero-status { display: inline-block; margin-top: 10px; padding: 5px 12px; border-radius: 999px;
+                 font-size: 12px; font-weight: 800; background: rgba(255,255,255,0.15); }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+          padding: 16px; margin-bottom: 12px; }
+  .sec-title { font-size: 12px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .meta-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+  .meta-lbl { color: var(--muted); }
+  .meta-val { font-weight: 700; text-align: right; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: var(--muted); padding: 6px 4px; border-bottom: 2px solid #e2e8f0; }
+  th:last-child, td:last-child { text-align: right; }
+  td { padding: 8px 4px; border-bottom: 1px solid #eef2f7; }
+  .item-name { font-weight: 700; }
+  .item-note { font-size: 10.5px; color: var(--muted); }
+  .badge-return { display: inline-block; font-size: 9.5px; font-weight: 800; color: var(--bad);
+                  background: rgba(185,28,28,0.08); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+
+  .totals { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1; }
+  .tot-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+  .tot-row.discount .tot-val { color: var(--bad); }
+  .tot-row.grand { font-size: 16px; font-weight: 900; padding-top: 8px; margin-top: 4px; border-top: 1px solid #e2e8f0; }
+
+  .foot { text-align: center; font-size: 11px; color: var(--muted); margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    {% if invoice.logo_data_uri %}
+    <div class="logo"><img src="{{ invoice.logo_data_uri }}" alt="{{ invoice.company_name }}"></div>
+    {% endif %}
+    <div>
+      <div class="co-name">{{ invoice.company_name or 'ARV LOGAM' }}</div>
+      <div class="co-sub">Bukti Nota</div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-eye">{{ 'Nota Pembelian' if invoice.nota_type == 'BELI' else 'Nota Penjualan' }}</div>
+    <div class="hero-no">{{ invoice.invoice_no }}</div>
+    <div class="hero-status">{{ '✅ LUNAS' if invoice.is_paid else '⏳ BELUM LUNAS' }}</div>
+  </div>
+
+  <div class="card">
+    <div class="sec-title">Detail Nota</div>
+    <div class="meta-row"><span class="meta-lbl">Tanggal</span><span class="meta-val">{{ invoice.created_at_wib or '-' }}</span></div>
+    <div class="meta-row"><span class="meta-lbl">{{ 'Pemasok' if invoice.nota_type == 'BELI' else 'Customer' }}</span><span class="meta-val">{{ invoice.customer_name or '-' }}</span></div>
+    <div class="meta-row"><span class="meta-lbl">Pembayaran</span><span class="meta-val">{{ invoice.payment_method }}</span></div>
+    {% if invoice.notes %}<div class="meta-row"><span class="meta-lbl">Catatan</span><span class="meta-val">{{ invoice.notes }}</span></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="sec-title">Rincian Barang</div>
+    <table>
+      <thead><tr><th>Barang</th><th>Qty</th><th>Subtotal</th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>
+            <div class="item-name">{{ it.product_name }}{% if it.is_return %}<span class="badge-return">Balik</span>{% endif %}</div>
+            {% if it.note %}<div class="item-note">{{ it.note }}</div>{% endif %}
+          </td>
+          <td>{{ "%.1f"|format(it.qty) }} {{ it.unit }}</td>
+          <td>Rp {{ "{:,}".format(it.subtotal|round|int).replace(",", ".") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="tot-row"><span>Subtotal</span><span>Rp {{ "{:,}".format(invoice.subtotal|round|int).replace(",", ".") }}</span></div>
+      {% if invoice.reverse_subtotal and invoice.reverse_subtotal > 0 %}
+      <div class="tot-row discount"><span>{{ 'Dijual Balik' if invoice.nota_type == 'BELI' else 'Dibeli Balik' }}</span><span class="tot-val">- Rp {{ "{:,}".format(invoice.reverse_subtotal|round|int).replace(",", ".") }}</span></div>
+      {% endif %}
+      {% for d in (invoice.discount_breakdown or []) %}
+      <div class="tot-row discount"><span>{{ d.label }}</span><span class="tot-val">- Rp {{ "{:,}".format(d.amount|round|int).replace(",", ".") }}</span></div>
+      {% endfor %}
+      <div class="tot-row grand"><span>Total</span><span>Rp {{ "{:,}".format(invoice.grand_total|round|int).replace(",", ".") }}</span></div>
+    </div>
+  </div>
+
+  <div class="foot">Halaman bukti nota publik &bull; {{ invoice.company_name or 'ARV LOGAM' }}</div>
+</div>
+</body>
+</html>

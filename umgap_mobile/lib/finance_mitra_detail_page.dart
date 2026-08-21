@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'api_service.dart';
 import 'u_kit.dart';
 import 'nota_detail_page.dart';
@@ -30,12 +31,26 @@ class _FinanceMitraDetailPageState extends State<FinanceMitraDetailPage> {
   }
 
   Future<void> _sendReminder() async {
-    try {
-      await ApiService.financeSendPartyReminder(widget.partyId);
-      if (mounted) uSnack(context, 'Pengingat WA sedang dikirim ✓');
-    } catch (e) {
-      if (mounted) uSnack(context, e.toString(), isError: true);
+    final debts = List<dynamic>.from(_party['debts'] ?? []);
+    if (debts.isEmpty) return;
+    final name = '${_party['name'] ?? ''}';
+    final net = (_party['saldo_net'] as num?)?.toDouble() ?? 0;
+    final buf = StringBuffer();
+    buf.writeln('Halo $name, ini pengingat saldo dari ARV LOGAM:');
+    buf.writeln();
+    for (final d in debts) {
+      final m = d as Map<String, dynamic>;
+      buf.writeln('- ${m['label']}: ${uRupiah(uInt(m['remaining']))}');
     }
+    buf.writeln();
+    if (net > 0) {
+      buf.writeln('*Total yang perlu diselesaikan ke kami: ${uRupiah(net.round())}*');
+    } else if (net < 0) {
+      buf.writeln('*Total yang perlu kami selesaikan ke Anda: ${uRupiah(net.abs().round())}*');
+    }
+    buf.writeln();
+    buf.writeln('Mohon konfirmasinya, terima kasih.');
+    await Share.share(buf.toString().trim());
   }
 
   Future<void> _showEdit() async {
@@ -199,18 +214,13 @@ class _FinanceMitraDetailPageState extends State<FinanceMitraDetailPage> {
               const SizedBox(height: USpace.md),
               SizedBox(width: double.infinity, height: 46,
                 child: ElevatedButton.icon(
-                  onPressed: (phone.isEmpty || debts.isEmpty) ? null : _sendReminder,
-                  icon: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
-                  label: const Text('Kirim Pengingat WA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                  onPressed: debts.isEmpty ? null : _sendReminder,
+                  icon: const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                  label: const Text('Kirim Pengingat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.orange,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(URadius.md))),
                 ),
               ),
-              if (phone.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 6),
-                  child: Text('Isi nomor HP dulu lewat tombol Edit di atas.', style: UText.caption),
-                ),
               const SizedBox(height: USpace.lg),
               USectionHeader(title: 'Rincian Terbuka'),
               const SizedBox(height: USpace.sm),

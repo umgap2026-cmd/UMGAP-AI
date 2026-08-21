@@ -804,30 +804,6 @@ def delete_debt(debt_id):
         return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
-@mobile_finance_bp.route("/finance/debts/send-reminder", methods=["POST", "OPTIONS"])
-@mobile_api_login_required
-def send_debts_reminder():
-    """
-    Kirim pengingat WA utk sekumpulan baris hutang/piutang TERPILIH (1
-    atau banyak, boleh campur pihak) -- mirror /finance/debts/send-reminder
-    web, cuma body-nya JSON list (bukan comma-separated form).
-    Body JSON: { "debt_ids": [1, 2, 3] }
-    """
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({}))
-
-    deny = _check_access(request.mobile_user)
-    if deny: return deny
-
-    data = request.get_json(silent=True) or {}
-    from core import send_fin_debts_wa_reminder
-    try:
-        result = send_fin_debts_wa_reminder(data.get("debt_ids") or [])
-        return mobile_api_response(ok=True, message="OK", data=_clean(result))
-    except ValueError as e:
-        return mobile_api_response(ok=False, message=str(e), status_code=400)
-
-
 # ════════════════════════════════════════════════════════════════
 #  SALDO MITRA — Master Mitra + pengingat WA
 # ════════════════════════════════════════════════════════════════
@@ -915,24 +891,6 @@ def delete_party(party_id):
     try:
         delete_fin_party(party_id)
         return mobile_api_response(ok=True, message="Mitra berhasil dihapus.", data={})
-    except ValueError as e:
-        return mobile_api_response(ok=False, message=str(e), status_code=400)
-
-
-@mobile_finance_bp.route("/finance/mitra/<int:party_id>/send-reminder", methods=["POST", "OPTIONS"])
-@mobile_api_login_required
-def send_party_reminder(party_id):
-    """Kirim pengingat WA ke SEMUA saldo terbuka 1 mitra -- mirror /finance/mitra/<id>/send-reminder web."""
-    if request.method == "OPTIONS":
-        return mobile_api_response(ok=True, message="OK", data=_clean({}))
-
-    deny = _check_access(request.mobile_user)
-    if deny: return deny
-
-    from core import send_fin_party_wa_reminder
-    try:
-        send_fin_party_wa_reminder(party_id)
-        return mobile_api_response(ok=True, message="Pengingat WA sedang dikirim.", data={})
     except ValueError as e:
         return mobile_api_response(ok=False, message=str(e), status_code=400)
 

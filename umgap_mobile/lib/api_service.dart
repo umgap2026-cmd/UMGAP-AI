@@ -1084,18 +1084,6 @@ class ApiService {
     _ensureOk(res, "Gagal menghapus");
   }
 
-  // ── Finance: Kirim pengingat WA utk baris hutang/piutang terpilih ──
-  static Future<Map<String, dynamic>> financeSendDebtsReminder(List<int> debtIds) async {
-    final headers = await _headers();
-    final res = await dio.post(
-      "/api/mobile/finance/debts/send-reminder",
-      data: {"debt_ids": debtIds},
-      options: Options(headers: headers),
-    );
-    _ensureOk(res, "Gagal mengirim pengingat");
-    return _asMap(res.data['data']);
-  }
-
   // ── Finance: Saldo Mitra (Master Mitra) ────
   static Future<List<dynamic>> financeGetParties({String? search}) async {
     final headers = await _headers();
@@ -1150,13 +1138,6 @@ class ApiService {
     final res = await dio.post("/api/mobile/finance/mitra/$partyId/delete",
         options: Options(headers: headers));
     _ensureOk(res, "Gagal menghapus mitra");
-  }
-
-  static Future<void> financeSendPartyReminder(int partyId) async {
-    final headers = await _headers();
-    final res = await dio.post("/api/mobile/finance/mitra/$partyId/send-reminder",
-        options: Options(headers: headers));
-    _ensureOk(res, "Gagal mengirim pengingat");
   }
 
   // ── Finance: Laporan Margin & Susut ────────

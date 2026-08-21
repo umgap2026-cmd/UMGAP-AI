@@ -6,7 +6,8 @@ import 'nota_detail_page.dart';
 import 'u_kit.dart';
 
 class FinanceDebtPage extends StatefulWidget {
-  const FinanceDebtPage({super.key});
+  final String type; // 'HUTANG' atau 'PIUTANG'
+  const FinanceDebtPage({super.key, required this.type});
   @override State<FinanceDebtPage> createState() => _FinanceDebtPageState();
 }
 
@@ -31,10 +32,8 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
     }
   }
 
-  List<Map<String, dynamic>> get _allDebts => [
-        ...List<dynamic>.from(_data['hutang'] ?? []).cast<Map<String, dynamic>>(),
-        ...List<dynamic>.from(_data['piutang'] ?? []).cast<Map<String, dynamic>>(),
-      ];
+  List<Map<String, dynamic>> get _allDebts => List<dynamic>.from(
+      _data[widget.type == 'HUTANG' ? 'hutang' : 'piutang'] ?? []).cast<Map<String, dynamic>>();
 
   List<Map<String, dynamic>> get _selectedDebts =>
       _allDebts.where((d) => _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1)).toList();
@@ -75,12 +74,39 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
     buf.writeln();
     buf.writeln('*Total: ${uRupiah(total)}*');
     if (selected.length == 1) {
-      final txnId = (selected[0]['transaction_id'] as num?)?.toInt();
-      if (txnId != null) {
+      final token = '${selected[0]['public_token'] ?? ''}';
+      if (token.isNotEmpty) {
         buf.writeln();
-        buf.writeln('🧾 Bukti Nota: https://umgap-ai.my.id/nota/$txnId');
+        buf.writeln('🧾 Bukti Nota: https://umgap-ai.my.id/n/$token');
       }
     }
+    return buf.toString().trim();
+  }
+
+  String _composeReminderText(List<Map<String, dynamic>> selected) {
+    final buf = StringBuffer();
+    buf.writeln('Halo, ini pengingat saldo dari ARV LOGAM:');
+    buf.writeln();
+    var total = 0;
+    for (var i = 0; i < selected.length; i++) {
+      final d = selected[i];
+      final amount = uInt(d['remaining']);
+      total += amount;
+      final note = '${d['note'] ?? ''}'.trim();
+      final verb = widget.type == 'HUTANG' ? 'kami berhutang' : 'menunggak';
+      buf.writeln('${i + 1}. ${d['party_name'] ?? '-'} -- $verb: ${uRupiah(amount)}${note.isNotEmpty ? ' ($note)' : ''}');
+    }
+    buf.writeln();
+    buf.writeln('*Total: ${uRupiah(total)}*');
+    if (selected.length == 1) {
+      final token = '${selected[0]['public_token'] ?? ''}';
+      if (token.isNotEmpty) {
+        buf.writeln();
+        buf.writeln('🧾 Bukti Nota: https://umgap-ai.my.id/n/$token');
+      }
+    }
+    buf.writeln();
+    buf.writeln(widget.type == 'HUTANG' ? 'Mohon konfirmasinya, terima kasih.' : 'Mohon segera dilunasi, terima kasih.');
     return buf.toString().trim();
   }
 
@@ -93,19 +119,7 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
   Future<void> _sendReminder() async {
     final selected = _selectedDebts;
     if (selected.isEmpty) return;
-    try {
-      final ids = selected.map((d) => int.tryParse('${d["id"]}') ?? 0).where((id) => id != 0).toList();
-      final result = await ApiService.financeSendDebtsReminder(ids);
-      final sent = List<dynamic>.from(result['sent'] ?? []);
-      final skipped = List<dynamic>.from(result['skipped'] ?? []);
-      var msg = 'Pengingat WA terkirim ke ${sent.length} pihak.';
-      if (skipped.isNotEmpty) {
-        msg += ' ${skipped.length} dilewati (belum ada no. HP): ${skipped.join(", ")}';
-      }
-      if (mounted) uSnack(context, msg, isError: sent.isEmpty);
-    } catch (e) {
-      if (mounted) uSnack(context, e.toString(), isError: true);
-    }
+    await Share.share(_composeReminderText(selected));
   }
 
   Future<void> _openActionSheet() async {
@@ -301,34 +315,6 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
     );
   }
 
-  Future<void> _pickAddType() async {
-    final type = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-          ListTile(
-            leading: const Icon(Icons.arrow_upward_rounded, color: UColors.danger),
-            title: const Text('Tambah Hutang (ke Pemasok)'),
-            onTap: () => Navigator.pop(ctx, 'HUTANG'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.arrow_downward_rounded, color: UColors.success),
-            title: const Text('Tambah Piutang (dari Pelanggan)'),
-            onTap: () => Navigator.pop(ctx, 'PIUTANG'),
-          ),
-        ]),
-      ),
-    );
-    if (type != null) _addDebt(type);
-  }
-
   Future<void> _editDebt(Map<String, dynamic> debt) async {
     final nameCtrl   = TextEditingController(text: '${debt['party_name'] ?? ''}');
     final amountCtrl = TextEditingController(text: '${(debt['amount'] as num?)?.toInt() ?? 0}');
@@ -399,10 +385,10 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
 
   @override
   Widget build(BuildContext context) {
-    final hutang       = List<dynamic>.from(_data['hutang']        ?? []);
-    final piutang      = List<dynamic>.from(_data['piutang']       ?? []);
-    final totalHutang  = uInt(_data['total_hutang']);
-    final totalPiutang = uInt(_data['total_piutang']);
+    final isHutang = widget.type == 'HUTANG';
+    final color    = isHutang ? UColors.danger : UColors.success;
+    final debts    = _allDebts;
+    final total    = uInt(_data[isHutang ? 'total_hutang' : 'total_piutang']);
 
     return Scaffold(
       backgroundColor: UColors.surface,
@@ -416,7 +402,7 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
                 )
               : null)
           : FloatingActionButton.extended(
-              onPressed: _pickAddType,
+              onPressed: () => _addDebt(widget.type),
               backgroundColor: UColors.primary,
               icon: const Icon(Icons.add_rounded, color: Colors.white),
               label: const Text('Tambah', style: TextStyle(color: Colors.white)),
@@ -426,7 +412,8 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
           padding: const EdgeInsets.fromLTRB(USpace.sm, USpace.sm, USpace.base, USpace.xl),
           child: Row(children: [
             UBackButton(), const SizedBox(width: USpace.md),
-            Expanded(child: Text(_selecting ? '${_selectedIds.length} dipilih' : 'Hutang & Piutang',
+            Expanded(child: Text(_selecting ? '${_selectedIds.length} dipilih'
+                    : (isHutang ? 'Hutang (ke Pemasok)' : 'Piutang (dari Pelanggan)'),
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800))),
             if (_selecting) ...[
               TextButton(onPressed: _selectAll,
@@ -444,38 +431,20 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(USpace.base, USpace.base, USpace.base, 100),
           children: [
-            Row(children: [
-              Expanded(child: _DebtSummary(label: 'Total Hutang',
-                  value: uRupiah(totalHutang), color: UColors.danger)),
-              const SizedBox(width: USpace.md),
-              Expanded(child: _DebtSummary(label: 'Total Piutang',
-                  value: uRupiah(totalPiutang), color: UColors.success)),
-            ]),
+            _DebtSummary(label: isHutang ? 'Total Hutang' : 'Total Piutang',
+                value: uRupiah(total), color: color),
             const SizedBox(height: USpace.lg),
-            if (hutang.isNotEmpty) ...[
-              USectionHeader(title: 'Hutang Kita'),
-              const SizedBox(height: USpace.sm),
-              ...hutang.map((d) => _DebtCard(debt: d as Map<String, dynamic>,
-                  color: UColors.danger, onBayar: () => _bayar(d),
+            if (debts.isNotEmpty)
+              ...debts.map((d) => _DebtCard(debt: d,
+                  color: color, onBayar: () => _bayar(d),
                   onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d),
                   selecting: _selecting,
                   selected: _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1),
-                  onToggleSelect: () => _toggleSelect(int.tryParse('${d["id"]}') ?? -1))),
-              const SizedBox(height: USpace.lg),
-            ],
-            if (piutang.isNotEmpty) ...[
-              USectionHeader(title: 'Piutang (Orang Hutang ke Kita)'),
-              const SizedBox(height: USpace.sm),
-              ...piutang.map((d) => _DebtCard(debt: d as Map<String, dynamic>,
-                  color: UColors.success, onBayar: () => _bayar(d),
-                  onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d),
-                  selecting: _selecting,
-                  selected: _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1),
-                  onToggleSelect: () => _toggleSelect(int.tryParse('${d["id"]}') ?? -1))),
-            ],
-            if (hutang.isEmpty && piutang.isEmpty)
+                  onToggleSelect: () => _toggleSelect(int.tryParse('${d["id"]}') ?? -1)))
+            else
               UEmptyState(icon: Icons.account_balance_rounded,
-                  title: 'Tidak ada hutang/piutang', subtitle: 'Semua sudah lunas 🎉'),
+                  title: isHutang ? 'Tidak ada hutang' : 'Tidak ada piutang',
+                  subtitle: 'Semua sudah lunas 🎉'),
           ],
         )),
       ]),

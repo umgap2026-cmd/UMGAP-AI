@@ -705,7 +705,7 @@
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
                    data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
-                   data-transaction-id="{{ d.transaction_id or '' }}" />
+                   data-transaction-id="{{ d.transaction_id or '' }}" data-public-token="{{ d.public_token or '' }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -747,7 +747,7 @@
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="HUTANG" value="{{ d.id }}"
                    data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
-                   data-transaction-id="{{ d.transaction_id or '' }}" /></td>
+                   data-transaction-id="{{ d.transaction_id or '' }}" data-public-token="{{ d.public_token or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -852,7 +852,7 @@
           <label class="merge-check-wrap">
             <input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
                    data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
-                   data-transaction-id="{{ d.transaction_id or '' }}" />
+                   data-transaction-id="{{ d.transaction_id or '' }}" data-public-token="{{ d.public_token or '' }}" />
             <span>Pilih utk digabung</span>
           </label>
           <div class="item-top">
@@ -894,7 +894,7 @@
             <tr>
               <td class="merge-td"><input type="checkbox" class="debt-merge-check" data-type="PIUTANG" value="{{ d.id }}"
                    data-name="{{ d.party_name or '' }}" data-note="{{ d.note or '' }}" data-amount="{{ d.remaining|round|int }}"
-                   data-transaction-id="{{ d.transaction_id or '' }}" /></td>
+                   data-transaction-id="{{ d.transaction_id or '' }}" data-public-token="{{ d.public_token or '' }}" /></td>
               <td>{{ d.party_name or "-" }}</td>
               <td>Rp {{ "{:,}".format(d.amount | round | int).replace(",", ".") }}</td>
               <td class="muted">Rp {{ "{:,}".format(d.paid_amount | round | int).replace(",", ".") }}</td>
@@ -1213,10 +1213,6 @@
   </div>
 </div>
 
-<form method="post" action="/finance/debts/send-reminder" id="reminderForm" style="display:none">
-  <input type="hidden" name="debt_ids" id="reminderDebtIdsInp" />
-</form>
-
 <script>
   // Tanggal Otomatis (Hari Ini) / Atur Manual -- dipakai form Hutang,
   // Piutang & Beban. "auto" = kosongkan input tanggal (backend otomatis
@@ -1405,8 +1401,6 @@
     var mergeDebtNameInp = document.getElementById("mergeDebtNameInp");
     var mergeDebtNoteInp = document.getElementById("mergeDebtNoteInp");
     var mergeDebtCount = document.getElementById("mergeDebtCount");
-    var reminderForm = document.getElementById("reminderForm");
-    var reminderDebtIdsInp = document.getElementById("reminderDebtIdsInp");
 
     function getMergePanel(type) {
       return document.querySelector('.tab-panel[data-tab-panel="' + (type === "HUTANG" ? "hutang" : "piutang") + '"]');
@@ -1490,9 +1484,8 @@
     actionReminderBtn.addEventListener("click", function () {
       var checks = currentSelectedChecks();
       if (checks.length < 1) return;
-      var ids = checks.map(function (c) { return c.value; });
-      reminderDebtIdsInp.value = ids.join(",");
-      reminderForm.submit();
+      shareSelectedText(composeSelectedReminderText(currentActionType, checks));
+      closeDebtActionModal();
     });
     actionMergeBtn.addEventListener("click", function () {
       var checks = currentSelectedChecks();
@@ -1525,15 +1518,41 @@
       });
       lines.push("");
       lines.push("*Total: Rp " + total.toLocaleString("id-ID") + "*");
-      // Share 1 baris saja -> lampirkan link bukti nota (kalau baris ini
-      // memang berasal dari nota, bukan hutang/piutang manual).
+      // Share 1 baris saja -> lampirkan link bukti nota publik (kalau baris
+      // ini memang berasal dari nota, bukan hutang/piutang manual). Link
+      // pakai token publik (/n/<token>, tanpa login) supaya bisa dibuka
+      // penerima -- /nota/<id> internal butuh login staf, tidak bisa dibuka
+      // orang luar.
       if (checks.length === 1) {
-        var txnId = checks[0].getAttribute("data-transaction-id");
-        if (txnId) {
+        var token = checks[0].getAttribute("data-public-token");
+        if (token) {
           lines.push("");
-          lines.push("🧾 Bukti Nota: " + window.location.origin + "/nota/" + txnId);
+          lines.push("🧾 Bukti Nota: " + window.location.origin + "/n/" + token);
         }
       }
+      return lines.join("\n");
+    }
+    function composeSelectedReminderText(type, checks) {
+      var lines = ["Halo, ini pengingat saldo dari ARV LOGAM:", ""];
+      var total = 0;
+      checks.forEach(function (c, i) {
+        var name = c.getAttribute("data-name") || "-";
+        var amount = parseInt(c.getAttribute("data-amount") || "0", 10) || 0;
+        var note = (c.getAttribute("data-note") || "").trim();
+        total += amount;
+        lines.push((i + 1) + ". " + name + " -- " + (type === "HUTANG" ? "kami berhutang" : "menunggak") + ": Rp " + amount.toLocaleString("id-ID") + (note ? " (" + note + ")" : ""));
+      });
+      lines.push("");
+      lines.push("*Total: Rp " + total.toLocaleString("id-ID") + "*");
+      if (checks.length === 1) {
+        var token = checks[0].getAttribute("data-public-token");
+        if (token) {
+          lines.push("");
+          lines.push("🧾 Bukti Nota: " + window.location.origin + "/n/" + token);
+        }
+      }
+      lines.push("");
+      lines.push(type === "HUTANG" ? "Mohon konfirmasinya, terima kasih." : "Mohon segera dilunasi, terima kasih.");
       return lines.join("\n");
     }
     function shareSelectedText(text) {

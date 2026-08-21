@@ -19,6 +19,7 @@ from core import (
     update_fin_invoice_transaction,
     get_invoice_history,
     get_fin_invoice_detail,
+    get_public_nota_by_token,
     settle_fin_debt_for_transaction,
     set_dp_excess_mode,
     cancel_fin_transaction,
@@ -358,6 +359,20 @@ def nota_detail(txn_id):
         action_base=f"/nota/{txn_id}",
         is_legacy=False,
         returns=list_fin_returns(txn_id),
+    )
+
+
+# ---------- BUKTI NOTA PUBLIK (tanpa login, khusus fitur Share/Pengingat) ----------
+@nota_bp.route("/n/<token>")
+def nota_public(token):
+    invoice, items = get_public_nota_by_token(token)
+    if not invoice:
+        abort(404)
+
+    return render_template(
+        "nota_public.html",
+        invoice=invoice,
+        items=items,
     )
 
 

@@ -152,7 +152,7 @@
         </summary>
         <form method="post" action="/finance/mitra/add" class="stack-form">
           <div class="field"><label>Nama *</label><input type="text" name="name" placeholder="Nama mitra" required /></div>
-          <div class="field"><label>No. HP</label><input type="tel" name="phone" placeholder="08xxxxxxxxxx (opsional, wajib utk kirim pengingat WA)" /></div>
+          <div class="field"><label>No. HP</label><input type="tel" name="phone" placeholder="08xxxxxxxxxx (opsional)" /></div>
           <div class="field"><label>Catatan</label><input type="text" name="note" placeholder="opsional" /></div>
           <button type="submit" class="btn-submit">Simpan Mitra</button>
         </form>
@@ -173,9 +173,10 @@
           </div>
           <div class="item-actions">
             <a href="/finance/mitra/{{ p.id }}" class="pill-btn primary">📋 Detail</a>
-            <form method="post" action="/finance/mitra/{{ p.id }}/send-reminder">
-              <button type="submit" class="pill-btn wa" {{ 'disabled' if not p.phone or (p.total_piutang == 0 and p.total_hutang == 0) }}>💬 Kirim Pengingat</button>
-            </form>
+            <button type="button" class="pill-btn wa btn-mitra-reminder"
+                data-name="{{ p.name }}" data-piutang="{{ p.total_piutang|round|int }}"
+                data-hutang="{{ p.total_hutang|round|int }}" data-saldo="{{ p.saldo_net|round|int }}"
+                {{ 'disabled' if (p.total_piutang == 0 and p.total_hutang == 0) }}>💬 Kirim Pengingat</button>
             <form method="post" action="/finance/mitra/{{ p.id }}/delete" onsubmit="return confirm('Hapus mitra {{ p.name }}?');">
               <button type="submit" class="pill-btn danger">Hapus</button>
             </form>
@@ -203,9 +204,10 @@
               <td>
                 <div style="display:flex; gap:6px;">
                   <a href="/finance/mitra/{{ p.id }}" class="pill-btn primary">Detail</a>
-                  <form method="post" action="/finance/mitra/{{ p.id }}/send-reminder">
-                    <button type="submit" class="pill-btn wa" {{ 'disabled' if not p.phone or (p.total_piutang == 0 and p.total_hutang == 0) }}>Pengingat</button>
-                  </form>
+                  <button type="button" class="pill-btn wa btn-mitra-reminder"
+                      data-name="{{ p.name }}" data-piutang="{{ p.total_piutang|round|int }}"
+                      data-hutang="{{ p.total_hutang|round|int }}" data-saldo="{{ p.saldo_net|round|int }}"
+                      {{ 'disabled' if (p.total_piutang == 0 and p.total_hutang == 0) }}>Pengingat</button>
                   <form method="post" action="/finance/mitra/{{ p.id }}/delete" onsubmit="return confirm('Hapus mitra {{ p.name }}?');">
                     <button type="submit" class="pill-btn danger">Hapus</button>
                   </form>
@@ -221,4 +223,37 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.querySelectorAll(".btn-mitra-reminder").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var name = btn.getAttribute("data-name") || "-";
+      var piutang = parseInt(btn.getAttribute("data-piutang") || "0", 10) || 0;
+      var hutang = parseInt(btn.getAttribute("data-hutang") || "0", 10) || 0;
+      var saldo = parseInt(btn.getAttribute("data-saldo") || "0", 10) || 0;
+      var lines = ["Halo " + name + ", ini pengingat saldo dari ARV LOGAM:", ""];
+      if (piutang > 0) lines.push("- Piutang: Rp " + piutang.toLocaleString("id-ID"));
+      if (hutang > 0) lines.push("- Hutang: Rp " + hutang.toLocaleString("id-ID"));
+      lines.push("");
+      if (saldo > 0) {
+        lines.push("*Total yang perlu diselesaikan ke kami: Rp " + saldo.toLocaleString("id-ID") + "*");
+      } else if (saldo < 0) {
+        lines.push("*Total yang perlu kami selesaikan ke Anda: Rp " + Math.abs(saldo).toLocaleString("id-ID") + "*");
+      }
+      lines.push("");
+      lines.push("Mohon konfirmasinya, terima kasih.");
+      var text = lines.join("\n");
+
+      if (navigator.share) {
+        navigator.share({ text: text }).catch(function () {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          alert("Browser ini tidak punya menu Share -- teks sudah disalin ke clipboard, tinggal tempel di aplikasi tujuan.");
+        });
+      } else {
+        window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+      }
+    });
+  });
+</script>
 {% endblock %}

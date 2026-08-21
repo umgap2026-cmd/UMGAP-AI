@@ -3,6 +3,7 @@ import io
 import re
 import ssl
 import random
+import secrets
 import smtplib
 import hmac
 import hashlib
@@ -552,6 +553,64 @@ def _ensure_fin_transactions_gross_amount_schema(cur):
         ) rev
         WHERE t.id = rev.transaction_id;
     """)
+
+
+def _ensure_fin_transactions_public_token_schema(cur):
+    """Lazy-migration: `public_token` -- token acak (tak-tertebak) supaya
+    nota bisa dibagikan sbg bukti ke pihak luar (via fitur Share/Pengingat)
+    tanpa mengharuskan mereka login. Dibuat lazy per-transaksi lewat
+    get_or_create_nota_public_token(), BUKAN backfill massal -- cukup dibuat
+    saat memang mau dibagikan (lihat list_fin_debts())."""
+    if not _col_exists(cur, "fin_transactions", "public_token"):
+        cur.execute("""
+            ALTER TABLE fin_transactions ADD COLUMN IF NOT EXISTS public_token VARCHAR(40) UNIQUE;
+        """)
+
+
+def get_or_create_nota_public_token(txn_id):
+    """Ambil public_token nota ini, generate & simpan kalau belum ada.
+    Dipakai utk link bukti nota publik (/n/<token>) di fitur Share/
+    Pengingat -- lihat list_fin_debts()."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_transactions_public_token_schema(cur)
+        cur.execute("SELECT public_token FROM fin_transactions WHERE id = %s;", (txn_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        if row["public_token"]:
+            conn.commit()
+            return row["public_token"]
+        token = secrets.token_urlsafe(24)
+        cur.execute("UPDATE fin_transactions SET public_token = %s WHERE id = %s;", (token, txn_id))
+        conn.commit()
+        return token
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_public_nota_by_token(token):
+    """Cari nota lewat public_token (utk halaman publik /n/<token>, tanpa
+    login) -- return (invoice, items) via get_fin_invoice_detail() yang
+    sudah ada, atau (None, []) kalau token tidak ditemukan."""
+    token = (token or "").strip()
+    if not token:
+        return None, []
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        _ensure_fin_transactions_public_token_schema(cur)
+        cur.execute("SELECT id FROM fin_transactions WHERE public_token = %s;", (token,))
+        row = cur.fetchone()
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    if not row:
+        return None, []
+    return get_fin_invoice_detail(row["id"])
 
 
 def _ensure_fin_transaction_item_direction_schema(cur):
@@ -5022,6 +5081,7 @@ def list_fin_debts():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_debts_reason_schema(cur)
+        _ensure_fin_transactions_public_token_schema(cur)
         conn.commit()
         cur.execute("""
             SELECT id, type, party_name, amount, paid_amount,
@@ -5035,6 +5095,20 @@ def list_fin_debts():
         for r in rows:
             r["created_at_wib"] = _utc_naive_to_wib_string(r.get("created_at"), fmt="%d/%m/%Y")
             r.pop("created_at", None)
+            # Token publik utk link bukti nota (fitur Share/Pengingat) --
+            # dibuat lazy di sini, bukan backfill massal, krn cuma dipakai
+            # kalau baris ini memang punya nota & sedang mau dibagikan.
+            r["public_token"] = None
+            txn_id = r.get("transaction_id")
+            if txn_id:
+                cur.execute("SELECT public_token FROM fin_transactions WHERE id = %s;", (txn_id,))
+                trow = cur.fetchone()
+                token = (trow or {}).get("public_token")
+                if not token:
+                    token = secrets.token_urlsafe(24)
+                    cur.execute("UPDATE fin_transactions SET public_token = %s WHERE id = %s;", (token, txn_id))
+                r["public_token"] = token
+        conn.commit()
         rows = _clean(rows)
         hutang = [r for r in rows if r["type"] == "HUTANG"]
         piutang = [r for r in rows if r["type"] == "PIUTANG"]
@@ -5329,98 +5403,6 @@ def get_fin_party_detail(party_id):
         party["total_hutang"] = sum(d["remaining"] for d in debts if d["type"] == "HUTANG")
         party["saldo_net"] = party["total_piutang"] - party["total_hutang"]
         return party
-    finally:
-        cur.close()
-        conn.close()
-
-
-def send_fin_party_wa_reminder(party_id):
-    """Susun & kirim pesan pengingat WA berisi rincian hutang/piutang
-    terbuka mitra ini, pakai send_wa() yang sudah ada (fire-and-forget)."""
-    party = get_fin_party_detail(party_id)
-    phone = (party.get("phone") or "").strip()
-    if not phone:
-        raise ValueError("Mitra ini belum punya nomor HP tersimpan.")
-    if not party["debts"]:
-        raise ValueError("Mitra ini tidak punya saldo hutang/piutang terbuka.")
-
-    lines = [f"Halo {party['name']}, ini pengingat saldo dari ARV LOGAM:", ""]
-    for d in party["debts"]:
-        lines.append(f"- {d['label']}: Rp {d['remaining']:,.0f}".replace(",", "."))
-    lines.append("")
-    if party["saldo_net"] > 0:
-        lines.append(f"Total yang perlu diselesaikan ke kami: Rp {party['saldo_net']:,.0f}".replace(",", "."))
-    elif party["saldo_net"] < 0:
-        lines.append(f"Total yang perlu kami selesaikan ke Anda: Rp {abs(party['saldo_net']):,.0f}".replace(",", "."))
-    lines.append("Terima kasih.")
-    message = "\n".join(lines)
-
-    send_wa(phone, message)
-    return {"phone": phone, "message": message}
-
-
-def send_fin_debts_wa_reminder(debt_ids):
-    """Kirim pengingat WA utk sekumpulan baris hutang/piutang TERPILIH
-    (bisa 1 atau banyak, boleh campur beberapa pihak sekaligus) --
-    dikelompokkan per party_name, nomor HP dicari di Master Mitra
-    (fin_parties, pola sama dgn get_fin_party_detail). Beda dari
-    send_fin_party_wa_reminder yg selalu kirim SEMUA saldo terbuka 1
-    mitra -- ini cuma kirim baris yg admin pilih. Pihak tanpa nomor HP
-    DILEWATI (tidak menggagalkan yg lain). Return {sent, skipped}."""
-    debt_ids = [int(d) for d in (debt_ids or []) if str(d).strip().isdigit()]
-    if not debt_ids:
-        raise ValueError("Tidak ada hutang/piutang yang dipilih.")
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        _ensure_fin_parties_schema(cur)
-        _ensure_fin_debts_reason_schema(cur)
-        conn.commit()
-
-        cur.execute("""
-            SELECT id, type, party_type, reason, party_name, remaining, note, created_at
-            FROM fin_debts
-            WHERE id = ANY(%s) AND is_settled = FALSE
-            ORDER BY type, created_at DESC;
-        """, (debt_ids,))
-        rows = [dict(r) for r in cur.fetchall()]
-        if not rows:
-            raise ValueError("Hutang/piutang yang dipilih tidak ditemukan atau sudah lunas.")
-
-        by_party = {}
-        for r in rows:
-            key = (r["party_name"] or "").strip()
-            if not key:
-                continue
-            by_party.setdefault(key, []).append(r)
-
-        sent, skipped = [], []
-        for party_name, debts in by_party.items():
-            cur.execute("SELECT phone FROM fin_parties WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s));", (party_name,))
-            prow = cur.fetchone()
-            phone = ((prow or {}).get("phone") or "").strip()
-            if not phone:
-                skipped.append(party_name)
-                continue
-
-            lines = [f"Halo {party_name}, ini pengingat saldo dari ARV LOGAM:", ""]
-            saldo_net = 0.0
-            for d in debts:
-                remaining = float(d["remaining"] or 0)
-                saldo_net += remaining if d["type"] == "PIUTANG" else -remaining
-                lines.append(f"- {_debt_label(d)}: Rp {remaining:,.0f}".replace(",", "."))
-            lines.append("")
-            if saldo_net > 0:
-                lines.append(f"Total yang perlu diselesaikan ke kami: Rp {saldo_net:,.0f}".replace(",", "."))
-            elif saldo_net < 0:
-                lines.append(f"Total yang perlu kami selesaikan ke Anda: Rp {abs(saldo_net):,.0f}".replace(",", "."))
-            lines.append("Terima kasih.")
-
-            send_wa(phone, "\n".join(lines))
-            sent.append(party_name)
-
-        return {"sent": sent, "skipped": skipped}
     finally:
         cur.close()
         conn.close()

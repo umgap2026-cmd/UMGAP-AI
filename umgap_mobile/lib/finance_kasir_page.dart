@@ -172,11 +172,19 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
                 ),
                 const SizedBox(height: USpace.sm),
                 _MenuTile(
-                  icon:    Icons.account_balance_rounded,
-                  color:   UColors.warning,
-                  label:   'Hutang & Piutang',
+                  icon:    Icons.arrow_upward_rounded,
+                  color:   UColors.danger,
+                  label:   'Hutang (ke Pemasok)',
                   sub:     'Catat & tandai lunas',
-                  onTap:   () => _go(const FinanceDebtPage()),
+                  onTap:   () => _go(const FinanceDebtPage(type: 'HUTANG')),
+                ),
+                const SizedBox(height: USpace.sm),
+                _MenuTile(
+                  icon:    Icons.arrow_downward_rounded,
+                  color:   UColors.success,
+                  label:   'Piutang (dari Pelanggan)',
+                  sub:     'Catat & tandai lunas',
+                  onTap:   () => _go(const FinanceDebtPage(type: 'PIUTANG')),
                 ),
                 const SizedBox(height: USpace.sm),
                 _MenuTile(
