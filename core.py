@@ -2915,6 +2915,8 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], created_by,
                                     category=e["category"])
 
+        _sync_fin_party_phone(cur, customer_name, customer_phone)
+
         conn.commit()
 
         return {
@@ -3137,6 +3139,8 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         for e in ongkir_beban_entries:
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], created_by,
                                     category=e["category"])
+
+        _sync_fin_party_phone(cur, supplier_name, supplier_phone)
 
         conn.commit()
 
@@ -3399,6 +3403,8 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         for e in ongkir_beban_entries:
             _record_ongkir_expense(cur, txn_id, invoice_no, e["amount"], edited_by,
                                     category=e["category"])
+
+        _sync_fin_party_phone(cur, customer_name, customer_phone)
 
         conn.commit()
         return {
@@ -5134,6 +5140,26 @@ def _ensure_fin_parties_schema(cur):
         CREATE UNIQUE INDEX IF NOT EXISTS fin_parties_name_lower_idx
         ON fin_parties (LOWER(TRIM(name)));
     """)
+
+
+def _sync_fin_party_phone(cur, name, phone):
+    """Simpan/update no. HP ke Master Mitra (fin_parties) berdasarkan nama
+    -- dipanggil dari create_fin_invoice/create_fin_purchase_invoice/
+    update_fin_invoice_transaction supaya no. HP yg diisi staf saat bikin
+    nota otomatis kepakai jg utk fitur Pengingat WA (Saldo Mitra), tanpa
+    perlu diisi dobel manual. No-op kalau nama/HP kosong -- tidak pernah
+    bikin baris Mitra kosong tanpa nomor."""
+    name = (name or "").strip()
+    phone = (phone or "").strip()
+    if not name or not phone:
+        return
+    _ensure_fin_parties_schema(cur)
+    cur.execute("SELECT id FROM fin_parties WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s));", (name,))
+    row = cur.fetchone()
+    if row:
+        cur.execute("UPDATE fin_parties SET phone = %s WHERE id = %s;", (phone, row["id"]))
+    else:
+        cur.execute("INSERT INTO fin_parties (name, phone) VALUES (%s, %s);", (name, phone))
 
 
 def _debt_label(d):
