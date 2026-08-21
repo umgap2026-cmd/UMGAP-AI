@@ -1084,6 +1084,139 @@ class ApiService {
     _ensureOk(res, "Gagal menghapus");
   }
 
+  // ── Finance: Kirim pengingat WA utk baris hutang/piutang terpilih ──
+  static Future<Map<String, dynamic>> financeSendDebtsReminder(List<int> debtIds) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/debts/send-reminder",
+      data: {"debt_ids": debtIds},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal mengirim pengingat");
+    return _asMap(res.data['data']);
+  }
+
+  // ── Finance: Saldo Mitra (Master Mitra) ────
+  static Future<List<dynamic>> financeGetParties({String? search}) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/mitra",
+      queryParameters: (search != null && search.isNotEmpty) ? {"q": search} : {},
+      options: Options(headers: headers),
+    );
+    return _asList(res.data['data']);
+  }
+
+  static Future<Map<String, dynamic>> financeAddParty({
+    required String name,
+    String? phone,
+    String? note,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/mitra/add",
+      data: {"name": name, "phone": phone, "note": note},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menambah mitra");
+    return _asMap(res.data['data']);
+  }
+
+  static Future<Map<String, dynamic>> financeGetPartyDetail(int partyId) async {
+    final headers = await _headers();
+    final res = await dio.get("/api/mobile/finance/mitra/$partyId",
+        options: Options(headers: headers));
+    _ensureOk(res, "Mitra tidak ditemukan");
+    return _asMap(res.data['data']);
+  }
+
+  static Future<void> financeEditParty({
+    required int partyId,
+    required String name,
+    String? phone,
+    String? note,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/mitra/$partyId/edit",
+      data: {"name": name, "phone": phone, "note": note},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal menyimpan mitra");
+  }
+
+  static Future<void> financeDeleteParty(int partyId) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/finance/mitra/$partyId/delete",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal menghapus mitra");
+  }
+
+  static Future<void> financeSendPartyReminder(int partyId) async {
+    final headers = await _headers();
+    final res = await dio.post("/api/mobile/finance/mitra/$partyId/send-reminder",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal mengirim pengingat");
+  }
+
+  // ── Finance: Laporan Margin & Susut ────────
+  static Future<List<dynamic>> financeMarginReport({required String from, required String to}) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/margin-report",
+      queryParameters: {"from": from, "to": to},
+      options: Options(headers: headers),
+    );
+    return _asList(res.data['data']);
+  }
+
+  static Future<List<dynamic>> financeShrinkageReport({required String from, required String to}) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/shrinkage-report",
+      queryParameters: {"from": from, "to": to},
+      options: Options(headers: headers),
+    );
+    return _asList(res.data['data']);
+  }
+
+  // ── Finance: Opname Stok ───────────────────
+  static Future<Map<String, dynamic>> financeOpname({
+    required int materialId,
+    required double actualQty,
+    String? note,
+    int? price,
+  }) async {
+    final headers = await _headers();
+    final res = await dio.post(
+      "/api/mobile/finance/materials/$materialId/opname",
+      data: {"actual_qty": actualQty, "note": note, "price": price},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal mencatat opname");
+    return _asMap(res.data['data']);
+  }
+
+  // ── Finance: Diagnostik HPP & Pelanggan Menguntungkan (Owner) ──
+  static Future<Map<String, dynamic>> financeHppDiagnostics() async {
+    final headers = await _headers();
+    final res = await dio.get("/api/mobile/finance/hpp-diagnostics",
+        options: Options(headers: headers));
+    _ensureOk(res, "Gagal memuat diagnostik");
+    return _asMap(res.data['data']);
+  }
+
+  static Future<List<dynamic>> financeCustomerProfitability({required String from, required String to}) async {
+    final headers = await _headers();
+    final res = await dio.get(
+      "/api/mobile/finance/customer-profitability",
+      queryParameters: {"from": from, "to": to},
+      options: Options(headers: headers),
+    );
+    _ensureOk(res, "Gagal memuat laporan");
+    return _asList(res.data['data']);
+  }
+
 
   // ── Nota: Riwayat (list) ───────────────────
   static Future<Map<String, dynamic>> invoiceHistory({

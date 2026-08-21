@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'api_service.dart';
 import 'nota_detail_page.dart';
 import 'u_kit.dart';
@@ -12,6 +13,8 @@ class FinanceDebtPage extends StatefulWidget {
 class _FinanceDebtPageState extends State<FinanceDebtPage> {
   bool  _loading = true;
   Map<String, dynamic> _data = {};
+  bool _selecting = false;
+  final Set<int> _selectedIds = {};
 
   @override
   void initState() { super.initState(); _load(); }
@@ -25,6 +28,120 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _allDebts => [
+        ...List<dynamic>.from(_data['hutang'] ?? []).cast<Map<String, dynamic>>(),
+        ...List<dynamic>.from(_data['piutang'] ?? []).cast<Map<String, dynamic>>(),
+      ];
+
+  List<Map<String, dynamic>> get _selectedDebts =>
+      _allDebts.where((d) => _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1)).toList();
+
+  void _toggleSelecting() {
+    setState(() {
+      _selecting = !_selecting;
+      if (!_selecting) _selectedIds.clear();
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedIds.addAll(_allDebts.map((d) => int.tryParse('${d["id"]}') ?? -1).where((id) => id != -1));
+    });
+  }
+
+  void _toggleSelect(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) { _selectedIds.remove(id); } else { _selectedIds.add(id); }
+    });
+  }
+
+  String _composeShareText(List<Map<String, dynamic>> selected) {
+    final buf = StringBuffer();
+    buf.writeln(selected.length > 1
+        ? '*Hutang/Piutang (${selected.length} Terpilih)*'
+        : '*Hutang/Piutang*');
+    buf.writeln();
+    var total = 0;
+    for (var i = 0; i < selected.length; i++) {
+      final d = selected[i];
+      final amount = uInt(d['remaining']);
+      total += amount;
+      final note = '${d['note'] ?? ''}'.trim();
+      buf.writeln('${i + 1}. ${d['party_name'] ?? '-'}: ${uRupiah(amount)}${note.isNotEmpty ? ' ($note)' : ''}');
+    }
+    buf.writeln();
+    buf.writeln('*Total: ${uRupiah(total)}*');
+    if (selected.length == 1) {
+      final txnId = (selected[0]['transaction_id'] as num?)?.toInt();
+      if (txnId != null) {
+        buf.writeln();
+        buf.writeln('🧾 Bukti Nota: https://umgap-ai.my.id/nota/$txnId');
+      }
+    }
+    return buf.toString().trim();
+  }
+
+  Future<void> _shareSelected() async {
+    final selected = _selectedDebts;
+    if (selected.isEmpty) return;
+    await Share.share(_composeShareText(selected));
+  }
+
+  Future<void> _sendReminder() async {
+    final selected = _selectedDebts;
+    if (selected.isEmpty) return;
+    try {
+      final ids = selected.map((d) => int.tryParse('${d["id"]}') ?? 0).where((id) => id != 0).toList();
+      final result = await ApiService.financeSendDebtsReminder(ids);
+      final sent = List<dynamic>.from(result['sent'] ?? []);
+      final skipped = List<dynamic>.from(result['skipped'] ?? []);
+      var msg = 'Pengingat WA terkirim ke ${sent.length} pihak.';
+      if (skipped.isNotEmpty) {
+        msg += ' ${skipped.length} dilewati (belum ada no. HP): ${skipped.join(", ")}';
+      }
+      if (mounted) uSnack(context, msg, isError: sent.isEmpty);
+    } catch (e) {
+      if (mounted) uSnack(context, e.toString(), isError: true);
+    }
+  }
+
+  Future<void> _openActionSheet() async {
+    final selected = _selectedDebts;
+    if (selected.isEmpty) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          Text('${selected.length} Baris Dipilih',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.share_rounded, color: UColors.success),
+            title: const Text('Share'),
+            onTap: () => Navigator.pop(ctx, 'share'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_active_rounded, color: Colors.orange),
+            title: const Text('Kirim Pengingat'),
+            onTap: () => Navigator.pop(ctx, 'reminder'),
+          ),
+        ]),
+      ),
+    );
+    if (action == 'share') {
+      _shareSelected();
+    } else if (action == 'reminder') {
+      _sendReminder();
     }
   }
 
@@ -289,20 +406,37 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
 
     return Scaffold(
       backgroundColor: UColors.surface,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _pickAddType,
-        backgroundColor: UColors.primary,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('Tambah', style: TextStyle(color: Colors.white)),
-      ),
+      floatingActionButton: _selecting
+          ? (_selectedIds.isNotEmpty
+              ? FloatingActionButton.extended(
+                  onPressed: _openActionSheet,
+                  backgroundColor: UColors.primary,
+                  icon: const Icon(Icons.checklist_rounded, color: Colors.white),
+                  label: Text('Aksi (${_selectedIds.length})', style: const TextStyle(color: Colors.white)),
+                )
+              : null)
+          : FloatingActionButton.extended(
+              onPressed: _pickAddType,
+              backgroundColor: UColors.primary,
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: const Text('Tambah', style: TextStyle(color: Colors.white)),
+            ),
       body: Column(children: [
         UHeader(child: Padding(
           padding: const EdgeInsets.fromLTRB(USpace.sm, USpace.sm, USpace.base, USpace.xl),
           child: Row(children: [
             UBackButton(), const SizedBox(width: USpace.md),
-            const Expanded(child: Text('Hutang & Piutang',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800))),
-            UHeaderIconBtn(icon: Icons.refresh_rounded, onTap: _load),
+            Expanded(child: Text(_selecting ? '${_selectedIds.length} dipilih' : 'Hutang & Piutang',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800))),
+            if (_selecting) ...[
+              TextButton(onPressed: _selectAll,
+                  child: const Text('Semua', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+              TextButton(onPressed: _toggleSelecting,
+                  child: const Text('Batal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+            ] else ...[
+              UHeaderIconBtn(icon: Icons.checklist_rounded, onTap: _toggleSelecting),
+              UHeaderIconBtn(icon: Icons.refresh_rounded, onTap: _load),
+            ],
           ]),
         )),
         if (_loading) const Expanded(child: Center(child: CircularProgressIndicator(color: UColors.primary)))
@@ -323,7 +457,10 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
               const SizedBox(height: USpace.sm),
               ...hutang.map((d) => _DebtCard(debt: d as Map<String, dynamic>,
                   color: UColors.danger, onBayar: () => _bayar(d),
-                  onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d))),
+                  onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d),
+                  selecting: _selecting,
+                  selected: _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1),
+                  onToggleSelect: () => _toggleSelect(int.tryParse('${d["id"]}') ?? -1))),
               const SizedBox(height: USpace.lg),
             ],
             if (piutang.isNotEmpty) ...[
@@ -331,7 +468,10 @@ class _FinanceDebtPageState extends State<FinanceDebtPage> {
               const SizedBox(height: USpace.sm),
               ...piutang.map((d) => _DebtCard(debt: d as Map<String, dynamic>,
                   color: UColors.success, onBayar: () => _bayar(d),
-                  onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d))),
+                  onEdit: () => _editDebt(d), onDelete: () => _deleteDebt(d),
+                  selecting: _selecting,
+                  selected: _selectedIds.contains(int.tryParse('${d["id"]}') ?? -1),
+                  onToggleSelect: () => _toggleSelect(int.tryParse('${d["id"]}') ?? -1))),
             ],
             if (hutang.isEmpty && piutang.isEmpty)
               UEmptyState(icon: Icons.account_balance_rounded,
@@ -362,8 +502,12 @@ class _DebtSummary extends StatelessWidget {
 class _DebtCard extends StatelessWidget {
   final Map<String, dynamic> debt; final Color color;
   final VoidCallback onBayar, onEdit, onDelete;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onToggleSelect;
   const _DebtCard({required this.debt, required this.color,
-      required this.onBayar, required this.onEdit, required this.onDelete});
+      required this.onBayar, required this.onEdit, required this.onDelete,
+      this.selecting = false, this.selected = false, this.onToggleSelect});
   @override
   Widget build(BuildContext context) {
     final remaining = uInt(debt['remaining']);
@@ -372,13 +516,19 @@ class _DebtCard extends StatelessWidget {
     final pct       = amount > 0 ? 1 - (remaining / amount) : 0.0;
     final dateWib   = '${debt['created_at_wib'] ?? ''}';
     final txnId     = (debt['transaction_id'] as num?)?.toInt();
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: USpace.sm),
       padding: const EdgeInsets.all(USpace.base),
       decoration: BoxDecoration(color: UColors.card,
-          borderRadius: BorderRadius.circular(URadius.lg), boxShadow: UShadow.card),
+          borderRadius: BorderRadius.circular(URadius.lg), boxShadow: UShadow.card,
+          border: selecting && selected ? Border.all(color: UColors.primary, width: 1.5) : null),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
+          if (selecting) ...[
+            Checkbox(value: selected, onChanged: (_) => onToggleSelect?.call(),
+                activeColor: UColors.primary, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            const SizedBox(width: 4),
+          ],
           Expanded(child: Text('${debt['party_name']}', style: UText.h5)),
           GestureDetector(onTap: onBayar,
             child: Container(
@@ -459,6 +609,10 @@ class _DebtCard extends StatelessWidget {
         ],
       ]),
     );
+    if (selecting) {
+      return GestureDetector(onTap: onToggleSelect, child: card);
+    }
+    return card;
   }
 }
 

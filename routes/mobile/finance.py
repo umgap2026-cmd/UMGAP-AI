@@ -534,6 +534,44 @@ def add_material_stock(material_id):
         return mobile_api_response(ok=False, message=str(e), status_code=status)
 
 
+@mobile_finance_bp.route("/finance/materials/<int:material_id>/opname",
+                         methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def material_opname(material_id):
+    """
+    Opname stok: bandingkan stok fisik hasil timbang vs stok buku, sistem
+    otomatis catat selisihnya sbg koreksi-tambah atau susut -- mirror
+    /finance/materials/<id>/opname web.
+    Body JSON: { "actual_qty": 120.5, "note": "..." (opsional), "price": ... (opsional) }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import perform_stock_opname
+    try:
+        result = perform_stock_opname(
+            material_id,
+            actual_qty=data.get("actual_qty"),
+            note=data.get("note"),
+            created_by=request.mobile_user.get("id"),
+            price=data.get("price"),
+        )
+        if result["type"] == "sesuai":
+            msg = f"Stok '{result['name']}' sudah sesuai, tidak ada penyesuaian."
+        elif result["type"] == "koreksi_tambah":
+            msg = f"Opname: ditemukan kelebihan {result['diff']:.1f} -- stok dikoreksi tambah."
+        else:
+            msg = f"Opname: ditemukan susut {abs(result['diff']):.1f}."
+        return mobile_api_response(ok=True, message=msg, data=_clean(result))
+    except ValueError as e:
+        status = 404 if "tidak ditemukan" in str(e) else 400
+        return mobile_api_response(ok=False, message=str(e), status_code=status)
+
+
 # ════════════════════════════════════════════════════════════════
 #  BATALKAN NOTA (Jual/Beli) — balikkan stok+HPP & hutang otomatis
 # ════════════════════════════════════════════════════════════════
@@ -764,6 +802,222 @@ def delete_debt(debt_id):
     except ValueError as e:
         status = 404 if "tidak ditemukan" in str(e) else 400
         return mobile_api_response(ok=False, message=str(e), status_code=status)
+
+
+@mobile_finance_bp.route("/finance/debts/send-reminder", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def send_debts_reminder():
+    """
+    Kirim pengingat WA utk sekumpulan baris hutang/piutang TERPILIH (1
+    atau banyak, boleh campur pihak) -- mirror /finance/debts/send-reminder
+    web, cuma body-nya JSON list (bukan comma-separated form).
+    Body JSON: { "debt_ids": [1, 2, 3] }
+    """
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import send_fin_debts_wa_reminder
+    try:
+        result = send_fin_debts_wa_reminder(data.get("debt_ids") or [])
+        return mobile_api_response(ok=True, message="OK", data=_clean(result))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+# ════════════════════════════════════════════════════════════════
+#  SALDO MITRA — Master Mitra + pengingat WA
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/mitra", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def get_parties():
+    """Daftar Master Mitra + saldo piutang/hutang -- mirror /finance/mitra web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import list_fin_parties
+    return mobile_api_response(ok=True, message="OK", data=_clean(list_fin_parties(search=request.args.get("q"))))
+
+
+@mobile_finance_bp.route("/finance/mitra/add", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def add_party():
+    """Tambah mitra baru -- mirror /finance/mitra/add web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import create_fin_party
+    try:
+        new_id = create_fin_party(data.get("name"), data.get("phone"), data.get("note"))
+        return mobile_api_response(ok=True, message="Mitra berhasil ditambahkan.", data={"id": new_id})
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+@mobile_finance_bp.route("/finance/mitra/<int:party_id>", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def get_party_detail(party_id):
+    """Detail 1 mitra + rincian hutang/piutang terbuka -- mirror /finance/mitra/<id> web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import get_fin_party_detail
+    try:
+        return mobile_api_response(ok=True, message="OK", data=_clean(get_fin_party_detail(party_id)))
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=404)
+
+
+@mobile_finance_bp.route("/finance/mitra/<int:party_id>/edit", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def edit_party(party_id):
+    """Ubah data mitra -- mirror /finance/mitra/<id>/edit web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    data = request.get_json(silent=True) or {}
+    from core import update_fin_party
+    try:
+        update_fin_party(party_id, data.get("name"), data.get("phone"), data.get("note"))
+        return mobile_api_response(ok=True, message="Mitra berhasil diperbarui.", data={})
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+@mobile_finance_bp.route("/finance/mitra/<int:party_id>/delete", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def delete_party(party_id):
+    """Hapus mitra -- mirror /finance/mitra/<id>/delete web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import delete_fin_party
+    try:
+        delete_fin_party(party_id)
+        return mobile_api_response(ok=True, message="Mitra berhasil dihapus.", data={})
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+@mobile_finance_bp.route("/finance/mitra/<int:party_id>/send-reminder", methods=["POST", "OPTIONS"])
+@mobile_api_login_required
+def send_party_reminder(party_id):
+    """Kirim pengingat WA ke SEMUA saldo terbuka 1 mitra -- mirror /finance/mitra/<id>/send-reminder web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    from core import send_fin_party_wa_reminder
+    try:
+        send_fin_party_wa_reminder(party_id)
+        return mobile_api_response(ok=True, message="Pengingat WA sedang dikirim.", data={})
+    except ValueError as e:
+        return mobile_api_response(ok=False, message=str(e), status_code=400)
+
+
+# ════════════════════════════════════════════════════════════════
+#  LAPORAN MARGIN & SUSUT
+# ════════════════════════════════════════════════════════════════
+
+@mobile_finance_bp.route("/finance/margin-report", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def margin_report():
+    """GET /api/mobile/finance/margin-report?from=&to= -- mirror /finance/margin-report web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    from core import get_fin_margin_report
+    return mobile_api_response(ok=True, message="OK", data=_clean(get_fin_margin_report(date_from, date_to)))
+
+
+@mobile_finance_bp.route("/finance/shrinkage-report", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def shrinkage_report():
+    """GET /api/mobile/finance/shrinkage-report?from=&to= -- mirror /finance/shrinkage-report web."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_access(request.mobile_user)
+    if deny: return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    from core import get_fin_shrinkage_report
+    return mobile_api_response(ok=True, message="OK", data=_clean(get_fin_shrinkage_report(date_from, date_to)))
+
+
+# ════════════════════════════════════════════════════════════════
+#  DIAGNOSTIK HPP & PELANGGAN MENGUNTUNGKAN (khusus Owner)
+# ════════════════════════════════════════════════════════════════
+
+def _check_owner_access(mobile_user):
+    role = (mobile_user.get("role") or "").strip().lower()
+    if role != "owner":
+        return mobile_api_response(ok=False, message="Khusus Owner.", status_code=403)
+    return None
+
+
+@mobile_finance_bp.route("/finance/hpp-diagnostics", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def hpp_diagnostics():
+    """GET /api/mobile/finance/hpp-diagnostics -- mirror /finance/hpp-diagnostics web (owner-only)."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_owner_access(request.mobile_user)
+    if deny: return deny
+
+    from core import get_fin_hpp_orphan_report
+    return mobile_api_response(ok=True, message="OK", data=_clean(get_fin_hpp_orphan_report()))
+
+
+@mobile_finance_bp.route("/finance/customer-profitability", methods=["GET", "OPTIONS"])
+@mobile_api_login_required
+def customer_profitability():
+    """GET /api/mobile/finance/customer-profitability?from=&to= -- mirror /finance/customer-profitability web (owner-only)."""
+    if request.method == "OPTIONS":
+        return mobile_api_response(ok=True, message="OK", data=_clean({}))
+
+    deny = _check_owner_access(request.mobile_user)
+    if deny: return deny
+
+    today = date.today()
+    date_from = request.args.get("from") or today.replace(day=1).isoformat()
+    date_to = request.args.get("to") or today.isoformat()
+
+    from core import get_fin_customer_profitability_report
+    return mobile_api_response(ok=True, message="OK", data=_clean(get_fin_customer_profitability_report(date_from, date_to)))
 
 
 # ════════════════════════════════════════════════════════════════

@@ -8,6 +8,11 @@ import 'finance_report_page.dart';
 import 'finance_stock_page.dart';
 import 'finance_debt_page.dart';
 import 'finance_trip_page.dart';
+import 'finance_mitra_page.dart';
+import 'finance_margin_report_page.dart';
+import 'finance_shrinkage_report_page.dart';
+import 'finance_hpp_diagnostics_page.dart';
+import 'finance_customer_profitability_page.dart';
 
 // ════════════════════════════════════════════
 //  FINANCE HOME — Menu utama kasir
@@ -117,6 +122,22 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
                     onTap:   () => _go(const FinanceReportPage()),
                   ),
                   const SizedBox(height: USpace.sm),
+                  _MenuTile(
+                    icon:    Icons.search_rounded,
+                    color:   UColors.primary,
+                    label:   'Diagnostik HPP',
+                    sub:     'Cek penjualan tanpa catatan biaya',
+                    onTap:   () => _go(const FinanceHppDiagnosticsPage()),
+                  ),
+                  const SizedBox(height: USpace.sm),
+                  _MenuTile(
+                    icon:    Icons.emoji_events_rounded,
+                    color:   UColors.primary,
+                    label:   'Pelanggan Menguntungkan',
+                    sub:     'Peringkat keuntungan per pelanggan',
+                    onTap:   () => _go(const FinanceCustomerProfitabilityPage()),
+                  ),
+                  const SizedBox(height: USpace.sm),
                 ],
                 _MenuTile(
                   icon:    Icons.inventory_2_rounded,
@@ -124,6 +145,22 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
                   label:   'Stok Gudang',
                   sub:     'Lihat & riwayat stok',
                   onTap:   () => _go(const FinanceStockPage()),
+                ),
+                const SizedBox(height: USpace.sm),
+                _MenuTile(
+                  icon:    Icons.leaderboard_rounded,
+                  color:   const Color(0xFF00838F),
+                  label:   'Laporan Margin',
+                  sub:     'Omzet vs HPP per barang',
+                  onTap:   () => _go(const FinanceMarginReportPage()),
+                ),
+                const SizedBox(height: USpace.sm),
+                _MenuTile(
+                  icon:    Icons.trending_down_rounded,
+                  color:   const Color(0xFF00838F),
+                  label:   'Laporan Susut',
+                  sub:     'Masuk / keluar / susut per barang',
+                  onTap:   () => _go(const FinanceShrinkageReportPage()),
                 ),
                 const SizedBox(height: USpace.sm),
                 _MenuTile(
@@ -140,6 +177,14 @@ class _FinanceKasirPageState extends State<FinanceKasirPage> {
                   label:   'Hutang & Piutang',
                   sub:     'Catat & tandai lunas',
                   onTap:   () => _go(const FinanceDebtPage()),
+                ),
+                const SizedBox(height: USpace.sm),
+                _MenuTile(
+                  icon:    Icons.people_alt_rounded,
+                  color:   UColors.warning,
+                  label:   'Saldo Mitra',
+                  sub:     'Master mitra & pengingat WA',
+                  onTap:   () => _go(const FinanceMitraPage()),
                 ),
               ]),
             ),

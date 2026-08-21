@@ -321,6 +321,130 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
     );
   }
 
+  Future<void> _showOpname(Map<String, dynamic> material) async {
+    final qtyCtrl   = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final noteCtrl  = TextEditingController();
+    final matName   = '${material['name']}';
+    final matUnit   = '${material['unit'] ?? 'kg'}';
+    final matId     = (material['id'] as num).toInt();
+    double toD(dynamic v) => v == null ? 0.0 : double.tryParse('$v') ?? 0.0;
+    final bookQty   = toD(material['qty_kg']);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          bool saving = false;
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+                bottom: bottom + 24, left: 20, right: 20, top: 6),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 18),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF00838F).withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.balance_rounded,
+                        color: Color(0xFF00838F), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Opname $matName',
+                        overflow: TextOverflow.ellipsis, maxLines: 1,
+                        style: TextStyle(fontSize: _rfs(ctx, 16),
+                            fontWeight: FontWeight.w800)),
+                    Text('Stok buku saat ini: ${bookQty.toStringAsFixed(1)} $matUnit',
+                        style: TextStyle(fontSize: _rfs(ctx, 11),
+                            color: const Color(0xFF90A4AE))),
+                  ])),
+                ]),
+                const SizedBox(height: 20),
+                _StockField(controller: qtyCtrl,
+                    label: 'Stok Fisik ($matUnit) *', hint: '0',
+                    icon: Icons.scale_rounded, autofocus: true,
+                    keyboard: const TextInputType.numberWithOptions(decimal: true)),
+                const SizedBox(height: 12),
+                _StockField(controller: priceCtrl,
+                    label: 'Harga/$matUnit (opsional, kalau stok lebih & HPP belum ada)', hint: '0',
+                    icon: Icons.price_check_rounded,
+                    keyboard: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                const SizedBox(height: 12),
+                _StockField(controller: noteCtrl,
+                    label: 'Catatan (opsional)', hint: 'Contoh: opname mingguan',
+                    icon: Icons.note_alt_outlined),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity, height: 50,
+                  child: ElevatedButton(
+                    onPressed: saving ? null : () async {
+                      final qty = double.tryParse(qtyCtrl.text.trim());
+                      if (qty == null) { uSnack(context, 'Stok fisik wajib diisi', isError: true); return; }
+                      final price = int.tryParse(priceCtrl.text.trim());
+                      setS(() => saving = true);
+                      try {
+                        final result = await ApiService.financeOpname(
+                            materialId: matId, actualQty: qty,
+                            note: noteCtrl.text.trim(), price: price);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          final type = '${result['type']}';
+                          final diff = (result['diff'] as num?)?.toDouble() ?? 0;
+                          final msg = type == 'sesuai'
+                              ? 'Stok sudah sesuai, tidak ada penyesuaian.'
+                              : type == 'koreksi_tambah'
+                                  ? 'Opname: kelebihan ${diff.toStringAsFixed(1)} — stok dikoreksi tambah.'
+                                  : 'Opname: susut ${diff.abs().toStringAsFixed(1)} tercatat.';
+                          uSnack(context, '$msg ✓');
+                          await _load();
+                        }
+                      } catch (e) {
+                        if (mounted) uSnack(context, e.toString(), isError: true);
+                        setS(() => saving = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00838F),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0),
+                    child: saving
+                        ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                        : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.save_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Catat Opname', style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w800,
+                          fontSize: _rfs(ctx, 15))),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -476,6 +600,17 @@ class _FinanceStockPageState extends State<FinanceStockPage> {
                               ]),
                         ),
 
+                        // Tombol Opname (stok fisik vs buku)
+                        GestureDetector(
+                          onTap: () => _showOpname(m),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: EdgeInsets.symmetric(horizontal: _rfs(ctx, 6)),
+                            child: Icon(Icons.balance_rounded,
+                                color: const Color(0xFF00838F).withOpacity(0.6),
+                                size: _rfs(ctx, 20)),
+                          ),
+                        ),
                         // Tombol tambah stok
                         Container(
                           alignment: Alignment.center,
