@@ -48,13 +48,22 @@ def finance_dashboard():
         log_page = 1
     log_page_size = 50
 
+    # Beban (Total Beban di stat pill & tab Beban) di-scope ke bulan
+    # berjalan by default -- reset tiap bulan spt Laba Bersih Owner &
+    # Laporan Margin/Susut, supaya tidak menumpuk jadi angka all-time yg
+    # menyesatkan. Nilai Stok & saldo Hutang/Piutang SENGAJA TIDAK
+    # ikut di-scope (itu saldo berjalan, bukan angka periode).
+    today = date.today()
+    expense_from = request.args.get("expense_from") or today.replace(day=1).isoformat()
+    expense_to = request.args.get("expense_to") or today.isoformat()
+
     materials, total_value = list_fin_materials()
     debts = list_fin_debts()
     categories = list_fin_categories()
     activity_log, log_has_next = list_fin_activity_log(
         limit=log_page_size, offset=(log_page - 1) * log_page_size,
     )
-    expenses = list_fin_expenses()
+    expenses = list_fin_expenses(date_from=expense_from, date_to=expense_to)
     expense_categories = list_fin_expense_categories()
     expense_total = sum(float(e["total_amount"] or 0) for e in expenses)
 
@@ -71,6 +80,10 @@ def finance_dashboard():
         expenses=expenses,
         expense_categories=expense_categories,
         expense_total=expense_total,
+        expense_from=expense_from,
+        expense_to=expense_to,
+        today_iso=today.isoformat(),
+        month_start_iso=today.replace(day=1).isoformat(),
         notif_count=get_notif_count(),
         party_names=list_fin_party_names(),
         owner_phone=get_owner_phone(),

@@ -743,17 +743,26 @@ def delete_fin_expense_entry(expense_id):
         conn.close()
 
 
-def list_fin_expenses(limit=200):
+def list_fin_expenses(limit=200, date_from=None, date_to=None):
     """Riwayat beban/pengeluaran gabungan -- baik yang dicatat langsung di
     Finance (termasuk Ongkir yang tertaut nota & penyesuaian stok) MAUPUN
     beban yang dicatat lewat Mode Perjalanan (fin_trip_items type=EXPENSE,
     mis. BBM/makan/gaji sopir) -- supaya Total Beban di dashboard mencakup
-    semuanya. Tiap baris punya field 'source' ('BEBAN' atau 'TRIP')."""
+    semuanya. Tiap baris punya field 'source' ('BEBAN' atau 'TRIP').
+    date_from/date_to (opsional, format 'YYYY-MM-DD'): batasi ke rentang
+    tanggal ini -- dipakai finance_dashboard() supaya "Total Beban" bisa
+    di-scope ke bulan berjalan (reset tiap bulan), bukan cuma limit baris."""
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_expense_schema(cur)
-        cur.execute("""
+        date_filter_sql = ""
+        date_params = []
+        if date_from and date_to:
+            date_filter_sql = " AND created_at::date BETWEEN %s AND %s"
+            date_params = [date_from, date_to]
+
+        cur.execute(f"""
             SELECT t.id, t.party_name,
                    COALESCE(NULLIF(TRIM(t.expense_category), ''), t.party_name) AS category,
                    t.note, t.total_amount, t.related_transaction_id,
@@ -762,10 +771,10 @@ def list_fin_expenses(limit=200):
                            'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
-            WHERE t.type = 'PENGELUARAN'
+            WHERE t.type = 'PENGELUARAN'{date_filter_sql}
             ORDER BY t.created_at DESC
             LIMIT %s;
-        """, (limit,))
+        """, (*date_params, limit))
         rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["source"] = "BEBAN"
@@ -773,7 +782,7 @@ def list_fin_expenses(limit=200):
             r["trip_note"] = None
 
         if _table_exists(cur, "fin_trip_items"):
-            cur.execute("""
+            cur.execute(f"""
                 SELECT i.id, i.expense_name AS category, i.note, i.subtotal AS total_amount,
                        t.created_by, u.name AS created_by_name, i.created_at,
                        TO_CHAR(i.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
@@ -782,10 +791,10 @@ def list_fin_expenses(limit=200):
                 FROM fin_trip_items i
                 JOIN fin_trips t ON t.id = i.trip_id
                 LEFT JOIN users u ON u.id = t.created_by
-                WHERE i.type = 'EXPENSE'
+                WHERE i.type = 'EXPENSE'{date_filter_sql}
                 ORDER BY i.created_at DESC
                 LIMIT %s;
-            """, (limit,))
+            """, (*date_params, limit))
             trip_rows = [dict(r) for r in cur.fetchall()]
             for r in trip_rows:
                 r["source"] = "TRIP"

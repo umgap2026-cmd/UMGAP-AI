@@ -489,7 +489,7 @@
       </div>
       <div class="stat-pill red" data-jump="beban">
         <div class="s-num" id="statBeban" data-count="{{ expense_total|round|int }}">Rp 0</div>
-        <div class="s-lbl">Total Beban</div>
+        <div class="s-lbl">Beban Bulan Ini</div>
       </div>
     </div>
 
@@ -940,8 +940,20 @@
     <div class="tab-panel" data-tab-panel="beban">
     <div class="main-card fade-up">
       <div class="inner">
-        <div class="sec-title" style="color: var(--bad)">💸 Beban</div>
-        <div class="sec-desc">Rp {{ "{:,}".format(expense_total | round | int).replace(",", ".") }} &bull; {{ expenses|length }} catatan &bull; kategori bebas (mis. Uang Makan, Karyawan, BBM, Dana Darurat) &mdash; termasuk Ongkir dari nota &amp; beban dari Mode Perjalanan</div>
+        <div class="sec-title" style="color: var(--bad)">💸 Beban ({{ expense_from }} s/d {{ expense_to }})</div>
+        <div class="sec-desc">Rp {{ "{:,}".format(expense_total | round | int).replace(",", ".") }} &bull; {{ expenses|length }} catatan &bull; kategori bebas (mis. Uang Makan, Karyawan, BBM, Dana Darurat) &mdash; termasuk Ongkir dari nota &amp; beban dari Mode Perjalanan &mdash; reset tiap bulan, ganti rentang di bawah utk lihat bulan lain</div>
+
+        <form method="get" class="filter-row" style="margin-top:10px">
+          <input type="hidden" name="log_page" value="{{ log_page }}" />
+          <input type="date" name="expense_from" value="{{ expense_from }}" />
+          <input type="date" name="expense_to" value="{{ expense_to }}" />
+          <button type="submit" class="pill-btn primary">Terapkan</button>
+        </form>
+        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+          <a href="?expense_from={{ month_start_iso }}&expense_to={{ today_iso }}" class="pill-btn">Bulan Ini</a>
+          <a href="?expense_from={{ today_iso }}&expense_to={{ today_iso }}" class="pill-btn">Hari Ini</a>
+        </div>
+
         <div class="divider"></div>
 
         <details>
