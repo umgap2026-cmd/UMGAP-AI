@@ -756,10 +756,12 @@ def list_fin_expenses(limit=200, date_from=None, date_to=None):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         _ensure_fin_expense_schema(cur)
-        date_filter_sql = ""
         date_params = []
+        txn_date_filter_sql = ""
+        item_date_filter_sql = ""
         if date_from and date_to:
-            date_filter_sql = " AND created_at::date BETWEEN %s AND %s"
+            txn_date_filter_sql = " AND t.created_at::date BETWEEN %s AND %s"
+            item_date_filter_sql = " AND i.created_at::date BETWEEN %s AND %s"
             date_params = [date_from, date_to]
 
         cur.execute(f"""
@@ -771,7 +773,7 @@ def list_fin_expenses(limit=200, date_from=None, date_to=None):
                            'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
-            WHERE t.type = 'PENGELUARAN'{date_filter_sql}
+            WHERE t.type = 'PENGELUARAN'{txn_date_filter_sql}
             ORDER BY t.created_at DESC
             LIMIT %s;
         """, (*date_params, limit))
@@ -791,7 +793,7 @@ def list_fin_expenses(limit=200, date_from=None, date_to=None):
                 FROM fin_trip_items i
                 JOIN fin_trips t ON t.id = i.trip_id
                 LEFT JOIN users u ON u.id = t.created_by
-                WHERE i.type = 'EXPENSE'{date_filter_sql}
+                WHERE i.type = 'EXPENSE'{item_date_filter_sql}
                 ORDER BY i.created_at DESC
                 LIMIT %s;
             """, (*date_params, limit))
