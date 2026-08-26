@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'home_page.dart';
 import 'login_page.dart';
@@ -118,7 +119,7 @@ class _UmgapAppState extends State<UmgapApp> {
       theme: ThemeData(
         colorSchemeSeed: UColors.primary,
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
         scaffoldBackgroundColor: const Color(0xFFF2F5FC),
       ),
       home: const SplashPage(),

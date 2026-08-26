@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'api_service.dart';
 import 'u_kit.dart';
@@ -29,9 +30,17 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _birthDate;
   String? _joinDate;
   String? _avatarBase64;
+  String  _appVersion = '';
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() { super.initState(); _load(); _loadVersion(); }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -181,6 +190,14 @@ class _ProfilePageState extends State<ProfilePage> {
                     color:    UColors.textSoft,
                   ),
                 ],
+                const SizedBox(height: USpace.lg),
+                Center(
+                  child: Text(
+                      _appVersion.isEmpty
+                          ? 'UMGAP • Hak Cipta Dilindungi'
+                          : 'UMGAP v$_appVersion • Hak Cipta Dilindungi',
+                      style: UText.caption.copyWith(color: UColors.textLight)),
+                ),
               ])),
             ),
           ],

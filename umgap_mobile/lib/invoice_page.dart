@@ -66,11 +66,13 @@ class CartItem {
 }
 
 // ════════════════════════════════════════════
-//  ADJUSTMENT — baris "Potongan & Biaya" (DP/Ongkir),
-//  mirror section yg sama di web (invoice_form.html).
+//  ADJUSTMENT — baris "Potongan & Biaya" (Diskon/DP/Ongkir).
+//  Diskon & DP sama2 "potongan" (mode POTONGAN implisit, tidak
+//  ada toggle Beban); cuma Ongkir yg bisa jadi Beban terpisah
+//  (tercatat sbg pengeluaran, tidak mengurangi total nota).
 // ════════════════════════════════════════════
 class _AdjRow {
-  String type;   // 'DP' | 'ONGKIR'
+  String type;   // 'DISKON' | 'DP' | 'ONGKIR'
   String mode;   // 'BEBAN' | 'POTONGAN' -- cuma relevan utk ONGKIR
   final TextEditingController amountCtrl = TextEditingController();
   final TextEditingController categoryCtrl = TextEditingController();
@@ -120,7 +122,6 @@ class InvoicePage extends StatefulWidget {
   final String?         initPhone;
   final String?         initPayMethod;
   final String?         initNotes;
-  final double?         initDiscount;
   final bool?           initIsPaid;
   final List<CartItem>? initCart;
   final int? editTxnId;
@@ -131,7 +132,6 @@ class InvoicePage extends StatefulWidget {
     this.initPhone,
     this.initPayMethod,
     this.initNotes,
-    this.initDiscount,
     this.initIsPaid,
     this.initCart,
     this.editTxnId,
@@ -165,7 +165,6 @@ class _InvoicePageState extends State<InvoicePage>
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _notesCtrl;
-  late final TextEditingController _discCtrl;
   final _nameFocus = FocusNode();
 
   late String       _payMethod;
@@ -208,21 +207,17 @@ class _InvoicePageState extends State<InvoicePage>
     _nameCtrl  = TextEditingController(text: widget.initName  ?? '');
     _phoneCtrl = TextEditingController(text: widget.initPhone ?? '');
     _notesCtrl = TextEditingController(text: widget.initNotes ?? '');
-    _discCtrl  = TextEditingController(
-        text: (widget.initDiscount ?? 0).toInt().toString());
     _payMethod = widget.initPayMethod ?? 'CASH';
     _isPaid    = widget.initIsPaid   ?? true;
     _cart      = List<CartItem>.from(widget.initCart ?? []);
 
     _qtyCtrl.addListener(  () => setState(() {}));
     _priceCtrl.addListener(() => setState(() {}));
-    _discCtrl.addListener( () => setState(() {}));
 
     // Auto-save draft setiap field berubah
     _nameCtrl.addListener(_saveDraft);
     _phoneCtrl.addListener(_saveDraft);
     _notesCtrl.addListener(_saveDraft);
-    _discCtrl.addListener(_saveDraft);
 
     // Cek saldo hutang/piutang pihak begitu nama selesai diisi
     _nameFocus.addListener(() {
@@ -246,7 +241,7 @@ class _InvoicePageState extends State<InvoicePage>
     _modeAnim.dispose();
     _qtyCtrl.dispose();  _priceCtrl.dispose(); _itemNoteCtrl.dispose();
     _nameCtrl.dispose(); _phoneCtrl.dispose(); _nameFocus.dispose();
-    _notesCtrl.dispose(); _discCtrl.dispose(); _creditCtrl.dispose();
+    _notesCtrl.dispose(); _creditCtrl.dispose();
     for (final a in _adjustments) a.dispose();
     super.dispose();
   }
@@ -268,6 +263,19 @@ class _InvoicePageState extends State<InvoicePage>
         _addAsReturn = false;
       });
       _saveDraft();
+    }
+    // Diskon cuma tersedia utk mode Jual (Ringkasan Pembayaran tidak
+    // ditampilkan sama sekali di mode Beli) -- baris tipe DISKON yg
+    // tersisa dari mode Jual sebelumnya harus dibuang, bukan cuma
+    // disembunyikan, supaya dropdown tipe (yg tidak lagi menawarkan
+    // DISKON di mode Beli) tidak macet krn value tidak ada di items.
+    if (toBeli) {
+      setState(() {
+        _adjustments.removeWhere((a) {
+          if (a.type == 'DISKON') { a.dispose(); return true; }
+          return false;
+        });
+      });
     }
     // Arah saldo (HUTANG/PIUTANG) berbeda per mode -- cek ulang.
     _checkPartyCredit();
@@ -360,7 +368,6 @@ class _InvoicePageState extends State<InvoicePage>
     'name':    _nameCtrl.text,
     'phone':   _phoneCtrl.text,
     'notes':   _notesCtrl.text,
-    'disc':    _discCtrl.text,
     'pay':     _payMethod,
     'isPaid':  _isPaid,
     'isBeli':  _isBeli,
@@ -409,7 +416,6 @@ class _InvoicePageState extends State<InvoicePage>
       _nameCtrl.text  = d['name']  ?? '';
       _phoneCtrl.text = d['phone'] ?? '';
       _notesCtrl.text = d['notes'] ?? '';
-      _discCtrl.text  = d['disc']  ?? '0';
       _payMethod      = d['pay']   ?? 'CASH';
       _isPaid         = d['isPaid'] ?? true;
       final isBeli    = d['isBeli'] ?? false;
@@ -466,7 +472,6 @@ class _InvoicePageState extends State<InvoicePage>
         'name':    invoice['customer_name'] ?? '',
         'phone':   invoice['customer_phone'] ?? '',
         'notes':   invoice['notes'] ?? '',
-        'disc':    '0',
         'pay':     invoice['payment_method'] ?? 'CASH',
         'isPaid':  invoice['is_paid'] ?? true,
         'isBeli':  isBeli,
@@ -931,9 +936,9 @@ class _InvoicePageState extends State<InvoicePage>
       _cart.where((c) => !c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
   double get _revSubtotal =>
       _cart.where((c) => c.isReturn).fold(0.0, (s, c) => s + c.subtotal);
-  double get _disc        =>
-      _isBeli ? 0 : (double.tryParse(_discCtrl.text.trim()) ?? 0);
-  // ── Potongan & Biaya (DP/Ongkir) ──
+  // ── Potongan & Biaya (Diskon/DP/Ongkir) ──
+  double get _adjDiskonTotal => _adjustments
+      .where((a) => a.type == 'DISKON').fold(0.0, (s, a) => s + a.amount);
   double get _adjDpTotal => _adjustments
       .where((a) => a.type == 'DP').fold(0.0, (s, a) => s + a.amount);
   double get _adjOngkirPotongan => _adjustments
@@ -944,7 +949,7 @@ class _InvoicePageState extends State<InvoicePage>
       .fold(0.0, (s, a) => s + a.amount);
   // Total sebelum saldo dipotong (dipakai buat batas atas input saldo)
   double get _rawTotal =>
-      (_subtotal - _disc - _revSubtotal - _adjDpTotal - _adjOngkirPotongan)
+      (_subtotal - _adjDiskonTotal - _revSubtotal - _adjDpTotal - _adjOngkirPotongan)
           .clamp(0, double.infinity);
   double get _total       =>
       (_rawTotal - _creditApplied).clamp(0, double.infinity);
@@ -1474,19 +1479,19 @@ class _InvoicePageState extends State<InvoicePage>
     'is_return':   c.isReturn,
   }).toList();
 
-  List<Map<String, dynamic>> _buildAdjustmentsPayload() {
-    final list = _adjustments
-        .where((a) => a.amount > 0)
-        .map((a) => a.toJson())
-        .toList();
-    if (!_isBeli && _disc > 0) list.add({'type': 'DP', 'amount': _disc});
-    return list;
-  }
+  // Cuma tipe DP/ONGKIR yg dikirim lewat payload "adjustments" -- DISKON
+  // dikirim lewat field "discount" polos (lihat _adjDiskonTotal), sesuai
+  // kontrak backend create_fin_invoice/create_fin_purchase_invoice yg
+  // sudah ada (discount + adjustments terpisah, TIDAK diubah).
+  List<Map<String, dynamic>> _buildAdjustmentsPayload() => _adjustments
+      .where((a) => a.amount > 0 && a.type != 'DISKON')
+      .map((a) => a.toJson())
+      .toList();
 
   void _resetFormAfterSubmit() {
     for (final a in _adjustments) a.dispose();
     _cart.clear(); _nameCtrl.clear(); _phoneCtrl.clear();
-    _notesCtrl.clear(); _discCtrl.text = '0';
+    _notesCtrl.clear();
     _payMethod = 'CASH'; _isPaid = true; _submitting = false;
     _priceCtrl.clear(); _itemNoteCtrl.clear();
     _qtyCtrl.text = '1'; _selId = null; _addAsReturn = false;
@@ -1552,7 +1557,7 @@ class _InvoicePageState extends State<InvoicePage>
     final phone  = _phoneCtrl.text.trim();
     final pay    = _payMethod;
     final notes  = _notesCtrl.text.trim();
-    final disc   = _disc + _adjDpTotal + _adjOngkirPotongan + _creditApplied;
+    final disc   = _adjDiskonTotal + _adjDpTotal + _adjOngkirPotongan + _creditApplied;
     final sub    = _subtotal;
     final revSub = _revSubtotal;
     final total  = _total;
@@ -1565,7 +1570,7 @@ class _InvoicePageState extends State<InvoicePage>
           'customer_phone': phone,
           'payment_method': pay,
           'notes':          notes,
-          'discount':       0,
+          'discount':       _adjDiskonTotal,
           'is_paid':        paid ? '1' : '0',
           'adjustments':    _buildAdjustmentsPayload(),
           'credit_applied': _creditApplied,
@@ -1798,11 +1803,11 @@ class _InvoicePageState extends State<InvoicePage>
                   _RingkasanRow('Subtotal', _rp(_subtotal)),
                   if (_revSubtotal > 0)
                     _RingkasanRow('🔁 Barang $_reverseLabel', '− ${_rp(_revSubtotal)}'),
-                  if (!_isBeli && _disc > 0)
-                    _RingkasanRow('Diskon', '− ${_rp(_disc)}'),
                   for (final a in _adjustments.where((a) => a.amount > 0))
                     _RingkasanRow(
-                      a.type == 'DP' ? 'DP' : 'Ongkir (${a.mode == 'BEBAN' ? 'Beban' : 'Potongan'})',
+                      a.type == 'DISKON' ? 'Diskon'
+                          : a.type == 'DP' ? 'DP'
+                          : 'Ongkir (${a.mode == 'BEBAN' ? 'Beban' : 'Potongan'})',
                       a.mode == 'BEBAN' && a.type == 'ONGKIR'
                           ? _rp(a.amount) : '− ${_rp(a.amount)}',
                     ),
@@ -1843,9 +1848,14 @@ class _InvoicePageState extends State<InvoicePage>
               decoration: const InputDecoration(
                   isDense: true, border: InputBorder.none,
                   labelText: 'Jenis'),
-              items: const [
-                DropdownMenuItem(value: 'DP', child: Text('DP')),
-                DropdownMenuItem(value: 'ONGKIR', child: Text('Ongkir')),
+              items: [
+                // Diskon cuma relevan utk Jual (Ringkasan Pembayaran &
+                // Total Modal Beli tidak sama secara konsep) -- lihat
+                // _switchMode() yg membuang baris DISKON saat ganti ke Beli.
+                if (!_isBeli)
+                  const DropdownMenuItem(value: 'DISKON', child: Text('Diskon')),
+                const DropdownMenuItem(value: 'DP', child: Text('DP')),
+                const DropdownMenuItem(value: 'ONGKIR', child: Text('Ongkir')),
               ],
               onChanged: (v) => setState(() => row.type = v ?? 'DP'),
             ),
@@ -2874,7 +2884,7 @@ class _InvoicePageState extends State<InvoicePage>
           // ══════════════════════════════════════
           //  POTONGAN & BIAYA — DP, Ongkir, dll (kedua mode)
           // ══════════════════════════════════════
-          USectionHeader(title: 'Potongan & Biaya (DP, Ongkir, dll)'),
+          USectionHeader(title: 'Potongan & Biaya (Diskon, DP, Ongkir, dll)'),
           const SizedBox(height: 12),
           _InvCard(children: [
             if (_adjustments.isEmpty)
@@ -2907,32 +2917,6 @@ class _InvoicePageState extends State<InvoicePage>
             const USectionHeader(title: 'Ringkasan Pembayaran'),
             const SizedBox(height: 12),
             _InvCard(children: [
-              const Text('Diskon (Rp)', style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600,
-                  color: UColors.textMid)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _discCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  hintText: '0',
-                  prefixIcon: const Icon(Icons.discount_rounded,
-                      color: UColors.primary, size: 18),
-                  filled: true, fillColor: UColors.inputBg,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 14),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: UColors.primary.withOpacity(0.15))),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: UColors.primary.withOpacity(0.15))),
-                ),
-              ),
-              const SizedBox(height: 12),
               UField(controller: _notesCtrl,
                   label: 'Catatan (opsional)',
                   hint: 'Terima kasih sudah belanja!',
@@ -2953,9 +2937,9 @@ class _InvoicePageState extends State<InvoicePage>
                     _SumRow('🔁 Barang $_reverseLabel', '− ${_rp(_revSubtotal)}',
                         color: const Color(0xFFC2410C)),
                   ],
-                  if (_disc > 0) ...[
+                  if (_adjDiskonTotal > 0) ...[
                     const SizedBox(height: 8),
-                    _SumRow('Diskon', '− ${_rp(_disc)}',
+                    _SumRow('Diskon', '− ${_rp(_adjDiskonTotal)}',
                         color: UColors.danger),
                   ],
                   if (_adjDpTotal > 0) ...[

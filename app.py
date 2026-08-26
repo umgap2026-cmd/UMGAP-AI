@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.5.0",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.6.0",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.5.0 tersedia!\n• Hutang & Piutang kini 2 halaman terpisah\n• Kirim Pengingat sekarang manual (Share via HP), sertakan link bukti nota publik\n• Perbaikan: pengingat WA yang sebelumnya tidak benar-benar terkirim"
+        "message":        "Versi baru v1.6.0 tersedia!\n• Perbaikan: Diskon nota kini benar tercatat sbg Diskon (bukan salah-tercampur jadi DP)\n• Nota: pilih jenis Diskon/DP/Ongkir dlm satu tempat\n• Versi app pindah ke halaman Profile\n• Tampilan Dashboard lebih segar (font & ikon)"
     })
 
 @app.route("/ping")

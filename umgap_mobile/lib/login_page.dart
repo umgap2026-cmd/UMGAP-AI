@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import 'api_service.dart';
 import 'forgot_password_page.dart';
@@ -23,7 +22,6 @@ class _LoginPageState extends State<LoginPage>
   bool _loading       = false;
   bool _googleLoading = false;
   bool _obscure       = true;
-  String _appVersion  = '';
 
   late AnimationController _ac;
   late Animation<double>   _fadeAnim;
@@ -46,14 +44,6 @@ class _LoginPageState extends State<LoginPage>
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.14), end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeOutCubic));
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _appVersion = info.version);
-    } catch (_) {}
   }
 
   @override
@@ -316,10 +306,7 @@ class _LoginPageState extends State<LoginPage>
         const SizedBox(height: USpace.lg),
 
         Center(
-          child: Text(
-              _appVersion.isEmpty
-                  ? 'UMGAP • Hak Cipta Dilindungi'
-                  : 'UMGAP v$_appVersion • Hak Cipta Dilindungi',
+          child: Text('UMGAP • Hak Cipta Dilindungi',
               style: UText.caption.copyWith(color: UColors.textLight)),
         ),
       ]),

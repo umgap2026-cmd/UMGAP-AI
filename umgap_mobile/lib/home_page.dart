@@ -728,7 +728,7 @@ class _HomePageState extends State<HomePage>
                     ),
                   ),
                   SizedBox(
-                    height: 42,
+                    height: 46,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
@@ -744,32 +744,34 @@ class _HomePageState extends State<HomePage>
                           child: Container(
                             margin: const EdgeInsets.only(right: USpace.sm),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: USpace.base,
+                              horizontal: USpace.md,
                             ),
                             decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(URadius.sm),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: color.withOpacity(0.28),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
+                              color: UColors.card,
+                              borderRadius: BorderRadius.circular(URadius.md),
+                              boxShadow: UShadow.card,
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  m['icon'] as IconData,
-                                  color: Colors.white,
-                                  size: 15,
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.14),
+                                    borderRadius: BorderRadius.circular(URadius.sm),
+                                  ),
+                                  child: Icon(
+                                    m['icon'] as IconData,
+                                    color: color,
+                                    size: 16,
+                                  ),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                                 Text(
                                   m['title'] as String,
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: UColors.textDark,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -1649,7 +1651,11 @@ class _AdminOverviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: UColors.card,
+        gradient: const LinearGradient(
+          colors: [UColors.navy, UColors.navyMid],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(URadius.xl),
         boxShadow: UShadow.md(UColors.primary),
       ),
@@ -1661,16 +1667,6 @@ class _AdminOverviewCard extends StatelessWidget {
               USpace.base,
               USpace.lg,
               USpace.base,
-            ),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [UColors.navy, UColors.navyMid],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(URadius.xl),
-              ),
             ),
             child: Row(
               children: [
@@ -1745,7 +1741,9 @@ class _AdminOverviewCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(USpace.base),
+            padding: const EdgeInsets.fromLTRB(
+              USpace.base, 0, USpace.base, USpace.lg,
+            ),
             child: Row(
               children: [
                 _StatTile(
@@ -2188,16 +2186,17 @@ class _GridMenuCardState extends State<_GridMenuCard>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(URadius.sm),
+                  color: widget.color.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(URadius.md),
                 ),
                 child: Icon(
                   widget.icon,
                   color: widget.color,
-                  size: 22,
+                  size: 24,
                 ),
               ),
               const SizedBox(height: USpace.sm),
@@ -2319,28 +2318,34 @@ class _StatTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(URadius.sm),
+            color: color.withOpacity(0.22),
+            borderRadius: BorderRadius.circular(URadius.md),
           ),
-          child: Icon(icon, color: color, size: 18),
+          child: Icon(icon, color: color, size: 20),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
-            color: color,
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: UText.caption.copyWith(height: 1.3),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            height: 1.3,
+            color: Colors.white.withOpacity(0.6),
+          ),
         ),
       ],
     ),
@@ -2350,7 +2355,7 @@ class _StatTile extends StatelessWidget {
 class _VSep extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
-      Container(width: 1, height: 48, color: UColors.divider);
+      Container(width: 1, height: 48, color: Colors.white.withOpacity(0.10));
 }
 
 class _Orb extends StatelessWidget {
