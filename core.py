@@ -3280,7 +3280,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
         _ensure_fin_transactions_gross_amount_schema(cur)
 
         cur.execute("""
-            SELECT id, type, note, cancelled_at
+            SELECT id, type, note, cancelled_at, credit_applied
             FROM fin_transactions WHERE id = %s FOR UPDATE;
         """, (txn_id,))
         txn = cur.fetchone()
@@ -3434,7 +3434,15 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                     cur, mat_id, qty, price, 'IN', txn_id,
                     note=f"Barang balik (beli) — Edit nota {invoice_no} — {customer_name}")
 
-        is_debt = not is_paid
+        # Potongan Saldo yg sudah dipakai SAAT NOTA INI DIBUAT (credit_applied,
+        # tidak bisa diubah lewat form edit) TETAP harus dikurangi dari
+        # piutang/hutang hasil edit -- kalau tidak, piutang balik ke nilai
+        # PENUH padahal saldonya sudah kepakai/kekonsumsi permanen sejak
+        # awal (lihat create_fin_invoice/create_fin_purchase_invoice).
+        credit_applied_existing = float(txn.get("credit_applied") or 0)
+        credit_amount = min(max(0.0, credit_applied_existing), grand_total) if customer_name else 0.0
+        debt_amount = max(0.0, grand_total - credit_amount)
+        is_debt = (not is_paid) and debt_amount > 0.01
         new_note = f"[{invoice_no}] {payment_method}" + (f" | {notes}" if notes else "")
         cur.execute("""
             UPDATE fin_transactions
@@ -3453,7 +3461,7 @@ def update_fin_invoice_transaction(txn_id, customer_name, customer_phone, paymen
                 INSERT INTO fin_debts
                     (type, party_name, party_type, amount, remaining, transaction_id, note, reason)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 'HUTANG_BARANG');
-            """, (debt_type, customer_name, party_type, grand_total, grand_total, txn_id,
+            """, (debt_type, customer_name, party_type, debt_amount, debt_amount, txn_id,
                   f"Nota {invoice_no} — belum dibayar (hasil edit)"))
 
         if dp_excess > 0 and customer_name:
