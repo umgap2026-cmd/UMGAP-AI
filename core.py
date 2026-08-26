@@ -2891,8 +2891,11 @@ def create_fin_invoice(customer_name, customer_phone, payment_method, notes,
         debt_amount = grand_total - credit_amount
         is_debt = (not is_paid) and debt_amount > 0.01
         if credit_amount > 0:
+            # Jumlahnya TIDAK diulang di sini -- sudah jadi baris rincian
+            # "Potongan Saldo" tersendiri di nota (lihat get_fin_invoice_detail),
+            # supaya beda jelas dari DP (dibuat dadakan di nota ini) & Ongkir.
             notes = (
-                f"Rp {credit_amount:,.0f} dipotong dari saldo {customer_name} di kita".replace(",", ".")
+                f"Sebagian dibayar pakai saldo tersimpan {customer_name} (lihat rincian Potongan Saldo)."
                 + (f" | {notes}" if notes else "")
             )
         if dp_excess > 0 and customer_name:
@@ -3116,8 +3119,11 @@ def create_fin_purchase_invoice(supplier_name, supplier_phone, payment_method, n
         debt_amount = grand_total - credit_amount
         is_debt = (not is_paid) and debt_amount > 0.01
         if credit_amount > 0:
+            # Jumlahnya TIDAK diulang di sini -- sudah jadi baris rincian
+            # "Potongan Saldo" tersendiri di nota (lihat get_fin_invoice_detail),
+            # supaya beda jelas dari DP (dibuat dadakan di nota ini) & Ongkir.
             notes = (
-                f"Rp {credit_amount:,.0f} dipotong dari saldo kita di {supplier_name}".replace(",", ".")
+                f"Sebagian dibayar pakai saldo kita di {supplier_name} (lihat rincian Potongan Saldo)."
                 + (f" | {notes}" if notes else "")
             )
         if dp_excess > 0 and supplier_name:
@@ -3517,7 +3523,7 @@ def get_fin_invoice_detail(txn_id):
         cur.execute("""
             SELECT t.id, t.type, t.note, t.party_name AS customer_name, t.is_debt,
                    t.total_amount, t.created_at, t.print_size, t.cancelled_at,
-                   t.dp_amount, t.ongkir_potongan_amount,
+                   t.dp_amount, t.ongkir_potongan_amount, t.credit_applied,
                    u.name AS created_by_name
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
@@ -3578,6 +3584,19 @@ def get_fin_invoice_detail(txn_id):
             # Nota lama dari sebelum kolom dp_amount/ongkir_potongan_amount
             # ada -- rincian aslinya tidak tersimpan, tampilkan generik.
             discount_breakdown.append({"label": "Diskon", "amount": total_discount})
+
+        # Potongan Saldo (credit_applied) -- saldo TERSIMPAN (titipan dana
+        # dari nota sebelumnya) yang dipakai membayar sebagian/semua nota
+        # ini. BEDA dari DP: DP dibuat dadakan (baru diisi) di nota ini
+        # juga, sedangkan Potongan Saldo pakai saldo yang SUDAH ADA sejak
+        # sebelumnya. Dulu cuma disebut di catatan bebas -- sekarang jadi
+        # baris rincian sendiri (spt DP/Ongkir) & benar2 mengurangi Total
+        # yang ditampilkan/dicetak, bukan cuma catatan kaki.
+        credit_applied = float(row.get("credit_applied") or 0)
+        if credit_applied > 0:
+            discount_breakdown.append({"label": "Potongan Saldo", "amount": credit_applied})
+            total_discount += credit_applied
+            grand_total = max(0.0, grand_total - credit_applied)
 
         cur.execute("""
             SELECT id, party_name,
