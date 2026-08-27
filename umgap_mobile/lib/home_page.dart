@@ -659,6 +659,14 @@ class _HomePageState extends State<HomePage>
     // dashboard kelihatan menyatu/moody, bukan header solid yg
     // langsung potong ke halaman abu-abu polos di bawahnya.
     return Container(
+      // Stop terakhir gradient HARUS opaque (UColors.surface polos, bukan
+      // withOpacity(0)) -- di luar stop terakhir, warna gradient tetap
+      // dipakai utk sisa area (bukan otomatis transparan), jadi kalau
+      // stop terakhir transparan, seluruh area di bawahnya ikut
+      // transparan & nembus ke kanvas hitam default Flutter. (Container
+      // tidak boleh dikasih `color` DAN `decoration` bersamaan -- makanya
+      // warna dasar diletakkan lewat stop gradient ini, bukan properti
+      // `color` terpisah.)
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -667,7 +675,7 @@ class _HomePageState extends State<HomePage>
           colors: [
             UColors.navy.withOpacity(0.9),
             UColors.primary.withOpacity(0.18),
-            UColors.surface.withOpacity(0),
+            UColors.surface,
           ],
         ),
       ),
