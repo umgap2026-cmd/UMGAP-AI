@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import './api_service.dart';
 import 'attendance_page.dart';
@@ -36,6 +37,17 @@ const _cTeal = Color(0xFF00BCD4);
 const _cAmber = Color(0xFFFFAB00);
 const _cRed = Color(0xFFE53935);
 const _cBlue = Color(0xFF1565C0);
+
+// Shadow kartu putih (Akses Cepat & Menu Utama) -- persis spec:
+// "box-shadow: 0 8px 24px rgba(15, 42, 82, 0.06)". Lokal ke file ini
+// (bukan UShadow.card global) supaya tidak ikut mengubah halaman lain.
+final List<BoxShadow> _kCardShadow = [
+  BoxShadow(
+    color: const Color(0xFF0F2A52).withOpacity(0.06),
+    blurRadius: 24,
+    offset: const Offset(0, 8),
+  ),
+];
 
 class HomePage extends StatefulWidget {
   final String role;
@@ -654,33 +666,12 @@ class _HomePageState extends State<HomePage>
       }
     }();
 
-    // Wash biru lembut yg "bocor" dari header ke area konten di
-    // bawahnya (bukan cuma di dalam kartu header) -- ini yg bikin
-    // dashboard kelihatan menyatu/moody, bukan header solid yg
-    // langsung potong ke halaman abu-abu polos di bawahnya.
-    return Container(
-      // Stop terakhir gradient HARUS opaque (UColors.surface polos, bukan
-      // withOpacity(0)) -- di luar stop terakhir, warna gradient tetap
-      // dipakai utk sisa area (bukan otomatis transparan), jadi kalau
-      // stop terakhir transparan, seluruh area di bawahnya ikut
-      // transparan & nembus ke kanvas hitam default Flutter. (Container
-      // tidak boleh dikasih `color` DAN `decoration` bersamaan -- makanya
-      // warna dasar diletakkan lewat stop gradient ini, bukan properti
-      // `color` terpisah.)
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: const [0.0, 0.22, 0.4],
-          colors: [
-            UColors.navy.withOpacity(0.9),
-            UColors.primary.withOpacity(0.18),
-            UColors.surface,
-          ],
-        ),
-      ),
-      child: Scaffold(
-      backgroundColor: Colors.transparent,
+    // Wash gradient-nya sekarang jadi bagian dari header itu sendiri
+    // (lihat _buildHeader() -- header & Hero Overview digabung 1 blok
+    // gradient yg fade ke UColors.surface di ujung bawahnya), jadi
+    // Scaffold ini kembali polos spt biasa.
+    return Scaffold(
+      backgroundColor: UColors.surface,
       body: RefreshIndicator(
         color: UColors.primary,
         onRefresh: () async {
@@ -695,39 +686,11 @@ class _HomePageState extends State<HomePage>
           ),
           padding: EdgeInsets.zero,
           children: [
-            _buildHeader(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                USpace.base,
-                USpace.base,
-                USpace.base,
-                0,
-              ),
-              child: isOwner
-                  ? _OwnerBusinessCard(
-                stats: _ownerStats,
-                loading: _ownerLoading,
-                aiLoading: _aiLoading,
-                dateLabel: _dateStr,
-                formatRp: _compactRp,
-                onRefresh: _loadOwnerStats,
-                onAiReview: _openAiReview,
-              )
-                  : isAdmin
-                  ? _AdminOverviewCard(
-                summary: summary,
-                timeStr: _timeStr,
-              )
-                  : _UserOverviewCard(
-                poin: poin,
-                timeStr: _timeStr,
-                alreadyAbsen: alreadyAbsen,
-                absenTime: absenTime,
-                onAbsen: () => Navigator.push(
-                  context,
-                  uRoute(const AttendancePage()),
-                ),
-              ),
+            _buildHeader(
+              summary: summary,
+              poin: poin,
+              alreadyAbsen: alreadyAbsen,
+              absenTime: absenTime,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -773,8 +736,8 @@ class _HomePageState extends State<HomePage>
                             ),
                             decoration: BoxDecoration(
                               color: UColors.card,
-                              borderRadius: BorderRadius.circular(URadius.md),
-                              boxShadow: UShadow.card,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: _kCardShadow,
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -784,7 +747,7 @@ class _HomePageState extends State<HomePage>
                                   height: 28,
                                   decoration: BoxDecoration(
                                     color: color.withOpacity(0.22),
-                                    borderRadius: BorderRadius.circular(URadius.sm),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
                                     m['icon'] as IconData,
@@ -876,23 +839,38 @@ class _HomePageState extends State<HomePage>
           ],
         ),
       ),
-      ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({
+    required Map<String, dynamic> summary,
+    required dynamic poin,
+    required bool alreadyAbsen,
+    required String absenTime,
+  }) {
     return UHeader(
+      // Gradient header + Hero Overview digabung 1 blok (bukan 2 kartu
+      // terpisah) supaya fade navy → hampir-putihnya menyatu mulus,
+      // persis spec: linear-gradient(180deg, #0B2246 0%, #153E75 55%,
+      // #F4F7FB 100%).
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: [0.0, 0.55, 1.0],
+        colors: [Color(0xFF0B2246), Color(0xFF153E75), Color(0xFFF4F7FB)],
+      ),
+      bottomRadius: 28,
       child: Stack(
         children: [
           Positioned(
             top: -30,
             right: 20,
-            child: _Orb(130, Colors.white.withOpacity(0.04)),
+            child: _Orb(130, Colors.white.withOpacity(0.05)),
           ),
           Positioned(
-            bottom: 20,
-            left: -20,
-            child: _Orb(90, Colors.white.withOpacity(0.04)),
+            top: 160,
+            left: -30,
+            child: _Orb(110, Colors.white.withOpacity(0.04)),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -1015,6 +993,32 @@ class _HomePageState extends State<HomePage>
                     ],
                   ),
                 ),
+                const SizedBox(height: USpace.lg),
+                isOwner
+                    ? _OwnerBusinessCard(
+                        stats: _ownerStats,
+                        loading: _ownerLoading,
+                        aiLoading: _aiLoading,
+                        dateLabel: _dateStr,
+                        formatRp: _compactRp,
+                        onRefresh: _loadOwnerStats,
+                        onAiReview: _openAiReview,
+                      )
+                    : isAdmin
+                        ? _AdminOverviewCard(
+                            summary: summary,
+                            timeStr: _timeStr,
+                          )
+                        : _UserOverviewCard(
+                            poin: poin,
+                            timeStr: _timeStr,
+                            alreadyAbsen: alreadyAbsen,
+                            absenTime: absenTime,
+                            onAbsen: () => Navigator.push(
+                              context,
+                              uRoute(const AttendancePage()),
+                            ),
+                          ),
               ],
             ),
           ),
@@ -1675,137 +1679,183 @@ class _AdminOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [UColors.navy, UColors.navyMid],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    // Glassmorphism Hero -- frosted glass beneran (BackdropFilter blur),
+    // bukan kartu solid: fill gradient navy semi-transparan (80%→60%),
+    // border putih tipis, shadow lembut. Sengaja diberi ClipRRect di
+    // luar supaya blur & konten ikut kepotong radius kartu.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF103264).withOpacity(0.8),
+                const Color(0xFF18488A).withOpacity(0.6),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F2A52).withOpacity(0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(
+                  USpace.lg,
+                  USpace.base,
+                  USpace.lg,
+                  USpace.base,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Today's Overview",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.55),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            timeStr,
+                            style: GoogleFonts.chakraPetch(
+                              color: Colors.white,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(URadius.sm),
+                        border: Border.all(
+                            color: const Color(0xFF10B981).withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _LivePulseDot(),
+                          SizedBox(width: 5),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  USpace.base, 0, USpace.base, USpace.lg,
+                ),
+                child: Row(
+                  children: [
+                    _StatTile(
+                      icon: Icons.people_alt_rounded,
+                      value: '${summary['total_employees'] ?? 0}',
+                      label: 'Karyawan',
+                      color: Colors.white,
+                    ),
+                    _StatTile(
+                      icon: Icons.fingerprint_rounded,
+                      value: '${summary['total_attendance_today'] ?? 0}',
+                      label: 'Hadir',
+                      color: const Color(0xFF6EE7B7),
+                    ),
+                    _StatTile(
+                      icon: Icons.pending_actions_rounded,
+                      value: '${summary['total_pending'] ?? 0}',
+                      label: 'Pending',
+                      color: const Color(0xFFFCD34D),
+                    ),
+                    _StatTile(
+                      icon: Icons.inventory_2_rounded,
+                      value: '${summary['total_products'] ?? 0}',
+                      label: 'Produk',
+                      color: const Color(0xFFC4B5FD),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(URadius.xl),
-        boxShadow: UShadow.md(UColors.primary),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(
-              USpace.lg,
-              USpace.base,
-              USpace.lg,
-              USpace.base,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Today's Overview",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.55),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        timeStr,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _cGreen.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(URadius.sm),
-                    border: Border.all(color: _cGreen.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: _cGreen,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _cGreen.withOpacity(0.5),
-                              blurRadius: 6,
-                            )
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      const Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: _cGreen,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              USpace.base, 0, USpace.base, USpace.lg,
-            ),
-            child: Row(
-              children: [
-                _StatTile(
-                  icon: Icons.people_alt_rounded,
-                  value: '${summary['total_employees'] ?? 0}',
-                  label: 'Karyawan',
-                  color: UColors.primary,
-                ),
-                _VSep(),
-                _StatTile(
-                  icon: Icons.fingerprint_rounded,
-                  value: '${summary['total_attendance_today'] ?? 0}',
-                  label: 'Hadir',
-                  color: UColors.success,
-                ),
-                _VSep(),
-                _StatTile(
-                  icon: Icons.pending_actions_rounded,
-                  value: '${summary['total_pending'] ?? 0}',
-                  label: 'Pending',
-                  color: UColors.warning,
-                ),
-                _VSep(),
-                _StatTile(
-                  icon: Icons.inventory_2_rounded,
-                  value: '${summary['total_products'] ?? 0}',
-                  label: 'Produk',
-                  color: _cPurple,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
+}
+
+// ── Dot hijau LIVE yg berdenyut (pulse) -- StatefulWidget kecil
+//    berdiri sendiri supaya _AdminOverviewCard tetap Stateless. ──
+class _LivePulseDot extends StatefulWidget {
+  const _LivePulseDot();
+  @override
+  State<_LivePulseDot> createState() => _LivePulseDotState();
+}
+
+class _LivePulseDotState extends State<_LivePulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this, duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    builder: (_, __) {
+      final t = _c.value;
+      return Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: const Color(0xFF10B981),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withOpacity(0.25 + t * 0.45),
+              blurRadius: 4 + t * 8,
+              spreadRadius: t * 2,
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _UserOverviewCard extends StatefulWidget {
@@ -2205,8 +2255,8 @@ class _GridMenuCardState extends State<_GridMenuCard>
         child: Container(
           decoration: BoxDecoration(
             color: UColors.card,
-            borderRadius: BorderRadius.circular(URadius.md),
-            boxShadow: UShadow.card,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: _kCardShadow,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2340,48 +2390,41 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.22),
-            borderRadius: BorderRadius.circular(URadius.md),
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(URadius.md),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+              color: Colors.white.withOpacity(0.6),
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            height: 1.3,
-            color: Colors.white.withOpacity(0.6),
-          ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
-}
-
-class _VSep extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) =>
-      Container(width: 1, height: 48, color: Colors.white.withOpacity(0.10));
 }
 
 class _Orb extends StatelessWidget {

@@ -149,18 +149,28 @@ class _LogoFallback extends StatelessWidget {
 class UHeader extends StatelessWidget {
   final Widget child;
   final double bottomRadius;
+  // Override opsional -- default-nya tetap gradient lama (dipakai di
+  // hampir semua halaman). Cuma dipakai halaman yg butuh gradient
+  // custom sendiri (mis. Dashboard), tidak mengubah halaman lain.
+  final Gradient? gradient;
 
-  const UHeader({super.key, required this.child, this.bottomRadius = URadius.x2l});
+  const UHeader({
+    super.key,
+    required this.child,
+    this.bottomRadius = URadius.x2l,
+    this.gradient,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [UColors.navy, UColors.navyMid, UColors.primary],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-        ),
+        gradient: gradient ??
+            const LinearGradient(
+              colors: [UColors.navy, UColors.navyMid, UColors.primary],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+            ),
         borderRadius: BorderRadius.only(
           bottomLeft:  Radius.circular(bottomRadius),
           bottomRight: Radius.circular(bottomRadius),
