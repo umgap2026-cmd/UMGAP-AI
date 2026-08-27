@@ -152,22 +152,22 @@ class _HomePageState extends State<HomePage>
     {
       'title': 'Kelola User',
       'icon': Icons.people_alt_rounded,
-      'color': _cTeal
+      'color': _cPurple
     },
     {
       'title': 'Pengumuman',
       'icon': Icons.campaign_rounded,
-      'color': UColors.primary
+      'color': _cGreen
     },
     {
       'title': 'Absensi',
       'icon': Icons.fingerprint_rounded,
-      'color': UColors.primaryMid
+      'color': UColors.primary
     },
     {
       'title': 'Persetujuan Absensi',
       'icon': Icons.fact_check_rounded,
-      'color': _cPurple
+      'color': _cAmber
     },
     {
       'title': 'Kasir & Keuangan',
@@ -177,7 +177,7 @@ class _HomePageState extends State<HomePage>
     {
       'title': 'Payroll',
       'icon': Icons.payments_rounded,
-      'color': _cGreen
+      'color': _cTeal
     },
     {
       'title': 'Statistik',
@@ -197,7 +197,7 @@ class _HomePageState extends State<HomePage>
     {
       'title': 'Harga Beli',
       'icon': Icons.price_change_rounded,
-      'color': _cTeal
+      'color': _cOrange
     },
     {
       'title': 'HPP AI',
@@ -212,7 +212,7 @@ class _HomePageState extends State<HomePage>
     {
       'title': 'Kalender Konten',
       'icon': Icons.event_note_rounded,
-      'color': _cOrange
+      'color': _cTeal
     },
   ]
       : isOwner
@@ -654,8 +654,25 @@ class _HomePageState extends State<HomePage>
       }
     }();
 
-    return Scaffold(
-      backgroundColor: UColors.surface,
+    // Wash biru lembut yg "bocor" dari header ke area konten di
+    // bawahnya (bukan cuma di dalam kartu header) -- ini yg bikin
+    // dashboard kelihatan menyatu/moody, bukan header solid yg
+    // langsung potong ke halaman abu-abu polos di bawahnya.
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.0, 0.22, 0.4],
+          colors: [
+            UColors.navy.withOpacity(0.9),
+            UColors.primary.withOpacity(0.18),
+            UColors.surface.withOpacity(0),
+          ],
+        ),
+      ),
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         color: UColors.primary,
         onRefresh: () async {
@@ -758,7 +775,7 @@ class _HomePageState extends State<HomePage>
                                   width: 28,
                                   height: 28,
                                   decoration: BoxDecoration(
-                                    color: color.withOpacity(0.14),
+                                    color: color.withOpacity(0.22),
                                     borderRadius: BorderRadius.circular(URadius.sm),
                                   ),
                                   child: Icon(
@@ -850,6 +867,7 @@ class _HomePageState extends State<HomePage>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -2190,7 +2208,7 @@ class _GridMenuCardState extends State<_GridMenuCard>
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.14),
+                  color: widget.color.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(URadius.md),
                 ),
                 child: Icon(
