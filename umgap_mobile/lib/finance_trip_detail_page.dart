@@ -90,10 +90,17 @@ class _FinanceTripDetailPageState extends State<FinanceTripDetailPage> {
     );
   }
 
-  // ── Input Beli di Jakarta ────────────────
+  // ── Input Beli -- judul ikut nama/catatan perjalanan yg dibuat
+  //    user (dulu hardcode "di Jakarta", bikin salah kalau perjalanan
+  //    ke kota lain) ──────────────────────────
+  String get _tripLabel {
+    final trip = (_data['trip'] ?? {}) as Map<String, dynamic>;
+    return '${trip['note'] ?? 'Perjalanan #${widget.tripId}'}';
+  }
+
   Future<void> _addBuy() async {
     await _showItemDialog(
-      title:     'Beli Barang di Jakarta',
+      title:     'Beli Barang -- $_tripLabel',
       color:     UColors.success,
       icon:      Icons.arrow_downward_rounded,
       showParty: false,
@@ -687,7 +694,8 @@ class _FinanceTripDetailPageState extends State<FinanceTripDetailPage> {
               else ...[
                 USectionHeader(title: 'Transaksi'),
                 const SizedBox(height: USpace.sm),
-                ...items.map((item) => _ItemCard(item: item as Map<String, dynamic>)),
+                ...items.map((item) => _ItemCard(
+                    item: item as Map<String, dynamic>, tripLabel: _tripLabel)),
               ],
             ],
           ),
@@ -765,7 +773,8 @@ class _FinanceTripDetailPageState extends State<FinanceTripDetailPage> {
 // ── Item Card ──────────────────────────────
 class _ItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
-  const _ItemCard({required this.item});
+  final String tripLabel;
+  const _ItemCard({required this.item, required this.tripLabel});
 
   Color get _color {
     switch ('${item['type']}') {
@@ -780,7 +789,7 @@ class _ItemCard extends StatelessWidget {
   String get _label {
     switch ('${item['type']}') {
       case 'JUAL':    return 'Jual ke lapak';
-      case 'BELI':    return 'Beli di Jakarta';
+      case 'BELI':    return 'Beli -- $tripLabel';
       case 'EXPENSE': return '${item['expense_name'] ?? 'Pengeluaran'}';
       case 'RETURN':  return 'Balikan barang';
       default:        return '${item['type']}';

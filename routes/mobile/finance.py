@@ -1590,10 +1590,14 @@ def trip_buy(trip_id):
     conn = get_conn()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cur.execute("SELECT status FROM fin_trips WHERE id = %s;", (trip_id,))
+        cur.execute("SELECT status, note AS trip_note FROM fin_trips WHERE id = %s;", (trip_id,))
         t = cur.fetchone()
         if not t or t["status"] != "OPEN":
             return mobile_api_response(ok=False, message="Perjalanan sudah ditutup.", status_code=400)
+        # Label perjalanan (dulu hardcode "Jakarta" -- salah kalau
+        # perjalanan ke kota lain) -- ikut catatan/nama yg dibuat user
+        # sendiri saat buka perjalanan ini.
+        trip_label = (t.get("trip_note") or "").strip() or f"trip#{trip_id}"
 
         total = 0.0
         for item in items:
@@ -1612,7 +1616,7 @@ def trip_buy(trip_id):
 
             # Stok masuk
             _update_stock_avco(cur, mat_id, qty, price, 'IN', None,
-                               note=f"Beli Jakarta trip#{trip_id}")
+                               note=f"Beli {trip_label} trip#{trip_id}")
 
         conn.commit()
         return mobile_api_response(ok=True, message="Pembelian dicatat.", data={"total": total})

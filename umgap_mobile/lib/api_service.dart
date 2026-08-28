@@ -19,7 +19,38 @@ class ApiService {
       },
       validateStatus: (status) => status != null && status < 500,
     ),
-  );
+  )..interceptors.add(InterceptorsWrapper(
+      onError: (e, handler) {
+        // Kalau request GAGAL TERHUBUNG sama sekali (bukan respons error
+        // dari server -- itu tetap lewat & ditangani _ensureOk spt biasa),
+        // Dio/SocketException aslinya melempar pesan teknis mentah (mis.
+        // "errno = 7") yang membingungkan di snackbar. Ganti jadi pesan
+        // Indonesia yang jelas di sini -- 1 tempat, otomatis berlaku ke
+        // SEMUA pemanggilan API di app (bukan cuma Login).
+        String? friendly;
+        switch (e.type) {
+          case DioExceptionType.connectionError:
+            friendly = 'Tidak ada koneksi internet. Periksa jaringan Anda lalu coba lagi.';
+            break;
+          case DioExceptionType.connectionTimeout:
+          case DioExceptionType.sendTimeout:
+          case DioExceptionType.receiveTimeout:
+            friendly = 'Koneksi lambat/timeout. Periksa jaringan Anda lalu coba lagi.';
+            break;
+          default:
+            friendly = null; // biarkan apa adanya (mis. badResponse, ditangani _ensureOk)
+        }
+        if (friendly != null) {
+          handler.reject(DioException(
+            requestOptions: e.requestOptions,
+            type: e.type,
+            message: friendly,
+          ));
+          return;
+        }
+        handler.next(e);
+      },
+    ));
 
   static Future<String?> getToken() async {
     return await storage.read(key: "token");
