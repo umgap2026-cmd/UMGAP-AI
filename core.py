@@ -3611,7 +3611,7 @@ def get_fin_invoice_detail(txn_id):
                    COALESCE(NULLIF(TRIM(expense_category), ''), party_name) AS category,
                    note, total_amount,
                    TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib
+                           'DD/MM/YYYY HH24:MI:SS') AS created_at_wib
             FROM fin_transactions
             WHERE related_transaction_id = %s AND type = 'PENGELUARAN'
             ORDER BY created_at ASC;
@@ -3671,7 +3671,11 @@ def get_fin_invoice_detail(txn_id):
             "cancelled_at": row.get("cancelled_at"),
             "paid_at_wib": None,
             "created_at": row.get("created_at"),
-            "created_at_wib": _utc_naive_to_wib_string(row.get("created_at")),
+            # Format tanggal Indonesia (tanggal/bulan/tahun), bukan ISO
+            # (tahun-bulan-tanggal) -- khusus utk nota yg dicetak/dibagikan
+            # ke pelanggan/pemasok.
+            "created_at_wib": _utc_naive_to_wib_string(
+                row.get("created_at"), fmt="%d/%m/%Y %H:%M:%S"),
             "company_name": profile.get("company_name") or "",
             "logo_data_uri": profile.get("logo_data_uri") or "",
             "company_logo_path": None,
@@ -3771,9 +3775,9 @@ def get_invoice_history(q="", type_f="", status_f="", date_from="", date_to="",
                 t.total_amount, t.created_at, u.name AS created_by_name,
                 t.updated_at, eu.name AS edited_by_name,
                 TO_CHAR(t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                        'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                        'DD/MM/YYYY HH24:MI:SS') AS created_at_wib,
                 TO_CHAR(t.updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                        'YYYY-MM-DD HH24:MI:SS') AS updated_at_wib
+                        'DD/MM/YYYY HH24:MI:SS') AS updated_at_wib
             FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.created_by
             LEFT JOIN users eu ON eu.id = t.edited_by
@@ -4067,7 +4071,7 @@ def list_fin_returns(transaction_id):
             SELECT r.id, r.material_id, m.name AS material_name, m.unit,
                    r.qty_kg, r.price_per_kg, r.value, r.reason, r.note,
                    TO_CHAR(r.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta',
-                           'YYYY-MM-DD HH24:MI:SS') AS created_at_wib,
+                           'DD/MM/YYYY HH24:MI:SS') AS created_at_wib,
                    u.name AS created_by_name
             FROM fin_returns r
             JOIN fin_materials m ON m.id = r.material_id
