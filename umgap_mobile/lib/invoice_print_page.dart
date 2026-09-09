@@ -80,6 +80,12 @@ class InvoicePrintPage extends StatefulWidget {
   final List<CartItem> items;
   final bool          isPaid;
   final bool          isBeli;
+  // Tanggal nota SEBENARNYA (bisa beda dari hari ini kalau dibuat via
+  // "Atur Manual") -- dulu tidak ada param ini sama sekali, jadi print
+  // SELALU pakai DateTime.now() apapun tanggal nota-nya. Default null
+  // (fallback ke sekarang) cuma jaga-jaga, seharusnya SELALU diisi oleh
+  // pemanggil (lihat invoice_page.dart & nota_detail_page.dart).
+  final DateTime?     createdAt;
 
   const InvoicePrintPage({
     super.key,
@@ -98,6 +104,7 @@ class InvoicePrintPage extends StatefulWidget {
     this.dpExcessAsCash = false,
     this.isPaid      = true,
     this.isBeli      = false,
+    this.createdAt,
   });
 
   @override
@@ -180,7 +187,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   }
 
   String get _dateStr {
-    final n = DateTime.now();
+    final n = widget.createdAt ?? DateTime.now();
     return '${n.day.toString().padLeft(2,'0')}/'
         '${n.month.toString().padLeft(2,'0')}/'
         '${n.year}  '
@@ -189,7 +196,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage>
   }
 
   String get _dateOnly {
-    final n = DateTime.now();
+    final n = widget.createdAt ?? DateTime.now();
     const months = ['','Januari','Februari','Maret','April','Mei','Juni',
       'Juli','Agustus','September','Oktober','November','Desember'];
     return '${n.day} ${months[n.month]} ${n.year}';

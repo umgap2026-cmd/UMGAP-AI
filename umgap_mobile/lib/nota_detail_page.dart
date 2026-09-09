@@ -6,6 +6,25 @@ import 'u_kit.dart';
 import 'invoice_page.dart';
 import 'invoice_print_page.dart';
 
+// Parse "DD/MM/YYYY HH:MM:SS" (format created_at_wib dari backend) jadi
+// DateTime -- dipakai supaya cetak ulang nota lama ikut tanggal nota
+// ASLINYA, bukan tanggal hari ini dicetak ulang.
+DateTime? _parseWibDate(String? s) {
+  if (s == null || s.isEmpty) return null;
+  try {
+    final parts = s.split(' ');
+    final dmy = parts[0].split('/');
+    final hms = parts.length > 1 ? parts[1].split(':') : ['0', '0', '0'];
+    return DateTime(
+      int.parse(dmy[2]), int.parse(dmy[1]), int.parse(dmy[0]),
+      int.parse(hms[0]), hms.length > 1 ? int.parse(hms[1]) : 0,
+      hms.length > 2 ? int.parse(hms[2]) : 0,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 // ════════════════════════════════════════════
 //  DETAIL NOTA — dipanggil dari Riwayat Nota
 //  (baca fin_transactions via get_fin_invoice_detail,
@@ -83,6 +102,7 @@ class _NotaDetailPageState extends State<NotaDetailPage> {
         items:           cartItems,
         isPaid:          inv['is_paid'] == true,
         isBeli:          isBeli,
+        createdAt:       _parseWibDate(inv['created_at_wib'] as String?),
       ),
     ));
   }

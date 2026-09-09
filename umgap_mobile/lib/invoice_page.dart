@@ -959,6 +959,17 @@ class _InvoicePageState extends State<InvoicePage>
         '${_manualDate!.month.toString().padLeft(2,'0')}-'
         '${_manualDate!.day.toString().padLeft(2,'0')}'
       : null;
+  // Tanggal SEBENARNYA nota ini -- dipakai layar cetak (InvoicePrintPage)
+  // supaya kalau tanggalnya diatur manual, hasil cetak ikut tanggal itu
+  // (bukan selalu "hari ini"). Jam/menit/detik tetap ikut waktu SEKARANG
+  // (sama spt aturan backend _resolve_nota_datetime -- cuma tanggalnya
+  // yg diganti kalau diisi manual).
+  DateTime get _effectiveCreatedAt {
+    final now = DateTime.now();
+    if (_autoDate || _manualDate == null) return now;
+    return DateTime(_manualDate!.year, _manualDate!.month, _manualDate!.day,
+        now.hour, now.minute, now.second);
+  }
 
   // ── Kontak ─────────────────────────────────────
   Future<void> _pickContact() async {
@@ -1562,6 +1573,7 @@ class _InvoicePageState extends State<InvoicePage>
     final revSub = _revSubtotal;
     final total  = _total;
     final paid   = _isPaid;
+    final createdAt = _effectiveCreatedAt;
 
     try {
       final result = await ApiService.financeCreateInvoice(
@@ -1599,6 +1611,7 @@ class _InvoicePageState extends State<InvoicePage>
           items:         snap,
           isPaid:        paid,
           isBeli:        false,
+          createdAt:     createdAt,
         ),
       ));
     } catch (e) {
@@ -1638,6 +1651,7 @@ class _InvoicePageState extends State<InvoicePage>
       final total  = _total;
       final paid   = _isPaid;
       final disc   = _adjDpTotal + _adjOngkirPotongan + _creditApplied;
+      final createdAt = _effectiveCreatedAt;
 
       final result = await ApiService.financeCreatePurchaseInvoice(
         header: {
@@ -1674,6 +1688,7 @@ class _InvoicePageState extends State<InvoicePage>
           items:         snap,
           isPaid:        paid,
           isBeli:        true,
+          createdAt:     createdAt,
         ),
       ));
     } catch (e) {

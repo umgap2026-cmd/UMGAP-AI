@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.7.1",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.7.2",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.7.1: pesan error 'tidak ada koneksi internet' skrng jelas (bukan kode teknis membingungkan), & judul Beli di Mode Perjalanan ikut nama perjalanan yg dibuat (dulu selalu tertulis 'Jakarta')."
+        "message":        "Perbaikan v1.7.2: tanggal di hasil cetak nota (thermal/PDF) skrng ikut tanggal nota yg sebenarnya -- dulu selalu tertulis tanggal hari ini dicetak, apapun tanggal notanya."
     })
 
 @app.route("/ping")
