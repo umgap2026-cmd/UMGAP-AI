@@ -1086,41 +1086,11 @@ class _OwnerBusinessCard extends StatelessWidget {
     final health = stats['health_score'] ?? stats['company_score'] ?? 0;
     final quality = stats['quality_score'] ?? stats['attendance_quality'] ?? 0;
 
-    // Bahasa visual "glass hero" yg sama dgn Admin/Karyawan -- fill
-    // gradient navy semi-transparan + blur + border putih tipis.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_kHeroRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            UColors.navy.withOpacity(0.8),
-            const Color(0xFF0E7490).withOpacity(0.6),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(_kHeroRadius),
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
-        boxShadow: _kGlassShadow,
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -40,
-            right: -24,
-            child: _Orb(130, Colors.white.withOpacity(0.05)),
-          ),
-          Positioned(
-            bottom: -35,
-            left: 30,
-            child: _Orb(95, Colors.white.withOpacity(0.035)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(USpace.lg),
-            child: loading
+    // Glass hero -- frost beneran (blob warna diburamkan BackdropFilter),
+    // satu bahasa visual dgn Admin/Karyawan, aksen amber utk owner.
+    return _GlassHero(
+      accent: _cAmber,
+      child: loading
                 ? const SizedBox(
               height: 190,
               child: Center(
@@ -1376,11 +1346,6 @@ class _OwnerBusinessCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    ),
-      ),
     );
   }
 }
@@ -1703,29 +1668,12 @@ class _AdminOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Glassmorphism Hero -- frosted glass beneran (BackdropFilter blur),
-    // bukan kartu solid: fill gradient navy semi-transparan (80%→60%),
-    // border putih tipis, shadow lembut. Sengaja diberi ClipRRect di
-    // luar supaya blur & konten ikut kepotong radius kartu.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_kHeroRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFF103264).withOpacity(0.8),
-                const Color(0xFF18488A).withOpacity(0.6),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(_kHeroRadius),
-            border: Border.all(color: Colors.white.withOpacity(0.22)),
-            boxShadow: _kGlassShadow,
-          ),
-          child: Column(
+    // Glass hero -- frost beneran (blob warna diburamkan BackdropFilter),
+    // satu bahasa visual dgn Owner/Karyawan, aksen cyan utk admin.
+    return _GlassHero(
+      accent: UColors.cyan,
+      padding: EdgeInsets.zero,
+      child: Column(
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(
@@ -1838,8 +1786,6 @@ class _AdminOverviewCard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }
@@ -1933,41 +1879,11 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
 
   @override
   Widget build(BuildContext context) {
-    // Bahasa visual "glass hero" yg sama dgn Admin -- fill gradient
-    // navy semi-transparan + blur + border putih tipis, bukan solid.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_kHeroRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            UColors.navy.withOpacity(0.8),
-            const Color(0xFF1A3A7A).withOpacity(0.6),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(_kHeroRadius),
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
-        boxShadow: _kGlassShadow,
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -25,
-            right: -10,
-            child: _Orb(100, Colors.white.withOpacity(0.04)),
-          ),
-          Positioned(
-            bottom: -25,
-            left: 50,
-            child: _Orb(70, Colors.white.withOpacity(0.03)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(USpace.lg),
-            child: Column(
+    // Glass hero -- frost beneran (blob warna diburamkan BackdropFilter),
+    // satu bahasa visual dgn Admin/Owner, aksen hijau utk karyawan.
+    return _GlassHero(
+      accent: _cGreen,
+      child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -2224,11 +2140,6 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
                 ],
               ],
             ),
-          ),
-        ],
-      ),
-    ),
-      ),
     );
   }
 }
@@ -2622,4 +2533,102 @@ class _Orb extends StatelessWidget {
       color: color,
     ),
   );
+}
+
+// ── Blob warna di balik BackdropFilter -- bahan "frost" hero card.
+//    Lingkaran solid biasa; blur besar dari BackdropFilter (di _GlassHero)
+//    yang mengubahnya jadi cahaya lembut menyebar, bukan lingkaran tajam.
+class _Blob extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _Blob(this.size, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+  );
+}
+
+// ── _GlassHero — kaca frosted yang benar ────────────────────────────
+// Urutan lapisan itu kuncinya:
+//   1) blob warna terang  -> dilukis PALING BELAKANG
+//   2) BackdropFilter      -> menutup seluruh kartu, memburamkan blob (frost)
+//   3) isi + fill transparan + border tipis -> PALING DEPAN (tetap tajam)
+// Dipakai oleh ketiga hero card (Admin/Owner/Karyawan) supaya satu bahasa
+// visual, dengan warna aksen berbeda per role.
+class _GlassHero extends StatelessWidget {
+  final Widget child;
+  final Color accent; // aksen per role: admin=cyan, owner=amber, karyawan=hijau
+  final EdgeInsets padding;
+
+  const _GlassHero({
+    required this.child,
+    required this.accent,
+    this.padding = const EdgeInsets.all(USpace.lg),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Shadow HARUS di luar ClipRRect, kalau tidak akan ikut terpotong.
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_kHeroRadius),
+        boxShadow: _kGlassShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_kHeroRadius),
+        child: Stack(
+          children: [
+            // (1) Blob warna terang di belakang -- ini yang bikin frost terlihat.
+            Positioned(
+              top: -34,
+              left: -24,
+              child: _Blob(170, accent.withOpacity(0.55)),
+            ),
+            Positioned(
+              top: 20,
+              right: -40,
+              child: _Blob(150, const Color(0xFF8B5CF6).withOpacity(0.42)), // violet
+            ),
+            Positioned(
+              bottom: -50,
+              left: 40,
+              child: _Blob(160, const Color(0xFF3B82F6).withOpacity(0.42)), // blue
+            ),
+
+            // (2) Frost menutup seluruh kartu (memburamkan blob di belakangnya).
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+                child: const SizedBox.expand(),
+              ),
+            ),
+
+            // (3) Isi: fill sangat transparan (bukan navy pekat) + border tipis.
+            Container(
+              padding: padding,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.16),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.30),
+                  width: 1.2,
+                ),
+              ),
+              child: child,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

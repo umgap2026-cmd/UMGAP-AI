@@ -346,12 +346,12 @@ def app_version():
     # force_update: True = user WAJIB update dulu sebelum bisa masuk app.
     #               False = cuma muncul popup opsional (ada tombol "Nanti").
     return jsonify({
-        "latest_version": "1.8.0",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
+        "latest_version": "1.8.1",      # ← update tiap rilis baru (samakan dgn "version:" di pubspec.yaml, TANPA +buildNumber)
         "min_version":    "1.2.0",      # versi minimum yang boleh jalan
         "force_update":   False,        # True = wajib update, False = opsional
         "update_url":     "https://umgap-ai.my.id/static/downloads/umgap-latest.apk",
         "sha256":         "",           # opsional, belum divalidasi di app
-        "message":        "Versi baru v1.8.0: Dashboard Home dipoles -- ketiga kartu ringkasan (Admin/Owner/Karyawan) kini satu bahasa visual glass, animasi masuk halus, & skeleton loading saat data belum masuk."
+        "message":        "Versi baru v1.8.1: kartu ringkasan Home kini kaca beneran -- ada cahaya warna lembut yg diburamkan di baliknya (bukan cuma navy transparan), makin mirip referensi glassmorphism."
     })
 
 @app.route("/ping")
