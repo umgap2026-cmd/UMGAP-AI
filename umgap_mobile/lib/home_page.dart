@@ -1023,6 +1023,7 @@ class _HomePageState extends State<HomePage>
                             summary: summary,
                             timeStr: _timeStr,
                             loading: _dashLoading,
+                            onStatTap: _go,
                           )
                         : _UserOverviewCard(
                             poin: poin,
@@ -1170,67 +1171,63 @@ class _OwnerBusinessCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: USpace.lg),
+                // Baris tombol bulat -- meniru pola referensi (saldo besar
+                // + deretan tombol bulat kecil di bawahnya), gantikan kartu
+                // metrik persegi yg lama. Murni info (tanpa onTap) krn tidak
+                // ada 1 halaman spesifik per-metrik utk owner.
+                Row(
+                  children: [
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.trending_up_rounded,
+                        value: formatRp(revenue),
+                        label: 'Omzet',
+                        color: _cGreen,
+                      ),
+                    ),
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.account_balance_wallet_rounded,
+                        value: formatRp(profit),
+                        label: 'Profit',
+                        color: _cAmber,
+                      ),
+                    ),
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.payments_rounded,
+                        value: formatRp(salary),
+                        label: 'Gaji',
+                        color: _cRed,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: USpace.base),
                 Row(
                   children: [
                     Expanded(
-                      child: _OwnerMainMetric(
-                        title: 'Omzet',
-                        value: formatRp(revenue),
-                        icon: Icons.trending_up_rounded,
-                        color: _cGreen,
-                      ),
-                    ),
-                    const SizedBox(width: USpace.sm),
-                    Expanded(
-                      child: _OwnerMainMetric(
-                        title: 'Profit Est.',
-                        value: formatRp(profit),
-                        icon: Icons.account_balance_wallet_rounded,
-                        color: _cAmber,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: USpace.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _OwnerMiniMetric(
-                        title: 'Gaji',
-                        value: formatRp(salary),
-                        icon: Icons.payments_rounded,
-                        color: _cRed,
-                      ),
-                    ),
-                    const SizedBox(width: USpace.sm),
-                    Expanded(
-                      child: _OwnerMiniMetric(
-                        title: 'Stok',
-                        value: formatRp(stock),
+                      child: _CircleStatButton(
                         icon: Icons.inventory_2_rounded,
+                        value: formatRp(stock),
+                        label: 'Stok',
                         color: _cTeal,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: USpace.sm),
-                Row(
-                  children: [
                     Expanded(
-                      child: _OwnerMiniMetric(
-                        title: 'Hutang',
-                        value: formatRp(debt),
+                      child: _CircleStatButton(
                         icon: Icons.outbound_rounded,
+                        value: formatRp(debt),
+                        label: 'Hutang',
                         color: _cOrange,
                       ),
                     ),
-                    const SizedBox(width: USpace.sm),
                     Expanded(
-                      child: _OwnerMiniMetric(
-                        title: 'Piutang',
-                        value: formatRp(receivable),
+                      child: _CircleStatButton(
                         icon: Icons.call_received_rounded,
+                        value: formatRp(receivable),
+                        label: 'Piutang',
                         color: _cBlue,
                       ),
                     ),
@@ -1350,124 +1347,6 @@ class _OwnerBusinessCard extends StatelessWidget {
   }
 }
 
-class _OwnerMainMetric extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _OwnerMainMetric({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(USpace.md),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(URadius.md),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 9),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.48),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OwnerMiniMetric extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _OwnerMiniMetric({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(USpace.sm),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(URadius.sm),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(URadius.sm),
-            ),
-            child: Icon(icon, color: color, size: 17),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.44),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _AiReviewSheet extends StatelessWidget {
   final String analysis;
@@ -1659,11 +1538,16 @@ class _AdminOverviewCard extends StatelessWidget {
   final Map<String, dynamic> summary;
   final String timeStr;
   final bool loading;
+  // Navigasi tombol bulat (Area interaktif) -- selalu diisi _go() dari
+  // HomePage, rute yg dipanggil (Kelola User/Absensi/dst) sudah ada di
+  // routes map _go(), tidak ada rute baru yg ditambah di sini.
+  final void Function(String title) onStatTap;
 
   const _AdminOverviewCard({
     required this.summary,
     required this.timeStr,
     required this.loading,
+    required this.onStatTap,
   });
 
   @override
@@ -1746,43 +1630,54 @@ class _AdminOverviewCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(
                   USpace.base, 0, USpace.base, USpace.lg,
                 ),
-                child: loading
-                    ? const Row(
-                        children: [
-                          Expanded(child: _StatTileSkeleton()),
-                          Expanded(child: _StatTileSkeleton()),
-                          Expanded(child: _StatTileSkeleton()),
-                          Expanded(child: _StatTileSkeleton()),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          _StatTile(
-                            icon: Icons.people_alt_rounded,
-                            value: '${summary['total_employees'] ?? 0}',
-                            label: 'Karyawan',
-                            color: Colors.white,
-                          ),
-                          _StatTile(
-                            icon: Icons.fingerprint_rounded,
-                            value: '${summary['total_attendance_today'] ?? 0}',
-                            label: 'Hadir',
-                            color: const Color(0xFF6EE7B7),
-                          ),
-                          _StatTile(
-                            icon: Icons.pending_actions_rounded,
-                            value: '${summary['total_pending'] ?? 0}',
-                            label: 'Pending',
-                            color: const Color(0xFFFCD34D),
-                          ),
-                          _StatTile(
-                            icon: Icons.inventory_2_rounded,
-                            value: '${summary['total_products'] ?? 0}',
-                            label: 'Produk',
-                            color: const Color(0xFFC4B5FD),
-                          ),
-                        ],
+                // Baris tombol bulat (bukan tile persegi lagi) -- meniru
+                // pola referensi (saldo besar + deretan tombol bulat kecil
+                // di bawahnya) sekaligus benar2 bisa ditekan: tiap tombol
+                // membuka halaman terkait yg sudah ada di routing _go().
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.people_alt_rounded,
+                        value: '${summary['total_employees'] ?? 0}',
+                        label: 'Karyawan',
+                        color: Colors.white,
+                        loading: loading,
+                        onTap: () => onStatTap('Kelola User'),
                       ),
+                    ),
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.fingerprint_rounded,
+                        value: '${summary['total_attendance_today'] ?? 0}',
+                        label: 'Hadir',
+                        color: const Color(0xFF6EE7B7),
+                        loading: loading,
+                        onTap: () => onStatTap('Absensi'),
+                      ),
+                    ),
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.pending_actions_rounded,
+                        value: '${summary['total_pending'] ?? 0}',
+                        label: 'Pending',
+                        color: const Color(0xFFFCD34D),
+                        loading: loading,
+                        onTap: () => onStatTap('Persetujuan Absensi'),
+                      ),
+                    ),
+                    Expanded(
+                      child: _CircleStatButton(
+                        icon: Icons.inventory_2_rounded,
+                        value: '${summary['total_products'] ?? 0}',
+                        label: 'Produk',
+                        color: const Color(0xFFC4B5FD),
+                        loading: loading,
+                        onTap: () => onStatTap('Produk Global'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1918,47 +1813,14 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(URadius.md),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.13),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            color: _cAmber,
-                            size: 22,
-                          ),
-                          const SizedBox(height: 5),
-                          widget.loading
-                              ? const _ShimmerBox(width: 22, height: 16)
-                              : Text(
-                                  '${widget.poin}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    fontFeatures: [FontFeature.tabularFigures()],
-                                  ),
-                                ),
-                          const Text(
-                            'Poin',
-                            style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
+                    // Badge Poin jadi tombol bulat -- selaras dgn motif
+                    // baru di kartu Admin/Owner (meniru pola referensi).
+                    _CircleStatButton(
+                      icon: Icons.star_rounded,
+                      value: '${widget.poin}',
+                      label: 'Poin',
+                      color: _cAmber,
+                      loading: widget.loading,
                     ),
                   ],
                 ),
@@ -2403,56 +2265,114 @@ class _AllMenusSheet extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
+// ── Tombol/badge bulat (icon di lingkaran + value + label) -- meniru
+//    pola referensi (saldo besar + baris tombol bulat kecil di bawahnya).
+//    Dipakai di ketiga kartu hero, gantikan tile persegi yg lama.
+//    `onTap` null = murni informasi (tanpa animasi tekan, dipakai owner
+//    krn tidak ada 1 halaman spesifik per-metrik); `onTap` terisi =
+//    benar2 dpt ditekan (scale + haptic), dipakai admin ke rute yg sudah
+//    ada di _go(). Bungkus dgn `Expanded` di caller kalau dipakai rata
+//    dlm Row (Admin/Owner); pakai langsung kalau cuma badge tunggal
+//    berukuran tetap (Poin karyawan).
+class _CircleStatButton extends StatefulWidget {
   final IconData icon;
   final String value;
   final String label;
   final Color color;
+  final bool loading;
+  final VoidCallback? onTap;
 
-  const _StatTile({
+  const _CircleStatButton({
     required this.icon,
     required this.value,
     required this.label,
     required this.color,
+    this.loading = false,
+    this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => Expanded(
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(URadius.md),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-              color: Colors.white.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ),
-    ),
+  State<_CircleStatButton> createState() => _CircleStatButtonState();
+}
+
+class _CircleStatButtonState extends State<_CircleStatButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 80),
+    reverseDuration: const Duration(milliseconds: 160),
   );
+  late final Animation<double> _s = Tween<double>(begin: 1.0, end: 0.90)
+      .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ScaleTransition(
+          scale: _s,
+          child: Container(
+            width: 50,
+            height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color.withOpacity(0.20),
+              border: Border.all(
+                color: widget.color.withOpacity(0.35),
+                width: 1.2,
+              ),
+            ),
+            child: Icon(widget.icon, color: widget.color, size: 20),
+          ),
+        ),
+        const SizedBox(height: 7),
+        widget.loading
+            ? const _ShimmerBox(width: 32, height: 12)
+            : Text(
+                widget.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+        const SizedBox(height: 2),
+        Text(
+          widget.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.55),
+            fontSize: 9.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+
+    if (widget.onTap == null) return content;
+
+    return GestureDetector(
+      onTapDown: (_) => _c.forward(),
+      onTapUp: (_) {
+        _c.reverse();
+        HapticFeedback.lightImpact();
+        widget.onTap!();
+      },
+      onTapCancel: () => _c.reverse(),
+      child: content,
+    );
+  }
 }
 
 // ── Shimmer -- dipakai skeleton hero Admin & Karyawan saat data belum
@@ -2461,11 +2381,9 @@ class _StatTile extends StatelessWidget {
 class _ShimmerBox extends StatefulWidget {
   final double width;
   final double height;
-  final BorderRadius radius;
   const _ShimmerBox({
     required this.width,
     required this.height,
-    this.radius = const BorderRadius.all(Radius.circular(6)),
   });
   @override
   State<_ShimmerBox> createState() => _ShimmerBoxState();
@@ -2488,35 +2406,12 @@ class _ShimmerBoxState extends State<_ShimmerBox>
       height: widget.height,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08 + _c.value * 0.08),
-        borderRadius: widget.radius,
+        borderRadius: BorderRadius.circular(6),
       ),
     ),
   );
 }
 
-class _StatTileSkeleton extends StatelessWidget {
-  const _StatTileSkeleton();
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.symmetric(horizontal: 3),
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.06),
-      borderRadius: BorderRadius.circular(URadius.md),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: const [
-        _ShimmerBox(width: 18, height: 18,
-            radius: BorderRadius.all(Radius.circular(5))),
-        SizedBox(height: 8),
-        _ShimmerBox(width: 28, height: 14),
-        SizedBox(height: 4),
-        _ShimmerBox(width: 40, height: 9),
-      ],
-    ),
-  );
-}
 
 class _Orb extends StatelessWidget {
   final double size;
