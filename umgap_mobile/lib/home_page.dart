@@ -49,6 +49,26 @@ final List<BoxShadow> _kCardShadow = [
   ),
 ];
 
+// ── Token lokal RENCANA_UIUX_HOME.md -- radius & shadow kartu hero
+//    (glass) dipusatkan di sini spy ketiga role (admin/owner/karyawan)
+//    kebagian bahasa visual yg sama persis, tanpa angka literal
+//    tersebar di 3 tempat berbeda. Bukan di skala URadius yg ada krn
+//    nilainya memang khusus utk kartu hero, bukan kartu biasa. ──
+const double _kHeroRadius = 20;
+const double _kCardRadius = 16;
+final List<BoxShadow> _kGlassShadow = [
+  BoxShadow(
+    color: UColors.navy.withOpacity(0.24),
+    blurRadius: 28,
+    offset: const Offset(0, 12),
+  ),
+  BoxShadow(
+    color: Colors.black.withOpacity(0.06),
+    blurRadius: 10,
+    offset: const Offset(0, 3),
+  ),
+];
+
 class HomePage extends StatefulWidget {
   final String role;
   final String name;
@@ -686,158 +706,152 @@ class _HomePageState extends State<HomePage>
           ),
           padding: EdgeInsets.zero,
           children: [
-            _buildHeader(
-              summary: summary,
-              poin: poin,
-              alreadyAbsen: alreadyAbsen,
-              absenTime: absenTime,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                USpace.base,
-                USpace.lg,
-                0,
-                0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: USpace.base,
-                      bottom: USpace.md,
-                    ),
-                    child: Text(
-                      'Akses Cepat',
-                      style: UText.label.copyWith(
-                        color: UColors.textMid,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 46,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _shortcutMenus.length,
-                      itemBuilder: (_, i) {
-                        final m = _shortcutMenus[i];
-                        final color = m['color'] as Color;
-                        return GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            _go(m['title'] as String);
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(right: USpace.sm),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: USpace.md,
-                            ),
-                            decoration: BoxDecoration(
-                              color: UColors.card,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: _kCardShadow,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.22),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    m['icon'] as IconData,
-                                    color: color,
-                                    size: 16,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  m['title'] as String,
-                                  style: const TextStyle(
-                                    color: UColors.textDark,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+            _entrance(
+              0.0,
+              _buildHeader(
+                summary: summary,
+                poin: poin,
+                alreadyAbsen: alreadyAbsen,
+                absenTime: absenTime,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                USpace.base,
-                USpace.xl,
-                USpace.base,
-                USpace.md,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Menu Utama', style: UText.h4),
-                  if (isAdmin || isOwner)
-                    GestureDetector(
-                      onTap: _showAllMenus,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: USpace.md,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: UColors.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(URadius.full),
-                        ),
-                        child: Text(
-                          'Lihat Semua',
-                          style: UText.caption.copyWith(
-                            color: UColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                USpace.base,
-                0,
-                USpace.base,
-                40,
-              ),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 0.85,
+            _entrance(
+              0.15,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  USpace.base,
+                  USpace.lg,
+                  0,
+                  0,
                 ),
-                itemCount: isAdmin || isOwner
-                    ? (_gridMenus.length > 8 ? 8 : _gridMenus.length)
-                    : _gridMenus.length,
-                itemBuilder: (_, i) => _GridMenuCard(
-                  title: _gridMenus[i]['title'] as String,
-                  icon: _gridMenus[i]['icon'] as IconData,
-                  color: _gridMenus[i]['color'] as Color,
-                  onTap: () => _go(_gridMenus[i]['title'] as String),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: USpace.base,
+                        bottom: USpace.md,
+                      ),
+                      child: Text(
+                        'Akses Cepat',
+                        style: UText.label.copyWith(
+                          color: UColors.textMid,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 46,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: _shortcutMenus.length,
+                        itemBuilder: (_, i) {
+                          final m = _shortcutMenus[i];
+                          return _AksesCepatChip(
+                            title: m['title'] as String,
+                            icon: m['icon'] as IconData,
+                            color: m['color'] as Color,
+                            onTap: () => _go(m['title'] as String),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _entrance(
+              0.3,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  USpace.base,
+                  USpace.xl,
+                  USpace.base,
+                  USpace.md,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Menu Utama', style: UText.h4),
+                    if (isAdmin || isOwner)
+                      GestureDetector(
+                        onTap: _showAllMenus,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: USpace.md,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: UColors.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(URadius.full),
+                          ),
+                          child: Text(
+                            'Lihat Semua',
+                            style: UText.caption.copyWith(
+                              color: UColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            _entrance(
+              0.3,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  USpace.base,
+                  0,
+                  USpace.base,
+                  40,
+                ),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: isAdmin || isOwner
+                      ? (_gridMenus.length > 8 ? 8 : _gridMenus.length)
+                      : _gridMenus.length,
+                  itemBuilder: (_, i) => _GridMenuCard(
+                    title: _gridMenus[i]['title'] as String,
+                    icon: _gridMenus[i]['icon'] as IconData,
+                    color: _gridMenus[i]['color'] as Color,
+                    onTap: () => _go(_gridMenus[i]['title'] as String),
+                  ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Entrance animation (Area 5 RENCANA_UIUX_HOME.md) -- _entryCtrl
+  //    sudah dibuat & di-forward() sejak initState tapi belum dipakai;
+  //    dipakai di sini utk fade + slide-up bertahap per section, pakai
+  //    Interval di rentang controller yg sama (bukan controller baru). ──
+  Widget _entrance(double start, Widget child) {
+    final curved = CurvedAnimation(
+      parent: _entryCtrl,
+      curve: Interval(start, (start + 0.5).clamp(0.0, 1.0), curve: Curves.easeOut),
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
       ),
     );
   }
@@ -1008,12 +1022,14 @@ class _HomePageState extends State<HomePage>
                         ? _AdminOverviewCard(
                             summary: summary,
                             timeStr: _timeStr,
+                            loading: _dashLoading,
                           )
                         : _UserOverviewCard(
                             poin: poin,
                             timeStr: _timeStr,
                             alreadyAbsen: alreadyAbsen,
                             absenTime: absenTime,
+                            loading: _dashLoading,
                             onAbsen: () => Navigator.push(
                               context,
                               uRoute(const AttendancePage()),
@@ -1070,21 +1086,25 @@ class _OwnerBusinessCard extends StatelessWidget {
     final health = stats['health_score'] ?? stats['company_score'] ?? 0;
     final quality = stats['quality_score'] ?? stats['attendance_quality'] ?? 0;
 
-    return Container(
+    // Bahasa visual "glass hero" yg sama dgn Admin/Karyawan -- fill
+    // gradient navy semi-transparan + blur + border putih tipis.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_kHeroRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [UColors.navy, Color(0xFF102C63), Color(0xFF0E7490)],
+        gradient: LinearGradient(
+          colors: [
+            UColors.navy.withOpacity(0.8),
+            const Color(0xFF0E7490).withOpacity(0.6),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(URadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: UColors.navy.withOpacity(0.28),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(_kHeroRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        boxShadow: _kGlassShadow,
       ),
       child: Stack(
         children: [
@@ -1358,6 +1378,8 @@ class _OwnerBusinessCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    ),
       ),
     );
   }
@@ -1671,10 +1693,12 @@ class _AiLoadingButtonState extends State<_AiLoadingButton>
 class _AdminOverviewCard extends StatelessWidget {
   final Map<String, dynamic> summary;
   final String timeStr;
+  final bool loading;
 
   const _AdminOverviewCard({
     required this.summary,
     required this.timeStr,
+    required this.loading,
   });
 
   @override
@@ -1684,7 +1708,7 @@ class _AdminOverviewCard extends StatelessWidget {
     // border putih tipis, shadow lembut. Sengaja diberi ClipRRect di
     // luar supaya blur & konten ikut kepotong radius kartu.
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(_kHeroRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
@@ -1697,15 +1721,9 @@ class _AdminOverviewCard extends StatelessWidget {
                 const Color(0xFF18488A).withOpacity(0.6),
               ],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(_kHeroRadius),
             border: Border.all(color: Colors.white.withOpacity(0.22)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F2A52).withOpacity(0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            boxShadow: _kGlassShadow,
           ),
           child: Column(
             children: [
@@ -1780,34 +1798,43 @@ class _AdminOverviewCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(
                   USpace.base, 0, USpace.base, USpace.lg,
                 ),
-                child: Row(
-                  children: [
-                    _StatTile(
-                      icon: Icons.people_alt_rounded,
-                      value: '${summary['total_employees'] ?? 0}',
-                      label: 'Karyawan',
-                      color: Colors.white,
-                    ),
-                    _StatTile(
-                      icon: Icons.fingerprint_rounded,
-                      value: '${summary['total_attendance_today'] ?? 0}',
-                      label: 'Hadir',
-                      color: const Color(0xFF6EE7B7),
-                    ),
-                    _StatTile(
-                      icon: Icons.pending_actions_rounded,
-                      value: '${summary['total_pending'] ?? 0}',
-                      label: 'Pending',
-                      color: const Color(0xFFFCD34D),
-                    ),
-                    _StatTile(
-                      icon: Icons.inventory_2_rounded,
-                      value: '${summary['total_products'] ?? 0}',
-                      label: 'Produk',
-                      color: const Color(0xFFC4B5FD),
-                    ),
-                  ],
-                ),
+                child: loading
+                    ? const Row(
+                        children: [
+                          Expanded(child: _StatTileSkeleton()),
+                          Expanded(child: _StatTileSkeleton()),
+                          Expanded(child: _StatTileSkeleton()),
+                          Expanded(child: _StatTileSkeleton()),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          _StatTile(
+                            icon: Icons.people_alt_rounded,
+                            value: '${summary['total_employees'] ?? 0}',
+                            label: 'Karyawan',
+                            color: Colors.white,
+                          ),
+                          _StatTile(
+                            icon: Icons.fingerprint_rounded,
+                            value: '${summary['total_attendance_today'] ?? 0}',
+                            label: 'Hadir',
+                            color: const Color(0xFF6EE7B7),
+                          ),
+                          _StatTile(
+                            icon: Icons.pending_actions_rounded,
+                            value: '${summary['total_pending'] ?? 0}',
+                            label: 'Pending',
+                            color: const Color(0xFFFCD34D),
+                          ),
+                          _StatTile(
+                            icon: Icons.inventory_2_rounded,
+                            value: '${summary['total_products'] ?? 0}',
+                            label: 'Produk',
+                            color: const Color(0xFFC4B5FD),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -1864,6 +1891,7 @@ class _UserOverviewCard extends StatefulWidget {
   final VoidCallback onAbsen;
   final bool alreadyAbsen;
   final String absenTime;
+  final bool loading;
 
   const _UserOverviewCard({
     required this.poin,
@@ -1871,6 +1899,7 @@ class _UserOverviewCard extends StatefulWidget {
     required this.onAbsen,
     required this.alreadyAbsen,
     required this.absenTime,
+    required this.loading,
   });
 
   @override
@@ -1904,26 +1933,25 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // Bahasa visual "glass hero" yg sama dgn Admin -- fill gradient
+    // navy semi-transparan + blur + border putih tipis, bukan solid.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_kHeroRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [UColors.navy, UColors.navyMid, Color(0xFF1A3A7A)],
+        gradient: LinearGradient(
+          colors: [
+            UColors.navy.withOpacity(0.8),
+            const Color(0xFF1A3A7A).withOpacity(0.6),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(URadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: UColors.navy.withOpacity(0.32),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: UColors.cyan.withOpacity(0.08),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(_kHeroRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        boxShadow: _kGlassShadow,
       ),
       child: Stack(
         children: [
@@ -1994,15 +2022,17 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
                             size: 22,
                           ),
                           const SizedBox(height: 5),
-                          Text(
-                            '${widget.poin}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              fontFeatures: [FontFeature.tabularFigures()],
-                            ),
-                          ),
+                          widget.loading
+                              ? const _ShimmerBox(width: 22, height: 16)
+                              : Text(
+                                  '${widget.poin}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                ),
                           const Text(
                             'Poin',
                             style: TextStyle(
@@ -2147,13 +2177,15 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
                         width: double.infinity,
                         height: 52,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [UColors.cyan, UColors.primaryMid],
+                          // Aksen karyawan = hijau (beda dari admin=cyan,
+                          // owner=amber) -- dulu ikut cyan-nya admin.
+                          gradient: LinearGradient(
+                            colors: [UColors.success, _cGreen],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           borderRadius: BorderRadius.circular(URadius.md),
-                          boxShadow: UShadow.lg(UColors.cyan),
+                          boxShadow: UShadow.lg(UColors.success),
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -2194,6 +2226,8 @@ class _UserOverviewCardState extends State<_UserOverviewCard>
             ),
           ),
         ],
+      ),
+    ),
       ),
     );
   }
@@ -2255,7 +2289,7 @@ class _GridMenuCardState extends State<_GridMenuCard>
         child: Container(
           decoration: BoxDecoration(
             color: UColors.card,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(_kCardRadius),
             boxShadow: _kCardShadow,
           ),
           child: Column(
@@ -2289,6 +2323,89 @@ class _GridMenuCardState extends State<_GridMenuCard>
                     fontSize: 10,
                     height: 1.3,
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Chip "Akses Cepat" -- pola press-scale sama dgn _GridMenuCard
+//    (Area 3 RENCANA_UIUX_HOME.md: umpan-balik tekan spy selaras dgn
+//    kartu grid). ──
+class _AksesCepatChip extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AksesCepatChip({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_AksesCepatChip> createState() => _AksesCepatChipState();
+}
+
+class _AksesCepatChipState extends State<_AksesCepatChip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 80),
+    reverseDuration: const Duration(milliseconds: 160),
+  );
+  late final Animation<double> _s = Tween<double>(begin: 1.0, end: 0.94)
+      .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
+
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _c.forward(),
+      onTapUp: (_) {
+        _c.reverse();
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
+      onTapCancel: () => _c.reverse(),
+      child: ScaleTransition(
+        scale: _s,
+        child: Container(
+          margin: const EdgeInsets.only(right: USpace.sm),
+          padding: const EdgeInsets.symmetric(horizontal: USpace.md),
+          decoration: BoxDecoration(
+            color: UColors.card,
+            borderRadius: BorderRadius.circular(_kCardRadius),
+            boxShadow: _kCardShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: widget.color.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(URadius.sm),
+                ),
+                child: Icon(widget.icon, color: widget.color, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  color: UColors.textDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -2423,6 +2540,69 @@ class _StatTile extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  );
+}
+
+// ── Shimmer -- dipakai skeleton hero Admin & Karyawan saat data belum
+//    masuk (_dashLoading), spy tidak menampilkan angka 0 yg menyesatkan
+//    seolah beneran nol karyawan/hadir/dll. ──
+class _ShimmerBox extends StatefulWidget {
+  final double width;
+  final double height;
+  final BorderRadius radius;
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    this.radius = const BorderRadius.all(Radius.circular(6)),
+  });
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this, duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    builder: (_, __) => Container(
+      width: widget.width,
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08 + _c.value * 0.08),
+        borderRadius: widget.radius,
+      ),
+    ),
+  );
+}
+
+class _StatTileSkeleton extends StatelessWidget {
+  const _StatTileSkeleton();
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.symmetric(horizontal: 3),
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(URadius.md),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: const [
+        _ShimmerBox(width: 18, height: 18,
+            radius: BorderRadius.all(Radius.circular(5))),
+        SizedBox(height: 8),
+        _ShimmerBox(width: 28, height: 14),
+        SizedBox(height: 4),
+        _ShimmerBox(width: 40, height: 9),
+      ],
     ),
   );
 }
